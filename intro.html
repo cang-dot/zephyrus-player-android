@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZephyrusPlayer - 为音乐而生</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --accent: #0f2b8a;
+      --accent-light: #1a3fba;
+      --accent-glow: rgba(15, 43, 138, 0.3);
+      --bg: #050508;
+      --bg-elevated: #0c0c12;
+      --bg-card: #111118;
+      --text-primary: #f0f0f5;
+      --text-secondary: #8888a0;
+      --text-muted: #555570;
+      --border: rgba(255,255,255,0.06);
+      --font: 'Space Grotesk', system-ui, sans-serif;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f8f8fc;
+        --bg-elevated: #ffffff;
+        --bg-card: #ffffff;
+        --text-primary: #0a0a12;
+        --text-secondary: #555570;
+        --text-muted: #8888a0;
+        --border: rgba(0,0,0,0.08);
+      }
+    }
+
+    html {
+      scroll-behavior: auto;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text-primary);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ============================================
+       SPLASH SECTION (pinned, scroll-controlled)
+       ============================================ */
+    .splash-wrapper {
+      position: relative;
+      height: 500vh;
+    }
+
+    .splash-pin {
+      position: sticky;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .splash-pin { background: #050508; }
+    }
+
+    .splash-left-bar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 80px;
+      height: 100%;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+      will-change: transform, width;
+    }
+
+    .splash-left-text {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      color: #ffffff;
+      font-size: 14px;
+      letter-spacing: 2px;
+      white-space: nowrap;
+    }
+
+    .splash-right-bar {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 320px;
+      height: 100px;
+      background: var(--accent);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      z-index: 2;
+      will-change: transform, width;
+    }
+
+    .splash-right-title {
+      color: #ffffff;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 4px;
+    }
+
+    .splash-right-author {
+      color: rgba(255,255,255,0.8);
+      font-size: 13px;
+      letter-spacing: 2px;
+    }
+
+    .splash-bottom-bar {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      height: 60px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+      z-index: 1;
+      will-change: transform, height;
+    }
+
+    .splash-center {
+      position: absolute;
+      top: 42%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      z-index: 3;
+    }
+
+    .splash-title-zephyrus {
+      font-size: clamp(48px, 8vw, 96px);
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: -2px;
+      line-height: 1.05;
+      will-change: transform, opacity;
+    }
+
+    .splash-center-line {
+      width: min(400px, 80vw);
+      height: 2px;
+      background: var(--accent);
+      transform-origin: center;
+      will-change: transform;
+    }
+
+    .splash-title-player {
+      font-size: clamp(48px, 8vw, 96px);
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: -2px;
+      line-height: 1.05;
+      align-self: flex-end;
+      will-change: transform, opacity;
+    }
+
+    /* Fill screen overlay */
+    .splash-fill-left {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 0;
+      height: 100%;
+      background: var(--accent);
+      z-index: 10;
+      will-change: width;
+    }
+
+    .splash-fill-right {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 0;
+      height: 100%;
+      background: var(--accent);
+      z-index: 10;
+      will-change: width;
+    }
+
+    .splash-fill-overlay {
+      position: absolute;
+      inset: 0;
+      background: var(--accent);
+      z-index: 10;
+      opacity: 0;
+      will-change: opacity;
+    }
+
+    /* ============================================
+       INTRO CONTENT
+       ============================================ */
+    .intro-content {
+      position: relative;
+      z-index: 20;
+      background: var(--bg);
+    }
+
+    /* Hero */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 120px 24px 80px;
+      text-align: center;
+      position: relative;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 100px;
+      background: var(--accent-glow);
+      border: 1px solid rgba(15,43,138,0.2);
+      color: var(--accent-light);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    .hero-title {
+      font-size: clamp(40px, 7vw, 88px);
+      font-weight: 700;
+      letter-spacing: -3px;
+      line-height: 1;
+      margin-bottom: 24px;
+      opacity: 0;
+      transform: translateY(30px);
+    }
+
+    .hero-title span {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 50%, #4a7dff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(16px, 2vw, 22px);
+      color: var(--text-secondary);
+      max-width: 600px;
+      line-height: 1.6;
+      margin-bottom: 48px;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    .hero-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 36px;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    .hero-cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px var(--accent-glow);
+    }
+
+    .hero-cta:active {
+      transform: translateY(0) scale(0.98);
+    }
+
+    .hero-scroll-hint {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 12px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      opacity: 0;
+    }
+
+    .hero-scroll-hint .line {
+      width: 1px;
+      height: 40px;
+      background: linear-gradient(to bottom, var(--text-muted), transparent);
+      animation: scrollPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes scrollPulse {
+      0%, 100% { opacity: 0.3; transform: scaleY(0.6); }
+      50% { opacity: 1; transform: scaleY(1); }
+    }
+
+    /* Section base */
+    .section {
+      padding: 120px 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent-light);
+      margin-bottom: 16px;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    .section-title {
+      font-size: clamp(28px, 4vw, 52px);
+      font-weight: 700;
+      letter-spacing: -1.5px;
+      line-height: 1.1;
+      margin-bottom: 20px;
+      opacity: 0;
+      transform: translateY(30px);
+    }
+
+    .section-desc {
+      font-size: clamp(15px, 1.5vw, 18px);
+      color: var(--text-secondary);
+      max-width: 560px;
+      line-height: 1.7;
+      margin-bottom: 64px;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    /* Feature Grid */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 28px;
+      position: relative;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(40px);
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .feature-card:hover {
+      border-color: rgba(15,43,138,0.3);
+      box-shadow: 0 4px 24px rgba(15,43,138,0.08);
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-light));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .feature-card:hover::before {
+      opacity: 1;
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: var(--accent-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      font-size: 22px;
+    }
+
+    .feature-card h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      letter-spacing: -0.3px;
+    }
+
+    .feature-card p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+    }
+
+    /* Showcase - full width visual */
+    .showcase {
+      padding: 0 24px;
+      margin-bottom: 120px;
+    }
+
+    .showcase-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      border-radius: 20px;
+      overflow: hidden;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      aspect-ratio: 16/9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      opacity: 0;
+      transform: translateY(40px) scale(0.97);
+    }
+
+    .showcase-inner .mock-ui {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .mock-topbar {
+      height: 48px;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 8px;
+    }
+
+    .mock-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      opacity: 0.3;
+    }
+
+    .mock-body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      overflow: hidden;
+    }
+
+    .mock-sidebar {
+      background: rgba(255,255,255,0.02);
+      border-right: 1px solid var(--border);
+      padding: 20px;
+    }
+
+    .mock-sidebar-item {
+      height: 12px;
+      border-radius: 6px;
+      background: var(--text-muted);
+      opacity: 0.15;
+      margin-bottom: 12px;
+    }
+
+    .mock-sidebar-item:nth-child(1) { width: 80%; opacity: 0.25; }
+    .mock-sidebar-item:nth-child(2) { width: 65%; }
+    .mock-sidebar-item:nth-child(3) { width: 75%; }
+    .mock-sidebar-item:nth-child(4) { width: 50%; }
+
+    .mock-main {
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .mock-player-bar {
+      height: 72px;
+      border-radius: 12px;
+      background: var(--accent-glow);
+      border: 1px solid rgba(15,43,138,0.15);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      margin-top: auto;
+    }
+
+    .mock-album-art {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+    }
+
+    .mock-track-info {
+      flex: 1;
+    }
+
+    .mock-track-title {
+      height: 10px;
+      width: 140px;
+      border-radius: 5px;
+      background: var(--text-primary);
+      opacity: 0.3;
+      margin-bottom: 6px;
+    }
+
+    .mock-track-artist {
+      height: 8px;
+      width: 80px;
+      border-radius: 4px;
+      background: var(--text-secondary);
+      opacity: 0.2;
+    }
+
+    .mock-progress {
+      height: 3px;
+      border-radius: 2px;
+      background: var(--text-muted);
+      opacity: 0.15;
+      width: 200px;
+    }
+
+    .mock-content-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .mock-card {
+      height: 120px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+    }
+
+    .mock-card:nth-child(1) { background: rgba(15,43,138,0.08); }
+
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      max-width: 800px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .stat-item {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+
+    .stat-number {
+      font-size: clamp(32px, 5vw, 56px);
+      font-weight: 700;
+      letter-spacing: -2px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 60px 24px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+
+    .footer-text {
+      font-size: 13px;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-top: 16px;
+    }
+
+    .footer-links a {
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--accent-light);
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .splash-wrapper { height: auto; }
+      .splash-pin { position: relative; }
+      .splash-fill-left, .splash-fill-right, .splash-fill-overlay { display: none; }
+      .splash-left-bar, .splash-right-bar, .splash-bottom-bar { opacity: 0; }
+      .splash-center { opacity: 1; }
+      .splash-title-zephyrus, .splash-title-player { opacity: 1; transform: none; }
+      .splash-center-line { transform: scaleX(1); }
+      .hero-badge, .hero-title, .hero-subtitle, .hero-cta, .hero-scroll-hint,
+      .section-label, .section-title, .section-desc, .feature-card,
+      .showcase-inner, .stat-item {
+        opacity: 1 !important;
+        transform: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== SPLASH ==================== -->
+  <div class="splash-wrapper" id="splashWrapper">
+    <div class="splash-pin" id="splashPin">
+      <div class="splash-left-bar" id="splashLeftBar">
+        <span class="splash-left-text">基于AlgerMusicPlayer修改</span>
+      </div>
+
+      <div class="splash-right-bar" id="splashRightBar">
+        <span class="splash-right-title">西风播放器</span>
+        <span class="splash-right-author">—— cang-dot ——</span>
+      </div>
+
+      <div class="splash-bottom-bar" id="splashBottomBar"></div>
+
+      <div class="splash-center" id="splashCenter">
+        <div class="splash-title-zephyrus" id="splashZephyrus">Zephyrus</div>
+        <div class="splash-center-line" id="splashLine"></div>
+        <div class="splash-title-player" id="splashPlayer">Player</div>
+      </div>
+
+      <div class="splash-fill-left" id="splashFillLeft"></div>
+      <div class="splash-fill-right" id="splashFillRight"></div>
+      <div class="splash-fill-overlay" id="splashFillOverlay"></div>
+    </div>
+  </div>
+
+  <!-- ==================== INTRO ==================== -->
+  <div class="intro-content" id="introContent">
+
+    <!-- Hero -->
+    <section class="hero" id="hero">
+      <div class="hero-badge">v0.9.3 &mdash; 开源 &middot; 免费 &middot; 无广告</div>
+      <h1 class="hero-title">为音乐而生的<br><span>桌面播放器</span></h1>
+      <p class="hero-subtitle">ZephyrusPlayer 基于 Electron 构建，支持多音源聚合、歌词可视化、高潮段落检测与杂志式排版，让每一次聆听都有仪式感。</p>
+      <a href="https://github.com/cang-dot/zephyrus-player" class="hero-cta" target="_blank">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+        GitHub
+      </a>
+      <div class="hero-scroll-hint">
+        <span>向下滚动</span>
+        <div class="line"></div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="section" id="featuresSection">
+      <div class="section-label">核心功能</div>
+      <h2 class="section-title">不止于播放</h2>
+      <p class="section-desc">从音源聚合到歌词排版，从鼓点检测到高潮可视化，每一个功能都为极致听感而设计。</p>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-light)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </div>
+          <h3>多音源聚合</h3>
+          <p>集成多个音乐平台接口，一站式搜索、播放、收藏，告别来回切换的烦恼。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-light)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          </div>
+          <h3>鼓点检测引擎</h3>
+          <p>基于频谱通量算法实时分析音频节奏，精确识别鼓点位置，为可视化提供节拍数据。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-light)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </div>
+          <h3>杂志式歌词排版</h3>
+          <p>基于 Intl.Segmenter 的智能中文分词，Grid 网格布局 + 色彩块动态着色，歌词不再是滚动字幕。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-light)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <h3>高潮段落标记</h3>
+          <p>智能识别歌曲高潮区间，在进度条上直观标记，一键跳转到最燃的段落。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-light)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <h3>专辑封面着色</h3>
+          <p>从当前播放歌曲的封面提取主色调，动态驱动整个界面的 accent color，每首歌都有专属氛围。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-light)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <h3>模块化架构</h3>
+          <p>Framework + Component 分层设计，核心逻辑解耦为独立模块，易于扩展和定制。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Showcase -->
+    <section class="showcase" id="showcaseSection">
+      <div class="showcase-inner" id="showcaseCard">
+        <div class="mock-ui">
+          <div class="mock-topbar">
+            <div class="mock-dot"></div>
+            <div class="mock-dot"></div>
+            <div class="mock-dot"></div>
+          </div>
+          <div class="mock-body">
+            <div class="mock-sidebar">
+              <div class="mock-sidebar-item"></div>
+              <div class="mock-sidebar-item"></div>
+              <div class="mock-sidebar-item"></div>
+              <div class="mock-sidebar-item"></div>
+            </div>
+            <div class="mock-main">
+              <div class="mock-content-grid">
+                <div class="mock-card"></div>
+                <div class="mock-card"></div>
+                <div class="mock-card"></div>
+              </div>
+              <div class="mock-player-bar">
+                <div class="mock-album-art"></div>
+                <div class="mock-track-info">
+                  <div class="mock-track-title"></div>
+                  <div class="mock-track-artist"></div>
+                </div>
+                <div class="mock-progress"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="section" id="statsSection">
+      <div class="stats-row">
+        <div class="stat-item">
+          <div class="stat-number" data-count="6">0</div>
+          <div class="stat-label">核心模块</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" data-count="192">0</div>
+          <div class="stat-label">依赖模块</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" data-count="100">0</div>
+          <div class="stat-label">开源免费 %</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="section" id="ctaSection" style="text-align: center; padding-bottom: 160px;">
+      <h2 class="section-title" style="margin-bottom: 16px;">开始使用</h2>
+      <p class="section-desc" style="margin: 0 auto 48px; text-align: center;">免费下载，开箱即用。支持 Windows 和 macOS。</p>
+      <a href="https://github.com/cang-dot/zephyrus-player/releases" class="hero-cta" target="_blank" style="opacity:1;transform:none;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        下载 v0.9.3
+      </a>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-text">ZephyrusPlayer &copy; 2025 cang-dot &middot; 基于 AlgerMusicPlayer 修改</div>
+      <div class="footer-links">
+        <a href="https://github.com/cang-dot/zephyrus-player" target="_blank">GitHub</a>
+        <a href="https://github.com/cang-dot/zephyrus-player/issues" target="_blank">反馈问题</a>
+      </div>
+    </footer>
+  </div>
+
+  <!-- GSAP -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script>
+    gsap.registerPlugin(ScrollTrigger);
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (!reducedMotion) {
+      // ===== SPLASH SCROLL-SCRUBBED TIMELINE =====
+      // The splash-wrapper is 500vh tall. The splash-pin is sticky.
+      // As user scrolls, the timeline scrubs through the splash animation.
+      // Phase 1 (0-0.4): Entry animation (bars slide in, line expands, text appears)
+      // Phase 2 (0.4-0.6): Hold / display
+      // Phase 3 (0.6-0.85): Fill screen (bars expand to cover everything)
+      // Phase 4 (0.85-1): Fade out overlay, reveal intro
+
+      const splashTl = gsap.timeline({
+        scrollTrigger: {
+          trigger: '#splashWrapper',
+          start: 'top top',
+          end: 'bottom bottom',
+          scrub: 0.8,
+          pin: false,
+        }
+      });
+
+      // Phase 1: Entry
+      splashTl.from('#splashLeftBar', {
+        x: '-100%',
+        duration: 0.12,
+        ease: 'power3.out'
+      }, 0);
+
+      splashTl.from('#splashRightBar', {
+        x: '100%',
+        y: '100%',
+        duration: 0.12,
+        ease: 'power3.out'
+      }, 0.01);
+
+      splashTl.from('#splashBottomBar', {
+        y: '100%',
+        duration: 0.1,
+        ease: 'power3.out'
+      }, 0.02);
+
+      splashTl.from('#splashLine', {
+        scaleX: 0,
+        duration: 0.08,
+        ease: 'power2.out'
+      }, 0.06);
+
+      splashTl.from('#splashZephyrus', {
+        y: 40,
+        autoAlpha: 0,
+        duration: 0.1,
+        ease: 'power2.out'
+      }, 0.07);
+
+      splashTl.from('#splashPlayer', {
+        y: -40,
+        autoAlpha: 0,
+        duration: 0.1,
+        ease: 'power2.out'
+      }, 0.07);
+
+      // Phase 2: Hold (nothing happens, just time passing)
+      // Phase 3: Exit - texts retreat
+      splashTl.to('#splashZephyrus', {
+        y: 40,
+        autoAlpha: 0,
+        duration: 0.08,
+        ease: 'power2.in'
+      }, 0.55);
+
+      splashTl.to('#splashPlayer', {
+        y: -40,
+        autoAlpha: 0,
+        duration: 0.08,
+        ease: 'power2.in'
+      }, 0.55);
+
+      splashTl.to('#splashLine', {
+        scaleX: 0,
+        duration: 0.06,
+        ease: 'power2.in'
+      }, 0.58);
+
+      // Fill: bars expand to cover screen
+      splashTl.to('#splashLeftBar', {
+        width: '50vw',
+        duration: 0.12,
+        ease: 'power3.inOut'
+      }, 0.62);
+
+      splashTl.to('#splashRightBar', {
+        width: '50vw',
+        x: '-50vw',
+        duration: 0.12,
+        ease: 'power3.inOut'
+      }, 0.62);
+
+      splashTl.to('#splashBottomBar', {
+        height: '100vh',
+        duration: 0.12,
+        ease: 'power3.inOut'
+      }, 0.62);
+
+      // Also hide left text before fill
+      splashTl.to('.splash-left-text', {
+        autoAlpha: 0,
+        duration: 0.04
+      }, 0.6);
+
+      // Full overlay fades in
+      splashTl.to('#splashFillOverlay', {
+        opacity: 1,
+        duration: 0.08,
+        ease: 'power2.inOut'
+      }, 0.72);
+
+      // Then the whole splash pin fades out
+      splashTl.to('#splashPin', {
+        autoAlpha: 0,
+        duration: 0.06,
+        ease: 'power2.inOut'
+      }, 0.88);
+
+      // ===== INTRO SECTION ANIMATIONS =====
+
+      // Hero stagger
+      const heroTl = gsap.timeline({
+        scrollTrigger: {
+          trigger: '#hero',
+          start: 'top 80%',
+          toggleActions: 'play none none none'
+        }
+      });
+
+      heroTl.to('.hero-badge', { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' }, 0)
+        .to('.hero-title', { opacity: 1, y: 0, duration: 0.7, ease: 'power2.out' }, 0.1)
+        .to('.hero-subtitle', { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' }, 0.25)
+        .to('.hero-cta', { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' }, 0.4)
+        .to('.hero-scroll-hint', { opacity: 0.6, duration: 0.8, ease: 'power2.out' }, 0.6);
+
+      // Features section
+      const featTl = gsap.timeline({
+        scrollTrigger: {
+          trigger: '#featuresSection',
+          start: 'top 75%',
+          toggleActions: 'play none none none'
+        }
+      });
+
+      featTl.to('.section-label', { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' }, 0)
+        .to('#featuresSection .section-title', { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' }, 0.1)
+        .to('#featuresSection .section-desc', { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' }, 0.2);
+
+      // Feature cards stagger
+      gsap.utils.toArray('.feature-card').forEach((card, i) => {
+        gsap.to(card, {
+          opacity: 1,
+          y: 0,
+          duration: 0.6,
+          ease: 'power2.out',
+          scrollTrigger: {
+            trigger: card,
+            start: 'top 85%',
+            toggleActions: 'play none none none'
+          },
+          delay: i * 0.08
+        });
+      });
+
+      // Showcase
+      gsap.to('#showcaseCard', {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.8,
+        ease: 'power2.out',
+        scrollTrigger: {
+          trigger: '#showcaseSection',
+          start: 'top 75%',
+          toggleActions: 'play none none none'
+        }
+      });
+
+      // Stats
+      gsap.utils.toArray('.stat-item').forEach((item, i) => {
+        gsap.to(item, {
+          opacity: 1,
+          y: 0,
+          duration: 0.6,
+          ease: 'power2.out',
+          scrollTrigger: {
+            trigger: item,
+            start: 'top 85%',
+            toggleActions: 'play none none none'
+          },
+          delay: i * 0.12,
+          onComplete: () => {
+            // Count up animation
+            const numEl = item.querySelector('.stat-number');
+            const target = parseInt(numEl.dataset.count);
+            gsap.to({ val: 0 }, {
+              val: target,
+              duration: 1.2,
+              ease: 'power2.out',
+              onUpdate: function() {
+                numEl.textContent = Math.round(this.targets()[0].val);
+              }
+            });
+          }
+        });
+      });
+
+      // CTA
+      gsap.to('#ctaSection .section-title', {
+        opacity: 1,
+        y: 0,
+        duration: 0.6,
+        ease: 'power2.out',
+        scrollTrigger: {
+          trigger: '#ctaSection',
+          start: 'top 80%',
+          toggleActions: 'play none none none'
+        }
+      });
+
+      gsap.to('#ctaSection .section-desc', {
+        opacity: 1,
+        y: 0,
+        duration: 0.5,
+        ease: 'power2.out',
+        scrollTrigger: {
+          trigger: '#ctaSection',
+          start: 'top 80%',
+          toggleActions: 'play none none none'
+        },
+        delay: 0.1
+      });
+
+    } else {
+      // Reduced motion: show everything immediately
+      document.querySelectorAll('.hero-badge, .hero-title, .hero-subtitle, .hero-cta, .hero-scroll-hint, .section-label, .section-title, .section-desc, .feature-card, .showcase-inner, .stat-item').forEach(el => {
+        el.style.opacity = '1';
+        el.style.transform = 'none';
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StagePlayer 预览</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; font-family: system-ui, sans-serif; }
+    .preview-container { width: 100vw; height: 100vh; position: relative; overflow: hidden; }
+    .controls {
+      position: fixed; top: 20px; left: 20px; z-index: 9999;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(20px);
+      padding: 16px 20px; border-radius: 12px; color: #fff; font-size: 14px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .controls h3 { margin-bottom: 12px; font-size: 16px; }
+    .controls button {
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+      color: #fff; padding: 8px 16px; border-radius: 8px; cursor: pointer;
+      margin: 4px; font-size: 13px; transition: all 0.2s;
+    }
+    .controls button:hover { background: rgba(255,255,255,0.2); }
+    .controls button.active { background: #22c55e; border-color: #22c55e; }
+    .status {
+      position: fixed; bottom: 20px; left: 20px; z-index: 9999;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(20px);
+      padding: 12px 16px; border-radius: 8px; color: #aaa; font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div class="controls">
+    <h3>StagePlayer 预览控制</h3>
+    <div>
+      <button onclick="playDemo()" class="active">播放演示</button>
+      <button onclick="pauseDemo()">暂停</button>
+    </div>
+    <div style="margin-top: 12px;">
+      <button onclick="switchMode('normal')">普通模式</button>
+      <button onclick="switchMode('rhythm')">节奏模式</button>
+    </div>
+    <div style="margin-top: 12px;">
+      <button onclick="triggerClimax()">触发高潮</button>
+    </div>
+  </div>
+
+  <div class="status" id="status">模式: normal | 歌词: 0/0 | 高潮: false</div>
+
+  <script type="module">
+    // 模拟歌词数据
+    const normalLyrics = [
+      { text: '我多浪荡 我多肮脏', startTime: 0, duration: 3000 },
+      { text: '千页笔墨写我的罪状', startTime: 3200, duration: 3500 },
+      { text: '我的狂妄 我的思想', startTime: 7000, duration: 3000 },
+      { text: '附着在这丑陋的皮囊', startTime: 10500, duration: 3500 },
+      { text: '我多荒唐 我多擅长', startTime: 14500, duration: 3000 },
+      { text: '把腐烂编织成乐章', startTime: 18000, duration: 3000 },
+    ];
+
+    const rhythmLyrics = [
+      {
+        text: '预约 打卡 进入 退出',
+        startTime: 22000, duration: 4000,
+        hasWordByWord: true,
+        words: [
+          { text: '预约', startTime: 22000, duration: 800, space: true },
+          { text: '打卡', startTime: 23200, duration: 800, space: true },
+          { text: '进入', startTime: 24400, duration: 700, space: true },
+          { text: '退出', startTime: 25500, duration: 600 },
+        ]
+      },
+      {
+        text: '时代 钟摆 时间 删除',
+        startTime: 27000, duration: 4500,
+        hasWordByWord: true,
+        words: [
+          { text: '时代', startTime: 27000, duration: 900, space: true },
+          { text: '钟摆', startTime: 28300, duration: 800, space: true },
+          { text: '时间', startTime: 29500, duration: 700, space: true },
+          { text: '删除', startTime: 30600, duration: 1200 },
+        ]
+      },
+    ];
+
+    const allLyrics = [...normalLyrics, ...rhythmLyrics];
+    let currentIndex = 0;
+    let isPlaying = true;
+    let currentMode = 'normal';
+    let timer = null;
+
+    // 8种普通动画预设
+    const animations = [
+      { name: '从右侧滑入', css: 'translateX(60px)', ease: 'power2.out' },
+      { name: '从左侧滑入', css: 'translateX(-60px)', ease: 'power2.out' },
+      { name: '从上方滑入', css: 'translateY(-40px)', ease: 'power2.out' },
+      { name: '从下方滑入', css: 'translateY(40px)', ease: 'power2.out' },
+      { name: '淡入', css: 'opacity(0)', ease: 'power2.out' },
+      { name: '逐字淡入', css: 'scale(0.95)', ease: 'power2.out' },
+      { name: '缩放淡入', css: 'scale(0.9)', ease: 'back.out(1.7)' },
+      { name: '模糊淡入', css: 'blur(8px)', ease: 'power2.out' },
+    ];
+
+    // 3种节奏动画预设
+    const rhythmAnimations = [
+      { name: '砸落', css: 'translateY(-80px)', ease: 'bounce.out' },
+      { name: '颤抖', css: 'translateX(3px)', ease: 'none' },
+      { name: '普通淡入', css: 'opacity(0)', ease: 'power2.out' },
+    ];
+
+    let lastIndex = -1;
+    let lastLineIndex = -1;
+
+    function selectAnimation(lineIndex) {
+      if (lineIndex === lastLineIndex && lastIndex !== -1) return lastIndex;
+      const available = [];
+      for (let i = 0; i < 8; i++) {
+        if (i === lastIndex) continue;
+        if (lastIndex !== -1 && Math.abs(i - lastIndex) === 1) continue;
+        available.push(i);
+      }
+      const selected = available[Math.floor(Math.random() * available.length)];
+      lastIndex = selected;
+      lastLineIndex = lineIndex;
+      return selected;
+    }
+
+    function detectMode(line) {
+      if (line.hasWordByWord && line.words) {
+        for (let i = 1; i < line.words.length; i++) {
+          const prev = line.words[i-1];
+          const curr = line.words[i];
+          const gap = curr.startTime - (prev.startTime + prev.duration);
+          if (gap > 300) return 'rhythm';
+        }
+      }
+      return 'normal';
+    }
+
+    // 背景层
+    const bgLayer = document.createElement('div');
+    bgLayer.style.cssText = `
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      opacity: 0.8;
+    `;
+    document.getElementById('app').appendChild(bgLayer);
+
+    // 舞台灯光
+    const lightsContainer = document.createElement('div');
+    lightsContainer.style.cssText = 'position: absolute; inset: 0; overflow: hidden; pointer-events: none;';
+    for (let i = 0; i < 6; i++) {
+      const light = document.createElement('div');
+      light.style.cssText = `
+        position: absolute;
+        width: 300px; height: 120vh; top: -20vh;
+        left: ${15 + i * 14}%;
+        background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 100%);
+        clip-path: polygon(40% 0%, 60% 0%, 100% 100%, 0% 100%);
+        filter: blur(2px);
+        opacity: 0.3;
+        animation: lightRotate ${20 + i * 2}s linear infinite;
+        transform-origin: 50% 0%;
+      `;
+      light.className = 'stage-light';
+      light.dataset.index = i;
+      lightsContainer.appendChild(light);
+    }
+    document.getElementById('app').appendChild(lightsContainer);
+
+    // 添加灯光动画CSS
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes lightRotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      @keyframes lightBreathe { 0%,100% { opacity: 0.2; } 50% { opacity: 0.5; } }
+      .stage-light { animation: lightRotate 25s linear infinite, lightBreathe 4s ease-in-out infinite; }
+      .stage-light.climax { opacity: 0.8 !important; filter: blur(0px) brightness(1.5); }
+    `;
+    document.head.appendChild(style);
+
+    // 歌词容器
+    const lyricContainer = document.createElement('div');
+    lyricContainer.style.cssText = `
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column;
+    `;
+    document.getElementById('app').appendChild(lyricContainer);
+
+    // 歌词元素
+    const lyricEl = document.createElement('div');
+    lyricEl.style.cssText = `
+      font-size: clamp(32px, 5vw, 56px); font-weight: 700;
+      text-align: center; color: rgba(255,255,255,0.95);
+      text-shadow: 0 0 40px rgba(255,255,255,0.3);
+      min-height: 80px; display: flex; align-items: center; justify-content: center;
+      transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    `;
+    lyricContainer.appendChild(lyricEl);
+
+    // 歌曲信息
+    const songInfo = document.createElement('div');
+    songInfo.style.cssText = `
+      position: absolute; top: 40px; left: 50%; transform: translateX(-50%);
+      text-align: center; color: rgba(255,255,255,0.6);
+    `;
+    songInfo.innerHTML = `
+      <div style="font-size: 18px; font-weight: 600; margin-bottom: 4px;">辩证下船</div>
+      <div style="font-size: 14px;">唯利玉碎计划</div>
+    `;
+    document.getElementById('app').appendChild(songInfo);
+
+    function updateStatus() {
+      const status = document.getElementById('status');
+      status.textContent = `模式: ${currentMode} | 歌词: ${currentIndex}/${allLyrics.length} | 高潮: ${isClimax}`;
+    }
+
+    function showLyric(index) {
+      if (index >= allLyrics.length) index = 0;
+      currentIndex = index;
+      const line = allLyrics[index];
+      const mode = detectMode(line);
+      currentMode = mode;
+
+      if (mode === 'normal') {
+        const animIndex = selectAnimation(index);
+        const anim = animations[animIndex];
+
+        lyricEl.textContent = line.text;
+        lyricEl.style.transition = 'none';
+
+        // 设置初始状态
+        if (animIndex === 4) { // 淡入
+          lyricEl.style.opacity = '0';
+        } else if (animIndex === 5) { // 逐字淡入
+          lyricEl.innerHTML = '';
+          line.text.split('').forEach((char, i) => {
+            const span = document.createElement('span');
+            span.textContent = char;
+            span.style.opacity = '0';
+            span.style.display = 'inline-block';
+            lyricEl.appendChild(span);
+          });
+          setTimeout(() => {
+            lyricEl.querySelectorAll('span').forEach((span, i) => {
+              setTimeout(() => { span.style.opacity = '1'; }, i * 50);
+            });
+          }, 50);
+        } else {
+          lyricEl.style.opacity = '0';
+          lyricEl.style.transform = anim.css;
+        }
+
+        // 执行动画
+        setTimeout(() => {
+          lyricEl.style.transition = `all 0.6s cubic-bezier(0.32, 0.72, 0, 1)`;
+          lyricEl.style.opacity = '1';
+          lyricEl.style.transform = 'none';
+          lyricEl.style.filter = 'none';
+        }, 50);
+
+        updateStatus();
+      } else {
+        // 节奏模式：逐词显示
+        showRhythmWords(line, index);
+      }
+    }
+
+    function showRhythmWords(line, lineIndex) {
+      if (!line.words) return;
+      let wordIndex = 0;
+
+      function showNextWord() {
+        if (wordIndex >= line.words.length) {
+          // 所有词显示完毕，切换到下一句
+          setTimeout(() => showLyric(lineIndex + 1), 500);
+          return;
+        }
+
+        const word = line.words[wordIndex];
+        const prevWord = wordIndex > 0 ? line.words[wordIndex - 1] : null;
+
+        // 选择节奏动画
+        let anim;
+        if (prevWord) {
+          const gap = word.startTime - (prevWord.startTime + prevWord.duration);
+          if (gap > 300) {
+            anim = rhythmAnimations[0]; // 砸落
+          } else if (word.duration > 800) {
+            anim = rhythmAnimations[1]; // 颤抖
+          } else {
+            anim = rhythmAnimations[2]; // 普通
+          }
+        } else {
+          anim = rhythmAnimations[2]; // 第一个词用普通
+        }
+
+        // 设置初始状态
+        lyricEl.textContent = word.text;
+        lyricEl.style.transition = 'none';
+        lyricEl.style.opacity = '0';
+
+        if (anim === rhythmAnimations[0]) {
+          lyricEl.style.transform = 'translateY(-80px)';
+        } else if (anim === rhythmAnimations[1]) {
+          lyricEl.style.transform = 'translateX(3px)';
+        }
+
+        // 执行入场动画
+        setTimeout(() => {
+          lyricEl.style.transition = `all 0.5s cubic-bezier(0.32, 0.72, 0, 1)`;
+          lyricEl.style.opacity = '1';
+          lyricEl.style.transform = 'none';
+        }, 50);
+
+        // 停留后退出
+        const displayTime = Math.min(word.duration, 1500);
+        setTimeout(() => {
+          lyricEl.style.opacity = '0';
+          setTimeout(() => {
+            wordIndex++;
+            showNextWord();
+          }, 300);
+        }, displayTime);
+
+        updateStatus();
+      }
+
+      showNextWord();
+    }
+
+    let isClimax = false;
+
+    window.playDemo = () => {
+      isPlaying = true;
+      showLyric(currentIndex);
+      timer = setInterval(() => {
+        if (isPlaying) showLyric(currentIndex + 1);
+      }, 4000);
+    };
+
+    window.pauseDemo = () => {
+      isPlaying = false;
+      if (timer) clearInterval(timer);
+    };
+
+    window.switchMode = (mode) => {
+      currentMode = mode;
+      if (mode === 'rhythm') {
+        currentIndex = normalLyrics.length; // 跳到节奏模式的歌词
+      } else {
+        currentIndex = 0;
+      }
+      showLyric(currentIndex);
+      updateStatus();
+    };
+
+    window.triggerClimax = () => {
+      isClimax = !isClimax;
+      document.querySelectorAll('.stage-light').forEach(light => {
+        if (isClimax) {
+          light.classList.add('climax');
+        } else {
+          light.classList.remove('climax');
+        }
+      });
+      updateStatus();
+    };
+
+    // 自动开始
+    showLyric(0);
+  </script>
+</body>
+</html>
