@@ -47,7 +47,7 @@
     <!-- 顶部标题（悬浮层） -->
     <div class="grid-header">
       <h2 class="grid-title">我的音乐</h2>
-      <p class="grid-subtitle">{{ items.length }} 张专辑 · 悬停滚轮滑动 · 可拖动</p>
+      <p class="grid-subtitle">{{ items.length }} 张专辑 · 滑动浏览 · 可拖动</p>
     </div>
 
     <!-- 底部渐变遮罩 -->
@@ -99,9 +99,9 @@ const DRAG_THRESHOLD = 8; // 拖动激活阈值（px），避免点击误判
 
 const ROW_CONFIG = [
   { dir: 'right' as const, baseSpeed: 25 },
-  { dir: 'left'  as const, baseSpeed: 30 },
-  { dir: 'left'  as const, baseSpeed: 22 },
-  { dir: 'right' as const, baseSpeed: 28 },
+  { dir: 'left' as const, baseSpeed: 30 },
+  { dir: 'left' as const, baseSpeed: 22 },
+  { dir: 'right' as const, baseSpeed: 28 }
 ];
 
 const gridRows = computed(() => {
@@ -165,26 +165,30 @@ function normalizeOffset(rowIndex: number) {
   if (!half || half <= 1) return;
   let off = rowOffsets[rowIndex] || 0;
   // 用取模代替 while 循环，一步到位
-  off = -(((-off) % half));
+  off = -(-off % half);
   if (off > 0) off -= half;
   if (off < -half) off += half;
   rowOffsets[rowIndex] = off;
 }
 
 // 初始化每行偏移
-watch(gridRows, () => {
-  nextTick(() => {
-    refreshHalfWidths();
-    for (let i = 0; i < gridRows.value.length; i++) {
-      if (i === 1 || i === 2) {
-        rowOffsets[i] = -(CELL_SIZE + GAP) * 2;
-      } else {
-        const half = halfWidths[i] || 1;
-        rowOffsets[i] = -((CELL_SIZE + GAP) * (i * 3 + 1)) % half;
+watch(
+  gridRows,
+  () => {
+    nextTick(() => {
+      refreshHalfWidths();
+      for (let i = 0; i < gridRows.value.length; i++) {
+        if (i === 1 || i === 2) {
+          rowOffsets[i] = -(CELL_SIZE + GAP) * 2;
+        } else {
+          const half = halfWidths[i] || 1;
+          rowOffsets[i] = -((CELL_SIZE + GAP) * (i * 3 + 1)) % half;
+        }
       }
-    }
-  });
-}, { immediate: true });
+    });
+  },
+  { immediate: true }
+);
 
 // ==================== 自动滚动 ====================
 const hoveredRow = ref<number | null>(null);
@@ -372,7 +376,13 @@ onUnmounted(() => {
   align-items: center;
   min-height: 0;
   mask-image: linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 6%,
+    black 94%,
+    transparent 100%
+  );
   cursor: grab;
 
   &.is-dragging {
@@ -419,20 +429,21 @@ onUnmounted(() => {
   display: block;
 }
 
-// 悬停遮罩
+// 封面遮罩（移动端常驻显示）
 .cell-overlay {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: flex-end;
   padding: 12px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.4) 40%, transparent 70%);
-  opacity: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.85) 0%,
+    rgba(0, 0, 0, 0.4) 40%,
+    transparent 70%
+  );
+  opacity: 1;
   transition: opacity 0.3s ease;
-
-  .grid-cell:hover & {
-    opacity: 1;
-  }
 
   // 拖拽中不显示遮罩
   .is-dragging & {
@@ -460,7 +471,12 @@ onUnmounted(() => {
   right: 0;
   z-index: 10;
   padding: 20px 28px 14px;
-  background: linear-gradient(to bottom, rgba(10, 10, 10, 0.95) 0%, rgba(10, 10, 10, 0.6) 70%, transparent 100%);
+  background: linear-gradient(
+    to bottom,
+    rgba(10, 10, 10, 0.95) 0%,
+    rgba(10, 10, 10, 0.6) 70%,
+    transparent 100%
+  );
   pointer-events: none;
 }
 

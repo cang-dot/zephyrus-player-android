@@ -109,7 +109,15 @@ export default {
   // Playback settings
   settings: {
     title: 'Playback Settings',
-    playbackSpeed: 'Playback Speed'
+    playbackSpeed: 'Playback Speed',
+    playerStyle: 'Player Style'
+  },
+  // Player styles
+  styles: {
+    default: 'Default',
+    stage: 'Stage',
+    magazine: 'Magazine',
+    frenzy: 'Frenzy'
   },
   // Sleep timer related
   sleepTimer: {

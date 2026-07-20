@@ -16,24 +16,32 @@
             @input="onSearchInput"
             @keydown.escape="clearSearch"
           />
-          <button
-            v-if="searchQuery"
-            class="settings-search-clear"
-            @click="clearSearch"
-          >
+          <button v-if="searchQuery" class="settings-search-clear" @click="clearSearch">
             <i class="ri-close-line" />
           </button>
         </div>
       </div>
     </div>
-    <div class="flex flex-1 min-h-0">
-      <!-- 搜索模式下隐藏左侧导航 -->
-      <setting-nav
+    <div class="flex flex-1 min-h-0 flex-col">
+      <!-- 顶部 chip 栏（搜索模式下隐藏） -->
+      <div
         v-show="!isSearching"
-        :sections="navSections"
-        :current-section="currentSection"
-        @navigate="currentSection = $event"
-      />
+        class="flex-shrink-0 scrollbar-hide flex gap-2 overflow-x-auto px-4 pb-2"
+      >
+        <button
+          v-for="section in navSections"
+          :key="section.id"
+          class="flex-shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-all"
+          :class="
+            currentSection === section.id
+              ? 'bg-[var(--accent-color)] text-white'
+              : 'bg-neutral-100/60 text-neutral-500 dark:bg-white/[0.04] dark:text-neutral-400'
+          "
+          @click="currentSection = section.id"
+        >
+          {{ section.title }}
+        </button>
+      </div>
       <div ref="contentRef" class="flex-1 overflow-y-auto min-h-0">
         <div class="w-full mx-auto pb-32 pt-6 page-padding">
           <!-- 搜索结果模式 -->
@@ -52,7 +60,11 @@
                 <div class="d-tag-sm search-result-tab">{{ result.tabLabel }}</div>
                 <div class="search-result-info">
                   <div class="search-result-title" v-html="highlight(result.title)" />
-                  <div v-if="result.desc" class="search-result-desc" v-html="highlight(result.desc)" />
+                  <div
+                    v-if="result.desc"
+                    class="search-result-desc"
+                    v-html="highlight(result.desc)"
+                  />
                 </div>
                 <i class="ri-arrow-right-s-line search-result-arrow" />
               </div>
@@ -107,7 +119,6 @@ import { useI18n } from 'vue-i18n';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import { useSettingsStore } from '@/store/modules/settings';
 import { isElectron } from '@/utils';
-import SettingNav from '@/views/set/SettingNav.vue';
 
 import config from '../../../../package.json';
 import { createDefaultAppUpdateState } from '../../../shared/appUpdate';
@@ -115,10 +126,10 @@ import { SETTINGS_DATA_KEY, SETTINGS_DIALOG_KEY, SETTINGS_MESSAGE_KEY } from './
 import AboutTab from './tabs/AboutTab.vue';
 import ApplicationTab from './tabs/ApplicationTab.vue';
 import BasicTab from './tabs/BasicTab.vue';
+import ExtraFeaturesTab from './tabs/ExtraFeaturesTab.vue';
 import InterfaceTab from './tabs/InterfaceTab.vue';
 import NetworkTab from './tabs/NetworkTab.vue';
 import PlaybackTab from './tabs/PlaybackTab.vue';
-import ExtraFeaturesTab from './tabs/ExtraFeaturesTab.vue';
 import SystemTab from './tabs/SystemTab.vue';
 
 const settingsStore = useSettingsStore();
@@ -242,7 +253,9 @@ function highlight(text: string): string {
 const settingIndex = computed<SearchResult[]>(() => {
   const items: SearchResult[] = [];
   const tabLabels: Record<string, string> = {};
-  navSections.value.forEach((s) => { tabLabels[s.id] = s.title; });
+  navSections.value.forEach((s) => {
+    tabLabels[s.id] = s.title;
+  });
 
   // 基础设置
   const basicItems = [
@@ -254,7 +267,13 @@ const settingIndex = computed<SearchResult[]>(() => {
     { title: t('settings.basic.defaultPage'), desc: t('settings.basic.defaultPageDesc') }
   ];
   basicItems.forEach((item) => {
-    items.push({ tabId: 'basic', tabLabel: tabLabels['basic'], title: item.title, desc: item.desc, titlePath: item.title });
+    items.push({
+      tabId: 'basic',
+      tabLabel: tabLabels['basic'],
+      title: item.title,
+      desc: item.desc,
+      titlePath: item.title
+    });
   });
 
   // 界面设置
@@ -275,7 +294,13 @@ const settingIndex = computed<SearchResult[]>(() => {
     { title: t('settings.interface.sidebarOrder'), desc: t('settings.interface.sidebarOrderDesc') }
   ];
   interfaceItems.forEach((item) => {
-    items.push({ tabId: 'interface', tabLabel: tabLabels['interface'], title: item.title, desc: item.desc, titlePath: item.title });
+    items.push({
+      tabId: 'interface',
+      tabLabel: tabLabels['interface'],
+      title: item.title,
+      desc: item.desc,
+      titlePath: item.title
+    });
   });
 
   // 播放设置
@@ -287,7 +312,13 @@ const settingIndex = computed<SearchResult[]>(() => {
     { title: t('settings.playback.gapless'), desc: t('settings.playback.gaplessDesc') }
   ];
   playbackItems.forEach((item) => {
-    items.push({ tabId: 'playback', tabLabel: tabLabels['playback'], title: item.title, desc: item.desc, titlePath: item.title });
+    items.push({
+      tabId: 'playback',
+      tabLabel: tabLabels['playback'],
+      title: item.title,
+      desc: item.desc,
+      titlePath: item.title
+    });
   });
 
   // 应用设置
@@ -296,11 +327,23 @@ const settingIndex = computed<SearchResult[]>(() => {
       { title: t('settings.application.gpu'), desc: t('settings.application.gpuDesc') },
       { title: t('settings.application.diskCache'), desc: t('settings.application.diskCacheDesc') },
       { title: t('settings.application.cacheSize'), desc: t('settings.application.cacheSizeDesc') },
-      { title: t('settings.application.downloadPath'), desc: t('settings.application.downloadPathDesc') },
-      { title: t('settings.application.closeAction'), desc: t('settings.application.closeActionDesc') }
+      {
+        title: t('settings.application.downloadPath'),
+        desc: t('settings.application.downloadPathDesc')
+      },
+      {
+        title: t('settings.application.closeAction'),
+        desc: t('settings.application.closeActionDesc')
+      }
     ];
     appItems.forEach((item) => {
-      items.push({ tabId: 'application', tabLabel: tabLabels['application'], title: item.title, desc: item.desc, titlePath: item.title });
+      items.push({
+        tabId: 'application',
+        tabLabel: tabLabels['application'],
+        title: item.title,
+        desc: item.desc,
+        titlePath: item.title
+      });
     });
   }
 
@@ -313,7 +356,13 @@ const settingIndex = computed<SearchResult[]>(() => {
       { title: t('settings.network.musicSources'), desc: t('settings.network.musicSourcesDesc') }
     ];
     networkItems.forEach((item) => {
-      items.push({ tabId: 'network', tabLabel: tabLabels['network'], title: item.title, desc: item.desc, titlePath: item.title });
+      items.push({
+        tabId: 'network',
+        tabLabel: tabLabels['network'],
+        title: item.title,
+        desc: item.desc,
+        titlePath: item.title
+      });
     });
   }
 
@@ -325,7 +374,13 @@ const settingIndex = computed<SearchResult[]>(() => {
       { title: t('settings.system.clearCache'), desc: t('settings.system.clearCacheDesc') }
     ];
     systemItems.forEach((item) => {
-      items.push({ tabId: 'system', tabLabel: tabLabels['system'], title: item.title, desc: item.desc, titlePath: item.title });
+      items.push({
+        tabId: 'system',
+        tabLabel: tabLabels['system'],
+        title: item.title,
+        desc: item.desc,
+        titlePath: item.title
+      });
     });
   }
 
@@ -336,7 +391,13 @@ const settingIndex = computed<SearchResult[]>(() => {
     { title: '自定义 API 插件', desc: '管理 API 数据源插件' }
   ];
   pluginItems.forEach((item) => {
-    items.push({ tabId: 'plugins', tabLabel: tabLabels['plugins'], title: item.title, desc: item.desc, titlePath: item.title });
+    items.push({
+      tabId: 'plugins',
+      tabLabel: tabLabels['plugins'],
+      title: item.title,
+      desc: item.desc,
+      titlePath: item.title
+    });
   });
 
   // 关于
@@ -346,7 +407,13 @@ const settingIndex = computed<SearchResult[]>(() => {
     { title: t('settings.about.feedback'), desc: t('settings.about.feedbackDesc') }
   ];
   aboutItems.forEach((item) => {
-    items.push({ tabId: 'about', tabLabel: tabLabels['about'], title: item.title, desc: item.desc, titlePath: item.title });
+    items.push({
+      tabId: 'about',
+      tabLabel: tabLabels['about'],
+      title: item.title,
+      desc: item.desc,
+      titlePath: item.title
+    });
   });
 
   return items;
@@ -418,6 +485,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 :deep(.n-select .n-base-selection) {
   border-radius: var(--d-radius-md);
 }
@@ -534,7 +609,13 @@ onMounted(() => {
 }
 
 @keyframes flashHighlight {
-  0%, 100% { background: transparent; }
-  10%, 30% { background: rgba(var(--accent-color-rgb), 0.08); }
+  0%,
+  100% {
+    background: transparent;
+  }
+  10%,
+  30% {
+    background: rgba(var(--accent-color-rgb), 0.08);
+  }
 }
 </style>

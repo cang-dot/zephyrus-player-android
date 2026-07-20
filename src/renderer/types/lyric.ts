@@ -52,7 +52,6 @@ export interface LyricConfig {
   frenzyUseCoverBackground: boolean; // 跟随封面背景（级联第二级）
   frenzyBackgroundCustomColor: string; // 背景自定义颜色
   frenzyShowBackgroundColor: boolean; // 自定义背景（总开关）
-
 }
 
 export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
@@ -73,7 +72,7 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   animationIntensity: 'normal',
   // 移动端默认配置
   mobileLayout: 'ios',
-  mobileCoverStyle: 'full',
+  mobileCoverStyle: 'record',
   mobileShowLyricLines: 3,
   // 翻译引擎: 'none' or 'opencc'
   translationEngine: 'none',
@@ -109,8 +108,7 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   frenzyUseWhiteBackground: true,
   frenzyUseCoverBackground: true,
   frenzyBackgroundCustomColor: '#ffffff',
-  frenzyShowBackgroundColor: false,
-
+  frenzyShowBackgroundColor: false
 };
 
 export interface ILyric {

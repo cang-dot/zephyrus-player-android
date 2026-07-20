@@ -43,25 +43,12 @@
             :style="{ background: dailyCardBg }"
             @click="showDayRecommend"
           >
-            <!-- Background Image -->
-            <img
-              v-if="dayRecommendCover"
-              ref="dailyCoverRef"
-              :src="getImgUrl(dayRecommendCover, '512y512')"
-              alt=""
-              class="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-              crossorigin="anonymous"
-              @load="extractDailyColor"
-            />
-            <!-- Gradient Overlay -->
-            <div class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-black/20" />
-
             <!-- Content -->
-            <div class="relative flex h-full flex-col justify-between p-5 md:p-6">
-              <!-- Top: Title + Badge + Date (mobile) -->
+            <div class="relative flex h-full flex-col justify-between p-5">
+              <!-- Top: Title + Badge + Date -->
               <div class="flex items-start justify-between gap-3">
                 <div>
-                  <h3 class="text-2xl font-black leading-tight tracking-wider text-white md:text-3xl">
+                  <h3 class="text-2xl font-black leading-tight tracking-wider text-white">
                     {{ t('comp.homeHero.dailyRecommend') }}
                   </h3>
                   <span
@@ -71,8 +58,8 @@
                     {{ dayRecommendSongs.length }} {{ t('comp.homeHero.songs') }}
                   </span>
                 </div>
-                <!-- 移动端日期角标（桌面端隐藏） -->
-                <div class="daily-date md:hidden">
+                <!-- 日期角标 -->
+                <div class="daily-date">
                   <span class="daily-date-day">{{ dayOfMonth }}</span>
                   <span class="daily-date-week">{{ weekdayLabel }}</span>
                 </div>
@@ -82,7 +69,7 @@
                 <!-- Song Preview List (bottom-left) -->
                 <div
                   v-if="dayRecommendSongs.length > 0"
-                  class="hidden min-w-0 flex-1 flex-col gap-0.5 md:flex"
+                  class="flex min-w-0 flex-1 flex-col gap-0.5"
                 >
                   <div
                     v-for="(song, idx) in dayRecommendSongs.slice(0, 3)"
@@ -95,48 +82,34 @@
                     <span class="min-w-0 flex-1 truncate text-sm font-medium text-white/90">
                       {{ song.name }}
                     </span>
-                    <span class="flex-shrink-0 truncate text-xs text-white/40">
+                    <span class="flex-shrink-0 max-w-[80px] truncate text-xs text-white/50">
                       {{ song.ar?.[0]?.name }}
                     </span>
                   </div>
                 </div>
                 <button
-                  class="daily-play-btn flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white/90 text-neutral-900 shadow-lg transition-all duration-300 hover:scale-110 hover:bg-white active:scale-95"
+                  class="daily-play-btn flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-full bg-white/90 text-neutral-900 shadow-lg transition-all duration-300 hover:scale-110 hover:bg-white active:scale-95"
                   @click.stop="playDayRecommend"
                 >
-                  <i class="ri-play-fill ml-0.5 text-xl" />
+                  <i class="ri-play-fill ml-0.5 text-2xl" />
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- ===== 已登录 私人FM (Full Width) ===== -->
+        <!-- ===== 已登录 私人FM (紧凑横卡) ===== -->
         <div v-if="isLoggedIn" class="hero-card" :style="{ animationDelay: '0.22s' }">
           <div
-            class="fm-card fm-card--expanded group relative cursor-pointer overflow-hidden rounded-2xl shadow-sm transition-all duration-300 ease-out hover:shadow-xl"
+            class="fm-card group relative cursor-pointer overflow-hidden rounded-2xl shadow-sm transition-all duration-300 ease-out hover:shadow-xl"
             :style="{ background: fmCardBg }"
           >
-            <!-- Background blur image -->
-            <img
-              v-if="displayCover"
-              ref="fmCoverRef"
-              :src="getImgUrl(displayCover, '512y512')"
-              alt=""
-              class="absolute inset-0 h-full w-full scale-150 object-cover opacity-20 blur-3xl"
-              :class="isFmPlaying ? 'fm-bg-flow' : ''"
-              crossorigin="anonymous"
-              @load="extractFmColor"
-            />
-            <div class="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-black/10" />
-
             <!-- Content -->
-            <div class="relative flex h-full gap-6 p-6">
-              <!-- Left: Cover + Song Info -->
-              <div class="flex flex-col items-center gap-3 flex-shrink-0">
-                <!-- Album Cover -->
+            <div class="relative flex h-full items-center gap-4 p-4">
+              <!-- Left: Cover -->
+              <div class="flex-shrink-0">
                 <div
-                  class="fm-cover-lg relative w-28 h-28 md:w-36 md:h-36 overflow-hidden rounded-2xl shadow-2xl transition-transform duration-500 group-hover:scale-[1.03]"
+                  class="fm-cover-sm relative w-[96px] h-[96px] overflow-hidden rounded-2xl shadow-2xl transition-transform duration-500 group-hover:scale-[1.03]"
                 >
                   <img
                     v-if="displayCover"
@@ -163,91 +136,65 @@
                     />
                   </div>
                 </div>
-                <!-- Song Info -->
-                <div class="text-center max-w-[180px]">
-                  <h3 class="truncate text-sm font-bold text-white">
-                    {{ displaySong?.name || t('comp.homeHero.discoverMusic') }}
-                  </h3>
-                  <p class="mt-0.5 truncate text-xs text-white/50">
-                    {{ displayArtist }}
-                  </p>
-                </div>
               </div>
 
-              <!-- Center: Lyrics -->
-              <home-fm-lyrics :key="activeMode" class="flex-1 min-w-0" />
-
-              <!-- Right: Controls + Badge -->
-              <div class="flex flex-col items-end justify-between flex-shrink-0">
-                <!-- Mode Badge / Dropdown -->
-                <n-dropdown
-                  v-if="isCookieUser"
-                  trigger="click"
-                  :options="modeOptions"
-                  @select="switchMode"
+              <!-- Center: Song Info -->
+              <div class="flex-1 min-w-0">
+                <span
+                  class="mb-1 inline-flex items-center gap-1 text-[11px] font-semibold text-white/50"
                 >
-                  <span
-                    class="flex items-center gap-1 text-xs font-semibold text-white/50 cursor-pointer hover:text-white/80 transition-colors"
-                  >
-                    <i
-                      :class="
-                        activeMode === 'intelligence' ? 'ri-heart-pulse-fill' : 'ri-radio-fill'
-                      "
-                    />
-                    {{
-                      activeMode === 'intelligence'
-                        ? t('comp.homeHero.intelligenceMode')
-                        : t('comp.homeHero.personalFm')
-                    }}
-                    <i class="ri-arrow-down-s-line text-[10px]" />
-                  </span>
-                </n-dropdown>
-                <span v-else class="flex items-center gap-1 text-xs font-semibold text-white/50">
-                  <i class="ri-radio-fill" />
-                  {{ t('comp.homeHero.personalFm') }}
+                  <i
+                    :class="activeMode === 'intelligence' ? 'ri-heart-pulse-fill' : 'ri-radio-fill'"
+                  />
+                  {{
+                    activeMode === 'intelligence'
+                      ? t('comp.homeHero.intelligenceMode')
+                      : t('comp.homeHero.personalFm')
+                  }}
                 </span>
+                <h3 class="truncate text-base font-bold text-white">
+                  {{ displaySong?.name || t('comp.homeHero.discoverMusic') }}
+                </h3>
+                <p class="mt-0.5 truncate text-sm text-white/50">
+                  {{ displayArtist }}
+                </p>
+              </div>
 
-                <!-- Playback Controls -->
-                <div class="flex items-center gap-3">
-                  <button
-                    v-if="activeMode === 'intelligence'"
-                    class="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
-                    :class="isFavorite ? 'text-red-500' : 'text-white/50 hover:text-white'"
-                    :title="
-                      isFavorite ? t('comp.songItem.unfavorite') : t('comp.songItem.favorite')
-                    "
-                    @click.stop="toggleFavorite"
-                  >
-                    <i
-                      :class="isFavorite ? 'ri-heart-3-fill' : 'ri-heart-3-line'"
-                      class="text-lg"
-                    />
-                  </button>
-                  <button
-                    v-else
-                    class="flex h-9 w-9 items-center justify-center rounded-full text-white/50 transition-colors hover:text-white"
-                    :title="t('comp.homeHero.fmTrash')"
-                    @click.stop="handleFmTrash"
-                  >
-                    <i class="ri-thumb-down-line text-lg" />
-                  </button>
-                  <button
-                    class="flex h-11 w-11 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition-all duration-300 hover:scale-110 hover:bg-white/30 active:scale-95"
-                    @click.stop="handleFmPlay"
-                  >
-                    <i
-                      :class="isFmPlaying ? 'ri-pause-fill' : 'ri-play-fill ml-0.5'"
-                      class="text-xl"
-                    />
-                  </button>
-                  <button
-                    class="flex h-9 w-9 items-center justify-center rounded-full text-white/50 transition-colors hover:text-white"
-                    :title="t('comp.homeHero.fmNext')"
-                    @click.stop="handleNext"
-                  >
-                    <i class="ri-skip-forward-fill text-lg" />
-                  </button>
-                </div>
+              <!-- Right: Controls -->
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <button
+                  v-if="activeMode === 'intelligence'"
+                  class="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+                  :class="isFavorite ? 'text-red-500' : 'text-white/50 hover:text-white'"
+                  :title="isFavorite ? t('comp.songItem.unfavorite') : t('comp.songItem.favorite')"
+                  @click.stop="toggleFavorite"
+                >
+                  <i :class="isFavorite ? 'ri-heart-3-fill' : 'ri-heart-3-line'" class="text-lg" />
+                </button>
+                <button
+                  v-else
+                  class="flex h-9 w-9 items-center justify-center rounded-full text-white/50 transition-colors hover:text-white"
+                  :title="t('comp.homeHero.fmTrash')"
+                  @click.stop="handleFmTrash"
+                >
+                  <i class="ri-thumb-down-line text-lg" />
+                </button>
+                <button
+                  class="flex h-11 w-11 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition-all duration-300 hover:scale-110 hover:bg-white/30 active:scale-95"
+                  @click.stop="handleFmPlay"
+                >
+                  <i
+                    :class="isFmPlaying ? 'ri-pause-fill' : 'ri-play-fill ml-0.5'"
+                    class="text-xl"
+                  />
+                </button>
+                <button
+                  class="flex h-9 w-9 items-center justify-center rounded-full text-white/50 transition-colors hover:text-white"
+                  :title="t('comp.homeHero.fmNext')"
+                  @click.stop="handleNext"
+                >
+                  <i class="ri-skip-forward-fill text-lg" />
+                </button>
               </div>
             </div>
           </div>
@@ -322,8 +269,7 @@
 </template>
 
 <script setup lang="ts">
-import type { MenuOption } from 'naive-ui';
-import { computed, h, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
@@ -340,8 +286,6 @@ import {
   useUserStore
 } from '@/store';
 import { getImgUrl } from '@/utils';
-import { getImageBackground } from '@/utils/linearColor';
-import HomeFmLyrics from '@/views/home/components/HomeFmLyrics.vue';
 
 const { t, locale } = useI18n();
 
@@ -366,10 +310,10 @@ const fmLoading = ref(false);
 
 const hotPlaylists = ref<any[]>([]);
 const hotArtistsList = ref<any[]>([]);
-const dailyCoverRef = ref<HTMLImageElement | null>(null);
-const fmCoverRef = ref<HTMLImageElement | null>(null);
-const dailyCardBg = ref('linear-gradient(135deg, #667eea 0%, #764ba2 100%)');
-const fmCardBg = ref('linear-gradient(135deg, #e91e63 0%, #c2185b 100%)');
+
+// 移动端优先：使用 accent-color 动态取色作为卡片背景
+const dailyCardBg = ref('var(--accent-color)');
+const fmCardBg = ref('var(--accent-color)');
 
 const isLoggedIn = computed(() => !!userStore.user);
 const dayRecommendSongs = computed(() => recommendStore.dailyRecommendSongs);
@@ -389,19 +333,6 @@ const isCookieUser = computed(() => !!userStore.user && userStore.loginType === 
 const activeMode = computed(() =>
   intelligenceModeStore.isIntelligenceMode ? 'intelligence' : 'fm'
 );
-
-const modeOptions = computed<MenuOption[]>(() => [
-  {
-    key: 'fm',
-    label: t('comp.homeHero.personalFm'),
-    icon: () => h('i', { class: 'ri-radio-fill' })
-  },
-  {
-    key: 'intelligence',
-    label: t('comp.homeHero.intelligenceMode'),
-    icon: () => h('i', { class: 'ri-heart-pulse-fill' })
-  }
-]);
 
 const displaySong = computed(() => {
   if (activeMode.value === 'intelligence') return playerCoreStore.currentSong;
@@ -434,44 +365,6 @@ const isFmPlaying = computed(() => {
     playerCoreStore.isPlaying
   );
 });
-
-// ==================== Color extraction ====================
-
-const extractDailyColor = async () => {
-  const img = dailyCoverRef.value;
-  if (!img) return;
-  try {
-    const { primaryColor } = await getImageBackground(img);
-    if (primaryColor) {
-      const tinycolor = (await import('tinycolor2')).default;
-      const base = tinycolor(primaryColor);
-      const hsl = base.toHsl();
-      const c1 = tinycolor({ h: hsl.h, s: Math.min(hsl.s * 1.2, 1), l: 0.35 });
-      const c2 = tinycolor({ h: (hsl.h + 30) % 360, s: Math.min(hsl.s * 1.1, 1), l: 0.25 });
-      dailyCardBg.value = `linear-gradient(135deg, ${c1.toHexString()} 0%, ${c2.toHexString()} 100%)`;
-    }
-  } catch {
-    // keep default gradient
-  }
-};
-
-const extractFmColor = async () => {
-  const img = fmCoverRef.value;
-  if (!img) return;
-  try {
-    const { primaryColor } = await getImageBackground(img);
-    if (primaryColor) {
-      const tinycolor = (await import('tinycolor2')).default;
-      const base = tinycolor(primaryColor);
-      const hsl = base.toHsl();
-      const c1 = tinycolor({ h: hsl.h, s: Math.min(hsl.s * 1.3, 1), l: 0.4 });
-      const c2 = tinycolor({ h: (hsl.h + 20) % 360, s: Math.min(hsl.s * 1.1, 1), l: 0.3 });
-      fmCardBg.value = `linear-gradient(135deg, ${c1.toHexString()} 0%, ${c2.toHexString()} 100%)`;
-    }
-  } catch {
-    // keep default gradient
-  }
-};
 
 // ==================== FM logic (YesPlayMusic pattern) ====================
 
@@ -803,15 +696,11 @@ onActivated(() => {
 }
 .hero-grid > .hero-card > .daily-card {
   height: 100%;
-  min-height: 140px;
-  max-height: 180px;
-}
-
-/* ===== 移动端：每日推荐卡加高 + 日期角标 + 播放按钮加大 ===== */
-:global(.mobile) .hero-grid > .hero-card > .daily-card {
   min-height: 200px;
   max-height: 220px;
 }
+
+/* ===== 每日推荐卡日期角标 ===== */
 
 .daily-date {
   display: flex;
@@ -836,7 +725,7 @@ onActivated(() => {
   color: rgba(255, 255, 255, 0.75);
 }
 
-:global(.mobile) .daily-play-btn {
+.daily-play-btn {
   width: 52px;
   height: 52px;
 
@@ -844,17 +733,11 @@ onActivated(() => {
     font-size: 24px;
   }
 }
+
 .hero-grid > .hero-card > .fm-card {
   height: 100%;
-}
-.fm-card--expanded {
-  height: 380px;
-  min-height: 380px;
-  max-height: 380px;
-}
-.hero-grid > .hero-card:has(.fm-card--expanded) {
-  height: 380px;
-  min-height: 380px;
+  min-height: 120px;
+  max-height: 140px;
 }
 
 /* Card animation */
@@ -875,25 +758,6 @@ onActivated(() => {
 /* FM background flow animation when playing */
 .fm-bg-flow {
   animation: bgFlow 8s ease-in-out infinite alternate;
-}
-@keyframes bgFlow {
-  0% {
-    transform: scale(1.5) translate(0, 0);
-  }
-  33% {
-    transform: scale(1.6) translate(-3%, 2%);
-  }
-  66% {
-    transform: scale(1.55) translate(2%, -2%);
-  }
-  100% {
-    transform: scale(1.5) translate(-1%, 1%);
-  }
-}
-
-/* FM cover — sized relative to card, leaving padding space */
-.fm-cover-lg {
-  flex-shrink: 0;
 }
 
 /* FM equalizer bars */

@@ -29,196 +29,157 @@
       </div>
     </template>
     <template v-else>
+      <!-- 紧凑头部（移动端优先） -->
       <div
         v-if="userDetail && user"
-        class="relative w-full flex-shrink-0 overflow-hidden"
-        style="height: 280px"
+        class="relative w-full flex-shrink-0 px-4 pt-4"
         :class="setAnimationClass('animate__fadeIn')"
       >
-        <img
-          :src="getImgUrl(user.backgroundUrl)"
-          class="absolute inset-0 h-full w-full object-cover"
-          style="
-            mask-image: linear-gradient(to bottom, black 45%, transparent 100%);
-            -webkit-mask-image: linear-gradient(to bottom, black 45%, transparent 100%);
-          "
-        />
-        <div class="absolute inset-0 bg-gradient-to-b from-black/40 via-black/5 to-transparent" />
-        <div class="relative z-10 flex h-full items-center justify-between px-8">
-          <div class="flex items-center gap-5">
-            <n-avatar round :size="72" :src="getImgUrl(user.avatarUrl, '72y72')" />
-            <div>
-              <div class="flex items-center gap-3">
-                <span class="text-2xl font-bold text-white">{{ user.nickname }}</span>
-                <span
-                  v-if="currentLoginType"
-                  class="rounded-full border px-2 py-0.5 text-xs"
-                  style="
-                    color: var(--accent-color);
-                    border-color: rgba(var(--accent-color-rgb), 0.4);
-                  "
-                  >{{ t('login.title.' + currentLoginType) }}</span
-                >
-              </div>
-              <div class="mt-1 max-w-md truncate text-sm text-white/80">
-                {{ userDetail.profile.signature || '这个人很懒，什么都没有留下' }}
-              </div>
+        <div class="flex items-center gap-4">
+          <n-avatar round :size="56" :src="getImgUrl(user.avatarUrl, '72y72')" />
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="text-xl font-bold d-text-primary truncate">{{ user.nickname }}</span>
+              <span
+                v-if="currentLoginType"
+                class="rounded-full border px-2 py-0.5 text-[10px] flex-shrink-0"
+                style="color: var(--accent-color); border-color: rgba(var(--accent-color-rgb), 0.4)"
+                >{{ t('login.title.' + currentLoginType) }}</span
+              >
+            </div>
+            <div class="mt-0.5 truncate text-xs d-text-secondary">
+              {{ userDetail.profile.signature || '这个人很懒，什么都没有留下' }}
             </div>
           </div>
-          <div class="flex gap-8 text-white">
-            <div class="text-center">
-              <div class="text-xl font-bold">{{ userDetail.profile.followeds }}</div>
-              <div class="text-xs text-white/70">{{ t('user.profile.followers') }}</div>
-            </div>
-            <div class="cursor-pointer text-center" @click="showFollowList">
-              <div class="text-xl font-bold">{{ userDetail.profile.follows }}</div>
-              <div class="text-xs text-white/70">{{ t('user.profile.following') }}</div>
-            </div>
-            <div class="text-center">
-              <div class="text-xl font-bold">{{ userDetail.level }}</div>
-              <div class="text-xs text-white/70">{{ t('user.profile.level') }}</div>
-            </div>
+        </div>
+        <!-- 统计数据 -->
+        <div class="mt-3 flex gap-6 text-sm">
+          <div class="text-center">
+            <span class="font-bold d-text-primary">{{ userDetail.profile.followeds }}</span>
+            <span class="ml-1 text-xs d-text-muted">{{ t('user.profile.followers') }}</span>
+          </div>
+          <div class="cursor-pointer text-center" @click="showFollowList">
+            <span class="font-bold d-text-primary">{{ userDetail.profile.follows }}</span>
+            <span class="ml-1 text-xs d-text-muted">{{ t('user.profile.following') }}</span>
+          </div>
+          <div class="text-center">
+            <span class="font-bold d-text-primary">{{ userDetail.level }}</span>
+            <span class="ml-1 text-xs d-text-muted">{{ t('user.profile.level') }}</span>
           </div>
         </div>
       </div>
       <div
         v-if="userDetail && user"
-        class="relative z-20 -mt-16 px-4 pb-4 md:px-6 md:pb-6 flex-1 min-h-0"
+        class="relative z-20 px-4 pb-4 flex-1 min-h-0 overflow-y-auto"
         :class="setAnimationClass('animate__fadeIn')"
       >
-        <div class="h-full overflow-hidden page-card">
-          <div class="grid md:grid-cols-2 h-full">
+        <div class="tab-container mb-3 flex-shrink-0">
+          <n-tabs v-model:value="currentTab" type="segment" animated>
+            <n-tab v-for="tab in tabs" :key="tab.key" :name="tab.key" :tab="t(tab.label)" />
+          </n-tabs>
+        </div>
+        <!-- 歌单 2 列网格 -->
+        <div v-if="currentTab !== 'platforms'" class="grid grid-cols-2 gap-3 mb-6">
+          <button
+            v-if="isElectron && currentTab === 'created'"
+            @click="goToImportPlaylist"
+            class="import-btn flex flex-col items-center gap-2 rounded-2xl p-2"
+          >
             <div
-              class="flex flex-col overflow-hidden p-5 md:border-r"
-              style="border-color: var(--d-border)"
+              class="flex w-full items-center justify-center rounded-xl text-3xl import-btn-icon"
+              style="aspect-ratio: 1"
             >
-              <div class="tab-container mb-4 flex-shrink-0">
-                <n-tabs v-model:value="currentTab" type="segment" animated>
-                  <n-tab v-for="tab in tabs" :key="tab.key" :name="tab.key" :tab="t(tab.label)" />
-                </n-tabs>
-              </div>
-              <div class="flex-1 overflow-y-auto min-h-0">
-                <!-- 平台账号 Tab -->
-                <PlatformAccounts v-if="currentTab === 'platforms'" />
-                <template v-else-if="currentTab === 'album' && albumLoading">
-                  <div class="flex h-32 items-center justify-center">
-                    <n-spin size="medium" />
-                  </div>
-                </template>
-                <div
-                  v-else-if="currentTab === 'album' && currentList.length === 0"
-                  class="flex h-32 items-center justify-center d-text-muted"
-                >
-                  {{ t('user.album.empty') || '暂无收藏的专辑' }}
-                </div>
-                <template v-else>
-                  <button
-                    v-if="isElectron && currentTab === 'created'"
-                    @click="goToImportPlaylist"
-                    class="import-btn flex w-full cursor-pointer items-center gap-3 rounded-[var(--d-radius-lg)] p-3"
-                  >
-                    <div
-                      class="flex h-[50px] w-[50px] items-center justify-center rounded-[var(--d-radius-lg)] text-2xl import-btn-icon"
-                    >
-                      <i class="icon iconfont ri-add-line" />
-                    </div>
-                    <div class="text-sm font-medium d-text-secondary">
-                      {{ t('comp.playlist.import.button') }}
-                    </div>
-                  </button>
-                  <div
-                    v-for="(item, index) in currentList"
-                    :key="index"
-                    @click="handleItemClick(item)"
-                    class="list-item-card flex cursor-pointer items-center gap-3 rounded-[var(--d-radius-lg)] p-2.5"
-                  >
-                    <n-image
-                      :src="getImgUrl(getCoverUrl(item), '50y50')"
-                      class="h-[50px] w-[50px] flex-shrink-0 overflow-hidden rounded-[var(--d-radius-lg)]"
-                      lazy
-                      preview-disabled
-                    />
-                    <div class="min-w-0 flex-1">
-                      <div class="truncate text-sm font-medium d-text-primary">
-                        {{ item.name }}
-                      </div>
-                      <div class="mt-0.5 truncate text-xs d-text-secondary">
-                        {{ getItemDescription(item) }}
-                      </div>
-                    </div>
-                  </div>
-                </template>
-                <play-bottom />
-              </div>
+              <i class="icon iconfont ri-add-line" />
             </div>
-            <div class="flex flex-col overflow-hidden p-5">
-              <div class="mb-4 flex-shrink-0 text-lg font-bold d-text-primary">
-                {{ t('user.ranking.title') }}
+            <div class="text-xs font-medium d-text-secondary truncate w-full text-center">
+              {{ t('comp.playlist.import.button') }}
+            </div>
+          </button>
+          <div
+            v-for="(item, index) in currentList"
+            :key="index"
+            @click="handleItemClick(item)"
+            class="list-item-card flex flex-col gap-2 rounded-2xl p-2"
+          >
+            <n-image
+              :src="getImgUrl(getCoverUrl(item), '200y200')"
+              class="w-full overflow-hidden rounded-xl"
+              style="aspect-ratio: 1"
+              lazy
+              preview-disabled
+            />
+            <div class="min-w-0">
+              <div class="truncate text-sm font-medium d-text-primary">
+                {{ item.name }}
               </div>
-              <div class="flex-1 overflow-y-auto min-h-0">
-                <div
-                  v-for="(item, index) in recordList"
-                  :key="item.id"
-                  class="record-item group flex items-center gap-3 rounded-[var(--d-radius-lg)] p-2"
-                >
-                  <div
-                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold d-text-muted"
-                  >
-                    {{ index + 1 }}
-                  </div>
-                  <n-image
-                    :src="getImgUrl(item.picUrl || item.al?.picUrl, '40y40')"
-                    class="h-10 w-10 flex-shrink-0 overflow-hidden rounded-[var(--d-radius-lg)]"
-                    lazy
-                    preview-disabled
-                  />
-                  <div class="min-w-0 flex-1">
-                    <div class="truncate text-sm font-medium d-text-primary">
-                      {{ item.name }}
-                    </div>
-                    <div class="truncate text-xs d-text-secondary">
-                      {{ getArtistNames(item) }}
-                    </div>
-                  </div>
-                  <button
-                    @click.stop="toggleFavorite(item)"
-                    class="record-action flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-lg opacity-0"
-                    :class="{ 'is-favorited': isFavorited(item.id) }"
-                  >
-                    <i :class="isFavorited(item.id) ? 'ri-heart-3-fill' : 'ri-heart-3-line'" />
-                  </button>
-                  <button
-                    @click.stop="handlePlayRecord(item)"
-                    class="record-action record-play-btn flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full opacity-0"
-                  >
-                    <i class="ri-play-fill text-lg" />
-                  </button>
-                </div>
-                <div
-                  v-if="!recordList || recordList.length === 0"
-                  class="flex h-32 items-center justify-center d-text-muted"
-                >
-                  {{ t('user.ranking.empty') || '暂无听歌记录' }}
-                </div>
-                <play-bottom />
+              <div class="mt-0.5 truncate text-xs d-text-secondary">
+                {{ getItemDescription(item) }}
               </div>
             </div>
           </div>
         </div>
+        <!-- 平台账号 Tab -->
+        <platform-accounts v-if="currentTab === 'platforms'" />
+        <!-- 听歌排行区 -->
+        <div class="mt-2">
+          <div class="mb-3 flex-shrink-0 text-lg font-bold d-text-primary">
+            {{ t('user.ranking.title') }}
+          </div>
+          <div>
+            <div
+              v-for="(item, index) in recordList"
+              :key="item.id"
+              class="record-item group flex items-center gap-3 rounded-xl p-2"
+            >
+              <div
+                class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold d-text-muted"
+              >
+                {{ index + 1 }}
+              </div>
+              <n-image
+                :src="getImgUrl(item.picUrl || item.al?.picUrl, '40y40')"
+                class="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg"
+                lazy
+                preview-disabled
+              />
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-medium d-text-primary">
+                  {{ item.name }}
+                </div>
+                <div class="truncate text-xs d-text-secondary">
+                  {{ getArtistNames(item) }}
+                </div>
+              </div>
+              <button
+                @click.stop="toggleFavorite(item)"
+                class="record-action flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-lg"
+                :class="{ 'is-favorited': isFavorited(item.id) }"
+              >
+                <i :class="isFavorited(item.id) ? 'ri-heart-3-fill' : 'ri-heart-3-line'" />
+              </button>
+              <button
+                @click.stop="handlePlayRecord(item)"
+                class="record-action flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
+              >
+                <i class="ri-play-fill text-lg" />
+              </button>
+            </div>
+            <div
+              v-if="!recordList || recordList.length === 0"
+              class="flex h-32 items-center justify-center d-text-muted"
+            >
+              {{ t('user.ranking.empty') || '暂无听歌记录' }}
+            </div>
+          </div>
+        </div>
+        <play-bottom />
       </div>
       <div
-        v-if="!isLoggedIn && isMobile"
+        v-if="!isLoggedIn"
         class="login-container flex h-full w-full items-center justify-center"
         :class="setAnimationClass('animate__fadeIn')"
       >
         <login-component @login-success="handleLoginSuccess" />
-      </div>
-      <!-- 非移动端未登录时的占位（路由会自动跳转到 /login） -->
-      <div
-        v-else-if="!isLoggedIn && !isMobile"
-        class="flex h-full w-full items-center justify-center"
-      >
-        <n-spin size="large" />
       </div>
     </template>
   </div>
@@ -343,7 +304,6 @@ const checkLoginStatus = () => {
   }
   const loginInfo = checkAuthStatus();
   if (!loginInfo.isLoggedIn) {
-    !isMobile.value && router.push('/login');
     return false;
   }
   return true;

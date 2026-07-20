@@ -36,13 +36,48 @@
             class="flex-1 overflow-y-auto px-5 pb-6"
             :style="{ paddingBottom: `calc(24px + var(--safe-area-inset-bottom, 0px))` }"
           >
+            <!-- 播放器样式 2×2 网格 -->
+            <div class="mb-6">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-white/80">
+                  {{ t('player.settings.playerStyle') || '播放器样式' }}
+                </span>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <button
+                  v-for="style in playerStyles"
+                  :key="style.key"
+                  @click="setPlayerStyle(style.key)"
+                  class="style-card relative flex flex-col items-center gap-2 rounded-2xl p-4 transition-all duration-300"
+                  :class="
+                    currentPlayerStyle === style.key
+                      ? 'style-card-active'
+                      : 'bg-white/5 hover:bg-white/10'
+                  "
+                >
+                  <i :class="style.icon" class="text-2xl" :style="{ color: style.color }" />
+                  <span
+                    class="text-xs font-medium"
+                    :class="currentPlayerStyle === style.key ? 'text-white' : 'text-white/60'"
+                  >
+                    {{ style.label }}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 分隔线 -->
+            <div class="h-px bg-white/10 my-5"></div>
+
             <!-- 播放速度 -->
             <div class="mb-6">
               <div class="flex items-center justify-between mb-3">
                 <span class="text-sm font-medium text-white/80">
                   {{ t('player.settings.playbackSpeed') }}
                 </span>
-                <span class="text-sm text-[var(--accent-color-light)] font-medium">{{ playbackRate }}x</span>
+                <span class="text-sm text-[var(--accent-color-light)] font-medium"
+                  >{{ playbackRate }}x</span
+                >
               </div>
               <div class="flex flex-wrap gap-2">
                 <button
@@ -70,14 +105,19 @@
                 <span class="text-sm font-medium text-white/80">
                   {{ t('player.sleepTimer.title') }}
                 </span>
-                <span v-if="hasTimerActive" class="text-sm text-[var(--accent-color-light)] font-medium">
+                <span
+                  v-if="hasTimerActive"
+                  class="text-sm text-[var(--accent-color-light)] font-medium"
+                >
                   {{ timerStatusText }}
                 </span>
               </div>
 
               <!-- 已激活状态 -->
               <div v-if="hasTimerActive" class="space-y-3">
-                <div class="p-4 rounded-2xl bg-[var(--accent-color)]/15 border border-[var(--accent-color)]/30">
+                <div
+                  class="p-4 rounded-2xl bg-[var(--accent-color)]/15 border border-[var(--accent-color)]/30"
+                >
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
                       <i class="ri-timer-line text-[var(--accent-color-light)] text-xl"></i>
@@ -186,10 +226,49 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { usePlayerStore } from '@/store/modules/player';
+import type { LyricConfig } from '@/types/lyric';
+import { DEFAULT_LYRIC_CONFIG } from '@/types/lyric';
 
 const { t } = useI18n();
 const playerStore = usePlayerStore();
 const { sleepTimer, playbackRate } = storeToRefs(playerStore);
+
+// 播放器样式配置
+const lyricConfig = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
+
+const playerStyles = computed(() => [
+  {
+    key: 'default',
+    label: t('player.styles.default') || '默认',
+    icon: 'ri-music-2-line',
+    color: '#6366f1'
+  },
+  {
+    key: 'stage',
+    label: t('player.styles.stage') || '舞台',
+    icon: 'ri-spotify-line',
+    color: '#ec4899'
+  },
+  {
+    key: 'magazine',
+    label: t('player.styles.magazine') || '杂志',
+    icon: 'ri-layout-grid-line',
+    color: '#f59e0b'
+  },
+  {
+    key: 'frenzy',
+    label: t('player.styles.frenzy') || '狂热',
+    icon: 'ri-fire-line',
+    color: '#ef4444'
+  }
+]);
+
+const currentPlayerStyle = computed(() => lyricConfig.value.playerStyle || 'default');
+
+const setPlayerStyle = (style: string) => {
+  lyricConfig.value.playerStyle = style as LyricConfig['playerStyle'];
+  localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
+};
 
 // Props & Emits
 defineProps<{
@@ -332,6 +411,15 @@ onMounted(() => {
   if (hasTimerActive.value && sleepTimer.value.type === 'time') {
     startTimerUpdate();
   }
+  // 加载歌词配置
+  const saved = localStorage.getItem('music-full-config');
+  if (saved) {
+    try {
+      lyricConfig.value = { ...DEFAULT_LYRIC_CONFIG, ...JSON.parse(saved) };
+    } catch {
+      // keep default
+    }
+  }
 });
 
 onUnmounted(() => {
@@ -359,5 +447,19 @@ onUnmounted(() => {
 .settings-drawer-enter-from > div:last-child,
 .settings-drawer-leave-to > div:last-child {
   transform: translateY(100%);
+}
+
+/* 播放器样式卡片激活状态 */
+.style-card-active {
+  background: rgba(var(--accent-color-rgb, 99, 102, 241), 0.2);
+  border: 1px solid rgba(var(--accent-color-rgb, 99, 102, 241), 0.4);
+}
+
+.style-card {
+  border: 1px solid transparent;
+}
+
+.style-card:active {
+  transform: scale(0.96);
 }
 </style>

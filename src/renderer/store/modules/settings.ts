@@ -14,7 +14,7 @@ import {
   watchSystemTheme
 } from '@/utils/theme';
 
-import { type AppUpdateState,createDefaultAppUpdateState } from '../../../shared/appUpdate';
+import { type AppUpdateState, createDefaultAppUpdateState } from '../../../shared/appUpdate';
 
 export const useSettingsStore = defineStore('settings', () => {
   const theme = ref<ThemeType>(getCurrentTheme());
@@ -214,16 +214,9 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   };
 
-  // 计算移动端状态的函数
+  // 移动端优先项目：始终返回 true（此项目专为移动端重构，不再需要桌面端检测）
   const calculateMobileStatus = () => {
-    const userAgentFlag = navigator.userAgent.match(
-      /(phone|pad|pod|iPhone|iPod|ios|iPad|Android|Mobile|BlackBerry|IEMobile|MQQBrowser|JUC|Fennec|wOSBrowser|BrowserNG|WebOS|Symbian|Windows Phone)/i
-    );
-    const isMobileWidth = window.innerWidth < 500;
-    const isMobileDevice = !!userAgentFlag || isMobileWidth;
-    const tabletMode = setData.value?.tabletMode;
-
-    return isMobileDevice && !tabletMode;
+    return true;
   };
 
   // 更新移动端状态和DOM类
