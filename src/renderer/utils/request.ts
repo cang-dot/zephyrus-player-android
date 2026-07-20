@@ -44,10 +44,13 @@ function computeBaseURL(): string {
 
 const baseURL = computeBaseURL();
 
+// Capacitor 原生 HTTP 不支持 withCredentials，需要禁用
+const isCapacitorEnv = isCapacitor();
+
 const request = axios.create({
   baseURL,
   timeout: 15000,
-  withCredentials: true
+  withCredentials: !isCapacitorEnv
 });
 
 // 最大重试次数
