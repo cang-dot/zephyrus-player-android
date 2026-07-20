@@ -4,7 +4,6 @@ import { resolve } from 'path';
 import AutoImport from 'unplugin-auto-import/vite';
 import { NaiveUiResolver } from 'unplugin-vue-components/resolvers';
 import Components from 'unplugin-vue-components/vite';
-import viteCompression from 'vite-plugin-compression';
 import VueDevTools from 'vite-plugin-vue-devtools';
 
 export default defineConfig({
@@ -20,7 +19,6 @@ export default defineConfig({
     },
     plugins: [
       vue(),
-      viteCompression(),
       VueDevTools(),
       AutoImport({
         imports: [
