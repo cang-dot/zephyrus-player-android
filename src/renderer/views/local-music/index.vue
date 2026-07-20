@@ -1,18 +1,89 @@
-﻿﻿<template>
+﻿﻿﻿﻿<template>
   <div class="local-music-page h-full w-full bg-white dark:bg-black transition-colors duration-500">
-    <!-- Non-Electron fallback (mobile/web) -->
+    <!-- Mobile file picker (non-Electron) -->
     <div
       v-if="!isElectron"
-      class="flex h-full flex-col items-center justify-center px-8 text-center"
+      class="flex h-full flex-col overflow-y-auto"
     >
-      <div
-        class="mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-[var(--accent-color)]/10"
-      >
-        <i class="ri-folder-music-fill text-5xl text-[var(--accent-color)] opacity-60" />
+      <!-- Header -->
+      <div class="px-4 pt-6 pb-4">
+        <div class="flex items-center justify-between">
+          <h1 class="text-2xl font-bold d-text-primary">{{ t('localMusic.title') }}</h1>
+          <button
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent-color)] text-white active:scale-95 transition-transform"
+            @click="triggerFilePicker"
+          >
+            <i class="ri-add-line text-xl" />
+          </button>
+        </div>
+        <p class="mt-1 text-sm d-text-secondary">
+          {{ t('localMusic.songCount', { count: mobileMusicList.length }) }}
+        </p>
       </div>
-      <p class="max-w-xs text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
-        {{ t('localMusic.desktopOnly') }}
-      </p>
+
+      <!-- Hidden file input -->
+      <input
+        ref="fileInputRef"
+        type="file"
+        accept="audio/*"
+        multiple
+        class="hidden"
+        @change="handleFileSelect"
+      />
+
+      <!-- Empty state -->
+      <div
+        v-if="mobileMusicList.length === 0"
+        class="flex flex-1 flex-col items-center justify-center px-8 text-center"
+      >
+        <div
+          class="mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-[var(--accent-color)]/10"
+        >
+          <i class="ri-folder-music-fill text-5xl text-[var(--accent-color)] opacity-60" />
+        </div>
+        <p class="mb-6 max-w-xs text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+          {{ t('localMusic.mobilePickHint') || '点击右上角按钮选择本地音乐文件' }}
+        </p>
+        <button
+          class="flex items-center gap-2 rounded-full bg-[var(--accent-color)] px-6 py-3 text-sm font-medium text-white active:scale-95 transition-transform"
+          @click="triggerFilePicker"
+        >
+          <i class="ri-folder-upload-line text-lg" />
+          {{ t('localMusic.selectFiles') || '选择音乐文件' }}
+        </button>
+      </div>
+
+      <!-- Music list -->
+      <div v-else class="flex-1 px-4 pb-32">
+        <div
+          v-for="(item, index) in mobileMusicList"
+          :key="item.id"
+          class="flex items-center gap-3 rounded-2xl p-2.5 active:bg-neutral-100 dark:active:bg-neutral-900 transition-colors"
+          @click="playMobileMusic(index)"
+        >
+          <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--accent-color)]/10">
+            <i class="ri-music-2-fill text-xl text-[var(--accent-color)]" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-sm font-medium d-text-primary">{{ item.name }}</div>
+            <div class="mt-0.5 truncate text-xs d-text-secondary">
+              {{ formatDuration(item.duration) }} · {{ formatFileSize(item.size) }}
+            </div>
+          </div>
+          <button
+            class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[var(--accent-color)]/10 text-[var(--accent-color)] active:scale-90 transition-transform"
+            @click.stop="playMobileMusic(index)"
+          >
+            <i class="ri-play-fill text-lg" />
+          </button>
+          <button
+            class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-neutral-400 active:scale-90 transition-transform"
+            @click.stop="removeMobileMusic(item.id)"
+          >
+            <i class="ri-close-line text-lg" />
+          </button>
+        </div>
+      </div>
     </div>
 
     <n-scrollbar v-else class="h-full">
@@ -383,6 +454,109 @@ const sortKey = ref<SortKey>('default');
 const detailView = ref(false);
 const detailType = ref<'artist' | 'album' | null>(null);
 const detailName = ref('');
+
+// ==================== Mobile file picker state ====================
+interface MobileMusicItem {
+  id: string;
+  name: string;
+  size: number;
+  duration: number;
+  url: string;
+  file: File;
+}
+
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const mobileMusicList = ref<MobileMusicItem[]>([]);
+
+const triggerFilePicker = () => {
+  fileInputRef.value?.click();
+};
+
+const handleFileSelect = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  if (!input.files || input.files.length === 0) return;
+
+  const newItems: MobileMusicItem[] = [];
+  for (const file of Array.from(input.files)) {
+    if (!file.type.startsWith('audio/')) continue;
+    const id = `${file.name}-${file.size}-${file.lastModified}`;
+    // Skip duplicates
+    if (mobileMusicList.value.some((item) => item.id === id)) continue;
+    const url = URL.createObjectURL(file);
+    const duration = await getAudioDuration(url);
+    newItems.push({
+      id,
+      name: file.name.replace(/\.[^/.]+$/, ''),
+      size: file.size,
+      duration,
+      url,
+      file
+    });
+  }
+
+  if (newItems.length > 0) {
+    mobileMusicList.value.push(...newItems);
+    message.success(`已添加 ${newItems.length} 首音乐`);
+  }
+
+  // Reset input
+  input.value = '';
+};
+
+const getAudioDuration = (url: string): Promise<number> => {
+  return new Promise((resolve) => {
+    const audio = new Audio(url);
+    audio.addEventListener('loadedmetadata', () => {
+      resolve(audio.duration || 0);
+    });
+    audio.addEventListener('error', () => resolve(0));
+  });
+};
+
+const formatDuration = (seconds: number): string => {
+  if (!seconds) return '--:--';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const playMobileMusic = (index: number) => {
+  const item = mobileMusicList.value[index];
+  if (!item) return;
+  const song: SongResult = {
+    id: Date.now() + index,
+    name: item.name,
+    ar: [{ id: 0, name: 'Local' }],
+    al: { id: 0, name: 'Local Music', picUrl: '' },
+    dt: item.duration * 1000,
+    localUrl: item.url,
+    source: 'local'
+  } as any;
+  const playlist = mobileMusicList.value.map((it, i) => ({
+    id: Date.now() + i,
+    name: it.name,
+    ar: [{ id: 0, name: 'Local' }],
+    al: { id: 0, name: 'Local Music', picUrl: '' },
+    dt: it.duration * 1000,
+    localUrl: it.url,
+    source: 'local'
+  } as any));
+  playerStore.setPlayList(playlist);
+  playerStore.setPlay(song);
+};
+
+const removeMobileMusic = (id: string) => {
+  const index = mobileMusicList.value.findIndex((item) => item.id === id);
+  if (index !== -1) {
+    URL.revokeObjectURL(mobileMusicList.value[index].url);
+    mobileMusicList.value.splice(index, 1);
+  }
+};
 
 // ==================== Computed ====================
 type TabKey = 'songs' | 'artists' | 'albums';

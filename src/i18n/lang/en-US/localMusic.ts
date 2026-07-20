@@ -8,6 +8,8 @@ export default {
   search: 'Search local music',
   emptyState: 'No local music found. Please select a folder to scan.',
   desktopOnly: 'Local music is only available on desktop. Mobile support coming soon.',
+  mobilePickHint: 'Tap the button in the top right to select local music files',
+  selectFiles: 'Select Music Files',
   fileNotFound: 'File not found or has been moved',
   rescan: 'Rescan',
   songCount: '{count} songs',
