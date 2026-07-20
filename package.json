@@ -36,8 +36,8 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",
-    "@capacitor/cli": "^8.4.2",
     "@capacitor/core": "^8.4.2",
+    "@capacitor/filesystem": "^8.1.2",
     "@chenglou/pretext": "^0.0.8",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
@@ -67,6 +67,7 @@
     "vue-i18n": "^11.2.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.2",
     "@electron-toolkit/eslint-config": "^2.1.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^1.0.1",

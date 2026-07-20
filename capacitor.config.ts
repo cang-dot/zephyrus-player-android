@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.zephyrus.player',
-  appName: 'ZephyrusPlayer',
+  appName: 'Zephyrus Player',
   webDir: 'out/renderer',
   server: {
     androidScheme: 'https'
