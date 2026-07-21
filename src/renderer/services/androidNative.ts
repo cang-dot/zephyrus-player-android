@@ -300,6 +300,7 @@ function setupOverlayBackHandler() {
   );
 
   // 监听 popstate：返回手势触发时关闭最顶层覆层
+  // 返回顺序：设置弹窗 → 全屏歌词 → 播放器 → 歌手抽屉 → 播放列表抽屉 → 路由后退
   window.addEventListener('popstate', () => {
     if (overlayCount > 0 && !isPopStateHandling) {
       isPopStateHandling = true;
@@ -311,6 +312,9 @@ function setupOverlayBackHandler() {
       } else if (playerStore.fullLyricsVisible) {
         playerStore.setFullLyricsVisible(false);
       } else if (playerStore.musicFull) {
+        // 关闭播放器时同时重置子覆层，防止残留状态
+        playerStore.setFullLyricsVisible(false);
+        playerStore.setPlayerSettingsVisible(false);
         playerStore.setMusicFull(false);
       } else if (settingsStore.showArtistDrawer) {
         settingsStore.setShowArtistDrawer(false);
