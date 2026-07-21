@@ -12,31 +12,31 @@
 /* ==================== 设计令牌 ==================== */
 
 .mobile {
-  /* ── 浅色主题 ── */
-  --m-bg: #f5f1eb;
-  --m-surface: #eae6df;
-  --m-surface-alt: #e0dbd3;
-  --m-card: #e8e4dc;
-  --m-card-light: #e8e4dc;
-  --m-text-primary: #2c2c2c;
-  --m-text-secondary: #6b6560;
-  --m-text-muted: #9a9590;
-  --m-border: #d5d0c9;
+  /* ── 浅色主题（封面取色注入，fallback 为硬编码值）── */
+  --m-bg: var(--cover-bg, #f5f1eb);
+  --m-surface: var(--cover-surface, #eae6df);
+  --m-surface-alt: var(--cover-surface-hover, #e0dbd3);
+  --m-card: var(--cover-surface, #e8e4dc);
+  --m-card-light: var(--cover-surface-hover, #e8e4dc);
+  --m-text-primary: var(--cover-text-primary, #2c2c2c);
+  --m-text-secondary: var(--cover-text-secondary, #6b6560);
+  --m-text-muted: var(--cover-text-muted, #9a9590);
+  --m-border: var(--cover-border, #d5d0c9);
   --m-white: #ffffff;
   --m-shadow: rgba(0, 0, 0, 0.06);
 
-  /* ── 深色主题覆盖 ── */
+  /* ── 深色主题覆盖（封面取色注入，fallback 为硬编码值）── */
   &.dark,
   .dark & {
-    --m-bg: #1a1a1a;
-    --m-surface: #252525;
-    --m-surface-alt: #2a2a2a;
-    --m-card: #333333;
-    --m-card-light: #3a3a3a;
-    --m-text-primary: #f0ece4;
-    --m-text-secondary: #aaaaaa;
-    --m-text-muted: #666666;
-    --m-border: #3a3a3a;
+    --m-bg: var(--cover-bg, #1a1a1a);
+    --m-surface: var(--cover-surface, #252525);
+    --m-surface-alt: var(--cover-surface-hover, #2a2a2a);
+    --m-card: var(--cover-surface, #333333);
+    --m-card-light: var(--cover-surface-hover, #3a3a3a);
+    --m-text-primary: var(--cover-text-primary, #f0ece4);
+    --m-text-secondary: var(--cover-text-secondary, #aaaaaa);
+    --m-text-muted: var(--cover-text-muted, #666666);
+    --m-border: var(--cover-border, #3a3a3a);
     --m-shadow: rgba(0, 0, 0, 0.3);
   }
 
