@@ -152,8 +152,11 @@ onMounted(() => {
   }
 });
 
-// 播放设置弹窗
-const showPlayerSettings = ref(false);
+// 播放设置弹窗（使用 store 状态，支持返回手势关闭）
+const showPlayerSettings = computed({
+  get: () => playerStore.playerSettingsVisible,
+  set: (val) => playerStore.setPlayerSettingsVisible(val)
+});
 
 // ==================== 状态 ====================
 

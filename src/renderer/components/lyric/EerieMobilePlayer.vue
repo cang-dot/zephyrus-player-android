@@ -133,8 +133,11 @@ const styleEngine = useStyleEngineStore();
 const { primaryColor } = useCoverColor();
 const { controlsVisible, handleTapToggle } = useTapToggle();
 
-// 播放设置弹窗
-const showPlayerSettings = ref(false);
+// 播放设置弹窗（使用 store 状态，支持返回手势关闭）
+const showPlayerSettings = computed({
+  get: () => playerStore.playerSettingsVisible,
+  set: (val) => playerStore.setPlayerSettingsVisible(val)
+});
 
 const isVisible = computed({ get: () => props.modelValue, set: (v) => emit('update:modelValue', v) });
 const isPlaying = computed(() => playerStore.isPlay);
