@@ -232,6 +232,8 @@ const onWheel = (e: WheelEvent) => {
 // ==================== 鼠标拖动（延迟激活） ====================
 const isDragging = ref(false);
 const draggedRow = ref<number | null>(null);
+// 拖拽刚结束标记，用于平滑过渡
+const justDragged = ref(false);
 
 // pointerdown 记录起点，但不立即进入拖动模式
 let pointerDownInfo: { x: number; row: number; offset: number } | null = null;
@@ -270,7 +272,13 @@ const onPointerUp = (e?: PointerEvent) => {
   const row = pointerDownInfo?.row ?? null;
 
   if (wasDragging && row !== null) {
+    // 标记刚拖拽结束，启用平滑过渡
+    justDragged.value = true;
     normalizeOffset(row);
+    // 过渡结束后清除标记
+    setTimeout(() => {
+      justDragged.value = false;
+    }, 400);
   }
 
   // 触屏设备下，touchend 后浏览器常常不再合成 mouseleave，
@@ -321,6 +329,10 @@ const trackTransition = (rowIndex: number) => {
   if (hoveredRow.value === rowIndex) {
     return 'none';
   }
+  // 拖拽刚结束的平滑过渡（normalizeOffset 的回弹动画）
+  if (justDragged.value && draggedRow.value === rowIndex) {
+    return 'transform 0.4s cubic-bezier(0.32, 0.72, 0, 1)';
+  }
   // 自动滚动无过渡（每帧更新）
   return 'none';
 };
@@ -366,7 +378,7 @@ onUnmounted(() => {
   height: 100%;
   overflow: hidden;
   position: relative;
-  background-color: #0a0a0a;
+  background-color: var(--cover-bg, #0a0a0a);
 }
 
 // ==================== 无限网格 ====================
@@ -406,6 +418,8 @@ onUnmounted(() => {
   gap: 14px;
   padding: 0 7px;
   will-change: transform;
+  /* 防止浏览器拦截触摸事件（拉动刷新等），让拖动正常工作 */
+  touch-action: pan-x;
 }
 
 // ==================== 封面单元格 ====================
@@ -481,11 +495,11 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   z-index: 10;
-  padding: 20px 28px 14px;
+  padding: calc(var(--safe-area-inset-top, 0px) + 20px) 28px 14px;
   background: linear-gradient(
     to bottom,
-    rgba(10, 10, 10, 0.95) 0%,
-    rgba(10, 10, 10, 0.6) 70%,
+    color-mix(in srgb, var(--cover-bg, #0a0a0a) 95%, transparent) 0%,
+    color-mix(in srgb, var(--cover-bg, #0a0a0a) 60%, transparent) 70%,
     transparent 100%
   );
   pointer-events: none;
@@ -494,13 +508,13 @@ onUnmounted(() => {
 .grid-title {
   font-size: 22px;
   font-weight: 700;
-  color: #f0f0f0;
+  color: var(--cover-text-primary, #f0f0f0);
   margin: 0;
 }
 
 .grid-subtitle {
   font-size: 12px;
-  color: #888;
+  color: var(--cover-text-muted, #888);
   margin: 4px 0 0;
 }
 
@@ -511,7 +525,11 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 60px;
-  background: linear-gradient(to top, rgba(10, 10, 10, 0.9), transparent);
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--cover-bg, #0a0a0a) 90%, transparent),
+    transparent
+  );
   pointer-events: none;
   z-index: 5;
 }
