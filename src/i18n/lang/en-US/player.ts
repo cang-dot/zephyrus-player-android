@@ -117,7 +117,9 @@ export default {
     default: 'Default',
     stage: 'Stage',
     magazine: 'Magazine',
-    frenzy: 'Frenzy'
+    frenzy: 'Frenzy',
+    eerie: 'Eerie',
+    neon: 'Aged'
   },
   // Sleep timer related
   sleepTimer: {

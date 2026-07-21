@@ -99,6 +99,63 @@
             <!-- 分隔线 -->
             <div class="h-px bg-white/10 my-5"></div>
 
+            <!-- 歌词解析 -->
+            <div class="mb-6">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-white/80">
+                  <i class="ri-quill-pen-line mr-1"></i>
+                  歌词解析
+                </span>
+                <button
+                  v-if="!metaphorLoading && !metaphorResult"
+                  @click="analyzeLyrics"
+                  class="px-3 py-1 rounded-full text-sm font-medium bg-[var(--accent-color)] text-white"
+                >
+                  开始分析
+                </button>
+                <button
+                  v-if="metaphorResult || metaphorLoading"
+                  @click="analyzeLyrics"
+                  :disabled="metaphorLoading"
+                  class="px-3 py-1 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15 disabled:opacity-50"
+                >
+                  {{ metaphorLoading ? '分析中...' : '重新分析' }}
+                </button>
+              </div>
+
+              <!-- 加载中 -->
+              <div v-if="metaphorLoading" class="flex flex-col items-center justify-center py-8 text-white/50">
+                <i class="ri-loader-4-line animate-spin text-3xl mb-3"></i>
+                <p class="text-sm">正在分析歌词...</p>
+                <p class="text-xs opacity-60 mt-1">AI 分析可能需要 10-30 秒</p>
+              </div>
+
+              <!-- 错误 -->
+              <div v-else-if="metaphorError" class="flex flex-col items-center justify-center py-8 text-white/50 text-center">
+                <i class="ri-error-warning-line text-3xl mb-3 text-red-400"></i>
+                <p class="text-sm max-w-xs">{{ metaphorError }}</p>
+                <button @click="analyzeLyrics" class="mt-3 px-3 py-1 rounded-full text-sm bg-white/10 text-white/70 hover:bg-white/15">重试</button>
+              </div>
+
+              <!-- 结果 -->
+              <div v-else-if="metaphorResult" class="metaphor-result prose prose-invert max-w-none text-sm leading-relaxed text-white/80"
+                v-html="sanitizedMetaphorResult"></div>
+
+              <!-- 空状态 -->
+              <div v-else class="flex flex-col items-center justify-center py-6 text-white/40">
+                <i class="ri-quill-pen-line text-4xl mb-2"></i>
+                <p class="text-sm">分析当前歌词的隐喻和修辞手法</p>
+              </div>
+
+              <!-- 缓存标记 -->
+              <div v-if="metaphorCached" class="flex items-center justify-center mt-3 text-xs text-white/30">
+                <i class="ri-database-2-line mr-1"></i> 缓存结果
+              </div>
+            </div>
+
+            <!-- 分隔线 -->
+            <div class="h-px bg-white/10 my-5"></div>
+
             <!-- 定时关闭 -->
             <div>
               <div class="flex items-center justify-between mb-3">
@@ -225,13 +282,56 @@ import { storeToRefs } from 'pinia';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { lrcArray, playMusic } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import type { LyricConfig } from '@/types/lyric';
 import { DEFAULT_LYRIC_CONFIG } from '@/types/lyric';
+import { useMetaphor } from '@/features/lyric-metaphor/useMetaphor';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
 
 const { t } = useI18n();
 const playerStore = usePlayerStore();
+
+// 安全的 i18n 翻译：当 vue-i18n 找不到键时返回键路径本身（而非空字符串），
+// 因此 `t(key) || fallback` 会因键路径为真值而失效。这里显式比对返回值。
+const tr = (key: string, fallback: string) => {
+  const v = t(key);
+  return v === key ? fallback : v;
+};
 const { sleepTimer, playbackRate } = storeToRefs(playerStore);
+
+// 歌词解析
+const { loading: metaphorLoading, error: metaphorError, result: metaphorResult, cached: metaphorCached, analyze: metaphorAnalyze, clear: metaphorClear } = useMetaphor();
+
+const sanitizedMetaphorResult = computed(() => {
+  if (!metaphorResult.value) return '';
+  try {
+    const tokens = marked.lexer(metaphorResult.value);
+    const html = marked.parser(tokens);
+    return DOMPurify.sanitize(html);
+  } catch {
+    return metaphorResult.value;
+  }
+});
+
+const analyzeLyrics = async () => {
+  const lyrics = lrcArray.value?.map(l => l.text).filter(t => t).join('\n') || '';
+  if (!lyrics) return;
+  const song = playMusic.value;
+  if (!song) return;
+  const songName = song.name || '';
+  const artist = song.ar?.map((a: any) => a.name).join(',') || '';
+  let albumDesc = '';
+  if (song.al?.id) {
+    try {
+      const { getAlbum } = await import('@/api/list');
+      const res = await getAlbum(song.al.id);
+      albumDesc = res?.data?.album?.description || '';
+    } catch {}
+  }
+  await metaphorAnalyze(lyrics, songName, artist, albumDesc);
+};
 
 // 播放器样式配置
 const lyricConfig = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
@@ -239,27 +339,39 @@ const lyricConfig = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
 const playerStyles = computed(() => [
   {
     key: 'default',
-    label: t('player.styles.default') || '默认',
+    label: tr('player.styles.default', '默认'),
     icon: 'ri-music-2-line',
     color: '#6366f1'
   },
   {
     key: 'stage',
-    label: t('player.styles.stage') || '舞台',
+    label: tr('player.styles.stage', '舞台'),
     icon: 'ri-spotify-line',
     color: '#ec4899'
   },
   {
     key: 'magazine',
-    label: t('player.styles.magazine') || '杂志',
+    label: tr('player.styles.magazine', '杂志'),
     icon: 'ri-layout-grid-line',
     color: '#f59e0b'
   },
   {
     key: 'frenzy',
-    label: t('player.styles.frenzy') || '狂热',
+    label: tr('player.styles.frenzy', '狂热'),
     icon: 'ri-fire-line',
     color: '#ef4444'
+  },
+  {
+    key: 'eerie',
+    label: tr('player.styles.eerie', '诡谲'),
+    icon: 'ri-ghost-line',
+    color: '#8b5cf6'
+  },
+  {
+    key: 'neon',
+    label: tr('player.styles.neon', '陈旧'),
+    icon: 'ri-lightbulb-flash-line',
+    color: '#c9a96e'
   }
 ]);
 
@@ -268,6 +380,8 @@ const currentPlayerStyle = computed(() => lyricConfig.value.playerStyle || 'defa
 const setPlayerStyle = (style: string) => {
   lyricConfig.value.playerStyle = style as LyricConfig['playerStyle'];
   localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
+  // 通知 MusicFullWrapper 重新加载配置（storage 事件不会在同一文档触发）
+  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
 };
 
 // Props & Emits

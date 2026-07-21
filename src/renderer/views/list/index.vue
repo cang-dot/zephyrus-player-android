@@ -265,12 +265,19 @@ const onPointerMove = (e: PointerEvent) => {
   rowOffsets[pointerDownInfo.row] = pointerDownInfo.offset + dx;
 };
 
-const onPointerUp = () => {
+const onPointerUp = (e?: PointerEvent) => {
   const wasDragging = isDragging.value;
   const row = pointerDownInfo?.row ?? null;
 
   if (wasDragging && row !== null) {
     normalizeOffset(row);
+  }
+
+  // 触屏设备下，touchend 后浏览器常常不再合成 mouseleave，
+  // 导致 hoveredRow 卡在被 onTouch 的行上，autoScroll 永久暂停该行。
+  // 在 touch 释放时主动清除 hoveredRow，让自动滚动恢复。
+  if (e && e.pointerType === 'touch') {
+    hoveredRow.value = null;
   }
 
   // 延迟重置，让 click 事件能判断是否拖动过
@@ -285,6 +292,9 @@ const onPointerUp = () => {
 if (typeof window !== 'undefined') {
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
+  // 浏览器在取消触摸（例如被系统手势截断）时不会触发 pointerup，
+  // 但会触发 pointercancel。不监听则 isDragging/title 隐藏状态会卡死。
+  window.addEventListener('pointercancel', onPointerUp);
 }
 
 // ==================== 行离开 ====================
@@ -344,6 +354,7 @@ onUnmounted(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', onPointerUp);
     window.removeEventListener('resize', onResize);
   }
 });

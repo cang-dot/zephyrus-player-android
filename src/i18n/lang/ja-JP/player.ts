@@ -109,7 +109,17 @@ export default {
   // プレイヤー設定
   settings: {
     title: '再生設定',
-    playbackSpeed: '再生速度'
+    playbackSpeed: '再生速度',
+    playerStyle: 'プレイヤースタイル'
+  },
+  // プレイヤースタイル
+  styles: {
+    default: 'デフォルト',
+    stage: 'ステージ',
+    magazine: 'マガジン',
+    frenzy: 'フレンジー',
+    eerie: '不気味',
+    neon: '雨上がり'
   },
   // タイマー機能関連
   sleepTimer: {

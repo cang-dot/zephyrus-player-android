@@ -109,7 +109,17 @@ export default {
   // 플레이어 설정
   settings: {
     title: '재생 설정',
-    playbackSpeed: '재생 속도'
+    playbackSpeed: '재생 속도',
+    playerStyle: '플레이어 스타일'
+  },
+  // 플레이어 스타일
+  styles: {
+    default: '기본',
+    stage: '스테이지',
+    magazine: '매거진',
+    frenzy: '프렌지',
+    eerie: '기이',
+    neon: '노후화'
   },
   sleepTimer: {
     title: '타이머 종료',

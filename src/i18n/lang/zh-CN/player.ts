@@ -116,7 +116,9 @@ export default {
     default: '默认',
     stage: '舞台',
     magazine: '杂志',
-    frenzy: '狂热'
+    frenzy: '狂热',
+    eerie: '诡谲',
+    neon: '陈旧'
   },
   // 定时关闭功能相关
   sleepTimer: {

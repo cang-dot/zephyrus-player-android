@@ -3,11 +3,12 @@
     v-if="!isFullScreenStyle"
     :is="componentToUse"
     v-bind="$attrs"
+    :player-style="playerStyle"
     :key="playerStyle"
     ref="musicFullRef"
   />
   <Teleport v-else to="#layout-main">
-    <component :is="componentToUse" v-bind="$attrs" :key="playerStyle" ref="musicFullRef" />
+    <component :is="componentToUse" v-bind="$attrs" :player-style="playerStyle" :key="playerStyle" ref="musicFullRef" />
   </Teleport>
 </template>
 
@@ -66,17 +67,24 @@ onUnmounted(() => {
   window.removeEventListener('music-full-config-updated', handleConfigUpdate);
 });
 
+// 全屏样式判断：桌面端某些样式需要 Teleport 到 #layout-main，
+// 移动端组件自带 teleport/n-drawer，不需要外层 teleport。
 const isFullScreenStyle = computed(() => {
+  if (isMobile.value) return false;
   const style = getStyle(playerStyle.value);
   return style?.isFullScreen ?? false;
 });
 
 const componentToUse = computed(() => {
   const style = getStyle(playerStyle.value);
-  if (style) {
-    // 移动端竖屏：三种特殊样式各使用专用变体
-    if (isMobile.value) {
+
+  // 移动端（竖屏与横屏）：默认样式使用 MusicFullMobile，
+  // 非默认样式使用各自专属的移动端组件（自带全屏滚动歌词+样式背景+控件自动隐藏）。
+  if (isMobile.value) {
+    if (style) {
       switch (style.key) {
+        case 'default':
+          return markRaw(MusicFullMobile);
         case 'magazine':
           return markRaw(MagazineMobilePlayer);
         case 'stage':
@@ -89,10 +97,14 @@ const componentToUse = computed(() => {
           return markRaw(NeonMobilePlayer);
       }
     }
-    // 横屏或桌面端：直接使用原始组件
+    return markRaw(MusicFullMobile);
+  }
+
+  // 桌面端：直接使用原始组件
+  if (style) {
     return markRaw(style.component);
   }
-  return isMobile.value ? MusicFullMobile : MusicFull;
+  return markRaw(MusicFull);
 });
 
 const musicFullRef = ref<InstanceType<typeof MusicFull>>();

@@ -27,6 +27,11 @@ out
 
 resources/android/**/*
 android/app/release
+android/app/build
+android/.gradle
+android/build
+android/local.properties
+*.apk
 
 .cursor
 .windsurf

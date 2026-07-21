@@ -108,7 +108,17 @@ export default {
   // 播放器設定
   settings: {
     title: '播放設定',
-    playbackSpeed: '播放速度'
+    playbackSpeed: '播放速度',
+    playerStyle: '播放器樣式'
+  },
+  // 播放器樣式
+  styles: {
+    default: '預設',
+    stage: '舞臺',
+    magazine: '雜誌',
+    frenzy: '狂熱',
+    eerie: '詭譎',
+    neon: '陳舊'
   },
   // 定時關閉功能相關
   sleepTimer: {

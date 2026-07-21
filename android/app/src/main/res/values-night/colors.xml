@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 主色调（深色模式） -->
+    <color name="colorPrimary">#1a1a1a</color>
+    <color name="colorPrimaryDark">#0d0d0d</color>
+    <color name="colorAccent">#6366f1</color>
+
+    <!-- 窗口背景（深色模式）：与 WebView 初值一致 -->
+    <color name="windowBackground">#1a1a1a</color>
+
+    <!-- 系统栏颜色（深色模式） -->
+    <color name="statusBarColor">#1a1a1a</color>
+    <color name="navigationBarColor">#1a1a1a</color>
+</resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 主色调（暖米色） -->
+    <color name="colorPrimary">#f5f1eb</color>
+    <color name="colorPrimaryDark">#e8e3d5</color>
+    <color name="colorAccent">#6366f1</color>
+
+    <!-- 窗口背景（亮色模式）：与 WebView 初值一致 -->
+    <color name="windowBackground">#f5f1eb</color>
+
+    <!-- 系统栏颜色（默认亮色） -->
+    <color name="statusBarColor">#f5f1eb</color>
+    <color name="navigationBarColor">#f5f1eb</color>
+</resources>

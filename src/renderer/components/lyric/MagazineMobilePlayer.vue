@@ -71,6 +71,18 @@
                 <span class="time-text">{{ formatTime(currentTime) }}</span>
                 <div class="progress-bar-bg" @click="handleSeek">
                   <div
+                    v-if="styleEngine.climaxSegments.length > 0 && duration > 0"
+                    class="climax-track"
+                  >
+                    <div
+                      v-for="(seg, i) in styleEngine.climaxSegments"
+                      :key="'cl-' + i"
+                      class="climax-segment"
+                      :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
+                      :style="{ left: (seg.start / duration) * 100 + '%', width: Math.max(0.5, ((seg.end - seg.start) / duration) * 100) + '%' }"
+                    ></div>
+                  </div>
+                  <div
                     class="progress-bar-fill"
                     :style="{ width: progressPercent + '%' }"
                   ></div>
@@ -102,8 +114,8 @@
               <div class="ctrl-btn close-btn" @click="close">
                 <i class="ri-arrow-down-s-line"></i>
               </div>
-              <div class="ctrl-btn" @click="cycleStyle">
-                <i class="ri-shuffle-line"></i>
+              <div class="ctrl-btn" @click="showPlayerSettings = true">
+                <i class="ri-more-2-fill"></i>
               </div>
             </div>
           </transition>
@@ -111,13 +123,17 @@
       </div>
     </transition>
   </teleport>
+
+  <!-- 播放设置弹窗 -->
+  <mobile-player-settings v-model:visible="showPlayerSettings" />
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import { extractRegionalColors, useCoverColor } from '@/hooks/useCoverColor';
-import { artistList, lrcArray, nowIndex, playMusic } from '@/hooks/MusicHook';
+import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { secondToMinute } from '@/utils';
@@ -142,6 +158,9 @@ const { primaryColor, averageColor } = useCoverColor();
 
 const { controlsVisible, handleTapToggle } = useTapToggle();
 
+// 播放设置弹窗
+const showPlayerSettings = ref(false);
+
 // ==================== 状态 ====================
 
 const isVisible = computed({
@@ -150,7 +169,7 @@ const isVisible = computed({
 });
 
 const isPlaying = computed(() => playerStore.isPlay);
-const currentTime = computed(() => playerStore.playingTime || 0);
+const currentTime = computed(() => nowTime.value);
 const duration = computed(() => (playMusic.value?.dt || playMusic.value?.duration || 0) / 1000);
 const progressPercent = computed(() => {
   if (!duration.value) return 0;
@@ -259,12 +278,10 @@ function handleSeek(e: MouseEvent) {
   const rect = target.getBoundingClientRect();
   const percent = (e.clientX - rect.left) / rect.width;
   const seekTime = percent * duration.value;
-  playerStore.setPlayTime(seekTime);
-}
-
-function cycleStyle() {
-  // 触发样式切换事件
-  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  if (sound.value) {
+    sound.value.seek(seekTime);
+    nowTime.value = seekTime;
+  }
 }
 
 // ==================== 工具函数 ====================
@@ -277,7 +294,21 @@ function formatTime(seconds: number): string {
 
 onMounted(() => {
   // 非移动端也支持，但默认隐藏控件
+  styleEngine.syncFromPlayerStore();
+  styleEngine.syncCoverColors();
+  if (playerStore.currentSong?.id) {
+    styleEngine.loadClimaxData(String(playerStore.currentSong.id));
+  }
 });
+
+// 切歌时重新加载高潮段落数据，使进度条高潮标注和 isInClimax 正常工作
+watch(
+  () => playerStore.currentSong?.id,
+  (songId) => {
+    if (songId) styleEngine.loadClimaxData(String(songId));
+  },
+  { immediate: true }
+);
 
 onBeforeUnmount(() => {
   // 清理
@@ -404,6 +435,11 @@ onBeforeUnmount(() => {
       background: #888;
       border-radius: 1px;
       transition: width 0.1s linear;
+    }
+
+    .climax-track { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+    .climax-segment { position: absolute; top: 0; bottom: 0; height: 100%; background: rgba(255, 200, 50, 0.35); border-radius: 1px; transition: background 0.2s ease;
+      &.climax-active { background: rgba(255, 200, 50, 0.7); }
     }
   }
 }
