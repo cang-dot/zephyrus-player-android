@@ -9,6 +9,8 @@ import { ref, watch } from 'vue';
 import { playMusic } from '@/hooks/MusicHook';
 import { getImgUrl } from '@/utils';
 
+import tinycolor from 'tinycolor2';
+
 // 当前提取的颜色
 const primaryColor = ref('#888888');
 const primaryColorRgb = ref('136, 136, 136');
@@ -107,24 +109,102 @@ function adjustForAccent(r: number, g: number, b: number): { r: number; g: numbe
 }
 
 /**
- * 更新 CSS 变量
+ * 更新 CSS 变量：生成完整的设计令牌体系
+ *
+ * 基于封面取色，根据当前主题（浅色/深色）混合生成：
+ * - 背景色 (--cover-bg)
+ * - 表面色 (--cover-surface)
+ * - 边框色 (--cover-border)
+ * - 文字色 (--cover-text-primary / --cover-text-secondary / --cover-text-muted)
+ * - 强调色变体
  */
 function updateCSSVariables(r: number, g: number, b: number) {
   const color = `rgb(${r}, ${g}, ${b})`;
   const colorRgb = `${r}, ${g}, ${b}`;
 
-  // 更新根元素 CSS 变量（统一使用 --accent-color）
-  document.documentElement.style.setProperty('--accent-color', color);
-  document.documentElement.style.setProperty('--accent-color-rgb', colorRgb);
+  const root = document.documentElement;
+
+  // === 强调色（原有） ===
+  root.style.setProperty('--accent-color', color);
+  root.style.setProperty('--accent-color-rgb', colorRgb);
 
   // 生成变体颜色
   const lighter = `${Math.min(255, r + 20)}, ${Math.min(255, g + 20)}, ${Math.min(255, b + 20)}`;
   const darker = `${Math.max(0, r - 20)}, ${Math.max(0, g - 20)}, ${Math.max(0, b - 20)}`;
 
-  document.documentElement.style.setProperty('--accent-color-light', `rgb(${lighter})`);
-  document.documentElement.style.setProperty('--accent-color-dark', `rgb(${darker})`);
-  document.documentElement.style.setProperty('--accent-color-10', `rgba(${colorRgb}, 0.1)`);
-  document.documentElement.style.setProperty('--accent-color-20', `rgba(${colorRgb}, 0.2)`);
+  root.style.setProperty('--accent-color-light', `rgb(${lighter})`);
+  root.style.setProperty('--accent-color-dark', `rgb(${darker})`);
+  root.style.setProperty('--accent-color-10', `rgba(${colorRgb}, 0.1)`);
+  root.style.setProperty('--accent-color-20', `rgba(${colorRgb}, 0.2)`);
+
+  // === 封面取色设计令牌 ===
+  const coverTiny = tinycolor({ r, g, b });
+  const isDarkTheme = root.getAttribute('data-theme') === 'dark';
+
+  if (isDarkTheme) {
+    // 深色模式：封面色与深色背景混合
+    // 背景色：95% 深色 + 5% 封面色
+    const bgColor = tinycolor.mix(tinycolor('#1a1a1a'), coverTiny, 5);
+    root.style.setProperty('--cover-bg', bgColor.toHexString());
+    root.style.setProperty('--cover-bg-rgb', bgColor.toRgbString());
+
+    // 表面色（卡片/播放栏）：90% 深色 + 10% 封面色
+    const surfaceColor = tinycolor.mix(tinycolor('#242424'), coverTiny, 12);
+    root.style.setProperty('--cover-surface', surfaceColor.toHexString());
+
+    // 悬浮表面：85% 深色 + 15% 封面色
+    const surfaceHover = tinycolor.mix(tinycolor('#2a2a2a'), coverTiny, 18);
+    root.style.setProperty('--cover-surface-hover', surfaceHover.toHexString());
+
+    // 边框色：80% 深色 + 20% 封面色，低透明度
+    const borderColor = tinycolor.mix(tinycolor('#333333'), coverTiny, 20).setAlpha(0.3);
+    root.style.setProperty('--cover-border', borderColor.toRgbString());
+
+    // 文字色
+    root.style.setProperty('--cover-text-primary', 'rgba(255, 255, 255, 0.92)');
+    root.style.setProperty('--cover-text-secondary', 'rgba(255, 255, 255, 0.6)');
+    root.style.setProperty('--cover-text-muted', 'rgba(255, 255, 255, 0.38)');
+  } else {
+    // 浅色模式：封面色与白色混合
+    // 背景色：96% 白色 + 4% 封面色
+    const bgColor = tinycolor.mix(tinycolor('#ffffff'), coverTiny, 4);
+    root.style.setProperty('--cover-bg', bgColor.toHexString());
+    root.style.setProperty('--cover-bg-rgb', bgColor.toRgbString());
+
+    // 表面色（卡片/播放栏）：92% 白色 + 8% 封面色
+    const surfaceColor = tinycolor.mix(tinycolor('#ffffff'), coverTiny, 8);
+    root.style.setProperty('--cover-surface', surfaceColor.toHexString());
+
+    // 悬浮表面：88% 白色 + 12% 封面色
+    const surfaceHover = tinycolor.mix(tinycolor('#ffffff'), coverTiny, 12);
+    root.style.setProperty('--cover-surface-hover', surfaceHover.toHexString());
+
+    // 边框色：80% 白色 + 20% 封面色，低透明度
+    const borderColor = tinycolor.mix(tinycolor('#ffffff'), coverTiny, 20).setAlpha(0.3);
+    root.style.setProperty('--cover-border', borderColor.toRgbString());
+
+    // 文字色
+    root.style.setProperty('--cover-text-primary', 'rgba(0, 0, 0, 0.88)');
+    root.style.setProperty('--cover-text-secondary', 'rgba(0, 0, 0, 0.56)');
+    root.style.setProperty('--cover-text-muted', 'rgba(0, 0, 0, 0.38)');
+  }
+
+  // === 封面渐变背景（用于播放器等全屏场景） ===
+  // 封面色 → 背景色的渐变
+  const gradientStart = coverTiny.toHexString();
+  const gradientEnd = isDarkTheme ? '#0d0d0d' : '#f8f6f3';
+  root.style.setProperty('--cover-gradient-start', gradientStart);
+  root.style.setProperty('--cover-gradient-end', gradientEnd);
+}
+
+/**
+ * 当主题切换时重新生成设计令牌（不重新提取封面色）
+ */
+export function refreshCoverTokens() {
+  const rgb = primaryColorRgb.value.split(',').map((s) => parseInt(s.trim(), 10));
+  if (rgb.length === 3) {
+    updateCSSVariables(rgb[0], rgb[1], rgb[2]);
+  }
 }
 
 /**

@@ -17,6 +17,9 @@ export const applyTheme = (theme: ThemeType) => {
     document.documentElement.classList.remove('dark');
   }
 
+  // 同时设置 data-theme 属性，供封面取色等模块检测当前主题
+  document.documentElement.setAttribute('data-theme', theme);
+
   // 保存主题到本地存储
   localStorage.setItem('theme', theme);
 };

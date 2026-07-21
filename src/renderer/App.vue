@@ -36,7 +36,7 @@ import { isElectron, isLyricWindow } from '@/utils';
 import { checkLoginStatus } from '@/utils/auth';
 
 import { initAudioListeners, initMusicHook } from './hooks/MusicHook';
-import { initCoverColor, useCoverColor } from './hooks/useCoverColor';
+import { initCoverColor, refreshCoverTokens, useCoverColor } from './hooks/useCoverColor';
 import { audioService } from './services/audioService';
 import { initLxMusicRunner } from './services/LxMusicSourceRunner';
 import { isAndroidNative, initNativeBridge } from './services/androidNative';
@@ -177,6 +177,11 @@ watch(
 
 const theme = computed(() => {
   return settingsStore.theme;
+});
+
+// 监听主题变化，刷新封面取色设计令牌
+watch(theme, () => {
+  refreshCoverTokens();
 });
 
 // 监听字体变化并应用
