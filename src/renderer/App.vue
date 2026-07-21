@@ -39,6 +39,7 @@ import { initAudioListeners, initMusicHook } from './hooks/MusicHook';
 import { initCoverColor, useCoverColor } from './hooks/useCoverColor';
 import { audioService } from './services/audioService';
 import { initLxMusicRunner } from './services/LxMusicSourceRunner';
+import { isAndroidNative, initNativeBridge } from './services/androidNative';
 import { useStyleEngineStore } from './store/modules/styleEngine';
 import { isMobile } from './utils';
 import { useAppShortcuts } from './utils/appShortcuts';
@@ -334,6 +335,12 @@ onMounted(async () => {
 
   // 初始化样式引擎（启动鼓点/高潮检测器）
   styleEngine.init();
+
+  // 初始化 Android 原生桥接（状态栏、媒体通知、返回手势、安全区域）
+  // 必须在 store 初始化后调用，内部会 watch playerStore 和 settingsStore
+  if (isAndroidNative()) {
+    initNativeBridge();
+  }
 });
 
 onBeforeUnmount(() => {
