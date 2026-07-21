@@ -331,17 +331,20 @@ const loadData = async () => {
     const results = await Promise.all(promises);
     if (!mounted.value) return;
     userDetail.value = results[0].data;
-    recordList.value = results[1].data.allData.map((item: any) => ({
+    // /user/record 返回 { allData: [...], weekData: [...] }，但某些 API 版本可能只返回 weekData
+    const recordData = results[1].data;
+    const recordListData = recordData?.allData || recordData?.weekData || [];
+    recordList.value = recordListData.map((item: any) => ({
       ...item,
-      ...item.song,
-      picUrl: item.song.al.picUrl
+      ...(item.song || {}),
+      picUrl: item.song?.al?.picUrl || item.picUrl || ''
     }));
     if (results.length > 2 && results[2].data?.playlist) {
       userStore.playList = results[2].data.playlist;
     }
   } catch (error: any) {
     console.error('加载用户页面失败:', error);
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 || error.response?.status === 301) {
       userStore.handleLogout();
       router.push('/login');
     } else {
