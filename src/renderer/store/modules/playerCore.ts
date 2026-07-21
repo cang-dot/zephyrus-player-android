@@ -34,6 +34,10 @@ export const usePlayerCoreStore = defineStore(
     const playMusic = ref<SongResult>({} as SongResult);
     const playMusicUrl = ref('');
     const musicFull = ref(false);
+    // 移动端全屏歌词（竖屏播放器内展开的滚动歌词页）
+    const fullLyricsVisible = ref(false);
+    // 移动端播放器设置弹窗
+    const playerSettingsVisible = ref(false);
     const playbackRate = ref(1.0);
     const volume = ref(1);
     const userPlayIntent = ref(false); // 用户是否想要播放
@@ -69,6 +73,20 @@ export const usePlayerCoreStore = defineStore(
      */
     const setMusicFull = (value: boolean) => {
       musicFull.value = value;
+    };
+
+    /**
+     * 设置全屏歌词可见性
+     */
+    const setFullLyricsVisible = (value: boolean) => {
+      fullLyricsVisible.value = value;
+    };
+
+    /**
+     * 设置播放器设置弹窗可见性
+     */
+    const setPlayerSettingsVisible = (value: boolean) => {
+      playerSettingsVisible.value = value;
     };
 
     /**
@@ -681,6 +699,8 @@ export const usePlayerCoreStore = defineStore(
       playMusic,
       playMusicUrl,
       musicFull,
+      fullLyricsVisible,
+      playerSettingsVisible,
       playbackRate,
       volume,
       userPlayIntent,
@@ -695,6 +715,8 @@ export const usePlayerCoreStore = defineStore(
       // Actions
       setIsPlay,
       setMusicFull,
+      setFullLyricsVisible,
+      setPlayerSettingsVisible,
       setPlayMusic,
       setPlaybackRate,
       setVolume,
