@@ -1,14 +1,15 @@
-﻿<template>
+﻿﻿<template>
   <div class="local-music-page h-full w-full bg-white dark:bg-black transition-colors duration-500">
     <!-- Mobile file picker (non-Electron) -->
     <div
       v-if="!isElectron"
       class="flex h-full flex-col overflow-y-auto"
+      style="padding-top: calc(var(--safe-area-inset-top, 0px))"
     >
       <!-- Header -->
       <div class="px-4 pt-6 pb-4">
         <div class="flex items-center justify-between">
-          <h1 class="text-2xl font-bold d-text-primary">{{ t('localMusic.title') }}</h1>
+          <h1 class="text-2xl font-bold d-text-primary" style="color: var(--cover-text-primary, inherit)">{{ t('localMusic.title') }}</h1>
           <div class="flex items-center gap-2">
             <button
               class="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent-color)]/15 text-[var(--accent-color)] active:scale-95 transition-transform"
@@ -25,9 +26,17 @@
             </button>
           </div>
         </div>
-        <p class="mt-1 text-sm d-text-secondary">
+        <p class="mt-1 text-sm d-text-secondary" style="color: var(--cover-text-secondary, inherit)">
           {{ t('localMusic.songCount', { count: mobileMusicList.length }) }}
         </p>
+      </div>
+
+      <!-- Scanning progress -->
+      <div v-if="isScanningDirectory" class="px-4 pb-2">
+        <div class="flex items-center gap-3 rounded-2xl bg-[var(--accent-color)]/5 p-3">
+          <n-spin size="small" />
+          <span class="text-sm" style="color: var(--cover-text-secondary, inherit)">正在扫描音频文件...</span>
+        </div>
       </div>
 
       <!-- Hidden file input -->
@@ -581,6 +590,7 @@ const handleDirectorySelect = async (event: Event) => {
 
     if (newItems.length > 0) {
       mobileMusicList.value.push(...newItems);
+      saveMobileMusicList();
       message.success(`已扫描到 ${newItems.length} 首音频`);
     } else {
       message.info('该目录下没有可识别的音频文件');
@@ -618,6 +628,7 @@ const handleFileSelect = async (event: Event) => {
 
   if (newItems.length > 0) {
     mobileMusicList.value.push(...newItems);
+    saveMobileMusicList();
     message.success(`已添加 ${newItems.length} 首音乐`);
   }
 
@@ -650,6 +661,12 @@ const formatFileSize = (bytes: number): string => {
 const playMobileMusic = (index: number) => {
   const item = mobileMusicList.value[index];
   if (!item) return;
+  // 恢复的缓存项没有 URL，需要重新选择文件
+  if (!item.url) {
+    message.warning('该歌曲需要重新选择文件才能播放，请重新扫描目录');
+    triggerDirectoryPicker();
+    return;
+  }
   const song: SongResult = {
     id: Date.now() + index,
     name: item.name,
@@ -677,6 +694,7 @@ const removeMobileMusic = (id: string) => {
   if (index !== -1) {
     URL.revokeObjectURL(mobileMusicList.value[index].url);
     mobileMusicList.value.splice(index, 1);
+    saveMobileMusicList();
   }
 };
 
@@ -860,9 +878,51 @@ async function handlePlayAll(): Promise<void> {
   });
 }
 
+// ==================== 持久化（移动端）====================
+// 保存扫描结果到 localStorage（仅元数据，不含 File/URL）
+const MOBILE_MUSIC_STORAGE_KEY = 'zephyrus-mobile-music-list';
+
+function saveMobileMusicList() {
+  try {
+    const meta = mobileMusicList.value.map((item) => ({
+      id: item.id,
+      name: item.name,
+      size: item.size,
+      duration: item.duration,
+      artist: item.artist,
+      album: item.album,
+      relativePath: item.relativePath
+    }));
+    localStorage.setItem(MOBILE_MUSIC_STORAGE_KEY, JSON.stringify(meta));
+  } catch {
+    // localStorage 可能已满，忽略
+  }
+}
+
+function restoreMobileMusicList() {
+  try {
+    const raw = localStorage.getItem(MOBILE_MUSIC_STORAGE_KEY);
+    if (!raw) return;
+    const meta = JSON.parse(raw) as Partial<MobileMusicItem>[];
+    // 恢复元数据，但 url 为空（需要重新选择文件才能播放）
+    mobileMusicList.value = meta.map((m) => ({
+      ...m,
+      url: '',
+      file: null as any
+    } as MobileMusicItem));
+  } catch {
+    // ignore
+  }
+}
+
 // ==================== Lifecycle ====================
 onMounted(async () => {
-  if (!isElectron) return;
+  if (!isElectron) {
+    // 移动端：从 localStorage 恢复扫描过的音乐元数据
+    // 注意：File 对象和 URL 无法持久化，需要重新选择文件才能播放
+    restoreMobileMusicList();
+    return;
+  }
   await localMusicStore.loadFromCache();
 });
 </script>
