@@ -23,16 +23,10 @@ public class MainActivity extends BridgeActivity {
         // 沉浸式状态栏：内容延伸到状态栏和导航栏下方
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
-        // 根据系统当前暗色模式设置初始状态栏颜色，避免启动时灰色窗口
-        boolean isDarkMode = (getResources().getConfiguration().uiMode &
-                android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
-                android.content.res.Configuration.UI_MODE_NIGHT_YES;
-        String initialBarColor = isDarkMode ? "#1a1a1a" : "#f5f1eb";
-        getWindow().setStatusBarColor(Color.parseColor(initialBarColor));
-        // 导航栏使用与 WebView 一致的背景色，而非 transparent；
-        // edge-to-edge 模式下 transparent 仍会被系统叠加一层灰色 scrim。
-        // 透明感由 setDecorFitsSystemWindows(false) 保证内容延伸到导航栏下方即可。
-        getWindow().setNavigationBarColor(Color.parseColor(initialBarColor));
+        // 沉浸式模式：状态栏和导航栏完全透明，内容由 CSS 延伸
+        // 仅控制图标明暗外观，背景色由前端 CSS / 封面取色决定
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
 
         // 允许内容延伸到刘海屏区域
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
@@ -47,8 +41,8 @@ public class MainActivity extends BridgeActivity {
         nativeBridge = new NativeBridge(this);
         WebView webView = bridge.getWebView();
         if (webView != null) {
-            // WebView 使用不透明背景，与状态栏颜色一致（根据暗色模式）
-            webView.setBackgroundColor(Color.parseColor(initialBarColor));
+            // WebView 背景设为透明，让 CSS 背景透过状态栏区域可见
+            webView.setBackgroundColor(Color.TRANSPARENT);
 
             webView.addJavascriptInterface(nativeBridge, "AndroidNative");
             // 初始状态栏外观：浅色背景 → 深色图标

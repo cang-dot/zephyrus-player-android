@@ -8,7 +8,7 @@
     <!-- 窗口背景（亮色模式）：与 WebView 初值一致 -->
     <color name="windowBackground">#f5f1eb</color>
 
-    <!-- 系统栏颜色（默认亮色） -->
-    <color name="statusBarColor">#f5f1eb</color>
-    <color name="navigationBarColor">#f5f1eb</color>
+    <!-- 系统栏颜色：沉浸式模式，完全透明，内容由 CSS 延伸 -->
+    <color name="statusBarColor">#00000000</color>
+    <color name="navigationBarColor">#00000000</color>
 </resources>

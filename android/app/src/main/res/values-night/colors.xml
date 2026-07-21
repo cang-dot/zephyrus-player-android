@@ -8,7 +8,7 @@
     <!-- 窗口背景（深色模式）：与 WebView 初值一致 -->
     <color name="windowBackground">#1a1a1a</color>
 
-    <!-- 系统栏颜色（深色模式） -->
-    <color name="statusBarColor">#1a1a1a</color>
-    <color name="navigationBarColor">#1a1a1a</color>
+    <!-- 系统栏颜色：沉浸式模式，完全透明 -->
+    <color name="statusBarColor">#00000000</color>
+    <color name="navigationBarColor">#00000000</color>
 </resources>

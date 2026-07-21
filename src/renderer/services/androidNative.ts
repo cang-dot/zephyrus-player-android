@@ -400,25 +400,14 @@ export function initNativeBridge() {
     // 1. 注入安全区域 CSS 变量
     injectSafeAreaInsets();
 
-    // 2. 同步状态栏外观到当前主题
+    // 2. 同步状态栏图标外观到当前主题（沉浸式模式，背景透明，仅控制图标明暗）
     updateStatusBarTheme(settingsStore.theme === 'dark');
-    // 设置初始状态栏背景色
-    if (settingsStore.theme === 'dark') {
-      setStatusBarBgColor('#1a1a1a');
-    } else {
-      setStatusBarBgColor('#f5f1eb');
-    }
 
-    // 3. 监听主题变化
+    // 3. 监听主题变化（仅更新图标外观，背景透明由 CSS 控制）
     watch(
       () => settingsStore.theme,
       (newTheme) => {
         updateStatusBarTheme(newTheme === 'dark');
-        if (newTheme === 'dark') {
-          setStatusBarBgColor('#1a1a1a');
-        } else {
-          setStatusBarBgColor('#f5f1eb');
-        }
       }
     );
 
