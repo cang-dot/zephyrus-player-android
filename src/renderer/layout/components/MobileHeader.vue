@@ -25,8 +25,12 @@
       <div v-if="!isHomePage" class="header-btn" @click="openSearch">
         <i class="ri-search-line"></i>
       </div>
-      <div class="header-btn" @click="openSettings">
-        <i class="ri-settings-3-line"></i>
+      <!-- 首页：用户头像，点击跳转「我的」页 -->
+      <div v-if="isHomePage" class="header-avatar" @click="goToUser">
+        <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-img" />
+        <div v-else class="avatar-placeholder">
+          <i class="ri-user-3-line"></i>
+        </div>
       </div>
     </div>
   </div>
@@ -37,9 +41,13 @@ import { computed, inject } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
+import { useUserStore } from '@/store/modules/user';
+import { getImgUrl } from '@/utils';
+
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
+const userStore = useUserStore();
 
 const hasSafeArea = inject('hasSafeArea', false);
 
@@ -66,6 +74,17 @@ const openSearch = () => {
 const openSettings = () => {
   router.push('/set');
 };
+
+// 跳转到「我的」页面
+const goToUser = () => {
+  router.push('/user');
+};
+
+// 用户头像 URL
+const avatarUrl = computed(() => {
+  const url = userStore.user?.avatarUrl;
+  return url ? getImgUrl(url, '72y72') : '';
+});
 </script>
 
 <style lang="scss" scoped>
@@ -152,5 +171,36 @@ const openSettings = () => {
   &:active {
     background: var(--m-surface, rgba(0, 0, 0, 0.05));
   }
+}
+
+/* 首页用户头像 */
+.header-avatar {
+  @apply flex items-center justify-center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+
+  &:active {
+    transform: scale(0.92);
+  }
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  @apply flex items-center justify-center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--m-surface, rgba(0, 0, 0, 0.05));
+  color: var(--m-text-muted, #9a9590);
+  font-size: 18px;
 }
 </style>
