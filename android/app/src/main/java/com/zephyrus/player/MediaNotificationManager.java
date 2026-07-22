@@ -10,10 +10,12 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.media.MediaMetadata;
+import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
 import android.os.Build;
 import android.util.Log;
 
-import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
 import java.io.InputStream;
@@ -21,10 +23,12 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 /**
- * 音乐通知管理器。
- * 使用 NotificationCompat 实现媒体通知（歌曲信息、封面、播放控制按钮）。
+ * 音乐通知管理器（原生 Android API 实现）。
+ * 使用 android.media.session.MediaSession（API 21+）实现：
+ * - 媒体通知（歌曲信息、封面、播放控制按钮）
+ * - 锁屏控件
+ * - MediaStyle 通知样式
  * 通知按钮通过 BroadcastReceiver -> evaluateJavascript 转发到前端。
- * TODO: 集成 MediaSession 实现锁屏控件（需解决 androidx.media 包路径问题）
  */
 public class MediaNotificationManager {
     private static final String TAG = "MediaNotification";
@@ -40,6 +44,7 @@ public class MediaNotificationManager {
 
     private final Context context;
     private final NotificationManager notificationManager;
+    private MediaSession mediaSession;
     private boolean isRegistered = false;
 
     // 当前媒体信息缓存
@@ -47,6 +52,8 @@ public class MediaNotificationManager {
     private String currentArtist = "";
     private String currentAlbum = "";
     private boolean currentIsPlaying = false;
+    private long currentDuration = 0;
+    private long currentPosition = 0;
     private Bitmap currentArtwork = null;
     private String currentArtworkUrl = "";
 
@@ -62,9 +69,10 @@ public class MediaNotificationManager {
         this.notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
         createNotificationChannel();
+        initMediaSession();
         registerButtonReceiver();
 
-        Log.d(TAG, "MediaNotificationManager initialized");
+        Log.d(TAG, "MediaNotificationManager initialized (native API)");
     }
 
     private void createNotificationChannel() {
@@ -77,6 +85,24 @@ public class MediaNotificationManager {
                 notificationManager.createNotificationChannel(channel);
             }
         }
+    }
+
+    @SuppressWarnings("deprecation")
+    private void initMediaSession() {
+        mediaSession = new MediaSession(context, "ZephyrusPlayer");
+        mediaSession.setFlags(
+                MediaSession.FLAG_HANDLES_MEDIA_BUTTONS |
+                MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
+
+        mediaSession.setCallback(new MediaSession.Callback() {
+            @Override public void onPlay() { dispatchMediaButton("play"); }
+            @Override public void onPause() { dispatchMediaButton("pause"); }
+            @Override public void onSkipToNext() { dispatchMediaButton("next"); }
+            @Override public void onSkipToPrevious() { dispatchMediaButton("prev"); }
+            @Override public void onStop() { dispatchMediaButton("stop"); }
+            @Override public void onSeekTo(long pos) { dispatchMediaButton("seek:" + pos); }
+        });
+        mediaSession.setActive(true);
     }
 
     private final BroadcastReceiver mediaButtonReceiver = new BroadcastReceiver() {
@@ -113,6 +139,9 @@ public class MediaNotificationManager {
         }
     }
 
+    /**
+     * 更新媒体会话元数据和播放状态，并刷新通知
+     */
     public void updateMediaSession(String title, String artist, String album,
                                    String artworkUrl, boolean isPlaying,
                                    double duration, double position) {
@@ -120,6 +149,34 @@ public class MediaNotificationManager {
         currentArtist = artist != null ? artist : "";
         currentAlbum = album != null ? album : "";
         currentIsPlaying = isPlaying;
+        currentDuration = (long) (duration * 1000);
+        currentPosition = (long) (position * 1000);
+
+        // 更新元数据
+        MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder();
+        metadataBuilder.putString(MediaMetadata.METADATA_KEY_TITLE, currentTitle);
+        metadataBuilder.putString(MediaMetadata.METADATA_KEY_ARTIST, currentArtist);
+        metadataBuilder.putString(MediaMetadata.METADATA_KEY_ALBUM, currentAlbum);
+        metadataBuilder.putLong(MediaMetadata.METADATA_KEY_DURATION, currentDuration);
+        if (currentArtwork != null) {
+            metadataBuilder.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, currentArtwork);
+        }
+        mediaSession.setMetadata(metadataBuilder.build());
+
+        // 更新播放状态
+        PlaybackState.Builder stateBuilder = new PlaybackState.Builder();
+        stateBuilder.setActions(
+                PlaybackState.ACTION_PLAY |
+                PlaybackState.ACTION_PAUSE |
+                PlaybackState.ACTION_PLAY_PAUSE |
+                PlaybackState.ACTION_SKIP_TO_NEXT |
+                PlaybackState.ACTION_SKIP_TO_PREVIOUS |
+                PlaybackState.ACTION_SEEK_TO);
+        int state = isPlaying
+                ? PlaybackState.STATE_PLAYING
+                : PlaybackState.STATE_PAUSED;
+        stateBuilder.setState(state, currentPosition, isPlaying ? 1.0f : 0f);
+        mediaSession.setPlaybackState(stateBuilder.build());
 
         // 异步加载封面
         if (artworkUrl != null && !artworkUrl.isEmpty() && !artworkUrl.equals(currentArtworkUrl)) {
@@ -164,26 +221,39 @@ public class MediaNotificationManager {
         }
     }
 
+    @SuppressWarnings("deprecation")
     private Notification buildNotification() {
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             flags |= PendingIntent.FLAG_IMMUTABLE;
         }
 
+        // 点击通知打开 MainActivity
         Intent contentIntent = new Intent(context, MainActivity.class);
         contentIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent contentPending = PendingIntent.getActivity(context, 0, contentIntent, flags);
 
+        // 上一首
         PendingIntent prevPending = PendingIntent.getBroadcast(context, 1,
                 new Intent(ACTION_PREV).setPackage(context.getPackageName()), flags);
+        // 播放/暂停
         PendingIntent playPausePending = PendingIntent.getBroadcast(context, 2,
                 new Intent(currentIsPlaying ? ACTION_PAUSE : ACTION_PLAY)
                         .setPackage(context.getPackageName()), flags);
+        // 下一首
         PendingIntent nextPending = PendingIntent.getBroadcast(context, 3,
                 new Intent(ACTION_NEXT).setPackage(context.getPackageName()), flags);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setContentTitle(currentTitle)
+        // 使用原生 Notification.Builder（API 24+ 直接支持 Channel ID）
+        Notification.Builder builder;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            builder = new Notification.Builder(context, CHANNEL_ID);
+        } else {
+            builder = new Notification.Builder(context);
+            builder.setPriority(Notification.PRIORITY_LOW);
+        }
+
+        builder.setContentTitle(currentTitle)
                 .setContentText(currentArtist)
                 .setSubText(currentAlbum)
                 .setSmallIcon(R.mipmap.ic_launcher)
@@ -191,7 +261,6 @@ public class MediaNotificationManager {
                 .setOngoing(true)
                 .setShowWhen(false)
                 .setOnlyAlertOnce(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
                 .addAction(android.R.drawable.ic_media_previous, "Previous", prevPending)
                 .addAction(
                         currentIsPlaying
@@ -205,13 +274,25 @@ public class MediaNotificationManager {
             builder.setLargeIcon(currentArtwork);
         }
 
+        // MediaStyle：将通知与 MediaSession 关联
+        Notification.MediaStyle mediaStyle = new Notification.MediaStyle();
+        mediaStyle.setMediaSession(mediaSession.getSessionToken());
+        mediaStyle.setShowActionsInCompactView(0, 1, 2);
+        builder.setStyle(mediaStyle);
+
         return builder.build();
     }
 
+    /**
+     * 获取通知对象供 MusicPlaybackService 用作前台服务通知
+     */
     public Notification getServiceNotification() {
         return buildNotification();
     }
 
+    /**
+     * 显示空闲通知（未在播放时）
+     */
     public void showIdleNotification() {
         currentTitle = "Zephyrus Player";
         currentArtist = "播放器运行中";
@@ -219,15 +300,31 @@ public class MediaNotificationManager {
         currentIsPlaying = false;
         currentArtwork = null;
         currentArtworkUrl = "";
+
+        // 更新播放状态为空闲
+        PlaybackState.Builder stateBuilder = new PlaybackState.Builder();
+        stateBuilder.setActions(PlaybackState.ACTION_PLAY);
+        stateBuilder.setState(PlaybackState.STATE_NONE, 0, 0);
+        mediaSession.setPlaybackState(stateBuilder.build());
+
         updateNotification();
     }
 
+    /**
+     * 清除通知
+     */
     public void clear() {
         if (notificationManager != null) {
             notificationManager.cancel(NOTIFICATION_ID);
         }
+        if (mediaSession != null) {
+            mediaSession.setActive(false);
+        }
     }
 
+    /**
+     * 释放资源
+     */
     public void release() {
         if (isRegistered) {
             try {
@@ -236,6 +333,11 @@ public class MediaNotificationManager {
                 // ignore
             }
             isRegistered = false;
+        }
+        if (mediaSession != null) {
+            mediaSession.setActive(false);
+            mediaSession.release();
+            mediaSession = null;
         }
         instance = null;
     }

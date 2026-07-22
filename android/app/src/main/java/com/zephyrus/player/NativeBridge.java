@@ -47,8 +47,10 @@ public class NativeBridge {
     public String getSafeAreaInsets() {
         JSONObject result = new JSONObject();
         try {
-            result.put("top", getStatusBarHeight());
-            result.put("bottom", getNavigationBarHeight());
+            // 沉浸模式下系统栏已隐藏，safe-area insets 返回 0
+            // 内容从屏幕最顶端开始铺满，无需为状态栏/导航栏留出避让空间
+            result.put("top", 0);
+            result.put("bottom", 0);
             result.put("left", 0);
             result.put("right", 0);
         } catch (Exception e) {
