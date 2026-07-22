@@ -96,8 +96,10 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 
 <style lang="scss" scoped>
 .mobile-layout {
-  @apply w-screen h-screen flex flex-col;
+  @apply w-screen flex flex-col;
   @apply overflow-hidden;
+  height: 100vh;
+  height: 100dvh;
   position: relative;
   background: var(--m-bg, var(--bg-color));
 }
@@ -105,24 +107,15 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 .mobile-content {
   @apply flex-1 overflow-auto;
 
-  /* 有底部菜单时：留出导航栏空间 */
+  /* 播放栏为 fixed 叠加层，仅需 padding-bottom 留出视觉空间 */
   &.has-bottom-menu:not(.has-player) {
-    padding-bottom: calc(var(--m-bottom-nav-height, 64px) + var(--safe-area-inset-bottom, 0px));
+    padding-bottom: 80px;
   }
-
-  /* 只有播放栏时 */
   &.has-player:not(.has-bottom-menu) {
-    padding-bottom: calc(
-      var(--m-mini-player-height, 64px) + var(--safe-area-inset-bottom, 0px) + 8px
-    );
+    padding-bottom: 76px;
   }
-
-  /* 同时有播放栏和底部菜单时 */
   &.has-bottom-menu.has-player {
-    padding-bottom: calc(
-      var(--m-bottom-nav-height, 64px) + var(--m-mini-player-height, 64px) +
-        var(--safe-area-inset-bottom, 0px) + 16px
-    );
+    padding-bottom: 140px;
   }
 }
 
@@ -135,8 +128,6 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   background: var(--m-bg, var(--bg-color));
   border-top: 1px solid var(--m-border, transparent);
   flex-shrink: 0;
-  /* iPhone 手势条等底部安全区域适配 */
-  padding-bottom: var(--safe-area-inset-bottom, 0px);
 }
 
 .mobile-menu {
