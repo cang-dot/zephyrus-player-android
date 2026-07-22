@@ -33,7 +33,6 @@
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <!-- 覆盖 Theme.SplashScreen 的白色 windowBackground，避免系统栏区域显示白条 -->
         <item name="android:windowBackground">@color/windowBackground</item>
-        <item name="android:background">@drawable/splash</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
