@@ -107,10 +107,7 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 .mobile-content {
   @apply flex-1 overflow-auto;
 
-  /* 播放栏为 fixed 叠加层，仅需 padding-bottom 留出视觉空间 */
-  &.has-bottom-menu:not(.has-player) {
-    padding-bottom: 80px;
-  }
+  /* 播放栏为 fixed 叠加层，仅需在有播放栏时补偿 */
   &.has-player:not(.has-bottom-menu) {
     padding-bottom: 76px;
   }
