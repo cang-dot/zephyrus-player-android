@@ -7,7 +7,7 @@
         :style="{
           '--accent-color': accentColor,
           '--accent-color-rgb': accentColorRgb,
-          background: backgroundColor,
+          background: backgroundColor
         }"
         @click="handleTapToggle"
       >
@@ -41,7 +41,7 @@
             <div class="ctrl-btn" @click="close">
               <i class="ri-arrow-down-s-line"></i>
             </div>
-            <div style="flex:1"></div>
+            <div style="flex: 1"></div>
             <div class="ctrl-btn" @click="showPlayerSettings = true">
               <i class="ri-more-2-fill"></i>
             </div>
@@ -55,13 +55,19 @@
             <div class="progress-row">
               <span class="time-text">{{ formatTime(currentTime) }}</span>
               <div class="progress-bar-bg" @click="handleSeek">
-                <div class="climax-track" v-if="styleEngine.climaxSegments.length > 0 && duration > 0">
+                <div
+                  class="climax-track"
+                  v-if="styleEngine.climaxSegments.length > 0 && duration > 0"
+                >
                   <div
                     v-for="(seg, i) in styleEngine.climaxSegments"
                     :key="'cl-' + i"
                     class="climax-segment"
                     :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
-                    :style="{ left: (seg.start / duration) * 100 + '%', width: Math.max(0.5, ((seg.end - seg.start) / duration) * 100) + '%' }"
+                    :style="{
+                      left: (seg.start / duration) * 100 + '%',
+                      width: Math.max(0.5, ((seg.end - seg.start) / duration) * 100) + '%'
+                    }"
                   ></div>
                 </div>
                 <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
@@ -104,16 +110,16 @@
  * - 下方翻译（clamp 14-18px, 300 weight）
  * - 音频响应：高潮时文字使用强调色
  */
+import tinycolor from 'tinycolor2';
 import { computed, onMounted, ref, watch } from 'vue';
 
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
+import { useTapToggle } from '@/composables/useTapToggle';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { secondToMinute } from '@/utils';
-
-import { useTapToggle } from '@/composables/useTapToggle';
 
 // ==================== Props ====================
 
@@ -209,16 +215,22 @@ const lyricColor = computed(() => {
  */
 const lyricStyle = computed(() => ({
   color: lyricColor.value,
-  fontSize: 'clamp(32px, 5vw, 56px)',
+  fontSize: 'clamp(32px, 5vw, 56px)'
 }));
 
 /**
- * 背景：高潮时使用强调色的深色变体
+ * 背景：高潮时使用强调色与深色底的不透明混合，避免透明背景透出下层内容
  */
 const backgroundColor = computed(() => {
   if (styleEngine.isInClimax) {
-    // 高潮时背景微微偏向强调色
-    return `rgba(${accentColorRgb.value}, 0.08)`;
+    // 高潮时：强调色与深色底混合，保持不透明
+    const accent = tinycolor({
+      r: parseInt(String(primaryColorRgb.value?.split(',')[0] || '136')),
+      g: parseInt(String(primaryColorRgb.value?.split(',')[1]?.trim() || '136')),
+      b: parseInt(String(primaryColorRgb.value?.split(',')[2]?.trim() || '136'))
+    });
+    const mixed = tinycolor.mix(tinycolor('#1a1a1a'), accent, 15);
+    return mixed.toHexString();
   }
   return '#1a1a1a';
 });
@@ -394,9 +406,23 @@ function formatTime(seconds: number): string {
       transition: width 0.1s linear;
     }
 
-    .climax-track { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
-    .climax-segment { position: absolute; top: 0; bottom: 0; height: 100%; background: rgba(255, 200, 50, 0.35); border-radius: 1px; transition: background 0.2s ease;
-      &.climax-active { background: rgba(255, 200, 50, 0.7); }
+    .climax-track {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .climax-segment {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      height: 100%;
+      background: rgba(255, 200, 50, 0.35);
+      border-radius: 1px;
+      transition: background 0.2s ease;
+      &.climax-active {
+        background: rgba(255, 200, 50, 0.7);
+      }
     }
   }
 }
@@ -449,8 +475,9 @@ function formatTime(seconds: number): string {
 /* 歌词切换过渡 */
 .lyric-change-enter-active,
 .lyric-change-leave-active {
-  transition: opacity 0.3s var(--m-ease-out, ease),
-              transform 0.3s var(--m-ease-out, ease);
+  transition:
+    opacity 0.3s var(--m-ease-out, ease),
+    transform 0.3s var(--m-ease-out, ease);
 }
 
 .lyric-change-enter-from {

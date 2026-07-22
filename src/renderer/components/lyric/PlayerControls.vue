@@ -11,7 +11,14 @@
   <!-- 右上角：设置 + 模式切换 + 额外按钮 + 全屏 -->
   <transition name="controls-fade">
     <div v-show="visible" class="player-controls__right" :class="'theme-' + theme">
-      <n-popover v-if="!hideSettings" trigger="click" placement="bottom-end" :z-index="99999" raw to="body">
+      <n-popover
+        v-if="!hideSettings"
+        trigger="click"
+        placement="bottom-end"
+        :z-index="99999"
+        raw
+        to="body"
+      >
         <template #trigger>
           <div class="player-controls__btn">
             <i class="ri-settings-3-line"></i>
@@ -133,8 +140,9 @@ onUnmounted(() => {
   backdrop-filter: var(--d-glass-blur, blur(8px));
   -webkit-backdrop-filter: var(--d-glass-blur, blur(8px));
   cursor: pointer;
-  transition: background var(--d-duration-normal, 0.2s) var(--d-ease-out, ease),
-              transform var(--d-duration-fast, 0.125s) var(--d-ease-out, ease);
+  transition:
+    background var(--d-duration-normal, 0.2s) var(--d-ease-out, ease),
+    transform var(--d-duration-fast, 0.125s) var(--d-ease-out, ease);
   color: #fff;
   font-size: 20px;
 }

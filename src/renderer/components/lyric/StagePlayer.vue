@@ -137,8 +137,8 @@ import {
 import { useStyleContext } from '@/playerStyles/useStyleContext';
 import { drumDetector } from '@/services/drumDetector';
 import { useClimaxStore } from '@/store/modules/climax';
-import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { usePlayerStore } from '@/store/modules/player';
+import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { DEFAULT_LYRIC_CONFIG } from '@/types/lyric';
 import type { ILyricText, IWordData } from '@/types/music';
 import { getImgUrl, isMobile } from '@/utils';

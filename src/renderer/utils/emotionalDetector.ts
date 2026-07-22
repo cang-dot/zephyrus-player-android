@@ -6,7 +6,7 @@
  * 2. jieba 高频词分析 → 临时字典 → 跨歌曲计数 → 长效字典
  */
 
-import { splitLyrics, splitLyricsWithTags, isVerbOrNoun } from './wordSplitter';
+import { isVerbOrNoun,splitLyrics, splitLyricsWithTags } from './wordSplitter';
 
 /** 内置情感词典 */
 const DEFAULT_EMOTIONAL_WORDS = new Set([

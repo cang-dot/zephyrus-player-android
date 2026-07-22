@@ -1,3 +1,3 @@
-export { registerFeature, unregisterFeature, getAllFeatures, getFeature } from './registry';
 export type { FeatureDefinition, FeatureType } from './registry';
-export { isFeatureEnabled, setFeatureEnabled, getFeatureFlags } from './store';
+export { getAllFeatures, getFeature,registerFeature, unregisterFeature } from './registry';
+export { getFeatureFlags,isFeatureEnabled, setFeatureEnabled } from './store';

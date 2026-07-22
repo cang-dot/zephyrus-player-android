@@ -39,7 +39,8 @@
                   ? 'cursor-pointer bg-light-200 dark:bg-dark-200 hover:bg-light-300 dark:hover:bg-dark-300'
                   : 'opacity-40 cursor-not-allowed bg-light-200 dark:bg-dark-200',
                 {
-                  'bg-[var(--accent-color-10)] dark:bg-[var(--accent-color-20)] text-[var(--accent-color)]': isCurrentSource(source.id),
+                  'bg-[var(--accent-color-10)] dark:bg-[var(--accent-color-20)] text-[var(--accent-color)]':
+                    isCurrentSource(source.id),
                   'opacity-50 cursor-not-allowed': isReparsing && source.available
                 }
               ]"

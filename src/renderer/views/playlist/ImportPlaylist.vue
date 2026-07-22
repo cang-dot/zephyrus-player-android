@@ -277,7 +277,8 @@
                       :class="{
                         'bg-blue-50 text-blue-500':
                           taskStatus === 'processing' || taskStatus === 'pending',
-                        'bg-[var(--accent-color-10)] text-[var(--accent-color)]': taskStatus === 'success',
+                        'bg-[var(--accent-color-10)] text-[var(--accent-color)]':
+                          taskStatus === 'success',
                         'bg-red-50 text-red-500': taskStatus === 'failed'
                       }"
                     >

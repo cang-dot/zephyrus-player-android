@@ -185,8 +185,7 @@ const openDownloadPath = () => {
   openDirectory(setData.value.downloadPath, message);
 };
 
-const handleShortcutsChange = (shortcuts: any) => {
-};
+const handleShortcutsChange = (shortcuts: any) => {};
 </script>
 
 <style scoped>

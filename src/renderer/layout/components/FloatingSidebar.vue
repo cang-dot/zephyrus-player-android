@@ -31,7 +31,8 @@
                   v-if="isExpanded"
                   class="fs-item-text"
                   :class="isActive(item.path) ? 'fs-text-active' : ''"
-                >{{ t(item.meta.title) }}</span>
+                  >{{ t(item.meta.title) }}</span
+                >
               </div>
             </template>
             <div>{{ t(item.meta.title) }}</div>
@@ -69,12 +70,19 @@
                   class="fs-submenu-row"
                   @click="navigateToAlbum(al.id)"
                 >
-                  <img :src="getImgUrl(al.picUrl || al.blurPicUrl, '64y64')" class="fs-submenu-cover" />
+                  <img
+                    :src="getImgUrl(al.picUrl || al.blurPicUrl, '64y64')"
+                    class="fs-submenu-cover"
+                  />
                   <span v-show="isExpanded" class="fs-submenu-name">{{ al.name }}</span>
                 </div>
               </template>
               <div
-                v-if="createdPlaylists.length === 0 && collectedPlaylists.length === 0 && collectedAlbums.length === 0"
+                v-if="
+                  createdPlaylists.length === 0 &&
+                  collectedPlaylists.length === 0 &&
+                  collectedAlbums.length === 0
+                "
                 class="fs-submenu-empty"
               >
                 暂无歌单
@@ -95,8 +103,8 @@ import { useRoute, useRouter } from 'vue-router';
 import icon from '@/assets/icon.png';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
-import { useWindowStore } from '@/store/modules/windowStore';
 import { useSettingsStore, useUserStore } from '@/store';
+import { useWindowStore } from '@/store/modules/windowStore';
 import { getImgUrl } from '@/utils';
 
 const props = defineProps({
@@ -213,17 +221,20 @@ onMounted(() => {
 });
 
 // 面板关闭后重新启动收起计时
-watch(() => windowStore.activePath, (newPath) => {
-  if (!newPath) {
-    // 面板关闭了，重新启动收起计时
-    isOffscreen.value = false;
-    startOffscreenTimer();
-  } else {
-    // 面板打开了，确保侧栏可见
-    cancelOffscreenTimer();
-    isOffscreen.value = false;
+watch(
+  () => windowStore.activePath,
+  (newPath) => {
+    if (!newPath) {
+      // 面板关闭了，重新启动收起计时
+      isOffscreen.value = false;
+      startOffscreenTimer();
+    } else {
+      // 面板打开了，确保侧栏可见
+      cancelOffscreenTimer();
+      isOffscreen.value = false;
+    }
   }
-});
+);
 
 onUnmounted(() => {
   cancelOffscreenTimer();

@@ -7,7 +7,7 @@
         :style="{
           '--text-dark': textColorDark,
           '--text-gray': textColorGray,
-          background: backgroundColor,
+          background: backgroundColor
         }"
         @click="handleTapToggle"
       >
@@ -19,10 +19,16 @@
 
         <!-- 巨字歌词 -->
         <div class="giant-text-container">
-          <div class="giant-text line-1" :style="{ fontSize: fontSizePx, color: 'var(--text-dark)' }">
+          <div
+            class="giant-text line-1"
+            :style="{ fontSize: fontSizePx, color: 'var(--text-dark)' }"
+          >
             {{ lyricPart1 }}
           </div>
-          <div class="giant-text line-2" :style="{ fontSize: fontSizePx, color: 'var(--text-gray)' }">
+          <div
+            class="giant-text line-2"
+            :style="{ fontSize: fontSizePx, color: 'var(--text-gray)' }"
+          >
             {{ lyricPart2 }}
           </div>
         </div>
@@ -33,7 +39,7 @@
             <div class="ctrl-btn" @click="close">
               <i class="ri-arrow-down-s-line"></i>
             </div>
-            <div style="flex:1"></div>
+            <div style="flex: 1"></div>
             <div class="ctrl-btn" @click="showPlayerSettings = true">
               <i class="ri-more-2-fill"></i>
             </div>
@@ -47,13 +53,19 @@
             <div class="progress-row">
               <span class="time-text">{{ formatTime(currentTime) }}</span>
               <div class="progress-bar-bg" @click="handleSeek">
-                <div class="climax-track" v-if="styleEngine.climaxSegments.length > 0 && duration > 0">
+                <div
+                  class="climax-track"
+                  v-if="styleEngine.climaxSegments.length > 0 && duration > 0"
+                >
                   <div
                     v-for="(seg, i) in styleEngine.climaxSegments"
                     :key="'cl-' + i"
                     class="climax-segment"
                     :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
-                    :style="{ left: (seg.start / duration) * 100 + '%', width: Math.max(0.5, ((seg.end - seg.start) / duration) * 100) + '%' }"
+                    :style="{
+                      left: (seg.start / duration) * 100 + '%',
+                      width: Math.max(0.5, ((seg.end - seg.start) / duration) * 100) + '%'
+                    }"
                   ></div>
                 </div>
                 <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
@@ -96,13 +108,12 @@
 import { computed, onMounted, ref, watch } from 'vue';
 
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
-import { lrcArray, nowIndex, nowTime, playMusic, sound, artistList } from '@/hooks/MusicHook';
+import { useTapToggle } from '@/composables/useTapToggle';
+import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { secondToMinute } from '@/utils';
-
-import { useTapToggle } from '@/composables/useTapToggle';
 
 // ==================== Props ====================
 
@@ -285,10 +296,22 @@ function formatTime(seconds: number): string {
   background: #ccc;
   transition: background 0.3s var(--m-ease-out, ease);
 
-  &.tl { top: 20px; left: 20px; }
-  &.tr { top: 20px; right: 20px; }
-  &.bl { bottom: 20px; left: 20px; }
-  &.br { bottom: 20px; right: 20px; }
+  &.tl {
+    top: 20px;
+    left: 20px;
+  }
+  &.tr {
+    top: 20px;
+    right: 20px;
+  }
+  &.bl {
+    bottom: 20px;
+    left: 20px;
+  }
+  &.br {
+    bottom: 20px;
+    right: 20px;
+  }
 }
 
 /* 巨字容器 */
@@ -377,9 +400,23 @@ function formatTime(seconds: number): string {
       transition: width 0.1s linear;
     }
 
-    .climax-track { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
-    .climax-segment { position: absolute; top: 0; bottom: 0; height: 100%; background: rgba(255, 200, 50, 0.35); border-radius: 1px; transition: background 0.2s ease;
-      &.climax-active { background: rgba(255, 200, 50, 0.7); }
+    .climax-track {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .climax-segment {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      height: 100%;
+      background: rgba(255, 200, 50, 0.35);
+      border-radius: 1px;
+      transition: background 0.2s ease;
+      &.climax-active {
+        background: rgba(255, 200, 50, 0.7);
+      }
     }
   }
 }

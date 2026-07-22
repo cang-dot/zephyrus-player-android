@@ -15,7 +15,7 @@
  * - 点击控件本身不触发切换（通过 .no-toggle 类标记）
  * - 非移动端保持原有 mousemove 自动隐藏逻辑
  */
-import { ref, type Ref } from 'vue';
+import { type Ref,ref } from 'vue';
 
 import { isMobile } from '@/utils';
 

@@ -3,7 +3,7 @@
     :show="modelValue"
     title="AI 设置"
     preset="card"
-    style="width: 480px; max-width: 90vw;"
+    style="width: 480px; max-width: 90vw"
     :mask-closable="false"
     @update:show="$emit('update:modelValue', $event)"
   >
@@ -34,7 +34,9 @@
           <label class="block text-sm font-medium mb-1">GitHub 个人访问令牌</label>
 
           <div v-if="githubStep === 'account'" class="github-guide">
-            <p class="text-sm text-gray-400 mb-2">配置 GitHub Models 需要 GitHub 个人访问令牌（PAT）。</p>
+            <p class="text-sm text-gray-400 mb-2">
+              配置 GitHub Models 需要 GitHub 个人访问令牌（PAT）。
+            </p>
             <div class="flex gap-2">
               <s-btn @click="githubStep = 'guide'">我有 GitHub 账号</s-btn>
               <s-btn @click="openUrl('https://github.com/signup')">没有，去注册</s-btn>
@@ -52,7 +54,9 @@
               </p>
               <s-btn size="small" @click="openUrl(tokenUrl)">打开 GitHub 设置</s-btn>
               <p class="text-xs text-gray-400 mt-1 break-all">
-                <a :href="tokenUrl" target="_blank" class="underline hover:text-primary">{{ tokenUrl }}</a>
+                <a :href="tokenUrl" target="_blank" class="underline hover:text-primary">{{
+                  tokenUrl
+                }}</a>
               </p>
             </div>
 
@@ -81,19 +85,13 @@
 
       <div>
         <label class="block text-sm font-medium mb-1">模型名称</label>
-        <n-input
-          v-model:value="config.model"
-          :placeholder="defaultModelPlaceholder"
-        />
+        <n-input v-model:value="config.model" :placeholder="defaultModelPlaceholder" />
         <p class="text-xs text-gray-400 mt-1">留空则使用默认模型</p>
       </div>
 
       <div v-if="config.provider === 'custom'">
         <label class="block text-sm font-medium mb-1">API 地址</label>
-        <n-input
-          v-model:value="config.baseUrl"
-          placeholder="https://your-api.com/v1"
-        />
+        <n-input v-model:value="config.baseUrl" placeholder="https://your-api.com/v1" />
         <p class="text-xs text-gray-400 mt-1">完整的 Base URL，需兼容 OpenAI 格式</p>
       </div>
 
@@ -110,7 +108,6 @@ import { computed, h, reactive, ref, watch } from 'vue';
 
 import { AI_PROVIDERS, getProvider } from '@/features/ai/providers';
 import { getMetaphorConfig, saveMetaphorConfig } from '@/features/lyric-metaphor/useMetaphor';
-
 import SBtn from '@/views/set/SBtn.vue';
 
 const props = defineProps<{
@@ -150,9 +147,14 @@ const renderLabel = (option: { label: string; badge?: string }) => {
   if (option.badge) {
     return h('span', null, [
       option.label,
-      h('span', {
-        class: 'ml-1.5 text-[11px] text-white bg-[var(--accent-color)] rounded px-1 py-0.5 leading-none inline-block align-middle'
-      }, option.badge)
+      h(
+        'span',
+        {
+          class:
+            'ml-1.5 text-[11px] text-white bg-[var(--accent-color)] rounded px-1 py-0.5 leading-none inline-block align-middle'
+        },
+        option.badge
+      )
     ]);
   }
   return option.label;

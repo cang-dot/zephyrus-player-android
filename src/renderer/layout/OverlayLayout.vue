@@ -18,10 +18,7 @@
     <floating-window-manager />
 
     <!-- Layer 4: 底部播放栏 -->
-    <play-bar
-      v-show="isPlay"
-      :style="{ bottom: '0' }"
-    />
+    <play-bar v-show="isPlay" :style="{ bottom: '0' }" />
 
     <!-- 其他组件 -->
     <playlist-drawer v-model="showPlaylistDrawer" :song-id="currentSongId" />
@@ -34,18 +31,18 @@
 <script lang="ts" setup>
 import { computed, defineAsyncComponent, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 
+import FloatingWindowManager from '@/components/common/FloatingWindowManager.vue';
 import SleepTimerTop from '@/components/player/SleepTimerTop.vue';
+import { playMusic as playMusicRef } from '@/hooks/MusicHook';
 import { useMenuStore } from '@/store/modules/menu';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { isElectron } from '@/utils';
-import { playMusic as playMusicRef } from '@/hooks/MusicHook';
 
-import FloatingSidebar from './components/FloatingSidebar.vue';
 import FloatingSearchBar from './components/FloatingSearchBar.vue';
+import FloatingSidebar from './components/FloatingSidebar.vue';
 import OverlayPlayerHost from './components/OverlayPlayerHost.vue';
 import TitleBar from './components/TitleBar.vue';
-import FloatingWindowManager from '@/components/common/FloatingWindowManager.vue';
 
 const UpdateModal = defineAsyncComponent(() => import('@/components/common/UpdateModal.vue'));
 const PlayBar = defineAsyncComponent(() => import('@/components/player/PlayBar.vue'));
@@ -62,9 +59,14 @@ const isPlay = computed(() => playerStore.playMusic && playerStore.playMusic.id)
 
 // ==================== 背景色（与 PlayBar 相同逻辑） ====================
 const background = ref('#000');
-watch(() => playerStore.playMusic, () => {
-  if (playMusicRef?.value?.backgroundColor) background.value = playMusicRef.value.backgroundColor as string;
-}, { immediate: true, deep: true });
+watch(
+  () => playerStore.playMusic,
+  () => {
+    if (playMusicRef?.value?.backgroundColor)
+      background.value = playMusicRef.value.backgroundColor as string;
+  },
+  { immediate: true, deep: true }
+);
 
 onMounted(() => {
   settingsStore.initializeSettings();

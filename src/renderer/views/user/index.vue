@@ -31,7 +31,7 @@
     <template v-else>
       <!-- 紧凑头部（移动端优先） -->
       <div
-        v-if="userDetail && user"
+        v-if="user"
         class="relative w-full flex-shrink-0 px-4 pt-4"
         :class="setAnimationClass('animate__fadeIn')"
       >
@@ -48,28 +48,28 @@
               >
             </div>
             <div class="mt-0.5 truncate text-xs d-text-secondary">
-              {{ userDetail.profile.signature || '这个人很懒，什么都没有留下' }}
+              {{ userDetail?.profile?.signature || '这个人很懒，什么都没有留下' }}
             </div>
           </div>
         </div>
         <!-- 统计数据 -->
         <div class="mt-3 flex gap-6 text-sm">
           <div class="text-center">
-            <span class="font-bold d-text-primary">{{ userDetail.profile.followeds }}</span>
+            <span class="font-bold d-text-primary">{{ userDetail?.profile?.followeds || 0 }}</span>
             <span class="ml-1 text-xs d-text-muted">{{ t('user.profile.followers') }}</span>
           </div>
           <div class="cursor-pointer text-center" @click="showFollowList">
-            <span class="font-bold d-text-primary">{{ userDetail.profile.follows }}</span>
+            <span class="font-bold d-text-primary">{{ userDetail?.profile?.follows || 0 }}</span>
             <span class="ml-1 text-xs d-text-muted">{{ t('user.profile.following') }}</span>
           </div>
           <div class="text-center">
-            <span class="font-bold d-text-primary">{{ userDetail.level }}</span>
+            <span class="font-bold d-text-primary">{{ userDetail?.level || 0 }}</span>
             <span class="ml-1 text-xs d-text-muted">{{ t('user.profile.level') }}</span>
           </div>
         </div>
       </div>
       <div
-        v-if="userDetail && user"
+        v-if="user"
         class="relative z-20 px-4 pb-4 flex-1 min-h-0 overflow-y-auto"
         :class="setAnimationClass('animate__fadeIn')"
       >

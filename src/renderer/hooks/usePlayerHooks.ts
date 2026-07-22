@@ -2,9 +2,9 @@ import { cloneDeep } from 'lodash';
 import { createDiscreteApi } from 'naive-ui';
 
 import i18n from '@/../i18n/renderer';
-import { getMusicLrc, getMusicUrl, getParsingMusicUrl } from '@/api/music';
-import { getLyricByPlatform, searchFromGDMusic } from '@/api/gdmusic';
 import { isCrossPlatformSong } from '@/api/crossPlatformSearch';
+import { getLyricByPlatform, searchFromGDMusic } from '@/api/gdmusic';
+import { getMusicLrc, getMusicUrl, getParsingMusicUrl } from '@/api/music';
 import { playbackRequestManager } from '@/services/playbackRequestManager';
 import { SongSourceConfigManager } from '@/services/SongSourceConfigManager';
 import type { ILyric, ILyricText, IWordData, SongResult } from '@/types/music';

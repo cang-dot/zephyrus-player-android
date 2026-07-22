@@ -53,8 +53,8 @@ import { useCommunityDataStore } from '@/store/modules/communityData';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
-import { setCurrentSongId } from '@/utils/emotionalDetector';
 import { isMobile } from '@/utils';
+import { setCurrentSongId } from '@/utils/emotionalDetector';
 
 import FrenzyLyrics from './FrenzyLyrics.vue';
 import GlitchBackground from './GlitchBackground.vue';
@@ -248,13 +248,15 @@ const crtIntensity = computed(() => {
   return Math.min(1.0, crtIntensityCurrent.value + beatBoost);
 });
 
-watch(() => styleEngine.isInClimax, (inClimax) => {
-  crtTarget = inClimax ? 0.6 : 0;
-  if (!crtRafId) crtRafId = requestAnimationFrame(crtAnimate);
-});
+watch(
+  () => styleEngine.isInClimax,
+  (inClimax) => {
+    crtTarget = inClimax ? 0.6 : 0;
+    if (!crtRafId) crtRafId = requestAnimationFrame(crtAnimate);
+  }
+);
 
-watch(crtIntensity, (val) => {
-});
+watch(crtIntensity, (val) => {});
 
 // ==================== 高潮过渡闪光 ====================
 

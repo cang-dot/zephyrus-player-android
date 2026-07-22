@@ -9,7 +9,7 @@
           '--block-color-1': blockColors[1] || accentColor,
           '--block-color-2': blockColors[2] || averageColor,
           '--block-color-3': blockColors[3] || accentColor,
-          '--block-color-4': blockColors[4] || averageColor,
+          '--block-color-4': blockColors[4] || averageColor
         }"
         @click="handleTapToggle"
       >
@@ -20,7 +20,7 @@
             class="color-block text-block"
             :style="{
               backgroundColor: 'var(--block-color-0)',
-              height: blockHeights[0] + 'px',
+              height: blockHeights[0] + 'px'
             }"
           >
             <span class="block-label">{{ artistName }}</span>
@@ -31,7 +31,7 @@
             class="color-block text-block"
             :style="{
               backgroundColor: 'var(--block-color-1)',
-              height: blockHeights[1] + 'px',
+              height: blockHeights[1] + 'px'
             }"
           >
             <span class="block-label">{{ songTitle }}</span>
@@ -44,7 +44,7 @@
             class="color-block decor-block"
             :style="{
               backgroundColor: `var(--block-color-${i + 1})`,
-              height: blockHeights[i + 1] + 'px',
+              height: blockHeights[i + 1] + 'px'
             }"
           ></div>
         </div>
@@ -79,13 +79,13 @@
                       :key="'cl-' + i"
                       class="climax-segment"
                       :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
-                      :style="{ left: (seg.start / duration) * 100 + '%', width: Math.max(0.5, ((seg.end - seg.start) / duration) * 100) + '%' }"
+                      :style="{
+                        left: (seg.start / duration) * 100 + '%',
+                        width: Math.max(0.5, ((seg.end - seg.start) / duration) * 100) + '%'
+                      }"
                     ></div>
                   </div>
-                  <div
-                    class="progress-bar-fill"
-                    :style="{ width: progressPercent + '%' }"
-                  ></div>
+                  <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
                 </div>
                 <span class="time-text">{{ formatTime(duration) }}</span>
               </div>
@@ -132,13 +132,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
-import { extractRegionalColors, useCoverColor } from '@/hooks/useCoverColor';
+import { useTapToggle } from '@/composables/useTapToggle';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
+import { extractRegionalColors, useCoverColor } from '@/hooks/useCoverColor';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { secondToMinute } from '@/utils';
-
-import { useTapToggle } from '@/composables/useTapToggle';
 
 // ==================== Props ====================
 
@@ -225,11 +224,11 @@ const blockHeights = computed(() => {
   const beatPulse = styleEngine.isBeat ? 1 : 0.3;
 
   return [
-    base + (max - base) * energy,           // 块 0: energy
-    base + (max - base) * kick,             // 块 1: kick
-    base + (max - base) * flux,             // 块 2: flux
+    base + (max - base) * energy, // 块 0: energy
+    base + (max - base) * kick, // 块 1: kick
+    base + (max - base) * flux, // 块 2: flux
     base + (max - base) * ((energy + kick) / 2), // 块 3: 混合
-    base + (max - base) * beatPulse,       // 块 4: beat pulse
+    base + (max - base) * beatPulse // 块 4: beat pulse
   ];
 });
 
@@ -440,9 +439,23 @@ onBeforeUnmount(() => {
       transition: width 0.1s linear;
     }
 
-    .climax-track { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
-    .climax-segment { position: absolute; top: 0; bottom: 0; height: 100%; background: rgba(255, 200, 50, 0.35); border-radius: 1px; transition: background 0.2s ease;
-      &.climax-active { background: rgba(255, 200, 50, 0.7); }
+    .climax-track {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .climax-segment {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      height: 100%;
+      background: rgba(255, 200, 50, 0.35);
+      border-radius: 1px;
+      transition: background 0.2s ease;
+      &.climax-active {
+        background: rgba(255, 200, 50, 0.7);
+      }
     }
   }
 }

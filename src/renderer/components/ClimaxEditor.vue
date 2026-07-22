@@ -6,7 +6,7 @@
     :bordered="false"
     class="climax-editor"
     content-style="padding: 20px;"
-    style="width: 820px; max-width: 94vw; border-radius: var(--d-radius-xl); overflow: hidden;"
+    style="width: 820px; max-width: 94vw; border-radius: var(--d-radius-xl); overflow: hidden"
   >
     <div class="climax-editor-content">
       <!-- 当前歌曲信息 -->
@@ -69,19 +69,11 @@
 
       <!-- 操作按钮 -->
       <div class="editor-actions">
-        <button
-          class="d-btn-ghost"
-          :disabled="climaxStore.segments.length === 0"
-          @click="clearAll"
-        >
+        <button class="d-btn-ghost" :disabled="climaxStore.segments.length === 0" @click="clearAll">
           <i class="ri-eraser-line mr-1" />
           清空所有
         </button>
-        <button
-          class="d-btn-primary"
-          :disabled="saving"
-          @click="saveToServer"
-        >
+        <button class="d-btn-primary" :disabled="saving" @click="saveToServer">
           <i v-if="saving" class="ri-loader-4-line animate-spin" />
           <i v-else class="ri-cloud-line" />
           保存到服务器
@@ -109,10 +101,10 @@ import { computed, ref, watch } from 'vue';
 import { type ClimaxSegment, uploadClimax } from '@/api/climax';
 import { allTime, nowTime, playMusic } from '@/hooks/MusicHook';
 import { isLocalSong } from '@/hooks/useLocalMusic';
+import { saveLocalClimax } from '@/services/cacheService';
 import { useClimaxStore } from '@/store/modules/climax';
 import { useCommunityDataStore } from '@/store/modules/communityData';
 import { useUserStore } from '@/store/modules/user';
-import { saveLocalClimax } from '@/services/cacheService';
 import { secondToMinute } from '@/utils';
 
 const climaxStore = useClimaxStore();

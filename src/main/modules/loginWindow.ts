@@ -2,7 +2,7 @@ import { BrowserWindow, ipcMain, session } from 'electron';
 import { join } from 'path';
 
 import i18n from '../../i18n/main';
-import { setPlatformCookie, type SearchPlatform } from '../multiPlatformSearch';
+import { type SearchPlatform,setPlatformCookie } from '../multiPlatformSearch';
 
 // ==================== 网易云登录窗口（原有逻辑） ====================
 

@@ -497,3 +497,8 @@ onMounted(async () => {
   await refreshDiskCacheStats();
 });
 </script>
+
+<style scoped>
+/* 覆盖写死的 Tailwind 颜色，统一跟随 --m-* 令牌 */
+.text-neutral-500 { color: var(--m-text-muted, #9a9590) !important; }
+</style>

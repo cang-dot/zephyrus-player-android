@@ -1,68 +1,58 @@
 <template>
-  <div class="my-music-page" @wheel="onWheel">
-    <!-- 无限封面网格 -->
-    <div class="infinite-grid">
-      <div
-        v-for="(row, rowIndex) in gridRows"
-        :key="rowIndex"
-        class="grid-row"
-        :class="{
-          'row-right': row.dir === 'right',
-          'is-dragging': isDragging && draggedRow === rowIndex,
-          'is-hovered': hoveredRow === rowIndex
-        }"
-        :ref="(el) => setRowRef(el, rowIndex)"
-        @mouseenter="hoveredRow = rowIndex"
-        @mouseleave="onRowMouseLeave(rowIndex)"
-      >
+  <div class="my-music-page">
+    <!-- 标题区 -->
+    <div class="page-header page-padding">
+      <h1 class="page-title">{{ t('comp.list') }}</h1>
+      <p class="page-subtitle">{{ items.length }} {{ t('comp.musicList.songs') }}</p>
+    </div>
+
+    <!-- 封面网格 -->
+    <n-scrollbar class="grid-scroll-area">
+      <div class="cover-grid page-padding">
         <div
-          class="grid-track"
-          :style="{
-            transform: `translateX(${rowOffsets[rowIndex] || 0}px)`,
-            transition: trackTransition(rowIndex)
-          }"
-          @pointerdown="(e) => onPointerDown(e, rowIndex)"
+          v-for="item in items"
+          :key="`${item.type}-${item.id}`"
+          class="cover-card pressable"
+          @click="handleItemClick(item)"
         >
-          <div
-            v-for="(item, idx) in row.items"
-            :key="`${rowIndex}-${idx}`"
-            class="grid-cell"
-            @click="handleItemClick(item, rowIndex)"
-          >
+          <div class="cover-wrap">
             <img
-              :src="getImgUrl(item.src, '200y200')"
+              v-if="item.src"
+              :src="getImgUrl(item.src, '300y300')"
               :alt="item.alt"
               draggable="false"
-              class="cell-img"
+              class="cover-img"
               loading="lazy"
             />
-            <div class="cell-overlay">
-              <span class="cell-name">{{ item.alt }}</span>
+            <div v-else class="cover-placeholder">
+              <i class="ri-disc-line text-3xl text-[var(--accent-color)] opacity-40" />
             </div>
+            <!-- 播放按钮 -->
+            <div class="cover-play-overlay">
+              <i class="ri-play-fill" />
+            </div>
+          </div>
+          <div class="cover-text">
+            <p class="cover-name">{{ item.alt }}</p>
+            <span class="cover-type-badge" :class="item.type">
+              {{ item.type === 'album' ? 'Album' : 'Playlist' }}
+            </span>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 顶部标题（悬浮层） -->
-    <div class="grid-header">
-      <h2 class="grid-title">我的音乐</h2>
-      <p class="grid-subtitle">{{ items.length }} 张专辑 · 滑动浏览 · 可拖动</p>
-    </div>
-
-    <!-- 底部渐变遮罩 -->
-    <div class="grid-footer-fade"></div>
-
-    <!-- 空状态 -->
-    <div v-if="items.length === 0" class="empty-state">
-      <i class="ri-disc-line"></i>
-      <p>暂无歌单或专辑</p>
-    </div>
+      <!-- 空状态 -->
+      <div v-if="items.length === 0" class="empty-state">
+        <i class="ri-disc-line"></i>
+        <p>暂无歌单或专辑</p>
+      </div>
+    </n-scrollbar>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
 import { useUserStore } from '@/store';
@@ -70,10 +60,11 @@ import { getImgUrl } from '@/utils';
 
 defineOptions({ name: 'MyMusic' });
 
+const { t } = useI18n();
 const { navigate } = useOverlayNavigate();
 const userStore = useUserStore();
 
-// ==================== 数据 ====================
+// 数据：歌单 + 专辑
 const items = computed(() => {
   const playlists = userStore.playList.map((pl: any) => ({
     id: pl.id,
@@ -90,488 +81,202 @@ const items = computed(() => {
   return [...playlists, ...albums];
 });
 
-// ==================== 行配置 ====================
-const ROW_COUNT = 4;
-const CELL_SIZE = 150;
-const GAP = 14;
-const MIN_PER_ROW = 14;
-const DRAG_THRESHOLD = 8; // 拖动激活阈值（px），避免点击误判
-
-const ROW_CONFIG = [
-  { dir: 'right' as const, baseSpeed: 25 },
-  { dir: 'left' as const, baseSpeed: 30 },
-  { dir: 'left' as const, baseSpeed: 22 },
-  { dir: 'right' as const, baseSpeed: 28 }
-];
-
-const gridRows = computed(() => {
-  if (items.value.length === 0) return [];
-  const total = items.value.length;
-  const halfTotal = Math.ceil(total / 2);
-
-  const rows = [];
-  for (let i = 0; i < ROW_COUNT; i++) {
-    const cfg = ROW_CONFIG[i];
-    let startIdx: number;
-    if (i === 1) {
-      startIdx = 0;
-    } else if (i === 2) {
-      startIdx = halfTotal;
-    } else {
-      startIdx = Math.floor((i * 7 + 3) % total);
-    }
-
-    const rowItems = [];
-    for (let j = 0; j < MIN_PER_ROW; j++) {
-      rowItems.push(items.value[(startIdx + j) % total]);
-    }
-
-    rows.push({
-      items: [...rowItems, ...rowItems],
-      dir: cfg.dir,
-      baseSpeed: cfg.baseSpeed
-    });
-  }
-  return rows;
-});
-
-// ==================== 滚动偏移 ====================
-const rowOffsets = reactive<Record<number, number>>({});
-const rowRefs: HTMLElement[] = [];
-// 缓存 halfWidth 避免每帧读取 DOM
-const halfWidths = reactive<Record<number, number>>({});
-
-const setRowRef = (el: any, index: number) => {
-  if (el instanceof HTMLElement) rowRefs[index] = el;
-};
-
-function calcHalfWidth(rowIndex: number): number {
-  const row = rowRefs[rowIndex];
-  if (!row) return 0;
-  const track = row.querySelector('.grid-track') as HTMLElement;
-  if (!track || track.scrollWidth === 0) return 0;
-  return track.scrollWidth / 2;
-}
-
-function refreshHalfWidths() {
-  for (let i = 0; i < ROW_COUNT; i++) {
-    halfWidths[i] = calcHalfWidth(i);
-  }
-}
-
-// 取模规范化偏移到 [-halfWidth, 0]，避免 while 循环跳跃
-function normalizeOffset(rowIndex: number) {
-  const half = halfWidths[rowIndex];
-  if (!half || half <= 1) return;
-  let off = rowOffsets[rowIndex] || 0;
-  // 用取模代替 while 循环，一步到位
-  off = -(-off % half);
-  if (off > 0) off -= half;
-  if (off < -half) off += half;
-  rowOffsets[rowIndex] = off;
-}
-
-// 初始化每行偏移
-watch(
-  gridRows,
-  () => {
-    nextTick(() => {
-      refreshHalfWidths();
-      for (let i = 0; i < gridRows.value.length; i++) {
-        if (i === 1 || i === 2) {
-          rowOffsets[i] = -(CELL_SIZE + GAP) * 2;
-        } else {
-          const half = halfWidths[i] || 1;
-          rowOffsets[i] = -((CELL_SIZE + GAP) * (i * 3 + 1)) % half;
-        }
-      }
-    });
-  },
-  { immediate: true }
-);
-
-// ==================== 自动滚动 ====================
-const hoveredRow = ref<number | null>(null);
-let rafId: number | null = null;
-let lastTime = performance.now();
-
-function autoScroll(now: number) {
-  const dt = Math.min((now - lastTime) / 1000, 0.1); // 限制最大帧时间
-  lastTime = now;
-
-  if (gridRows.value.length > 0) {
-    for (let i = 0; i < gridRows.value.length; i++) {
-      // 拖拽中或悬停暂停的行不自动滚动
-      if (isDragging.value && draggedRow.value === i) continue;
-      if (hoveredRow.value === i && !isDragging.value) continue;
-
-      const row = gridRows.value[i];
-      const speed = row.baseSpeed;
-      const delta = row.dir === 'left' ? -speed : speed;
-      rowOffsets[i] = (rowOffsets[i] || 0) + delta * dt;
-      // 只有偏移超出范围时才 normalize，减少运算
-      const half = halfWidths[i] || 0;
-      if (half > 1 && (rowOffsets[i] < -half || rowOffsets[i] > 0)) {
-        normalizeOffset(i);
-      }
-    }
-  }
-  rafId = requestAnimationFrame(autoScroll);
-}
-
-// ==================== 鼠标滚轮 ====================
-const onWheel = (e: WheelEvent) => {
-  if (hoveredRow.value !== null) {
-    const delta = e.deltaY || e.deltaX;
-    rowOffsets[hoveredRow.value] = (rowOffsets[hoveredRow.value] || 0) - delta * 0.8;
-    normalizeOffset(hoveredRow.value);
-    e.preventDefault();
-  }
-};
-
-// ==================== 鼠标拖动（延迟激活） ====================
-const isDragging = ref(false);
-const draggedRow = ref<number | null>(null);
-// 拖拽刚结束标记，用于平滑过渡
-const justDragged = ref(false);
-
-// pointerdown 记录起点，但不立即进入拖动模式
-let pointerDownInfo: { x: number; row: number; offset: number } | null = null;
-
-const onPointerDown = (e: PointerEvent, rowIndex: number) => {
-  // 只响应左键
-  if (e.button !== 0) return;
-  pointerDownInfo = {
-    x: e.clientX,
-    row: rowIndex,
-    offset: rowOffsets[rowIndex] || 0
-  };
-  // 不使用 setPointerCapture，否则会改变 pointerup 的 target，
-  // 导致浏览器合成的 click 事件 target 变成 .grid-track 而非 .grid-cell，
-  // .grid-cell 上的 @click 监听器不会触发
-};
-
-const onPointerMove = (e: PointerEvent) => {
-  if (!pointerDownInfo) return;
-  const dx = e.clientX - pointerDownInfo.x;
-
-  // 只有明确移动超过阈值才进入拖拽模式
-  if (!isDragging.value) {
-    if (Math.abs(dx) <= DRAG_THRESHOLD) return;
-    // 进入拖拽模式
-    isDragging.value = true;
-    draggedRow.value = pointerDownInfo.row;
-  }
-
-  // 拖拽中：直接跟随鼠标
-  rowOffsets[pointerDownInfo.row] = pointerDownInfo.offset + dx;
-};
-
-const onPointerUp = (e?: PointerEvent) => {
-  const wasDragging = isDragging.value;
-  const row = pointerDownInfo?.row ?? null;
-
-  if (wasDragging && row !== null) {
-    // 标记刚拖拽结束，启用平滑过渡
-    justDragged.value = true;
-    normalizeOffset(row);
-    // 过渡结束后清除标记
-    setTimeout(() => {
-      justDragged.value = false;
-    }, 400);
-  }
-
-  // 触屏设备下，touchend 后浏览器常常不再合成 mouseleave，
-  // 导致 hoveredRow 卡在被 onTouch 的行上，autoScroll 永久暂停该行。
-  // 在 touch 释放时主动清除 hoveredRow，让自动滚动恢复。
-  if (e && e.pointerType === 'touch') {
-    hoveredRow.value = null;
-  }
-
-  // 延迟重置，让 click 事件能判断是否拖动过
-  setTimeout(() => {
-    isDragging.value = false;
-    draggedRow.value = null;
-    pointerDownInfo = null;
-  }, 50);
-};
-
-// 全局监听
-if (typeof window !== 'undefined') {
-  window.addEventListener('pointermove', onPointerMove);
-  window.addEventListener('pointerup', onPointerUp);
-  // 浏览器在取消触摸（例如被系统手势截断）时不会触发 pointerup，
-  // 但会触发 pointercancel。不监听则 isDragging/title 隐藏状态会卡死。
-  window.addEventListener('pointercancel', onPointerUp);
-}
-
-// ==================== 行离开 ====================
-const onRowMouseLeave = (rowIndex: number) => {
-  if (hoveredRow.value === rowIndex) {
-    hoveredRow.value = null;
-  }
-};
-
-// ==================== 点击跳转 ====================
-const handleItemClick = (item: any, _rowIndex: number) => {
-  // 如果刚才在拖动，不触发点击
-  if (isDragging.value) return;
+const handleItemClick = (item: any) => {
   navigate(`/music-list/${item.id}?type=${item.type === 'album' ? 'album' : 'playlist'}`);
 };
-
-// ==================== 过渡样式 ====================
-const trackTransition = (rowIndex: number) => {
-  // 拖拽中无过渡
-  if (isDragging.value && draggedRow.value === rowIndex) {
-    return 'none';
-  }
-  // 悬停滚轮时无过渡（跟随滚轮即时响应）
-  if (hoveredRow.value === rowIndex) {
-    return 'none';
-  }
-  // 拖拽刚结束的平滑过渡（normalizeOffset 的回弹动画）
-  if (justDragged.value && draggedRow.value === rowIndex) {
-    return 'transform 0.4s cubic-bezier(0.32, 0.72, 0, 1)';
-  }
-  // 自动滚动无过渡（每帧更新）
-  return 'none';
-};
-
-// ==================== 窗口 resize 重新计算 ====================
-const onResize = () => {
-  refreshHalfWidths();
-  for (let i = 0; i < ROW_COUNT; i++) {
-    normalizeOffset(i);
-  }
-};
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('resize', onResize);
-}
-
-// ==================== 生命周期 ====================
-onMounted(() => {
-  if (userStore.playList.length === 0 && userStore.user) userStore.initializePlaylist();
-  if (userStore.albumList.length === 0 && userStore.user) userStore.initializeAlbumList();
-  // 等 DOM 渲染完后计算 halfWidth
-  nextTick(() => {
-    refreshHalfWidths();
-  });
-  lastTime = performance.now();
-  rafId = requestAnimationFrame(autoScroll);
-});
-
-onUnmounted(() => {
-  if (rafId) cancelAnimationFrame(rafId);
-  if (typeof window !== 'undefined') {
-    window.removeEventListener('pointermove', onPointerMove);
-    window.removeEventListener('pointerup', onPointerUp);
-    window.removeEventListener('pointercancel', onPointerUp);
-    window.removeEventListener('resize', onResize);
-  }
-});
 </script>
 
 <style lang="scss" scoped>
 .my-music-page {
   width: 100%;
   height: 100%;
-  overflow: hidden;
-  position: relative;
-  background-color: var(--cover-bg, #0a0a0a);
-}
-
-// ==================== 无限网格 ====================
-.infinite-grid {
-  width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 14px 0;
   overflow: hidden;
+  background-color: var(--m-bg, var(--bg-color, #f5f1eb));
 }
 
-.grid-row {
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  min-height: 0;
-  mask-image: linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%);
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    black 6%,
-    black 94%,
-    transparent 100%
-  );
-  cursor: grab;
-
-  &.is-dragging {
-    cursor: grabbing;
-  }
-}
-
-.grid-track {
-  display: flex;
-  gap: 14px;
-  padding: 0 7px;
-  will-change: transform;
-  /* 防止浏览器拦截触摸事件（拉动刷新等），让拖动正常工作 */
-  touch-action: pan-x;
-}
-
-// ==================== 封面单元格 ====================
-.grid-cell {
-  width: 150px;
-  height: 150px;
-  border-radius: 10px;
-  overflow: hidden;
-  position: relative;
+.page-header {
   flex-shrink: 0;
-  cursor: pointer;
-  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-  pointer-events: auto;
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 16px);
+  padding-bottom: 12px;
+}
 
-  &:hover {
-    transform: scale(1.08);
-    z-index: 2;
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--m-text-primary, #2c2c2c);
+  margin: 0;
+}
+
+.page-subtitle {
+  font-size: 13px;
+  color: var(--m-text-muted, #9a9590);
+  margin: 4px 0 0;
+}
+
+.grid-scroll-area {
+  flex: 1;
+  min-height: 0;
+}
+
+/* 响应式封面网格 */
+.cover-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  padding-bottom: calc(var(--safe-area-inset-bottom, 0px) + 80px);
+
+  @media (min-width: 480px) {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
   }
 
-  // 拖拽中禁止悬停放大
-  .is-dragging & {
-    &:hover {
-      transform: none;
-    }
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+  }
+
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(5, 1fr);
   }
 }
 
-.cell-img {
+/* 封面卡片 */
+.cover-card {
+  cursor: pointer;
+  user-select: none;
+}
+
+.cover-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--m-surface, rgba(128, 128, 128, 0.1));
+  box-shadow: 0 2px 10px var(--m-shadow, rgba(0, 0, 0, 0.06));
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+.cover-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  pointer-events: none;
 }
 
-// 封面遮罩（移动端常驻显示）
-.cell-overlay {
+.cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-color-rgb, 136, 136, 136), 0.15),
+    rgba(var(--accent-color-rgb, 136, 136, 136), 0.05)
+  );
+}
+
+/* 悬停播放按钮 */
+.cover-play-overlay {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: flex-end;
-  padding: 12px;
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.85) 0%,
-    rgba(0, 0, 0, 0.4) 40%,
-    transparent 70%
-  );
-  opacity: 1;
-  transition: opacity 0.3s ease;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.3s ease;
+  pointer-events: none;
 
-  // 拖拽中不显示遮罩
-  .is-dragging & {
-    opacity: 0 !important;
+  i {
+    font-size: 28px;
+    color: #fff;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  .cover-card:hover & {
+    background: rgba(0, 0, 0, 0.25);
+
+    i {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* 移动端常驻播放图标 */
+  @media (hover: none) {
+    i {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.3) 0%, transparent 50%);
   }
 }
 
-.cell-name {
-  color: #fff;
+/* 封面文字 */
+.cover-text {
+  margin-top: 8px;
+}
+
+.cover-name {
   font-size: 13px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.3;
+  color: var(--m-text-primary, #2c2c2c);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 
-// ==================== 顶部标题 ====================
-.grid-header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  padding: calc(var(--safe-area-inset-top, 0px) + 20px) 28px 14px;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--cover-bg, #0a0a0a) 95%, transparent) 0%,
-    color-mix(in srgb, var(--cover-bg, #0a0a0a) 60%, transparent) 70%,
-    transparent 100%
-  );
-  pointer-events: none;
+.cover-type-badge {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  &.playlist {
+    background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.12);
+    color: var(--accent-color, #888);
+  }
+
+  &.album {
+    background: rgba(99, 102, 241, 0.12);
+    color: #6366f1;
+  }
 }
 
-.grid-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--cover-text-primary, #f0f0f0);
-  margin: 0;
-}
-
-.grid-subtitle {
-  font-size: 12px;
-  color: var(--cover-text-muted, #888);
-  margin: 4px 0 0;
-}
-
-// ==================== 底部渐变 ====================
-.grid-footer-fade {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 60px;
-  background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--cover-bg, #0a0a0a) 90%, transparent),
-    transparent
-  );
-  pointer-events: none;
-  z-index: 5;
-}
-
-// ==================== 空状态 ====================
+/* 空状态 */
 .empty-state {
-  position: absolute;
-  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 80px 20px;
   gap: 12px;
-  color: #555;
+  color: var(--m-text-muted, #9a9590);
 
   i {
     font-size: 56px;
-    opacity: 0.4;
+    opacity: 0.3;
   }
 
   p {
     font-size: 14px;
-  }
-}
-
-// ==================== 响应式 ====================
-@media (max-width: 768px) {
-  .grid-cell {
-    width: 110px;
-    height: 110px;
-  }
-
-  .grid-track {
-    gap: 10px;
-  }
-
-  .grid-header {
-    padding: 16px 20px 10px;
-  }
-
-  .grid-title {
-    font-size: 18px;
   }
 }
 </style>

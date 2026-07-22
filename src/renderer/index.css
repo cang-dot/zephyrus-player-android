@@ -170,10 +170,10 @@
 
 :root {
   --text-color: #000000dd;
-  --safe-area-inset-top: 0px;
-  --safe-area-inset-right: 0px;
-  --safe-area-inset-bottom: 10px;
-  --safe-area-inset-left: 0px;
+  --safe-area-inset-top: env(safe-area-inset-top, 24px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 24px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
 
   /* 页面内容区域统一边距 */
   --page-px: 1rem; /* 默认 16px，对应 px-4 */

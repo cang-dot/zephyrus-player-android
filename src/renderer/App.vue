@@ -12,19 +12,17 @@
         </n-message-provider>
       </n-dialog-provider>
     </n-config-provider>
-    <splash-screen v-if="!isLyricWindow && showSplash" @finish="showSplash = false" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { cloneDeep } from 'lodash';
 import { darkTheme, lightTheme } from 'naive-ui';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import DisclaimerModal from '@/components/common/DisclaimerModal.vue';
-import SplashScreen from '@/components/splash/SplashScreen.vue';
 import TrafficWarningDrawer from '@/components/TrafficWarningDrawer.vue';
 import { setSmartAudioInstance, useSmartAudio } from '@/composables/useSmartAudio';
 import { registerBuiltinFeatures } from '@/features/register';
@@ -37,14 +35,13 @@ import { checkLoginStatus } from '@/utils/auth';
 
 import { initAudioListeners, initMusicHook } from './hooks/MusicHook';
 import { initCoverColor, refreshCoverTokens, useCoverColor } from './hooks/useCoverColor';
+import { initNativeBridge, injectSafeAreaInsets, isAndroidNative } from './services/androidNative';
 import { audioService } from './services/audioService';
 import { initLxMusicRunner } from './services/LxMusicSourceRunner';
-import { isAndroidNative, initNativeBridge } from './services/androidNative';
 import { useStyleEngineStore } from './store/modules/styleEngine';
 import { isMobile } from './utils';
 import { useAppShortcuts } from './utils/appShortcuts';
 
-const showSplash = ref(true);
 const { locale } = useI18n();
 const settingsStore = useSettingsStore();
 const playerStore = usePlayerStore();
@@ -67,13 +64,6 @@ const themeOverrides = computed(() => {
       successColor: pc,
       warningColor: pc,
       errorColor: '#e53e3e'
-    },
-    Slider: {
-      fillColor: pc,
-      fillColorHover: pc,
-      handleColor: pc,
-      dotColor: pc,
-      dotColorActive: pc
     },
     Switch: {
       railColorActive: pc,
@@ -259,6 +249,11 @@ if (isElectron) {
 
 // 使用应用内快捷键
 useAppShortcuts();
+
+// 提前注入 safe-area CSS 变量（在 Vue 首次渲染前），避免顶栏底栏上下跳动
+if (isAndroidNative()) {
+  injectSafeAreaInsets();
+}
 
 let focusTrapObserver: MutationObserver | null = null;
 

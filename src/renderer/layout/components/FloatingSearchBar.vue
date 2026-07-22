@@ -48,7 +48,9 @@
               @mousedown.prevent
             >
               <div class="fsb-type-chip" @mousedown.prevent>
-                <span>{{ searchTypeOptions.find((i) => i.key === searchStore.searchType)?.label }}</span>
+                <span>{{
+                  searchTypeOptions.find((i) => i.key === searchStore.searchType)?.label
+                }}</span>
                 <i class="iconfont icon-xiasanjiaoxing text-[10px]" />
               </div>
             </n-dropdown>
@@ -141,11 +143,11 @@ import { getSearchKeyword } from '@/api/home';
 import { getUserDetail } from '@/api/login';
 import { getSearchSuggestions } from '@/api/search';
 import { SEARCH_TYPES, USER_SET_OPTIONS } from '@/const/bar-const';
-import { useWindowStore } from '@/store/modules/windowStore';
 import { useNavTitleStore } from '@/store/modules/navTitle';
 import { useSearchStore } from '@/store/modules/search';
 import { useSettingsStore } from '@/store/modules/settings';
 import { useUserStore } from '@/store/modules/user';
+import { useWindowStore } from '@/store/modules/windowStore';
 import { getImgUrl, isElectron } from '@/utils';
 import { checkUpdate, UpdateResult } from '@/utils/update';
 
@@ -254,7 +256,9 @@ const searchValue = ref('');
 
 watch(
   () => searchStore.searchValue,
-  (v) => { if (v) searchValue.value = v; },
+  (v) => {
+    if (v) searchValue.value = v;
+  },
   { immediate: true }
 );
 
@@ -284,7 +288,9 @@ const selectSearchType = (key: number) => {
 const rawSearchTypes = ref(SEARCH_TYPES);
 const searchTypeOptions = computed(() => {
   locale.value;
-  return rawSearchTypes.value.filter(() => isElectron).map((type) => ({ label: t(type.label), key: type.key }));
+  return rawSearchTypes.value
+    .filter(() => isElectron)
+    .map((type) => ({ label: t(type.label), key: type.key }));
 });
 
 const suggestions = ref<string[]>([]);
@@ -319,11 +325,19 @@ const handleKeydown = (e: KeyboardEvent) => {
     if (e.key === 'Enter') search();
     return;
   }
-  if (e.key === 'ArrowDown') { e.preventDefault(); highlightedIndex.value = (highlightedIndex.value + 1) % len; }
-  if (e.key === 'ArrowUp') { e.preventDefault(); highlightedIndex.value = (highlightedIndex.value - 1 + len) % len; }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    highlightedIndex.value = (highlightedIndex.value + 1) % len;
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    highlightedIndex.value = (highlightedIndex.value - 1 + len) % len;
+  }
   if (e.key === 'Enter') {
     e.preventDefault();
-    highlightedIndex.value >= 0 ? selectSuggestion(suggestions.value[highlightedIndex.value]) : search();
+    highlightedIndex.value >= 0
+      ? selectSuggestion(suggestions.value[highlightedIndex.value])
+      : search();
   }
   if (e.key === 'Escape') showSuggestions.value = false;
 };
@@ -336,7 +350,9 @@ const handleFocus = () => {
 
 const handleBlur = () => {
   inputFocused.value = false;
-  setTimeout(() => { showSuggestions.value = false; }, 150);
+  setTimeout(() => {
+    showSuggestions.value = false;
+  }, 150);
   startCollapseTimer();
 };
 
@@ -353,18 +369,25 @@ const loadPage = async () => {
   if (!localStorage.getItem('token')) return;
   try {
     const { data } = await getUserDetail();
-    userStore.user = data.profile || userStore.user || JSON.parse(localStorage.getItem('user') || '{}');
+    userStore.user =
+      data.profile || userStore.user || JSON.parse(localStorage.getItem('user') || '{}');
     localStorage.setItem('user', JSON.stringify(userStore.user));
   } catch {}
 };
 
 watchEffect(() => {
-  userSetOptions.value = userStore.user ? USER_SET_OPTIONS : USER_SET_OPTIONS.filter((i) => i.key !== 'logout');
+  userSetOptions.value = userStore.user
+    ? USER_SET_OPTIONS
+    : USER_SET_OPTIONS.filter((i) => i.key !== 'logout');
 });
 
 const restartApp = () => window.electron?.ipcRenderer?.send('restart');
-const toLogin = () => { router.push('/user'); windowStore.openPanel('/user', 60, t('comp.my')); };
-const toGithubRelease = () => window.open('https://github.com/cang-dot/zephyrus-player/releases', '_blank');
+const toLogin = () => {
+  router.push('/user');
+  windowStore.openPanel('/user', 60, t('comp.my'));
+};
+const toGithubRelease = () =>
+  window.open('https://github.com/cang-dot/zephyrus-player/releases', '_blank');
 
 const isDark = computed({
   get: () => settingsStore.theme === 'dark',
@@ -373,10 +396,20 @@ const isDark = computed({
 
 const selectItem = (key: string) => {
   switch (key) {
-    case 'logout': userStore.handleLogout(); break;
-    case 'set': router.push('/set'); windowStore.openPanel('/set', 60, t('comp.settings')); break;
-    case 'user': router.push('/user'); windowStore.openPanel('/user', 60, t('comp.my')); break;
-    case 'refresh': window.location.reload(); break;
+    case 'logout':
+      userStore.handleLogout();
+      break;
+    case 'set':
+      router.push('/set');
+      windowStore.openPanel('/set', 60, t('comp.settings'));
+      break;
+    case 'user':
+      router.push('/user');
+      windowStore.openPanel('/user', 60, t('comp.my'));
+      break;
+    case 'refresh':
+      window.location.reload();
+      break;
   }
 };
 
@@ -509,7 +542,10 @@ onUnmounted(() => {
   backdrop-filter: blur(24px) saturate(1.8);
   -webkit-backdrop-filter: blur(24px) saturate(1.8);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    box-shadow 0.2s;
   width: 380px;
 }
 
@@ -569,7 +605,9 @@ onUnmounted(() => {
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .dark .fsb-type-chip {
@@ -597,7 +635,9 @@ onUnmounted(() => {
   border: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .dark .fsb-user-btn {
@@ -628,7 +668,9 @@ onUnmounted(() => {
   overflow: hidden;
   background: #fff;
   border: 1px solid #f3f4f6;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1), 0 1px 4px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.1),
+    0 1px 4px rgba(0, 0, 0, 0.05);
 }
 .dark .fsb-user-menu {
   background: #111827;
@@ -643,8 +685,12 @@ onUnmounted(() => {
   cursor: pointer;
   transition: background 0.15s;
 }
-.fsb-user-top:hover { background: #f9fafb; }
-.dark .fsb-user-top:hover { background: #1f2937; }
+.fsb-user-top:hover {
+  background: #f9fafb;
+}
+.dark .fsb-user-top:hover {
+  background: #1f2937;
+}
 
 .fsb-user-name {
   font-size: 13px;
@@ -654,16 +700,22 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dark .fsb-user-name { color: #f3f4f6; }
+.dark .fsb-user-name {
+  color: #f3f4f6;
+}
 
 .fsb-sep {
   height: 1px;
   background: #f3f4f6;
   margin: 2px 0;
 }
-.dark .fsb-sep { background: #1f2937; }
+.dark .fsb-sep {
+  background: #1f2937;
+}
 
-.fsb-menu-list { padding: 3px 0 5px; }
+.fsb-menu-list {
+  padding: 3px 0 5px;
+}
 
 .fsb-menu-row {
   display: flex;
@@ -675,9 +727,15 @@ onUnmounted(() => {
   cursor: pointer;
   transition: background 0.12s;
 }
-.dark .fsb-menu-row { color: #d1d5db; }
-.fsb-menu-row:hover { background: #f9fafb; }
-.dark .fsb-menu-row:hover { background: #1f2937; }
+.dark .fsb-menu-row {
+  color: #d1d5db;
+}
+.fsb-menu-row:hover {
+  background: #f9fafb;
+}
+.dark .fsb-menu-row:hover {
+  background: #1f2937;
+}
 .fsb-menu-row i {
   font-size: 15px;
   color: #9ca3af;
@@ -694,13 +752,18 @@ onUnmounted(() => {
   background: #f3f4f6;
   color: #6b7280;
 }
-.dark .fsb-ver { background: #1f2937; color: #9ca3af; }
+.dark .fsb-ver {
+  background: #1f2937;
+  color: #9ca3af;
+}
 
 /* 搜索建议 */
 .fsb-suggestions {
   background: #fff;
 }
-.dark .fsb-suggestions { background: #111827; }
+.dark .fsb-suggestions {
+  background: #111827;
+}
 
 .fsb-suggest-row {
   display: flex;
@@ -712,7 +775,9 @@ onUnmounted(() => {
   cursor: pointer;
   transition: background 0.1s;
 }
-.dark .fsb-suggest-row { color: #d1d5db; }
+.dark .fsb-suggest-row {
+  color: #d1d5db;
+}
 .fsb-suggest-row:hover,
 .fsb-suggest-row--hi {
   background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.06);

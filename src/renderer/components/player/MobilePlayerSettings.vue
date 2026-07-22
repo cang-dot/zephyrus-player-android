@@ -124,22 +124,36 @@
               </div>
 
               <!-- 加载中 -->
-              <div v-if="metaphorLoading" class="flex flex-col items-center justify-center py-8 text-white/50">
+              <div
+                v-if="metaphorLoading"
+                class="flex flex-col items-center justify-center py-8 text-white/50"
+              >
                 <i class="ri-loader-4-line animate-spin text-3xl mb-3"></i>
                 <p class="text-sm">正在分析歌词...</p>
                 <p class="text-xs opacity-60 mt-1">AI 分析可能需要 10-30 秒</p>
               </div>
 
               <!-- 错误 -->
-              <div v-else-if="metaphorError" class="flex flex-col items-center justify-center py-8 text-white/50 text-center">
+              <div
+                v-else-if="metaphorError"
+                class="flex flex-col items-center justify-center py-8 text-white/50 text-center"
+              >
                 <i class="ri-error-warning-line text-3xl mb-3 text-red-400"></i>
                 <p class="text-sm max-w-xs">{{ metaphorError }}</p>
-                <button @click="analyzeLyrics" class="mt-3 px-3 py-1 rounded-full text-sm bg-white/10 text-white/70 hover:bg-white/15">重试</button>
+                <button
+                  @click="analyzeLyrics"
+                  class="mt-3 px-3 py-1 rounded-full text-sm bg-white/10 text-white/70 hover:bg-white/15"
+                >
+                  重试
+                </button>
               </div>
 
               <!-- 结果 -->
-              <div v-else-if="metaphorResult" class="metaphor-result prose prose-invert max-w-none text-sm leading-relaxed text-white/80"
-                v-html="sanitizedMetaphorResult"></div>
+              <div
+                v-else-if="metaphorResult"
+                class="metaphor-result prose prose-invert max-w-none text-sm leading-relaxed text-white/80"
+                v-html="sanitizedMetaphorResult"
+              ></div>
 
               <!-- 空状态 -->
               <div v-else class="flex flex-col items-center justify-center py-6 text-white/40">
@@ -148,7 +162,10 @@
               </div>
 
               <!-- 缓存标记 -->
-              <div v-if="metaphorCached" class="flex items-center justify-center mt-3 text-xs text-white/30">
+              <div
+                v-if="metaphorCached"
+                class="flex items-center justify-center mt-3 text-xs text-white/30"
+              >
                 <i class="ri-database-2-line mr-1"></i> 缓存结果
               </div>
             </div>
@@ -278,17 +295,17 @@
 </template>
 
 <script setup lang="ts">
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
 import { storeToRefs } from 'pinia';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { useMetaphor } from '@/features/lyric-metaphor/useMetaphor';
 import { lrcArray, playMusic } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import type { LyricConfig } from '@/types/lyric';
 import { DEFAULT_LYRIC_CONFIG } from '@/types/lyric';
-import { useMetaphor } from '@/features/lyric-metaphor/useMetaphor';
-import DOMPurify from 'dompurify';
-import { marked } from 'marked';
 
 const { t } = useI18n();
 const playerStore = usePlayerStore();
@@ -302,7 +319,14 @@ const tr = (key: string, fallback: string) => {
 const { sleepTimer, playbackRate } = storeToRefs(playerStore);
 
 // 歌词解析
-const { loading: metaphorLoading, error: metaphorError, result: metaphorResult, cached: metaphorCached, analyze: metaphorAnalyze, clear: metaphorClear } = useMetaphor();
+const {
+  loading: metaphorLoading,
+  error: metaphorError,
+  result: metaphorResult,
+  cached: metaphorCached,
+  analyze: metaphorAnalyze,
+  clear: metaphorClear
+} = useMetaphor();
 
 const sanitizedMetaphorResult = computed(() => {
   if (!metaphorResult.value) return '';
@@ -316,7 +340,11 @@ const sanitizedMetaphorResult = computed(() => {
 });
 
 const analyzeLyrics = async () => {
-  const lyrics = lrcArray.value?.map(l => l.text).filter(t => t).join('\n') || '';
+  const lyrics =
+    lrcArray.value
+      ?.map((l) => l.text)
+      .filter((t) => t)
+      .join('\n') || '';
   if (!lyrics) return;
   const song = playMusic.value;
   if (!song) return;

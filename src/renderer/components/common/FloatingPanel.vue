@@ -1,14 +1,7 @@
 <template>
   <!-- 透明遮罩层：点击空白区域关闭面板 -->
-  <div
-    class="fp-backdrop"
-    @mousedown="onBackdropMouseDown"
-  >
-    <div
-      class="floating-panel"
-      :style="panelStyle"
-      @mousedown.stop="focus"
-    >
+  <div class="fp-backdrop" @mousedown="onBackdropMouseDown">
+    <div class="floating-panel" :style="panelStyle" @mousedown.stop="focus">
       <!-- 标题栏（细薄，仅标题+关闭） -->
       <div class="fp-header">
         <span class="fp-title">{{ windowStore.panelTitle }}</span>
@@ -38,10 +31,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
 import { NSpin } from 'naive-ui';
-import { useWindowStore } from '@/store/modules/windowStore';
+import { computed, ref, watch } from 'vue';
+
 import { useSettingsStore } from '@/store/modules/settings';
+import { useWindowStore } from '@/store/modules/windowStore';
 
 const windowStore = useWindowStore();
 const settingsStore = useSettingsStore();
@@ -93,7 +87,11 @@ const loadComponent = async () => {
   }
 };
 
-watch(() => windowStore.panelKey, () => loadComponent(), { immediate: true });
+watch(
+  () => windowStore.panelKey,
+  () => loadComponent(),
+  { immediate: true }
+);
 
 const focus = () => {
   // 面板始终在最前，无需额外操作

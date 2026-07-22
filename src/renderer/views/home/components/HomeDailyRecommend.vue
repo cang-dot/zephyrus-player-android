@@ -112,8 +112,8 @@
 import { computed, onActivated, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { useRecommendStore } from '@/store';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
+import { useRecommendStore } from '@/store';
 import { calculateAnimationDelay, getImgUrl } from '@/utils';
 
 defineProps<{

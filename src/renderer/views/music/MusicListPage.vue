@@ -1,5 +1,8 @@
 <template>
-  <div class="music-list-page h-full w-full bg-white dark:bg-black transition-colors duration-500">
+  <div
+    class="music-list-page h-full w-full transition-colors duration-500"
+    :style="{ background: 'var(--m-bg, var(--bg-color, #fff))' }"
+  >
     <n-scrollbar ref="scrollbarRef" class="flex-1 min-h-0" @scroll="handleScroll">
       <div class="music-list-content">
         <!-- Hero Section 和 Action Bar -->
@@ -15,7 +18,11 @@
                 }"
               ></div>
               <div
-                class="absolute inset-0 bg-gradient-to-b from-transparent via-white/80 to-white dark:via-black/80 dark:to-black"
+                class="absolute inset-0"
+                :style="{
+                  background:
+                    'linear-gradient(to bottom, transparent, color-mix(in srgb, var(--m-bg, #fff) 80%, transparent), var(--m-bg, #fff))'
+                }"
               ></div>
             </div>
 
@@ -64,7 +71,8 @@
                   </div>
                   <h1
                     ref="titleElRef"
-                    class="playlist-name text-3xl md:text-4xl lg:text-5xl font-bold text-neutral-900 dark:text-white tracking-tight mb-4"
+                    class="playlist-name text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-4"
+                    :style="{ color: 'var(--m-text-primary, #1a1a1a)' }"
                   >
                     {{ name }}
                   </h1>
@@ -80,7 +88,8 @@
                         :src="getImgUrl(listInfo.artist.picUrl, '50y50')"
                       />
                       <span
-                        class="text-sm font-semibold text-neutral-700 dark:text-neutral-200 hover:text-[var(--accent-color)] cursor-pointer transition-colors"
+                        class="text-sm font-semibold cursor-pointer transition-colors"
+                        :style="{ color: 'var(--m-text-secondary, #6b6560)' }"
                         @click="navigateToArtist(listInfo.artist.id)"
                         >{{ listInfo.artist.name }}</span
                       >
@@ -91,22 +100,20 @@
                         :size="28"
                         :src="getImgUrl(listInfo.creator.avatarUrl, '50y50')"
                       />
-                      <span class="text-sm font-semibold text-neutral-700 dark:text-neutral-200">{{
+                      <span class="text-sm font-semibold" :style="{ color: 'var(--m-text-secondary, #6b6560)' }">{{
                         listInfo.creator.nickname
                       }}</span>
                     </div>
-                    <div class="h-1 w-1 rounded-full bg-neutral-300 dark:bg-neutral-700"></div>
-                    <span class="text-sm text-neutral-500 dark:text-neutral-400">
+                    <div class="h-1 w-1 rounded-full" :style="{ background: 'var(--m-border, #d5d0c9)' }"></div>
+                    <span class="text-sm" :style="{ color: 'var(--m-text-muted, #9a9590)' }">
                       {{ t('player.songNum', { num: total }) }}
                     </span>
                   </div>
 
-                  <div
-                    v-if="listInfo?.description"
-                    class="relative"
-                  >
+                  <div v-if="listInfo?.description" class="relative">
                     <p
-                      class="text-sm md:text-base text-neutral-500 dark:text-neutral-400 line-clamp-2 leading-relaxed max-w-3xl cursor-pointer hover:text-[var(--accent-color)] transition-colors"
+                      class="text-sm md:text-base line-clamp-2 leading-relaxed max-w-3xl cursor-pointer transition-colors"
+                      :style="{ color: 'var(--m-text-muted, #9a9590)' }"
                       @click.stop="showDescriptionPopover = !showDescriptionPopover"
                     >
                       {{ listInfo.description }}
@@ -121,14 +128,14 @@
         <!-- 专辑介绍弹窗（Teleport 到 body 避免被裁剪） -->
         <Teleport to="body">
           <Transition name="popover-fade">
-            <div v-if="showDescriptionPopover" class="description-popover-overlay" @click.stop="showDescriptionPopover = false"></div>
-          </Transition>
-          <Transition name="popover-slide">
             <div
               v-if="showDescriptionPopover"
-              class="description-popover-card"
-              @click.stop
-            >
+              class="description-popover-overlay"
+              @click.stop="showDescriptionPopover = false"
+            ></div>
+          </Transition>
+          <Transition name="popover-slide">
+            <div v-if="showDescriptionPopover" class="description-popover-card" @click.stop>
               <p class="description-popover-title">专辑介绍</p>
               <p class="description-popover-text">{{ listInfo?.description }}</p>
             </div>
@@ -138,7 +145,11 @@
         <!-- Action Bar (Sticky) -->
         <section
           v-if="songList.length > 0"
-          class="action-bar sticky top-0 z-20 page-padding-x py-3 md:py-4 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-b border-neutral-100 dark:border-neutral-800/50"
+          class="action-bar sticky top-0 z-20 page-padding-x py-3 md:py-4 backdrop-blur-xl"
+          :style="{
+            background: 'color-mix(in srgb, var(--m-bg, #f5f1eb) 80%, transparent)',
+            borderBottom: '1px solid var(--m-border, rgba(0, 0, 0, 0.06))'
+          }"
         >
           <div class="flex items-center justify-between gap-4">
             <div class="flex items-center gap-3">
@@ -155,10 +166,10 @@
               <button
                 v-if="canCollect"
                 class="action-btn-pill flex items-center gap-1.5 md:gap-2 px-3.5 md:px-6 py-1.5 md:py-2.5 rounded-full font-semibold text-xs md:text-sm transition-all duration-200 hover:scale-105 active:scale-95 shadow-sm border"
-                :class="
+                :style="
                   isCollected
-                    ? 'bg-neutral-100 dark:bg-neutral-800 text-red-500 border-neutral-200 dark:border-neutral-700'
-                    : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800'
+                    ? { background: 'var(--m-surface, #eae6df)', color: '#ef4444', borderColor: 'var(--m-border, #d5d0c9)' }
+                    : { background: 'var(--m-surface-alt, #e0dbd3)', color: 'var(--m-text-secondary, #6b6560)', borderColor: 'var(--m-border, #d5d0c9)' }
                 "
                 @click="toggleCollect"
               >
@@ -179,7 +190,8 @@
 
               <button
                 v-if="!isSelecting && isElectron"
-                class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-all"
+                class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center transition-all"
+                :style="{ background: 'var(--m-surface-alt, #e0dbd3)', color: 'var(--m-text-secondary, #6b6560)' }"
                 @click="startSelect"
               >
                 <i class="ri-checkbox-multiple-line text-lg" />
@@ -231,7 +243,8 @@
                   round
                   clearable
                   size="small"
-                  class="w-48 focus:w-64 transition-all duration-300 !bg-neutral-100 dark:!bg-neutral-900 border-none"
+                  class="w-48 focus:w-64 transition-all duration-300 border-none"
+                  :style="{ background: 'var(--m-surface-alt, #e0dbd3)' }"
                 >
                   <template #prefix>
                     <i class="ri-search-line text-neutral-400"></i>
@@ -242,7 +255,8 @@
               <!-- Locate Current Song -->
               <button
                 v-if="currentPlayingIndex >= 0"
-                class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-all"
+                class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center transition-all"
+                :style="{ background: 'var(--m-surface-alt, #e0dbd3)', color: 'var(--m-text-secondary, #6b6560)' }"
                 :title="t('comp.musicList.locateCurrent', '定位当前播放')"
                 @click="scrollToCurrentSong"
               >
@@ -252,20 +266,18 @@
               <!-- Layout Toggle -->
               <button
                 v-if="!isMobile"
-                class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-all"
+                class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center transition-all"
+                :style="{ background: 'var(--m-surface-alt, #e0dbd3)', color: 'var(--m-text-secondary, #6b6560)' }"
                 @click="toggleLayout"
               >
                 <i :class="isCompactLayout ? 'ri-list-check-2' : 'ri-grid-line'" class="text-lg" />
               </button>
 
               <!-- Sort Dropdown -->
-              <n-dropdown
-                :options="sortOptions"
-                :value="sortBy"
-                @select="handleSortChange"
-              >
+              <n-dropdown :options="sortOptions" :value="sortBy" @select="handleSortChange">
                 <button
-                  class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-all"
+                  class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center transition-all"
+                  :style="{ background: 'var(--m-surface-alt, #e0dbd3)', color: 'var(--m-text-secondary, #6b6560)' }"
                 >
                   <i class="ri-sort-asc text-lg" />
                 </button>
@@ -276,10 +288,7 @@
 
         <!-- List Content -->
         <section class="song-list-section page-padding-x mt-6">
-          <div
-            v-if="filteredSongs.length === 0 && searchKeyword"
-            class="empty-state py-20 text-center text-neutral-400"
-          >
+            <div v-if="filteredSongs.length === 0 && searchKeyword" class="empty-state py-20 text-center" :style="{ color: 'var(--m-text-muted, #9a9590)' }">
             <i class="ri-search-line text-4xl mb-4 opacity-20" />
             <p>{{ t('comp.musicList.noSearchResults') }}</p>
           </div>
@@ -315,7 +324,7 @@
             <!-- 底部加载指示器 -->
             <div v-if="loadingList" class="flex items-center justify-center py-6 gap-2">
               <n-spin :size="18" />
-              <span class="text-sm text-neutral-400">{{ t('common.loading') }}</span>
+              <span class="text-sm" :style="{ color: 'var(--m-text-muted, #9a9590)' }">{{ t('common.loading') }}</span>
             </div>
             <div
               v-else-if="
@@ -324,7 +333,8 @@
                 filteredSongs.length > 0 &&
                 !searchKeyword
               "
-              class="py-6 text-center text-sm text-neutral-300 dark:text-neutral-600"
+              class="py-6 text-center text-sm"
+              :style="{ color: 'var(--m-text-muted, #9a9590)' }"
             >
               — {{ t('common.noMore') }} —
             </div>
@@ -353,8 +363,8 @@ import {
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { useDownload } from '@/hooks/useDownload';
-import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
+import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { useScrollTitle } from '@/hooks/useScrollTitle';
 import { useMusicStore, usePlayerStore, useRecommendStore, useUserStore } from '@/store';
 import { usePlayHistoryStore } from '@/store/modules/playHistory';
@@ -482,7 +492,16 @@ const hasMore = ref(true);
 const searchKeyword = ref('');
 
 // 排序方式
-type SortType = 'default' | 'name-asc' | 'name-desc' | 'artist-asc' | 'artist-desc' | 'album-asc' | 'album-desc' | 'duration-asc' | 'duration-desc';
+type SortType =
+  | 'default'
+  | 'name-asc'
+  | 'name-desc'
+  | 'artist-asc'
+  | 'artist-desc'
+  | 'album-asc'
+  | 'album-desc'
+  | 'duration-asc'
+  | 'duration-desc';
 const sortBy = ref<SortType>('default');
 
 // 专辑介绍弹窗
@@ -1049,6 +1068,10 @@ onMounted(() => {
   }
   .action-bar {
     @apply py-2;
+    background: color-mix(in srgb, var(--m-bg, #fff) 80%, transparent) !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-color: var(--m-border, rgba(0, 0, 0, 0.06)) !important;
   }
 }
 

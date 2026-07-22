@@ -38,6 +38,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+
 import type { WindowState } from '@/store/modules/windowStore';
 import { useWindowStore } from '@/store/modules/windowStore';
 
@@ -84,9 +85,12 @@ onMounted(() => {
 });
 
 // 如果组件引用变化
-watch(() => props.win.component, () => {
-  loadComponent();
-});
+watch(
+  () => props.win.component,
+  () => {
+    loadComponent();
+  }
+);
 
 const focus = () => {
   windowStore.focusWindow(props.win.id);

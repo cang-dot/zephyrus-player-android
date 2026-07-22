@@ -1,6 +1,24 @@
+html,
+body,
+#app {
+  height: 100%;
+  /* 使用动态视口高度，确保内容延伸到系统栏和刘海屏区域 */
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+}
+
 body {
-  /* background-color: #000; */
+  /* 使用封面取色背景，确保沉浸式状态栏区域颜色一致 */
+  background-color: var(--cover-bg, #f5f1eb);
   overflow: hidden;
+}
+
+/* 深色模式下 body 背景 */
+.dark body,
+.theme-dark body {
+  background-color: var(--cover-bg, #1a1a1a);
 }
 
 .n-popover:has(.music-play) {

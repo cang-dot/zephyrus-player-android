@@ -5,11 +5,7 @@
         <i class="ri-global-line text-lg" style="color: var(--accent-color)"></i>
         {{ t('settings.playback.platforms.title') }}
       </h3>
-      <button
-        v-if="anyLoggedIn"
-        @click="refreshStatus"
-        class="pa-refresh text-xs"
-      >
+      <button v-if="anyLoggedIn" @click="refreshStatus" class="pa-refresh text-xs">
         <i class="ri-refresh-line"></i>
       </button>
     </div>
@@ -35,9 +31,7 @@
 
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
-            <span class="pa-name font-medium text-sm truncate">{{
-              platform.name
-            }}</span>
+            <span class="pa-name font-medium text-sm truncate">{{ platform.name }}</span>
             <span
               v-if="platform.loginStatus"
               class="pa-badge pa-badge-success text-[10px] px-1.5 py-0.5 rounded-full shrink-0"
@@ -107,10 +101,7 @@
 
       <Transition name="expand">
         <div v-if="showManualInput" class="mt-2 space-y-2">
-          <select
-            v-model="manualCookiePlatform"
-            class="pa-select w-full px-3 py-1.5 text-xs"
-          >
+          <select v-model="manualCookiePlatform" class="pa-select w-full px-3 py-1.5 text-xs">
             <option value="qq">QQ 音乐</option>
             <option value="migu">咪咕音乐</option>
             <option value="joox">JOOX</option>
@@ -288,9 +279,7 @@ window.api?.onPlatformLoginCookie?.((platform: string, _cookie: string) => {
     p.loginStatus = true;
     p.loggingIn = false;
   }
-  message.success(
-    t('settings.playback.platforms.loginSuccess', { platform: p?.name || platform })
-  );
+  message.success(t('settings.playback.platforms.loginSuccess', { platform: p?.name || platform }));
 });
 
 onMounted(() => {

@@ -8,6 +8,7 @@ import android.webkit.WebView;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.getcapacitor.BridgeActivity;
@@ -20,6 +21,14 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // 切换到非启动主题，避免 Theme.SplashScreen 的 windowBackground（启动 drawable）
+        // 在运行期间一直显示为白底，遮盖 CSS 延伸内容
+        setTheme(R.style.AppTheme_NoActionBar);
+
+        // 显式设置窗口背景，覆盖 Theme.SplashScreen 的白色 windowBackground
+        // setTheme() 在 super.onCreate() 之后调用，不会自动更新已应用的 windowBackground
+        getWindow().setBackgroundDrawableResource(R.color.windowBackground);
+
         // 沉浸式状态栏：内容延伸到状态栏和导航栏下方
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
@@ -27,6 +36,12 @@ public class MainActivity extends BridgeActivity {
         // 仅控制图标明暗外观，背景色由前端 CSS / 封面取色决定
         getWindow().setStatusBarColor(Color.TRANSPARENT);
         getWindow().setNavigationBarColor(Color.TRANSPARENT);
+
+        // 沉浸式模式：系统栏完全隐藏，从边缘滑入时临时呼出，松手后自动隐藏
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(
+                getWindow(), getWindow().getDecorView());
+        controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        controller.hide(WindowInsetsCompat.Type.systemBars());
 
         // 允许内容延伸到刘海屏区域
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
@@ -154,5 +169,26 @@ public class MainActivity extends BridgeActivity {
                 webView.evaluateJavascript(js, null);
             }
         });
+    }
+
+    /**
+     * 窗口焦点变化时重新隐藏系统栏，保持沉浸模式
+     */
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            applyImmersiveMode();
+        }
+    }
+
+    /**
+     * 应用沉浸式模式：隐藏系统栏
+     */
+    private void applyImmersiveMode() {
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(
+                getWindow(), getWindow().getDecorView());
+        controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        controller.hide(WindowInsetsCompat.Type.systemBars());
     }
 }

@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="mini-play-bar"
-    :class="{ 'mini-mode': settingsStore.isMiniMode }"
-  >
+  <div class="mini-play-bar" :class="{ 'mini-mode': settingsStore.isMiniMode }">
     <div class="mini-bar-container">
       <!-- 专辑封面 -->
       <div class="album-cover">
@@ -18,10 +15,7 @@
       <div class="song-info">
         <div class="song-title" v-html="playMusic?.name || '未播放'"></div>
         <div class="song-artist">
-          <span
-            v-for="(artists, artistsindex) in artistList"
-            :key="artistsindex"
-          >
+          <span v-for="(artists, artistsindex) in artistList" :key="artistsindex">
             {{ artists.name }}{{ artistsindex < artistList.length - 1 ? ' / ' : '' }}
           </span>
         </div>

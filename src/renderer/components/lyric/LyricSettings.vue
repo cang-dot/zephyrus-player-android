@@ -1,7 +1,5 @@
 <template>
-  <div
-    class="lyric-settings-panel w-80 rounded-d-2xl border shadow-d-xl overflow-hidden d-glass"
-  >
+  <div class="lyric-settings-panel w-80 rounded-d-2xl border shadow-d-xl overflow-hidden d-glass">
     <!-- 标题栏 -->
     <div class="px-6 py-4 d-border-bottom">
       <div class="flex items-center gap-3">
@@ -843,7 +841,9 @@ defineExpose({
   font-size: 28px;
   font-weight: 700;
   color: #b08040;
-  text-shadow: 0 0 4px #b08040, 0 0 1px #fff;
+  text-shadow:
+    0 0 4px #b08040,
+    0 0 1px #fff;
   opacity: 0.85;
 }
 .preview-eerie::after {
@@ -856,8 +856,8 @@ defineExpose({
   background: rgba(255, 255, 255, 0.15);
   transform: rotate(-15deg);
   box-shadow:
-    0 12px 0 rgba(255,255,255,0.08),
-    0 24px 0 rgba(255,255,255,0.05);
+    0 12px 0 rgba(255, 255, 255, 0.08),
+    0 24px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* 陈旧样式预览：老旧墙面背景 + 泛黄褪色文字 */
@@ -885,8 +885,8 @@ defineExpose({
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 30% 40%, rgba(201,169,110,0.1) 0%, transparent 60%),
-    radial-gradient(ellipse at center, transparent 40%, rgba(92,74,46,0.3) 100%);
+    radial-gradient(ellipse at 30% 40%, rgba(201, 169, 110, 0.1) 0%, transparent 60%),
+    radial-gradient(ellipse at center, transparent 40%, rgba(92, 74, 46, 0.3) 100%);
 }
 
 .style-card-name {

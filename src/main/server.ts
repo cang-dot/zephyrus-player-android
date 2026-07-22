@@ -5,11 +5,11 @@ import os from 'os';
 import path from 'path';
 
 import {
-  type SearchPlatform,
   getPlatformCookie,
   getPlatformLoginStatus,
   loadPlatformCookies,
   multiPlatformSearch,
+  type SearchPlatform,
   setPlatformCookie
 } from './multiPlatformSearch';
 import { type Platform, unblockMusic } from './unblockMusic';

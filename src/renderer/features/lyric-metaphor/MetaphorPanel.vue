@@ -6,8 +6,12 @@
     :class="[
       'animate__animated',
       closing
-        ? isMobile ? 'animate__slideOutDown' : 'animate__slideOutRight'
-        : isMobile ? 'animate__slideInUp' : 'animate__slideInRight'
+        ? isMobile
+          ? 'animate__slideOutDown'
+          : 'animate__slideOutRight'
+        : isMobile
+          ? 'animate__slideInUp'
+          : 'animate__slideInRight'
     ]"
     @animationend="onAnimationEnd"
   >
@@ -72,14 +76,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { getAlbum } from '@/api/list';
 import { useMetaphor } from '@/features/lyric-metaphor/useMetaphor';
 import { isMobile } from '@/utils';
-
 import SBtn from '@/views/set/SBtn.vue';
 
 const props = defineProps<{
@@ -122,16 +125,13 @@ watch(
   { immediate: true }
 );
 
-watch(
-  [() => props.songName, () => props.artist],
-  () => {
-    lastSongKey.value = '';
-    if (props.modelValue && props.lyrics) {
-      clear();
-      doAnalyze();
-    }
+watch([() => props.songName, () => props.artist], () => {
+  lastSongKey.value = '';
+  if (props.modelValue && props.lyrics) {
+    clear();
+    doAnalyze();
   }
-);
+});
 
 function closePanel() {
   emit('update:modelValue', false);

@@ -8,10 +8,18 @@
         <!-- Main Content Sections -->
         <div class="content-sections space-y-8 lg:space-y-12">
           <!-- Recommended Playlists (Grid Section) -->
-          <home-playlist-section :title="t('comp.recommendSonglist.title')" :limit="18" class="enter-stagger" />
+          <home-playlist-section
+            :title="t('comp.recommendSonglist.title')"
+            :limit="18"
+            class="enter-stagger"
+          />
 
           <!-- Hot Artists (Horizontal Scroll Section) -->
-          <home-artists :title="t('comp.recommendSinger.title')" :limit="15" class="enter-stagger" />
+          <home-artists
+            :title="t('comp.recommendSinger.title')"
+            :limit="15"
+            class="enter-stagger"
+          />
 
           <!-- New Albums (NEW - 新碟上架) -->
           <home-album-section
@@ -24,7 +32,11 @@
           />
 
           <!-- New Songs (Compact Grid Section) -->
-          <home-new-songs :title="t('comp.recommendNewMusic.title')" :limit="20" class="enter-stagger" />
+          <home-new-songs
+            :title="t('comp.recommendNewMusic.title')"
+            :limit="20"
+            class="enter-stagger"
+          />
         </div>
       </div>
     </n-scrollbar>

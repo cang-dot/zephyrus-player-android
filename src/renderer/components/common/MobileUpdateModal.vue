@@ -10,7 +10,9 @@
           class="w-full max-w-lg bg-white dark:bg-gray-900 rounded-t-3xl overflow-hidden animate-slide-up"
         >
           <!-- 顶部装饰条 -->
-          <div class="h-1 bg-gradient-to-r from-[var(--accent-color-light)] via-[var(--accent-color)] to-[var(--accent-color-dark)]"></div>
+          <div
+            class="h-1 bg-gradient-to-r from-[var(--accent-color-light)] via-[var(--accent-color)] to-[var(--accent-color-dark)]"
+          ></div>
 
           <!-- 关闭条 -->
           <div class="flex justify-center pt-3 pb-2">

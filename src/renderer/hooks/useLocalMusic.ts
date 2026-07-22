@@ -6,12 +6,11 @@
  */
 import { createDiscreteApi } from 'naive-ui';
 
-import { getLocalLyricPath, readLocalLyricFile } from '@/utils/localLyricStorage';
-import { isElectron } from '@/utils';
-import { parseLyricContent } from '@/utils/localMusicUtils';
-
-import type { SongResult } from '@/types/music';
 import type { ILyric } from '@/types';
+import type { SongResult } from '@/types/music';
+import { isElectron } from '@/utils';
+import { getLocalLyricPath, readLocalLyricFile } from '@/utils/localLyricStorage';
+import { parseLyricContent } from '@/utils/localMusicUtils';
 
 let _message: ReturnType<typeof createDiscreteApi>['message'] | null = null;
 const getMessage = () => {

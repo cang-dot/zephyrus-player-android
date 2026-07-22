@@ -20,7 +20,10 @@
     <!-- Loading Skeleton -->
     <div v-if="loading" class="flex gap-4 overflow-hidden">
       <div v-for="i in 8" :key="i" class="flex-shrink-0">
-        <div class="aspect-square skeleton-shimmer rounded-2xl" style="width: 160px; height: 160px;" />
+        <div
+          class="aspect-square skeleton-shimmer rounded-2xl"
+          style="width: 160px; height: 160px"
+        />
       </div>
     </div>
 
@@ -55,13 +58,12 @@ import { useRouter } from 'vue-router';
 
 import { getTopAlbum } from '@/api/home';
 import { getAlbum } from '@/api/list';
+import CoverScrollRow from '@/components/common/CoverScrollRow.vue';
+import InfiniteCoverGrid from '@/components/common/InfiniteCoverGrid.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
 import { usePlaylistStore } from '@/store/modules/playlist';
 import { isMobile } from '@/utils';
-
-import InfiniteCoverGrid from '@/components/common/InfiniteCoverGrid.vue';
-import CoverScrollRow from '@/components/common/CoverScrollRow.vue';
 
 const props = withDefaults(
   defineProps<{

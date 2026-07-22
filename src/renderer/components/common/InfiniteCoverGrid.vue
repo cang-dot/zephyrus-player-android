@@ -1,16 +1,8 @@
 <template>
-  <div
-    class="infinite-cover-grid"
-    @mouseenter="paused = true"
-    @mouseleave="paused = false"
-  >
+  <div class="infinite-cover-grid" @mouseenter="paused = true" @mouseleave="paused = false">
     <div class="grid-track" :style="{ animationPlayState: paused ? 'paused' : 'running' }">
       <!-- Two copies of the list for seamless infinite scroll -->
-      <div
-        v-for="copy in 2"
-        :key="copy"
-        class="grid-row"
-      >
+      <div v-for="copy in 2" :key="copy" class="grid-row">
         <div
           v-for="(item, idx) in displayItems"
           :key="`${copy}-${item.id}-${idx}`"
@@ -51,6 +43,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+
 import { getImgUrl } from '@/utils';
 
 export interface GridItem {
@@ -164,7 +157,9 @@ const displayItems = computed(() => {
   border-radius: 16px;
   overflow: hidden;
   background: rgba(128, 128, 128, 0.1);
-  transition: transform 0.3s cubic-bezier(0.2, 0, 0.1, 1), box-shadow 0.3s ease;
+  transition:
+    transform 0.3s cubic-bezier(0.2, 0, 0.1, 1),
+    box-shadow 0.3s ease;
 }
 
 .grid-card:hover .card-cover {
@@ -187,7 +182,11 @@ const displayItems = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(var(--accent-color-rgb, 136, 136, 136), 0.15), rgba(var(--accent-color-rgb, 136, 136, 136), 0.05));
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-color-rgb, 136, 136, 136), 0.15),
+    rgba(var(--accent-color-rgb, 136, 136, 136), 0.05)
+  );
   pointer-events: none;
 }
 
@@ -199,7 +198,12 @@ const displayItems = computed(() => {
   align-items: flex-end;
   justify-content: space-between;
   padding: 14px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.4) 50%, transparent 100%);
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.85) 0%,
+    rgba(0, 0, 0, 0.4) 50%,
+    transparent 100%
+  );
   opacity: 0;
   /* Let clicks pass through to the card; only the play button needs interaction */
   pointer-events: none;

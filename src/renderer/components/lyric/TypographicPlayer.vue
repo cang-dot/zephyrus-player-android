@@ -20,11 +20,7 @@
           @toggleFullscreen="toggleFullScreen"
         >
           <template #extra>
-            <div
-              class="player-controls__btn"
-              @click="toggleColorInversion"
-              title="颜色反转"
-            >
+            <div class="player-controls__btn" @click="toggleColorInversion" title="颜色反转">
               <i class="ri-contrast-2-line"></i>
             </div>
             <div
@@ -93,18 +89,10 @@
   </teleport>
 
   <!-- overlay 模式：直接渲染，不 teleport，低 z-index，pointer-events 穿透 -->
-  <div
-    v-if="overlayMode && isVisible"
-    class="magazine-player overlay-mode"
-    :style="dynamicBgStyle"
-  >
+  <div v-if="overlayMode && isVisible" class="magazine-player overlay-mode" :style="dynamicBgStyle">
     <!-- 永久色块：乐队名 -->
     <transition name="block-enter">
-      <div
-        v-if="bandBlock && bandName"
-        class="color-block permanent-block"
-        :style="bandBlockStyle"
-      >
+      <div v-if="bandBlock && bandName" class="color-block permanent-block" :style="bandBlockStyle">
         <span
           class="block-text band-name"
           :style="{ fontSize: (bandBlock?.fontSize || bandTextFontSize) + 'px' }"
@@ -138,12 +126,7 @@
 
     <!-- 歌词词组 -->
     <transition-group name="word-anim">
-      <div
-        v-for="word in currentWords"
-        :key="word.id"
-        class="lyric-word"
-        :style="wordStyle(word)"
-      >
+      <div v-for="word in currentWords" :key="word.id" class="lyric-word" :style="wordStyle(word)">
         {{ word.text }}
       </div>
     </transition-group>

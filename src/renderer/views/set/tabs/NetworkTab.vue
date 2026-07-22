@@ -74,7 +74,11 @@
         >
           <div class="flex items-center gap-2">
             <i
-              :class="r.ok ? 'ri-checkbox-circle-fill text-[var(--accent-color)]' : 'ri-close-circle-fill text-red-400'"
+              :class="
+                r.ok
+                  ? 'ri-checkbox-circle-fill text-[var(--accent-color)]'
+                  : 'ri-close-circle-fill text-red-400'
+              "
             ></i>
             <span class="text-gray-700 dark:text-gray-300">{{ r.name }}</span>
           </div>
@@ -132,10 +136,10 @@ import { isElectron } from '@/utils';
 
 import { SETTINGS_DATA_KEY, SETTINGS_MESSAGE_KEY } from '../keys';
 import SBtn from '../SBtn.vue';
-import SSelect from '../SSelect.vue';
 import SettingItem from '../SettingItem.vue';
 import SettingSection from '../SettingSection.vue';
 import SInput from '../SInput.vue';
+import SSelect from '../SSelect.vue';
 
 const { t } = useI18n();
 const setData = inject(SETTINGS_DATA_KEY)!;
@@ -263,3 +267,11 @@ watch(
   }
 );
 </script>
+
+<style scoped>
+/* 覆盖写死的 Tailwind 颜色，统一跟随 --m-* 令牌 */
+.bg-gray-50 { background-color: var(--m-surface, #eae6df) !important; }
+.dark .dark\:bg-white\/5 { background-color: var(--m-surface-alt, #2a2a2a) !important; }
+.border-gray-100,
+.dark .dark\:border-gray-800 { border-color: var(--m-border, #d5d0c9) !important; }
+</style>

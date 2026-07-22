@@ -4,25 +4,56 @@
       <div
         v-if="isVisible"
         class="eerie-mobile-player"
-        :style="{ '--accent-color': accentColor, '--accent-dark': accentDark, '--bg-color': bgColor }"
+        :style="{
+          '--accent-color': accentColor,
+          '--accent-dark': accentDark,
+          '--bg-color': bgColor
+        }"
         @click="handleTapToggle"
       >
         <canvas ref="bgCanvasRef" class="bg-canvas"></canvas>
 
         <transition-group name="newspaper-flash" tag="div" class="newspaper-layer">
-          <div v-for="np in activeNewspapers" :key="np.id" class="newspaper-item" :style="{ backgroundImage: `url(${np.src})` }"></div>
+          <div
+            v-for="np in activeNewspapers"
+            :key="np.id"
+            class="newspaper-item"
+            :style="{ backgroundImage: `url(${np.src})` }"
+          ></div>
         </transition-group>
 
         <!-- 歌词层（前奏阶段不显示歌词，只显示噪点背景） -->
         <div class="lyrics-layer">
           <template v-if="!isIntro && isInClimax && climaxDisplayKeywords.length > 0">
             <div class="climax-keywords">
-              <span v-for="(kw, i) in climaxDisplayKeywords" :key="i" class="keyword-char" :style="{ color: accentColor, fontSize: climaxFontSizePx, fontWeight: eerieFontWeightValue }">{{ kw.text }}</span>
+              <span
+                v-for="(kw, i) in climaxDisplayKeywords"
+                :key="i"
+                class="keyword-char"
+                :style="{
+                  color: accentColor,
+                  fontSize: climaxFontSizePx,
+                  fontWeight: eerieFontWeightValue
+                }"
+                >{{ kw.text }}</span
+              >
             </div>
           </template>
           <template v-else-if="!isIntro && currentChars.length > 0">
             <div class="calligraphy-line">
-              <span v-for="(charData, i) in currentChars" :key="i" class="calligraphy-char" :style="{ fontSize: charData.size + 'px', color: accentColor, marginLeft: charData.margin + 'px', marginRight: charData.margin + 'px', fontWeight: eerieFontWeightValue }">{{ charData.char }}</span>
+              <span
+                v-for="(charData, i) in currentChars"
+                :key="i"
+                class="calligraphy-char"
+                :style="{
+                  fontSize: charData.size + 'px',
+                  color: accentColor,
+                  marginLeft: charData.margin + 'px',
+                  marginRight: charData.margin + 'px',
+                  fontWeight: eerieFontWeightValue
+                }"
+                >{{ charData.char }}</span
+              >
             </div>
           </template>
           <div v-else class="lyrics-empty"></div>
@@ -32,8 +63,10 @@
         <transition name="ctrl-fade">
           <div v-show="controlsVisible" class="top-controls no-toggle">
             <div class="ctrl-btn" @click="close"><i class="ri-arrow-down-s-line"></i></div>
-            <div style="flex:1"></div>
-            <div class="ctrl-btn" @click="showPlayerSettings = true"><i class="ri-more-2-fill"></i></div>
+            <div style="flex: 1"></div>
+            <div class="ctrl-btn" @click="showPlayerSettings = true">
+              <i class="ri-more-2-fill"></i>
+            </div>
           </div>
         </transition>
 
@@ -43,13 +76,19 @@
             <div class="progress-row">
               <span class="time-text">{{ formatTime(currentTime) }}</span>
               <div class="progress-bar-bg" @click="handleSeek">
-                <div class="climax-track" v-if="styleEngine.climaxSegments.length > 0 && duration > 0">
+                <div
+                  class="climax-track"
+                  v-if="styleEngine.climaxSegments.length > 0 && duration > 0"
+                >
                   <div
                     v-for="(seg, i) in styleEngine.climaxSegments"
                     :key="'cl-' + i"
                     class="climax-segment"
                     :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
-                    :style="{ left: (seg.start / duration) * 100 + '%', width: Math.max(0.5, ((seg.end - seg.start) / duration) * 100) + '%' }"
+                    :style="{
+                      left: (seg.start / duration) * 100 + '%',
+                      width: Math.max(0.5, ((seg.end - seg.start) / duration) * 100) + '%'
+                    }"
                   ></div>
                 </div>
                 <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
@@ -58,7 +97,9 @@
             </div>
             <div class="control-buttons">
               <div class="ctrl-btn" @click="handlePrev"><i class="ri-skip-back-fill"></i></div>
-              <div class="ctrl-btn play-btn" @click="handlePlayPause"><i :class="isPlaying ? 'ri-pause-fill' : 'ri-play-fill'"></i></div>
+              <div class="ctrl-btn play-btn" @click="handlePlayPause">
+                <i :class="isPlaying ? 'ri-pause-fill' : 'ri-play-fill'"></i>
+              </div>
               <div class="ctrl-btn" @click="handleNext"><i class="ri-skip-forward-fill"></i></div>
             </div>
           </div>
@@ -74,51 +115,128 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
 
+import newspaperManifest from '@/assets/textures/newspaper/manifest.json';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
+import { useTapToggle } from '@/composables/useTapToggle';
 import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
+import { drawCracks } from '@/lib/crackRenderer';
+import { startVHSAnimation } from '@/lib/vhsEffect';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import { secondToMinute } from '@/utils';
-
-import { useTapToggle } from '@/composables/useTapToggle';
-import { drawCracks } from '@/lib/crackRenderer';
-import { startVHSAnimation } from '@/lib/vhsEffect';
 import { getClimaxWordCandidates, setCurrentSongId } from '@/utils/emotionalDetector';
-
-import newspaperManifest from '@/assets/textures/newspaper/manifest.json';
 
 // ==================== 署名类歌词检测（参考 SmartMixService）====================
 const ATTRIBUTION_KEYWORDS: readonly string[] = [
   // 多字关键词
-  '作词', '作曲', '编曲', '填词', '谱曲',
-  '制作人', '监制', '统筹', '企划',
-  '吉他', '贝斯', '鼓', '键盘', '钢琴', '小提琴', '大提琴', '萨克斯', '笛子', '二胡', '琵琶', '古筝',
-  '和声', '伴唱', '合唱', '童声',
-  '混音', '母带', '录音', '后期', '编曲混音',
-  '录音室', '录音棚', '混音棚',
-  '出品', '出品人', '出品方', '发行', '发行公司', '唱片公司',
-  '版权', '著作权', '制作公司', '工作室', '厂牌',
-  '感谢', '鸣谢', '致谢', '特别感谢', '献给', '谨以此歌',
-  'lyrics', 'composed', 'arranged', 'produced', 'mixed', 'mastered',
-  'guitar', 'bass', 'drums', 'keyboard', 'piano', 'violin',
-  'vocal', 'vocals', 'backing vocal', 'choir',
-  'recording', 'mixing', 'mastering',
-  'recording studio', 'mixing studio',
-  'presented by', 'released by', 'record label',
-  'copyright', 'all rights reserved',
-  'production company', 'studio', 'label',
-  'thanks to', 'acknowledgments', 'dedicated to', 'special thanks',
-  'goodbye', 'goodnight', 'thank you', 'thanks for listening', 'to be continued',
+  '作词',
+  '作曲',
+  '编曲',
+  '填词',
+  '谱曲',
+  '制作人',
+  '监制',
+  '统筹',
+  '企划',
+  '吉他',
+  '贝斯',
+  '鼓',
+  '键盘',
+  '钢琴',
+  '小提琴',
+  '大提琴',
+  '萨克斯',
+  '笛子',
+  '二胡',
+  '琵琶',
+  '古筝',
+  '和声',
+  '伴唱',
+  '合唱',
+  '童声',
+  '混音',
+  '母带',
+  '录音',
+  '后期',
+  '编曲混音',
+  '录音室',
+  '录音棚',
+  '混音棚',
+  '出品',
+  '出品人',
+  '出品方',
+  '发行',
+  '发行公司',
+  '唱片公司',
+  '版权',
+  '著作权',
+  '制作公司',
+  '工作室',
+  '厂牌',
+  '感谢',
+  '鸣谢',
+  '致谢',
+  '特别感谢',
+  '献给',
+  '谨以此歌',
+  'lyrics',
+  'composed',
+  'arranged',
+  'produced',
+  'mixed',
+  'mastered',
+  'guitar',
+  'bass',
+  'drums',
+  'keyboard',
+  'piano',
+  'violin',
+  'vocal',
+  'vocals',
+  'backing vocal',
+  'choir',
+  'recording',
+  'mixing',
+  'mastering',
+  'recording studio',
+  'mixing studio',
+  'presented by',
+  'released by',
+  'record label',
+  'copyright',
+  'all rights reserved',
+  'production company',
+  'studio',
+  'label',
+  'thanks to',
+  'acknowledgments',
+  'dedicated to',
+  'special thanks',
+  'goodbye',
+  'goodnight',
+  'thank you',
+  'thanks for listening',
+  'to be continued',
   // 单字简写（LRC 歌词中常见的署名行格式："词：xxx"、"曲：xxx"）
-  '词', '曲', '编', '唱', '制', '监', '混', '录', '配', '奏', '伴'
+  '词',
+  '曲',
+  '编',
+  '唱',
+  '制',
+  '监',
+  '混',
+  '录',
+  '配',
+  '奏',
+  '伴'
 ];
 
 function isAttributionLyric(text: string): boolean {
   if (!text) return false;
   const lower = text.toLowerCase();
-  return ATTRIBUTION_KEYWORDS.some(kw => lower.includes(kw.toLowerCase()));
+  return ATTRIBUTION_KEYWORDS.some((kw) => lower.includes(kw.toLowerCase()));
 }
 
 const props = defineProps({
@@ -139,11 +257,16 @@ const showPlayerSettings = computed({
   set: (val) => playerStore.setPlayerSettingsVisible(val)
 });
 
-const isVisible = computed({ get: () => props.modelValue, set: (v) => emit('update:modelValue', v) });
+const isVisible = computed({
+  get: () => props.modelValue,
+  set: (v) => emit('update:modelValue', v)
+});
 const isPlaying = computed(() => playerStore.isPlay);
 const currentTime = computed(() => nowTime.value);
 const duration = computed(() => (playMusic.value?.dt || playMusic.value?.duration || 0) / 1000);
-const progressPercent = computed(() => duration.value ? (currentTime.value / duration.value) * 100 : 0);
+const progressPercent = computed(() =>
+  duration.value ? (currentTime.value / duration.value) * 100 : 0
+);
 const isInClimax = computed(() => styleEngine.isInClimax);
 
 // ==================== 响应式配置 ====================
@@ -205,7 +328,7 @@ const isIntro = computed(() => {
   }
   return true;
 });
-const bgColor = computed(() => isIntro.value ? accentDark.value : '#0a0a0a');
+const bgColor = computed(() => (isIntro.value ? accentDark.value : '#0a0a0a'));
 
 // 配置值
 const eerieFontFamily = computed(() => (config.value as any).eerieFontFamily || 'KaiTi');
@@ -238,12 +361,12 @@ const currentChars = computed(() => {
 const fontFamily = computed(() => {
   const f = eerieFontFamily.value;
   const fallbacks: Record<string, string> = {
-    'KaiTi': "'KaiTi', 'STKaiti', 'Noto Serif SC', serif",
-    'STKaiti': "'STKaiti', 'KaiTi', 'Noto Serif SC', serif",
-    'FangSong': "'FangSong', 'STFangsong', 'Noto Serif SC', serif",
-    'SimSun': "'SimSun', 'STSong', serif",
-    'LiSu': "'LiSu', 'STLiti', serif",
-    'YouYuan': "'YouYuan', 'STXihei', sans-serif",
+    KaiTi: "'KaiTi', 'STKaiti', 'Noto Serif SC', serif",
+    STKaiti: "'STKaiti', 'KaiTi', 'Noto Serif SC', serif",
+    FangSong: "'FangSong', 'STFangsong', 'Noto Serif SC', serif",
+    SimSun: "'SimSun', 'STSong', serif",
+    LiSu: "'LiSu', 'STLiti', serif",
+    YouYuan: "'YouYuan', 'STXihei', sans-serif"
   };
   return fallbacks[f] || `${f}, 'KaiTi', serif`;
 });
@@ -316,59 +439,80 @@ watch(
 );
 
 // 切歌词时同步重点词到 styleEngine
-watch(nowIndex, (idx) => {
-  styleEngine.updateCurrentLineKeywords(idx);
-}, { immediate: true });
+watch(
+  nowIndex,
+  (idx) => {
+    styleEngine.updateCurrentLineKeywords(idx);
+  },
+  { immediate: true }
+);
 
 const bgCanvasRef = ref<HTMLCanvasElement | null>(null);
 let noiseStopFn: (() => void) | null = null;
 
 function updateBackground() {
-const canvas = bgCanvasRef.value;
-if (!canvas) return;
-const dpr = window.devicePixelRatio || 1;
-const w = window.innerWidth, h = window.innerHeight;
+  const canvas = bgCanvasRef.value;
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth,
+    h = window.innerHeight;
 
-// 只在尺寸真正变化时才设置 canvas.width（设置会重置画布全部状态）
-const targetW = w * dpr, targetH = h * dpr;
-if (canvas.width !== targetW || canvas.height !== targetH) {
-canvas.width = targetW;
-canvas.height = targetH;
-canvas.style.width = w + 'px';
-canvas.style.height = h + 'px';
-}
-const ctx = canvas.getContext('2d');
-if (!ctx) return;
-ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // 用 setTransform 替代 scale，避免累积
-ctx.clearRect(0, 0, w, h);
-ctx.fillStyle = bgColor.value;
-ctx.fillRect(0, 0, w, h);
-if (isIntro.value) {
-// 传入 getter 函数让 VHS 每帧动态获取最新底色
-if (noiseStopFn) noiseStopFn();
-noiseStopFn = startVHSAnimation(ctx, w, h, () => bgColor.value, {
-intensity: 0.7,
-snow: 0.4,
-scanlines: 0.15,
-interference: 0.18,
-colorBleed: 2,
-rollingBar: true,
-fps: 24
-});
-} else {
-if (noiseStopFn) { noiseStopFn(); noiseStopFn = null; }
-if (!isInClimax.value) drawCracks(ctx, w, h, { count: 5 + Math.floor(Math.random() * 3), opacity: 0.12, color: accentColor.value, maxDepth: 4 });
-}
+  // 只在尺寸真正变化时才设置 canvas.width（设置会重置画布全部状态）
+  const targetW = w * dpr,
+    targetH = h * dpr;
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width = targetW;
+    canvas.height = targetH;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+  }
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // 用 setTransform 替代 scale，避免累积
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = bgColor.value;
+  ctx.fillRect(0, 0, w, h);
+  if (isIntro.value) {
+    // 传入 getter 函数让 VHS 每帧动态获取最新底色
+    if (noiseStopFn) noiseStopFn();
+    noiseStopFn = startVHSAnimation(ctx, w, h, () => bgColor.value, {
+      intensity: 0.7,
+      snow: 0.4,
+      scanlines: 0.15,
+      interference: 0.18,
+      colorBleed: 2,
+      rollingBar: true,
+      fps: 24
+    });
+  } else {
+    if (noiseStopFn) {
+      noiseStopFn();
+      noiseStopFn = null;
+    }
+    if (!isInClimax.value)
+      drawCracks(ctx, w, h, {
+        count: 5 + Math.floor(Math.random() * 3),
+        opacity: 0.12,
+        color: accentColor.value,
+        maxDepth: 4
+      });
+  }
 }
 
 watch(nowIndex, () => nextTick(() => updateBackground()));
 watch(isInClimax, () => nextTick(() => updateBackground()));
 watch(isVisible, (v) => {
   if (v) nextTick(() => updateBackground());
-  else if (noiseStopFn) { noiseStopFn(); noiseStopFn = null; }
+  else if (noiseStopFn) {
+    noiseStopFn();
+    noiseStopFn = null;
+  }
 });
 
-interface NewspaperItem { id: number; src: string; }
+interface NewspaperItem {
+  id: number;
+  src: string;
+}
 const activeNewspapers = ref<NewspaperItem[]>([]);
 let newspaperIdCounter = 0;
 let climaxNewspaperTimer: ReturnType<typeof setInterval> | null = null;
@@ -378,28 +522,46 @@ let climaxIndex = 0;
 function flashNewspaper(src: string) {
   const id = newspaperIdCounter++;
   activeNewspapers.value.push({ id, src });
-  setTimeout(() => { activeNewspapers.value = activeNewspapers.value.filter((n) => n.id !== id); }, 500);
+  setTimeout(() => {
+    activeNewspapers.value = activeNewspapers.value.filter((n) => n.id !== id);
+  }, 500);
 }
 function startClimaxNewspapers() {
   if (climaxNewspaperTimer || newspaperTextures.length === 0) return;
-  const cycle = () => { flashNewspaper(newspaperTextures[climaxIndex % newspaperTextures.length].src); climaxIndex++; };
+  const cycle = () => {
+    flashNewspaper(newspaperTextures[climaxIndex % newspaperTextures.length].src);
+    climaxIndex++;
+  };
   cycle();
   climaxNewspaperTimer = setInterval(cycle, 500);
 }
 function stopClimaxNewspapers() {
-  if (climaxNewspaperTimer) { clearInterval(climaxNewspaperTimer); climaxNewspaperTimer = null; }
+  if (climaxNewspaperTimer) {
+    clearInterval(climaxNewspaperTimer);
+    climaxNewspaperTimer = null;
+  }
 }
-watch(isInClimax, (c) => { c ? startClimaxNewspapers() : stopClimaxNewspapers(); });
+watch(isInClimax, (c) => {
+  c ? startClimaxNewspapers() : stopClimaxNewspapers();
+});
 watch(nowIndex, () => {
   if (!isInClimax.value && newspaperTextures.length > 0 && Math.random() < 0.1) {
     flashNewspaper(newspaperTextures[Math.floor(Math.random() * newspaperTextures.length)].src);
   }
 });
 
-function close() { isVisible.value = false; }
-function handlePrev() { playerStore.prevPlay(); }
-function handleNext() { playerStore.nextPlay(); }
-function handlePlayPause() { playerStore.setPlay(playMusic.value); }
+function close() {
+  isVisible.value = false;
+}
+function handlePrev() {
+  playerStore.prevPlay();
+}
+function handleNext() {
+  playerStore.nextPlay();
+}
+function handlePlayPause() {
+  playerStore.setPlay(playMusic.value);
+}
 function handleSeek(e: MouseEvent) {
   const target = e.currentTarget as HTMLElement;
   const rect = target.getBoundingClientRect();
@@ -409,53 +571,237 @@ function handleSeek(e: MouseEvent) {
     nowTime.value = seekTime;
   }
 }
-function formatTime(s: number): string { return secondToMinute(s); }
+function formatTime(s: number): string {
+  return secondToMinute(s);
+}
 
-onBeforeUnmount(() => { if (noiseStopFn) noiseStopFn(); stopClimaxNewspapers(); });
+onBeforeUnmount(() => {
+  if (noiseStopFn) noiseStopFn();
+  stopClimaxNewspapers();
+});
 </script>
 
 <style lang="scss" scoped>
-.eerie-mobile-player { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; background: var(--bg-color); }
-.bg-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
-.newspaper-layer { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
-.newspaper-item { position: absolute; inset: 0; background-size: cover; background-position: center; background-repeat: no-repeat; mix-blend-mode: overlay; }
-.lyrics-layer { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 20px; }
-.calligraphy-line { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; max-width: 100%; }
-.calligraphy-char { font-family: v-bind(fontFamily); line-height: 1.1; filter: drop-shadow(0 0 1px rgba(0,0,0,0.5)); transition: color 0.3s var(--m-ease-out, ease); text-shadow: 0 0 2px currentColor; }
-.climax-keywords { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.1em; width: 100%; }
-.keyword-char { font-family: v-bind(fontFamily); line-height: 1; text-shadow: 0 0 20px currentColor, 0 0 4px currentColor; animation: keyword-pulse 0.8s var(--m-ease-out, ease) infinite alternate; }
-@keyframes keyword-pulse { to { text-shadow: 0 0 30px currentColor, 0 0 8px currentColor; } }
-.lyrics-empty { width: 1px; height: 1px; }
-
-.top-controls { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; padding: calc(var(--safe-area-inset-top, 0px) + 16px) 20px 0; z-index: 10;
-  .ctrl-btn { @apply flex items-center justify-center w-10 h-10 rounded-full text-xl; color: #f0ece4; background: rgba(255,255,255,0.08); cursor: pointer; transition: transform var(--m-duration-press, 160ms) var(--m-ease-out, ease-out); &:active { transform: scale(0.97); } }
+.eerie-mobile-player {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--bg-color);
 }
-.bottom-controls { position: absolute; bottom: 0; left: 0; right: 0; padding: 0 24px calc(var(--safe-area-inset-bottom, 0px) + 32px); z-index: 10; }
-.progress-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
-  .time-text { font-size: 12px; color: #666; flex-shrink: 0; min-width: 36px; }
-  .progress-bar-bg { flex: 1; height: 2px; background: #333; border-radius: 1px; position: relative; cursor: pointer;
-    .progress-bar-fill { position: absolute; left: 0; top: 0; height: 100%; background: var(--accent-color); border-radius: 1px; transition: width 0.1s linear; }
-    // 高潮段落标注（与进度条同高，叠加显示）
-    .climax-track { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
-    .climax-segment { position: absolute; top: 0; bottom: 0; height: 100%; background: rgba(255, 200, 50, 0.35); border-radius: 1px; transition: background 0.2s ease;
-      &.climax-active { background: rgba(255, 200, 50, 0.7); }
+.bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+.newspaper-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.newspaper-item {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  mix-blend-mode: overlay;
+}
+.lyrics-layer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+}
+.calligraphy-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.calligraphy-char {
+  font-family: v-bind(fontFamily);
+  line-height: 1.1;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.5));
+  transition: color 0.3s var(--m-ease-out, ease);
+  text-shadow: 0 0 2px currentColor;
+}
+.climax-keywords {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.1em;
+  width: 100%;
+}
+.keyword-char {
+  font-family: v-bind(fontFamily);
+  line-height: 1;
+  text-shadow:
+    0 0 20px currentColor,
+    0 0 4px currentColor;
+  animation: keyword-pulse 0.8s var(--m-ease-out, ease) infinite alternate;
+}
+@keyframes keyword-pulse {
+  to {
+    text-shadow:
+      0 0 30px currentColor,
+      0 0 8px currentColor;
+  }
+}
+.lyrics-empty {
+  width: 1px;
+  height: 1px;
+}
+
+.top-controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  padding: calc(var(--safe-area-inset-top, 0px) + 16px) 20px 0;
+  z-index: 10;
+  .ctrl-btn {
+    @apply flex items-center justify-center w-10 h-10 rounded-full text-xl;
+    color: #f0ece4;
+    background: rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    transition: transform var(--m-duration-press, 160ms) var(--m-ease-out, ease-out);
+    &:active {
+      transform: scale(0.97);
     }
   }
 }
-.control-buttons { display: flex; align-items: center; justify-content: center; gap: 16px;
-  .ctrl-btn { @apply flex items-center justify-center rounded-full cursor-pointer; background: #444; width: 42px; height: 42px; transition: transform var(--m-duration-press, 160ms) var(--m-ease-out, ease-out);
-    i { font-size: 18px; color: #f0ece4; }
-    &:active { transform: scale(0.97); }
-    &.play-btn { width: 52px; height: 52px; background: var(--accent-color); i { font-size: 24px; color: #fff; } }
+.bottom-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0 24px calc(var(--safe-area-inset-bottom, 0px) + 32px);
+  z-index: 10;
+}
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  .time-text {
+    font-size: 12px;
+    color: #666;
+    flex-shrink: 0;
+    min-width: 36px;
+  }
+  .progress-bar-bg {
+    flex: 1;
+    height: 2px;
+    background: #333;
+    border-radius: 1px;
+    position: relative;
+    cursor: pointer;
+    .progress-bar-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      background: var(--accent-color);
+      border-radius: 1px;
+      transition: width 0.1s linear;
+    }
+    // 高潮段落标注（与进度条同高，叠加显示）
+    .climax-track {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .climax-segment {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      height: 100%;
+      background: rgba(255, 200, 50, 0.35);
+      border-radius: 1px;
+      transition: background 0.2s ease;
+      &.climax-active {
+        background: rgba(255, 200, 50, 0.7);
+      }
+    }
+  }
+}
+.control-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  .ctrl-btn {
+    @apply flex items-center justify-center rounded-full cursor-pointer;
+    background: #444;
+    width: 42px;
+    height: 42px;
+    transition: transform var(--m-duration-press, 160ms) var(--m-ease-out, ease-out);
+    i {
+      font-size: 18px;
+      color: #f0ece4;
+    }
+    &:active {
+      transform: scale(0.97);
+    }
+    &.play-btn {
+      width: 52px;
+      height: 52px;
+      background: var(--accent-color);
+      i {
+        font-size: 24px;
+        color: #fff;
+      }
+    }
   }
 }
 
-.eerie-fade-enter-active, .eerie-fade-leave-active { transition: opacity 0.3s var(--m-ease-out, ease); }
-.eerie-fade-enter-from, .eerie-fade-leave-to { opacity: 0; }
-.ctrl-fade-enter-active, .ctrl-fade-leave-active { transition: opacity 0.2s var(--m-ease-out, ease); }
-.ctrl-fade-enter-from, .ctrl-fade-leave-to { opacity: 0; }
-.newspaper-flash-enter-active { transition: opacity 0.15s ease; }
-.newspaper-flash-leave-active { transition: opacity 0.15s ease; }
-.newspaper-flash-enter-from, .newspaper-flash-leave-to { opacity: 0; }
-@media (prefers-reduced-motion: reduce) { .keyword-char { animation: none; } }
+.eerie-fade-enter-active,
+.eerie-fade-leave-active {
+  transition: opacity 0.3s var(--m-ease-out, ease);
+}
+.eerie-fade-enter-from,
+.eerie-fade-leave-to {
+  opacity: 0;
+}
+.ctrl-fade-enter-active,
+.ctrl-fade-leave-active {
+  transition: opacity 0.2s var(--m-ease-out, ease);
+}
+.ctrl-fade-enter-from,
+.ctrl-fade-leave-to {
+  opacity: 0;
+}
+.newspaper-flash-enter-active {
+  transition: opacity 0.15s ease;
+}
+.newspaper-flash-leave-active {
+  transition: opacity 0.15s ease;
+}
+.newspaper-flash-enter-from,
+.newspaper-flash-leave-to {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .keyword-char {
+    animation: none;
+  }
+}
 </style>

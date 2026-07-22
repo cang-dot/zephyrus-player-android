@@ -2,7 +2,9 @@
   <div class="music-full-bg" :style="bgStyle">
     <!-- 背景图片层 -->
     <div
-      v-if="config.useCustomBackground && config.backgroundMode === 'image' && config.backgroundImage"
+      v-if="
+        config.useCustomBackground && config.backgroundMode === 'image' && config.backgroundImage
+      "
       class="mf-bg-image-layer"
       :style="backgroundImageStyle"
     ></div>
@@ -115,9 +117,14 @@
                 }"
                 @click="item.startTime !== -1 ? setAudioTime(index) : null"
               >
-                <div v-if="item.hasWordByWord && item.words && item.words.length > 0" class="word-by-word-lyric">
+                <div
+                  v-if="item.hasWordByWord && item.words && item.words.length > 0"
+                  class="word-by-word-lyric"
+                >
                   <template v-for="(word, wordIndex) in item.words" :key="wordIndex">
-                    <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)">{{ word.text }} </span>
+                    <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)"
+                      >{{ word.text }}
+                    </span>
                     <span class="lyric-word" v-if="word.space">&nbsp;</span>
                   </template>
                 </div>
@@ -225,7 +232,8 @@ const supportAutoScroll = computed(() => {
 const customBackgroundStyle = computed(() => {
   if (!config.value.useCustomBackground) return null;
   switch (config.value.backgroundMode) {
-    case 'solid': return config.value.solidColor;
+    case 'solid':
+      return config.value.solidColor;
     case 'gradient': {
       const { colors, direction } = config.value.gradientColors;
       return `linear-gradient(${direction}, ${colors.join(', ')})`;
@@ -234,7 +242,8 @@ const customBackgroundStyle = computed(() => {
       return config.value.backgroundImage || null;
     case 'css':
       return config.value.customCss || null;
-    default: return null;
+    default:
+      return null;
   }
 });
 
@@ -282,7 +291,10 @@ const setTextColors = (background: string) => {
   }
   textColors.value = getTextColors(background);
   isDark.value = textColors.value.active === '#000000';
-  document.documentElement.style.setProperty('--hover-bg-color', getHoverBackgroundColor(isDark.value));
+  document.documentElement.style.setProperty(
+    '--hover-bg-color',
+    getHoverBackgroundColor(isDark.value)
+  );
   document.documentElement.style.setProperty('--text-color-primary', textColors.value.primary);
   document.documentElement.style.setProperty('--text-color-active', textColors.value.active);
 
@@ -297,9 +309,13 @@ const setTextColors = (background: string) => {
   }
 };
 
-watch(targetBackground, (newBg) => {
-  if (newBg) setTextColors(newBg);
-}, { immediate: true });
+watch(
+  targetBackground,
+  (newBg) => {
+    if (newBg) setTextColors(newBg);
+  },
+  { immediate: true }
+);
 
 // 歌词滚动
 const lrcScroll = (behavior: ScrollBehavior = 'smooth', forceTop: boolean = false) => {
@@ -340,15 +356,20 @@ watch(nowIndex, () => {
   debouncedLrcScroll();
 });
 
-watch(() => playMusic.value.id, (newId, oldId) => {
-  if (newId !== oldId && newId) {
-    isSongChanging.value = true;
-    setTimeout(() => {
-      lrcScroll('instant', true);
-      setTimeout(() => { isSongChanging.value = false; }, 300);
-    }, 100);
+watch(
+  () => playMusic.value.id,
+  (newId, oldId) => {
+    if (newId !== oldId && newId) {
+      isSongChanging.value = true;
+      setTimeout(() => {
+        lrcScroll('instant', true);
+        setTimeout(() => {
+          isSongChanging.value = false;
+        }, 300);
+      }, 100);
+    }
   }
-});
+);
 
 const { getLrcStyle: originalLrcStyle } = useLyricProgress();
 
@@ -435,7 +456,8 @@ const handleArtistClick = (id: number) => {
 watch(
   () => [setData.value.fontFamily, setData.value.fontScope],
   ([newFont, fontScope]) => {
-    const defaultFonts = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+    const defaultFonts =
+      'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
     if (fontScope !== 'lyric' && fontScope !== 'global') {
       document.documentElement.style.setProperty('--current-font-family', defaultFonts);
       return;
@@ -447,24 +469,39 @@ watch(
         const trimmed = font.trim();
         return /[\s'"()]/.test(trimmed) && !/^['"].*['"]$/.test(trimmed) ? `"${trimmed}"` : trimmed;
       });
-      document.documentElement.style.setProperty('--current-font-family', `${fontList.join(', ')}, ${defaultFonts}`);
+      document.documentElement.style.setProperty(
+        '--current-font-family',
+        `${fontList.join(', ')}, ${defaultFonts}`
+      );
     }
   },
   { immediate: true }
 );
 
-watch(() => config.value.fontSize, (newSize) => {
-  document.documentElement.style.setProperty('--lyric-font-size', `${newSize}px`);
-});
-watch(() => config.value.fontWeight, (newWeight) => {
-  document.documentElement.style.setProperty('--lyric-font-weight', newWeight.toString());
-});
-watch(() => config.value.letterSpacing, (newSpacing) => {
-  document.documentElement.style.setProperty('--lyric-letter-spacing', `${newSpacing}px`);
-});
-watch(() => config.value.lineHeight, (newLineHeight) => {
-  document.documentElement.style.setProperty('--lyric-line-height', newLineHeight.toString());
-});
+watch(
+  () => config.value.fontSize,
+  (newSize) => {
+    document.documentElement.style.setProperty('--lyric-font-size', `${newSize}px`);
+  }
+);
+watch(
+  () => config.value.fontWeight,
+  (newWeight) => {
+    document.documentElement.style.setProperty('--lyric-font-weight', newWeight.toString());
+  }
+);
+watch(
+  () => config.value.letterSpacing,
+  (newSpacing) => {
+    document.documentElement.style.setProperty('--lyric-letter-spacing', `${newSpacing}px`);
+  }
+);
+watch(
+  () => config.value.lineHeight,
+  (newLineHeight) => {
+    document.documentElement.style.setProperty('--lyric-line-height', newLineHeight.toString());
+  }
+);
 
 onMounted(() => {
   document.addEventListener('fullscreenchange', handleFullScreenChange);
@@ -612,7 +649,13 @@ onBeforeUnmount(() => {
     height: 100%;
     background: transparent;
     mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 15%,
+      black 85%,
+      transparent 100%
+    );
 
     .mf-info-header {
       margin-bottom: 2rem;

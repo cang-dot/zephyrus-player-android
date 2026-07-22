@@ -1,5 +1,11 @@
 <template>
-  <div class="h-full w-full page-bg transition-colors duration-500 flex flex-col flex-1 min-h-0">
+  <div
+    class="h-full w-full transition-colors duration-500 flex flex-col flex-1 min-h-0"
+    :style="{
+      background: 'var(--m-bg, var(--bg-color, #fff))',
+      color: 'var(--m-text-primary, var(--text-color, #000))'
+    }"
+  >
     <div class="flex-shrink-0 page-padding pt-6 pb-2">
       <div class="flex items-center justify-between gap-4">
         <h1 class="d-page-title">

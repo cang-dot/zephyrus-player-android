@@ -298,7 +298,6 @@ const applyThemeColor = (colorValue: string) => {
     // 使用加权平均值公式: 0.299*R + 0.587*G + 0.114*B
     const brightness = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
 
-
     // 设置主色
     playBarElement.style.setProperty('--fill-color', colorValue);
 

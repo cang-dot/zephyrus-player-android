@@ -6,7 +6,7 @@
       '--neon-color': color,
       '--neon-color-bright': brightColor,
       '--beat-scale': beatScale,
-      '--beat-spike': beatSpike,
+      '--beat-spike': beatSpike
     }"
   >
     <defs>
@@ -93,8 +93,8 @@
  */
 import { computed, onMounted, ref, watch } from 'vue';
 
-import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { getStrokes, loadDictionary } from '@/lib/hanziStrokes';
+import { useStyleEngineStore } from '@/store/modules/styleEngine';
 
 const props = defineProps<{
   char: string;
@@ -216,7 +216,7 @@ const processedStrokes = computed<ProcessedStroke[]>(() => {
               x: overlap.x + (overlap.width - gapW) / 2,
               y: overlap.y,
               width: gapW,
-              height: overlap.height,
+              height: overlap.height
             });
           } else {
             // 垂直间隙：遮挡中间一段高度
@@ -225,7 +225,7 @@ const processedStrokes = computed<ProcessedStroke[]>(() => {
               x: overlap.x,
               y: overlap.y + (overlap.height - gapH) / 2,
               width: overlap.width,
-              height: gapH,
+              height: gapH
             });
           }
         }

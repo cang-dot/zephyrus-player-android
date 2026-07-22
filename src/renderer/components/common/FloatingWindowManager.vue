@@ -3,8 +3,9 @@
 </template>
 
 <script setup lang="ts">
-import FloatingPanel from './FloatingPanel.vue';
 import { useWindowStore } from '@/store/modules/windowStore';
+
+import FloatingPanel from './FloatingPanel.vue';
 
 const windowStore = useWindowStore();
 </script>

@@ -1,64 +1,57 @@
 <template>
   <div
-    ref="scrollContainer"
-    class="cover-scroll-row relative overflow-x-auto overflow-y-hidden"
+    class="cover-scroll-row-wrap relative"
     style="
       margin-left: calc(var(--page-pl, 1rem) * -1);
       margin-right: calc(var(--page-pr, 1rem) * -1);
-      padding-left: var(--page-pl, 1rem);
-      padding-right: var(--page-pr, 1rem);
     "
   >
-    <div class="cover-track flex gap-3">
-      <div
-        v-for="(item, index) in items"
-        :key="`${item.id}-${index}`"
-        class="cover-card pressable flex flex-shrink-0 snap-start flex-col"
-        @click="emit('item-click', item)"
-      >
-        <!-- 封面 -->
-        <div class="cover-wrap relative overflow-hidden rounded-xl">
-          <img
-            v-if="item.cover"
-            :src="getImgUrl(item.cover, '300y300')"
-            :alt="item.name"
-            class="cover-img"
-            loading="lazy"
-          />
-          <div v-else class="cover-placeholder">
-            <i class="ri-disc-line text-3xl text-[var(--accent-color)] opacity-40" />
+    <div
+      ref="scrollContainer"
+      class="cover-scroll-row overflow-x-auto overflow-y-hidden"
+      style="padding-left: var(--page-pl, 1rem); padding-right: var(--page-pr, 1rem)"
+    >
+      <div class="cover-track flex gap-3">
+        <div
+          v-for="(item, index) in items"
+          :key="`${item.id}-${index}`"
+          class="cover-card pressable flex flex-shrink-0 snap-start flex-col"
+          @click="emit('item-click', item)"
+        >
+          <!-- 封面 -->
+          <div class="cover-wrap relative overflow-hidden rounded-xl">
+            <img
+              v-if="item.cover"
+              :src="getImgUrl(item.cover, '300y300')"
+              :alt="item.name"
+              class="cover-img"
+              loading="lazy"
+            />
+            <div v-else class="cover-placeholder">
+              <i class="ri-disc-line text-3xl text-[var(--accent-color)] opacity-40" />
+            </div>
+            <!-- 常驻播放按钮（触屏无 hover，必须可见） -->
+            <button
+              v-if="showPlayButton"
+              class="cover-play-btn"
+              @click.stop="emit('item-play', item)"
+            >
+              <i class="ri-play-fill" />
+            </button>
           </div>
-          <!-- 常驻播放按钮（触屏无 hover，必须可见） -->
-          <button
-            v-if="showPlayButton"
-            class="cover-play-btn"
-            @click.stop="emit('item-play', item)"
-          >
-            <i class="ri-play-fill" />
-          </button>
-        </div>
-        <!-- 常驻文字信息 -->
-        <div class="cover-text">
-          <p class="cover-name">{{ item.name }}</p>
-          <p v-if="item.subtitle" class="cover-subtitle">{{ item.subtitle }}</p>
+          <!-- 常驻文字信息 -->
+          <div class="cover-text">
+            <p class="cover-name">{{ item.name }}</p>
+            <p v-if="item.subtitle" class="cover-subtitle">{{ item.subtitle }}</p>
+          </div>
         </div>
       </div>
     </div>
-
-    <!-- 边缘渐变提示 -->
-    <div
-      class="scroll-fade-left pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[var(--m-bg,#fff)] to-transparent transition-opacity duration-300"
-      :class="showLeftFade ? 'opacity-100' : 'opacity-0'"
-    />
-    <div
-      class="scroll-fade-right pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[var(--m-bg,#fff)] to-transparent transition-opacity duration-300"
-      :class="showRightFade ? 'opacity-100' : 'opacity-0'"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
 
 import { getImgUrl } from '@/utils';
 
@@ -86,20 +79,6 @@ const emit = defineEmits<{
 }>();
 
 const scrollContainer = ref<HTMLElement | null>(null);
-const showLeftFade = ref(false);
-const showRightFade = ref(false);
-
-const updateScrollIndicators = () => {
-  if (!scrollContainer.value) return;
-  const { scrollLeft, scrollWidth, clientWidth } = scrollContainer.value;
-  showLeftFade.value = scrollLeft > 20;
-  showRightFade.value = scrollLeft < scrollWidth - clientWidth - 20;
-};
-
-onMounted(() => {
-  setTimeout(updateScrollIndicators, 100);
-  scrollContainer.value?.addEventListener('scroll', updateScrollIndicators, { passive: true });
-});
 </script>
 
 <style scoped>

@@ -81,8 +81,8 @@ const handleClick = (event: MouseEvent) => {
 
 <style scoped>
 .setting-item {
-  color: var(--d-text-primary);
-  border-bottom: 1px solid var(--d-border-light);
+  color: var(--m-text-primary, var(--d-text-primary));
+  border-bottom: 1px solid var(--m-border, var(--d-border-light));
 }
 
 .setting-item:last-child {
@@ -90,18 +90,18 @@ const handleClick = (event: MouseEvent) => {
 }
 
 .setting-item:hover {
-  background: var(--d-surface-hover);
+  background: var(--m-surface-alt, var(--d-surface-hover));
 }
 
 .setting-item:active {
-  background: var(--d-surface-active);
+  background: var(--m-surface, var(--d-surface-active));
 }
 
 .setting-item-title {
-  color: var(--d-text-primary);
+  color: var(--m-text-primary, var(--d-text-primary));
 }
 
 .setting-item-desc {
-  color: var(--d-text-secondary);
+  color: var(--m-text-secondary, var(--d-text-secondary));
 }
 </style>

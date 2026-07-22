@@ -1,126 +1,18 @@
 ﻿﻿<template>
   <div class="local-music-page h-full w-full bg-white dark:bg-black transition-colors duration-500">
-    <!-- Mobile file picker (non-Electron) -->
+    <!-- Non-Electron fallback (mobile/web) -->
     <div
       v-if="!isElectron"
-      class="flex h-full flex-col overflow-y-auto"
-      style="padding-top: calc(var(--safe-area-inset-top, 0px))"
+      class="flex h-full flex-col items-center justify-center px-8 text-center"
     >
-      <!-- Header -->
-      <div class="px-4 pt-6 pb-4">
-        <div class="flex items-center justify-between">
-          <h1 class="text-2xl font-bold d-text-primary" style="color: var(--cover-text-primary, inherit)">{{ t('localMusic.title') }}</h1>
-          <div class="flex items-center gap-2">
-            <button
-              class="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent-color)]/15 text-[var(--accent-color)] active:scale-95 transition-transform"
-              :disabled="isScanningDirectory"
-              @click="triggerDirectoryPicker"
-            >
-              <i class="ri-folder-open-line text-xl" />
-            </button>
-            <button
-              class="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent-color)] text-white active:scale-95 transition-transform"
-              @click="triggerFilePicker"
-            >
-              <i class="ri-add-line text-xl" />
-            </button>
-          </div>
-        </div>
-        <p class="mt-1 text-sm d-text-secondary" style="color: var(--cover-text-secondary, inherit)">
-          {{ t('localMusic.songCount', { count: mobileMusicList.length }) }}
-        </p>
-      </div>
-
-      <!-- Scanning progress -->
-      <div v-if="isScanningDirectory" class="px-4 pb-2">
-        <div class="flex items-center gap-3 rounded-2xl bg-[var(--accent-color)]/5 p-3">
-          <n-spin size="small" />
-          <span class="text-sm" style="color: var(--cover-text-secondary, inherit)">正在扫描音频文件...</span>
-        </div>
-      </div>
-
-      <!-- Hidden file input -->
-      <input
-        ref="fileInputRef"
-        type="file"
-        accept="audio/*"
-        multiple
-        class="hidden"
-        @change="handleFileSelect"
-      />
-
-      <!-- Hidden directory input (webkitdirectory 在 Chromium WebView 下支持目录选择) -->
-      <input
-        ref="directoryInputRef"
-        type="file"
-        webkitdirectory
-        directory
-        multiple
-        class="hidden"
-        @change="handleDirectorySelect"
-      />
-
-      <!-- Empty state -->
       <div
-        v-if="mobileMusicList.length === 0"
-        class="flex flex-1 flex-col items-center justify-center px-8 text-center"
+        class="mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-[var(--accent-color)]/10"
       >
-        <div
-          class="mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-[var(--accent-color)]/10"
-        >
-          <i class="ri-folder-music-fill text-5xl text-[var(--accent-color)] opacity-60" />
-        </div>
-        <p class="mb-6 max-w-xs text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
-          {{ t('localMusic.mobilePickHint') || '点击右上角按钮选择本地音乐文件' }}
-        </p>
-        <button
-          class="flex items-center gap-2 rounded-full bg-[var(--accent-color)] px-6 py-3 text-sm font-medium text-white active:scale-95 transition-transform"
-          @click="triggerFilePicker"
-        >
-          <i class="ri-folder-upload-line text-lg" />
-          {{ t('localMusic.selectFiles') || '选择音频文件' }}
-        </button>
-        <button
-          class="mt-3 flex items-center gap-2 rounded-full border border-[var(--accent-color)]/40 px-6 py-3 text-sm font-medium text-[var(--accent-color)] active:scale-95 transition-transform"
-          :disabled="isScanningDirectory"
-          @click="triggerDirectoryPicker"
-        >
-          <i class="ri-folder-open-line text-lg" />
-          {{ t('localMusic.scanDirectory') || '扫描目录' }}
-        </button>
+        <i class="ri-folder-music-fill text-5xl text-[var(--accent-color)] opacity-60" />
       </div>
-
-      <!-- Music list -->
-      <div v-else class="flex-1 px-4 pb-32">
-        <div
-          v-for="(item, index) in mobileMusicList"
-          :key="item.id"
-          class="flex items-center gap-3 rounded-2xl p-2.5 active:bg-neutral-100 dark:active:bg-neutral-900 transition-colors"
-          @click="playMobileMusic(index)"
-        >
-          <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--accent-color)]/10">
-            <i class="ri-music-2-fill text-xl text-[var(--accent-color)]" />
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="truncate text-sm font-medium d-text-primary">{{ item.name }}</div>
-            <div class="mt-0.5 truncate text-xs d-text-secondary">
-              <span v-if="item.artist">{{ item.artist }}<span v-if="item.album"> - {{ item.album }}</span> · </span>{{ formatDuration(item.duration) }} · {{ formatFileSize(item.size) }}
-            </div>
-          </div>
-          <button
-            class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[var(--accent-color)]/10 text-[var(--accent-color)] active:scale-90 transition-transform"
-            @click.stop="playMobileMusic(index)"
-          >
-            <i class="ri-play-fill text-lg" />
-          </button>
-          <button
-            class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-neutral-400 active:scale-90 transition-transform"
-            @click.stop="removeMobileMusic(item.id)"
-          >
-            <i class="ri-close-line text-lg" />
-          </button>
-        </div>
-      </div>
+      <p class="max-w-xs text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+        {{ t('localMusic.desktopOnly') }}
+      </p>
     </div>
 
     <n-scrollbar v-else class="h-full">
@@ -465,7 +357,6 @@
 import { createDiscreteApi } from 'naive-ui';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { parseBlob } from 'music-metadata';
 
 import SongItem from '@/components/common/SongItem.vue';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
@@ -492,211 +383,6 @@ const sortKey = ref<SortKey>('default');
 const detailView = ref(false);
 const detailType = ref<'artist' | 'album' | null>(null);
 const detailName = ref('');
-
-// ==================== Mobile file picker state ====================
-interface MobileMusicItem {
-  id: string;
-  name: string;
-  size: number;
-  duration: number;
-  url: string;
-  file: File;
-  artist?: string;
-  album?: string;
-  relativePath?: string;
-}
-
-const fileInputRef = ref<HTMLInputElement | null>(null);
-const directoryInputRef = ref<HTMLInputElement | null>(null);
-const mobileMusicList = ref<MobileMusicItem[]>([]);
-const isScanningDirectory = ref(false);
-
-const AUDIO_EXTENSIONS = /\.(mp3|flac|wav|ogg|opus|m4a|aac)$/i;
-
-const triggerFilePicker = () => {
-  fileInputRef.value?.click();
-};
-
-const triggerDirectoryPicker = () => {
-  directoryInputRef.value?.click();
-};
-
-// 解析音频元数据（标题/艺术家/专辑/时长/封面）
-async function parseMetadata(file: File): Promise<Partial<MobileMusicItem>> {
-  try {
-    const metadata = await parseBlob(file);
-    const common = metadata.common || {};
-    // 将封面转为 Data URL（可选，仅在存在时返回）
-    let coverDataUrl = '';
-    const pic = common.picture?.[0];
-    if (pic) {
-      try {
-        const blob = new Blob([pic.data], { type: pic.format || 'image/jpeg' });
-        coverDataUrl = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = () => resolve('');
-          reader.readAsDataURL(blob);
-        });
-      } catch { /* ignore */ }
-    }
-    return {
-      name: common.title || file.name.replace(/\.[^/.]+$/, ''),
-      artist: common.artist || common.albumartist || '',
-      album: common.album || '',
-      duration: typeof metadata.format?.duration === 'number' ? metadata.format.duration : undefined,
-      coverDataUrl
-    } as any;
-  } catch {
-    // 解析失败：返回最小默认值
-    return { name: file.name.replace(/\.[^/.]+$/, '') };
-  }
-}
-
-/**
- * 处理目录选择：使用 webkitdirectory 让用户选择文件夹，
- * 自动递归扫描目录中的所有音频文件，
- * 并通过 music-metadata 解析每个文件的元数据。
- */
-const handleDirectorySelect = async (event: Event) => {
-  const input = event.target as HTMLInputElement;
-  if (!input.files || input.files.length === 0) return;
-
-  isScanningDirectory.value = true;
-  try {
-    const newItems: MobileMusicItem[] = [];
-    for (const file of Array.from(input.files)) {
-      if (!AUDIO_EXTENSIONS.test(file.name)) continue;
-      const relativePath = (file as any).webkitRelativePath || file.name;
-      const id = `${relativePath}-${file.size}-${file.lastModified}`;
-      if (mobileMusicList.value.some((item) => item.id === id)) continue;
-      if (newItems.some((item) => item.id === id)) continue;
-
-      const url = URL.createObjectURL(file);
-      const meta = await parseMetadata(file);
-      const duration = meta.duration ?? await getAudioDuration(url);
-      newItems.push({
-        id,
-        name: meta.name || file.name.replace(/\.[^/.]+$/, ''),
-        size: file.size,
-        duration,
-        url,
-        file,
-        artist: meta.artist,
-        album: meta.album,
-        relativePath
-      });
-    }
-
-    if (newItems.length > 0) {
-      mobileMusicList.value.push(...newItems);
-      saveMobileMusicList();
-      message.success(`已扫描到 ${newItems.length} 首音频`);
-    } else {
-      message.info('该目录下没有可识别的音频文件');
-    }
-  } finally {
-    isScanningDirectory.value = false;
-    input.value = '';
-  }
-};
-
-const handleFileSelect = async (event: Event) => {
-  const input = event.target as HTMLInputElement;
-  if (!input.files || input.files.length === 0) return;
-
-  const newItems: MobileMusicItem[] = [];
-  for (const file of Array.from(input.files)) {
-    if (!file.type.startsWith('audio/') && !AUDIO_EXTENSIONS.test(file.name)) continue;
-    const id = `${file.name}-${file.size}-${file.lastModified}`;
-    // Skip duplicates
-    if (mobileMusicList.value.some((item) => item.id === id)) continue;
-    const url = URL.createObjectURL(file);
-    const meta = await parseMetadata(file);
-    const duration = meta.duration ?? await getAudioDuration(url);
-    newItems.push({
-      id,
-      name: meta.name || file.name.replace(/\.[^/.]+$/, ''),
-      size: file.size,
-      duration,
-      url,
-      file,
-      artist: meta.artist,
-      album: meta.album
-    });
-  }
-
-  if (newItems.length > 0) {
-    mobileMusicList.value.push(...newItems);
-    saveMobileMusicList();
-    message.success(`已添加 ${newItems.length} 首音乐`);
-  }
-
-  // Reset input
-  input.value = '';
-};
-
-const getAudioDuration = (url: string): Promise<number> => {
-  return new Promise((resolve) => {
-    const audio = new Audio(url);
-    audio.addEventListener('loadedmetadata', () => {
-      resolve(audio.duration || 0);
-    });
-    audio.addEventListener('error', () => resolve(0));
-  });
-};
-
-const formatDuration = (seconds: number): string => {
-  if (!seconds) return '--:--';
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-};
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
-
-const playMobileMusic = (index: number) => {
-  const item = mobileMusicList.value[index];
-  if (!item) return;
-  // 恢复的缓存项没有 URL，需要重新选择文件
-  if (!item.url) {
-    message.warning('该歌曲需要重新选择文件才能播放，请重新扫描目录');
-    triggerDirectoryPicker();
-    return;
-  }
-  const song: SongResult = {
-    id: Date.now() + index,
-    name: item.name,
-    ar: [{ id: 0, name: item.artist || 'Local' }],
-    al: { id: 0, name: item.album || 'Local Music', picUrl: '' },
-    dt: item.duration * 1000,
-    localUrl: item.url,
-    source: 'local'
-  } as any;
-  const playlist = mobileMusicList.value.map((it, i) => ({
-    id: Date.now() + i,
-    name: it.name,
-    ar: [{ id: 0, name: it.artist || 'Local' }],
-    al: { id: 0, name: it.album || 'Local Music', picUrl: '' },
-    dt: it.duration * 1000,
-    localUrl: it.url,
-    source: 'local'
-  } as any));
-  playerStore.setPlayList(playlist);
-  playerStore.setPlay(song);
-};
-
-const removeMobileMusic = (id: string) => {
-  const index = mobileMusicList.value.findIndex((item) => item.id === id);
-  if (index !== -1) {
-    URL.revokeObjectURL(mobileMusicList.value[index].url);
-    mobileMusicList.value.splice(index, 1);
-    saveMobileMusicList();
-  }
-};
 
 // ==================== Computed ====================
 type TabKey = 'songs' | 'artists' | 'albums';
@@ -878,51 +564,9 @@ async function handlePlayAll(): Promise<void> {
   });
 }
 
-// ==================== 持久化（移动端）====================
-// 保存扫描结果到 localStorage（仅元数据，不含 File/URL）
-const MOBILE_MUSIC_STORAGE_KEY = 'zephyrus-mobile-music-list';
-
-function saveMobileMusicList() {
-  try {
-    const meta = mobileMusicList.value.map((item) => ({
-      id: item.id,
-      name: item.name,
-      size: item.size,
-      duration: item.duration,
-      artist: item.artist,
-      album: item.album,
-      relativePath: item.relativePath
-    }));
-    localStorage.setItem(MOBILE_MUSIC_STORAGE_KEY, JSON.stringify(meta));
-  } catch {
-    // localStorage 可能已满，忽略
-  }
-}
-
-function restoreMobileMusicList() {
-  try {
-    const raw = localStorage.getItem(MOBILE_MUSIC_STORAGE_KEY);
-    if (!raw) return;
-    const meta = JSON.parse(raw) as Partial<MobileMusicItem>[];
-    // 恢复元数据，但 url 为空（需要重新选择文件才能播放）
-    mobileMusicList.value = meta.map((m) => ({
-      ...m,
-      url: '',
-      file: null as any
-    } as MobileMusicItem));
-  } catch {
-    // ignore
-  }
-}
-
 // ==================== Lifecycle ====================
 onMounted(async () => {
-  if (!isElectron) {
-    // 移动端：从 localStorage 恢复扫描过的音乐元数据
-    // 注意：File 对象和 URL 无法持久化，需要重新选择文件才能播放
-    restoreMobileMusicList();
-    return;
-  }
+  if (!isElectron) return;
   await localMusicStore.loadFromCache();
 });
 </script>

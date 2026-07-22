@@ -97,6 +97,7 @@ const avatarUrl = computed(() => {
 
   &.safe-area-top {
     padding-top: calc(var(--safe-area-inset-top, 0px) + 16px);
+    transition: padding-top 0.2s ease;
   }
 }
 

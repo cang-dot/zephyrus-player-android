@@ -105,11 +105,11 @@
             :style="{ background: fmCardBg }"
           >
             <!-- Content -->
-            <div class="relative flex h-full items-center gap-4 p-4">
+            <div class="relative flex h-full items-center gap-3 p-3 overflow-hidden min-w-0 sm:gap-4 sm:p-4">
               <!-- Left: Cover -->
               <div class="flex-shrink-0">
                 <div
-                  class="fm-cover-sm relative w-[96px] h-[96px] overflow-hidden rounded-2xl shadow-2xl transition-transform duration-500 group-hover:scale-[1.03]"
+                  class="fm-cover-sm relative w-20 h-20 overflow-hidden rounded-2xl shadow-2xl transition-transform duration-500 group-hover:scale-[1.03] sm:w-24 sm:h-24"
                 >
                   <img
                     v-if="displayCover"
@@ -161,10 +161,10 @@
               </div>
 
               <!-- Right: Controls -->
-              <div class="flex items-center gap-2 flex-shrink-0">
+              <div class="flex items-center gap-1 flex-shrink-0 sm:gap-2">
                 <button
                   v-if="activeMode === 'intelligence'"
-                  class="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+                  class="flex h-8 w-8 items-center justify-center rounded-full transition-colors sm:h-9 sm:w-9"
                   :class="isFavorite ? 'text-red-500' : 'text-white/50 hover:text-white'"
                   :title="isFavorite ? t('comp.songItem.unfavorite') : t('comp.songItem.favorite')"
                   @click.stop="toggleFavorite"
@@ -173,14 +173,14 @@
                 </button>
                 <button
                   v-else
-                  class="flex h-9 w-9 items-center justify-center rounded-full text-white/50 transition-colors hover:text-white"
+                  class="flex h-8 w-8 items-center justify-center rounded-full text-white/50 transition-colors hover:text-white sm:h-9 sm:w-9"
                   :title="t('comp.homeHero.fmTrash')"
                   @click.stop="handleFmTrash"
                 >
                   <i class="ri-thumb-down-line text-lg" />
                 </button>
                 <button
-                  class="flex h-11 w-11 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition-all duration-300 hover:scale-110 hover:bg-white/30 active:scale-95"
+                  class="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition-all duration-300 hover:scale-110 hover:bg-white/30 active:scale-95 sm:h-11 sm:w-11"
                   @click.stop="handleFmPlay"
                 >
                   <i
@@ -189,7 +189,7 @@
                   />
                 </button>
                 <button
-                  class="flex h-9 w-9 items-center justify-center rounded-full text-white/50 transition-colors hover:text-white"
+                  class="hidden h-8 w-8 items-center justify-center rounded-full text-white/50 transition-colors hover:text-white sm:flex sm:h-9 sm:w-9"
                   :title="t('comp.homeHero.fmNext')"
                   @click.stop="handleNext"
                 >
@@ -688,14 +688,16 @@ onActivated(() => {
 /* Hero grid — single column stack */
 .hero-grid {
   grid-template-columns: 1fr;
+  overflow: hidden;
+  min-width: 0;
 }
 
-/* Cards fill grid row height equally */
+/* 单列布局下不再使用 height:100% 以避免 grid 高度循环依赖 */
 .hero-grid > .hero-card {
-  height: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 .hero-grid > .hero-card > .daily-card {
-  height: 100%;
   min-height: 200px;
   max-height: 220px;
 }
@@ -735,7 +737,6 @@ onActivated(() => {
 }
 
 .hero-grid > .hero-card > .fm-card {
-  height: 100%;
   min-height: 120px;
   max-height: 140px;
 }

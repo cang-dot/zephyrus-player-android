@@ -101,9 +101,9 @@ import { getNewAlbums } from '@/api/album';
 import { getAlbum } from '@/api/list';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import StickyTabPage from '@/components/common/StickyTabPage.vue';
+import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
 import { usePlaylistStore } from '@/store/modules/playlist';
-import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { calculateAnimationDelay, getImgUrl } from '@/utils';
 
 defineOptions({

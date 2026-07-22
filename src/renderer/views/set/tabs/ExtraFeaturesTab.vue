@@ -48,7 +48,10 @@
           </div>
         </div>
         <div class="shrink-0 ml-4 flex items-center gap-2">
-          <s-btn v-if="feature.id === 'lyric-metaphor' && isFeatureEnabled(feature.id)" @click="showAIConfig = true">
+          <s-btn
+            v-if="feature.id === 'lyric-metaphor' && isFeatureEnabled(feature.id)"
+            @click="showAIConfig = true"
+          >
             <i class="ri-settings-3-line"></i>
           </s-btn>
           <n-switch
@@ -78,13 +81,38 @@
   <metaphor-config-modal v-model="showAIConfig" />
 </template>
 
+<style scoped>
+/* 覆盖写死的 Tailwind 颜色，统一跟随 --m-* 令牌 */
+.bg-gray-100 { background-color: var(--m-surface-alt, #e0dbd3) !important; }
+.bg-gray-50 { background-color: var(--m-surface, #eae6df) !important; }
+.bg-white { background-color: var(--m-surface, #eae6df) !important; }
+.dark .dark\:bg-white\/5,
+.dark .dark\:bg-white\/10 { background-color: var(--m-surface-alt, #2a2a2a) !important; }
+.dark .dark\:bg-black\/20 { background-color: var(--m-surface-alt, #2a2a2a) !important; }
+
+.text-gray-900 { color: var(--m-text-primary, #2c2c2c) !important; }
+.text-gray-500,
+.text-gray-400 { color: var(--m-text-muted, #9a9590) !important; }
+.dark .dark\:text-white { color: var(--m-text-primary, #f0ece4) !important; }
+.dark .dark\:text-gray-400 { color: var(--m-text-muted, #666666) !important; }
+.dark .dark\:text-gray-100 { color: var(--m-text-primary, #f0ece4) !important; }
+
+.hover\:bg-gray-50:hover,
+.dark .hover\:dark\:bg-white\/5:hover { background-color: var(--m-surface, #eae6df) !important; }
+.hover\:text-gray-700:hover,
+.dark .hover\:dark\:text-gray-200:hover { color: var(--m-text-secondary, #6b6560) !important; }
+
+.border-gray-100,
+.dark .dark\:border-gray-800 { border-color: var(--m-border, #d5d0c9) !important; }
+</style>
+
 <script setup lang="ts">
 import { inject, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { isFeatureEnabled, setFeatureEnabled, getAllFeatures } from '@/features/index';
-import MetaphorConfigModal from '@/features/lyric-metaphor/MetaphorConfigModal.vue';
 import type { FeatureType } from '@/features/index';
+import { getAllFeatures, isFeatureEnabled, setFeatureEnabled } from '@/features/index';
+import MetaphorConfigModal from '@/features/lyric-metaphor/MetaphorConfigModal.vue';
 
 import { SETTINGS_MESSAGE_KEY } from '../keys';
 import SBtn from '../SBtn.vue';

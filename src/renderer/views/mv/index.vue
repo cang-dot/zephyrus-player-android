@@ -224,8 +224,7 @@ const loadMvList = async () => {
       area: selectedCategory.value === '全部' ? '' : selectedCategory.value
     };
 
-    const res =
-      selectedCategory.value === '全部' ? await getTopMv(params) : await getAllMv(params);
+    const res = selectedCategory.value === '全部' ? await getTopMv(params) : await getAllMv(params);
 
     const { data } = res.data;
     mvList.value.push(...data);

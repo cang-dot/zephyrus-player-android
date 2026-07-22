@@ -36,10 +36,7 @@
           </n-tooltip>
 
           <!-- 歌单子菜单（统一版，丝滑过渡）—— 仅桌面端侧边栏展示，移动端底部导航不渲染 -->
-          <div
-            v-if="isMenuItemPlaylist(item) && !isMobile"
-            class="app-menu-submenu-unified"
-          >
+          <div v-if="isMenuItemPlaylist(item) && !isMobile" class="app-menu-submenu-unified">
             <div class="app-menu-submenu-scroll-unified">
               <!-- 创建的歌单 -->
               <template v-if="createdPlaylists.length > 0">
@@ -50,7 +47,11 @@
                   @click="navigateToPlaylist(pl.id)"
                 >
                   <img :src="getImgUrl(pl.coverImgUrl, '64y64')" class="app-menu-submenu-cover" />
-                  <span v-show="settingsStore.setData.isMenuExpanded" class="app-menu-submenu-name">{{ pl.name }}</span>
+                  <span
+                    v-show="settingsStore.setData.isMenuExpanded"
+                    class="app-menu-submenu-name"
+                    >{{ pl.name }}</span
+                  >
                 </div>
               </template>
 
@@ -63,7 +64,11 @@
                   @click="navigateToPlaylist(pl.id)"
                 >
                   <img :src="getImgUrl(pl.coverImgUrl, '64y64')" class="app-menu-submenu-cover" />
-                  <span v-show="settingsStore.setData.isMenuExpanded" class="app-menu-submenu-name">{{ pl.name }}</span>
+                  <span
+                    v-show="settingsStore.setData.isMenuExpanded"
+                    class="app-menu-submenu-name"
+                    >{{ pl.name }}</span
+                  >
                 </div>
               </template>
 
@@ -75,13 +80,24 @@
                   class="app-menu-submenu-row"
                   @click="navigateToAlbum(al.id)"
                 >
-                  <img :src="getImgUrl(al.picUrl || al.blurPicUrl, '64y64')" class="app-menu-submenu-cover" />
-                  <span v-show="settingsStore.setData.isMenuExpanded" class="app-menu-submenu-name">{{ al.name }}</span>
+                  <img
+                    :src="getImgUrl(al.picUrl || al.blurPicUrl, '64y64')"
+                    class="app-menu-submenu-cover"
+                  />
+                  <span
+                    v-show="settingsStore.setData.isMenuExpanded"
+                    class="app-menu-submenu-name"
+                    >{{ al.name }}</span
+                  >
                 </div>
               </template>
 
               <div
-                v-if="createdPlaylists.length === 0 && collectedPlaylists.length === 0 && collectedAlbums.length === 0"
+                v-if="
+                  createdPlaylists.length === 0 &&
+                  collectedPlaylists.length === 0 &&
+                  collectedAlbums.length === 0
+                "
                 class="app-menu-submenu-empty"
               >
                 暂无歌单
@@ -299,7 +315,10 @@ const navigateToAlbum = (id: number) => {
   border-radius: 4px;
   object-fit: cover;
   flex-shrink: 0;
-  transition: width 0.3s ease, height 0.3s ease, border-radius 0.3s ease;
+  transition:
+    width 0.3s ease,
+    height 0.3s ease,
+    border-radius 0.3s ease;
 }
 
 .app-menu-submenu-name {
@@ -308,7 +327,9 @@ const navigateToAlbum = (id: number) => {
   overflow: hidden;
   text-overflow: ellipsis;
   color: #666;
-  transition: opacity 0.25s ease, max-width 0.3s ease;
+  transition:
+    opacity 0.25s ease,
+    max-width 0.3s ease;
   max-width: 120px;
 
   .dark & {

@@ -13,9 +13,8 @@
 
 import {
   CacheManager,
-  MusicSourceStrategyFactory,
-  getMusicConfig
-} from '@/api/musicParser';
+  getMusicConfig,
+  MusicSourceStrategyFactory} from '@/api/musicParser';
 import { useSettingsStore } from '@/store';
 import type { SongResult } from '@/types/music';
 import { isElectron } from '@/utils';

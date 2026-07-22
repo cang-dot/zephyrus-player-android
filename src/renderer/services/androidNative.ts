@@ -4,11 +4,12 @@
  * 包括：状态栏外观控制、音乐通知（MediaSession）、安全区域、返回手势
  */
 
+import { nextTick, watch } from 'vue';
+
+import { allTime, artistList, nowTime, playMusic } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
-import { allTime, artistList, nowTime, playMusic } from '@/hooks/MusicHook';
 import { getImgUrl } from '@/utils';
-import { nextTick, watch } from 'vue';
 
 type NativeBridge = {
   setStatusBarDark: (isDark: boolean) => void;
@@ -225,6 +226,10 @@ export function openDisplayOverOtherAppsSettings() {
 
 let overlayCount = 0;
 let isPopStateHandling = false;
+// 标志：当 UI 主动关闭覆层（如点击关闭按钮）时设置，用于区分 popstate 是由
+// UI 主动 history.back() 触发还是由用户返回手势触发。
+// 若是 UI 主动触发，popstate 只需递减计数器，不应再关闭其他覆层。
+let uiInitiatedClose = false;
 
 /**
  * 压入一个覆层历史条目
@@ -236,10 +241,12 @@ function pushOverlayState() {
 
 /**
  * 弹出一个覆层历史条目（用于 UI 关闭覆层时清理历史）
+ * 设置 uiInitiatedClose 标志，防止 popstate handler 重复关闭其他覆层
  */
 function popOverlayState() {
   if (overlayCount > 0 && !isPopStateHandling) {
     overlayCount--;
+    uiInitiatedClose = true;
     history.back();
   }
 }
@@ -304,6 +311,18 @@ function setupOverlayBackHandler() {
   window.addEventListener('popstate', () => {
     if (overlayCount > 0 && !isPopStateHandling) {
       isPopStateHandling = true;
+
+      // 如果是 UI 主动关闭（如点击关闭按钮触发的 history.back()），
+      // 只需递减计数器，不应再关闭其他覆层
+      if (uiInitiatedClose) {
+        uiInitiatedClose = false;
+        overlayCount--;
+        nextTick(() => {
+          isPopStateHandling = false;
+        });
+        return;
+      }
+
       overlayCount--;
 
       // 按优先级关闭最顶层的覆层

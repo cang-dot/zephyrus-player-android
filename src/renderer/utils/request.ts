@@ -49,7 +49,7 @@ const isCapacitorEnv = isCapacitor();
 
 const request = axios.create({
   baseURL,
-  timeout: 15000,
+  timeout: 8000,
   withCredentials: !isCapacitorEnv
 });
 

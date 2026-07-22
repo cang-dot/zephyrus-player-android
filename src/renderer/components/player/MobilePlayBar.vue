@@ -153,12 +153,12 @@ watch(
   transition: all 0.3s ease;
 
   &.is-menu-show {
-    bottom: calc(
-      var(--m-bottom-nav-height, 64px) + var(--safe-area-inset-bottom, 0px) + 8px
-    );
+    bottom: calc(var(--m-bottom-nav-height, 64px) + var(--safe-area-inset-bottom, 0px) + 8px);
+    transition: bottom 0.2s ease;
   }
   &.is-menu-hide {
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 10px);
+    transition: bottom 0.2s ease;
   }
 
   &.play-bar-expanded {

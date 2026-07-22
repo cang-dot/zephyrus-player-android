@@ -321,9 +321,10 @@ onMounted(() => {
   @apply px-4 py-1.5 rounded-full text-sm whitespace-nowrap;
   background: var(--m-surface, #eae6df);
   color: var(--m-text-secondary, #6b6560);
-  transition: background var(--m-duration-press, 160ms) var(--m-ease-out, ease-out),
-              color var(--m-duration-press, 160ms) var(--m-ease-out, ease-out),
-              transform var(--m-duration-press, 160ms) var(--m-ease-out, ease-out);
+  transition:
+    background var(--m-duration-press, 160ms) var(--m-ease-out, ease-out),
+    color var(--m-duration-press, 160ms) var(--m-ease-out, ease-out),
+    transform var(--m-duration-press, 160ms) var(--m-ease-out, ease-out);
 
   &:active {
     transform: scale(0.97);

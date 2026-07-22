@@ -274,7 +274,6 @@ const getFavoriteSongs = async () => {
       }
     }
 
-
     // 合并数据，保持原有顺序
     const newSongs = currentIds
       .map((id) => {
@@ -285,7 +284,6 @@ const getFavoriteSongs = async () => {
         return found;
       })
       .filter((song): song is SongResult => !!song);
-
 
     // 追加新数据而不是替换
     if (currentPage.value === 1) {

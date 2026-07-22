@@ -233,7 +233,10 @@
                     :key="'cl-' + i"
                     class="climax-segment"
                     :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
-                    :style="{ left: (seg.start / allTime) * 100 + '%', width: Math.max(0.5, ((seg.end - seg.start) / allTime) * 100) + '%' }"
+                    :style="{
+                      left: (seg.start / allTime) * 100 + '%',
+                      width: Math.max(0.5, ((seg.end - seg.start) / allTime) * 100) + '%'
+                    }"
                   ></div>
                 </div>
                 <div
@@ -345,7 +348,7 @@
         <!-- 非默认样式横屏提示 -->
         <div v-if="showLandscapeHint" class="landscape-hint">
           <i class="ri-information-line"></i>
-          <span>该样式需在横屏状态下获取最佳体验</span>
+          <span>横屏模式下可获得更佳体验</span>
         </div>
 
         <!-- 进度条 (苹果风格) -->
@@ -366,7 +369,10 @@
                   :key="'cl-' + i"
                   class="climax-segment"
                   :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
-                  :style="{ left: (seg.start / allTime) * 100 + '%', width: Math.max(0.5, ((seg.end - seg.start) / allTime) * 100) + '%' }"
+                  :style="{
+                    left: (seg.start / allTime) * 100 + '%',
+                    width: Math.max(0.5, ((seg.end - seg.start) / allTime) * 100) + '%'
+                  }"
                 ></div>
               </div>
               <div
@@ -549,10 +555,8 @@ const { width, height } = useWindowSize();
 const isLandscape = computed(() => width.value > height.value);
 const landscapeLyricsRef = ref<HTMLElement | null>(null);
 
-// 非默认样式在竖屏模式下显示提示
-const showLandscapeHint = computed(
-  () => props.playerStyle !== 'default' && !isLandscape.value
-);
+// 非默认样式在竖屏模式下显示「横屏更佳」提示
+const showLandscapeHint = computed(() => props.playerStyle !== 'default' && !isLandscape.value);
 
 // 监听横屏变化
 watch(isLandscape, (newVal) => {
@@ -631,7 +635,6 @@ const scrollToCurrentLyric = (immediate = false, customScrollerRef?: HTMLElement
       containerRect.height / 2 +
       lineRect.height / 2;
 
-
     scrollerRef.scrollTo({
       top: scrollTop,
       behavior: immediate ? 'auto' : 'smooth'
@@ -643,7 +646,6 @@ const scrollToCurrentLyric = (immediate = false, customScrollerRef?: HTMLElement
 
 // 监听歌词变化，自动滚动
 watch(nowIndex, (newIndex, oldIndex) => {
-
   // 歌曲切换时不自动滚动
   if (isSongChanging.value) return;
 
@@ -798,7 +800,6 @@ const handleProgressBarClick = (e: MouseEvent) => {
   const percentage = offsetX / rect.width;
   const newTime = Math.max(0, Math.min(percentage * allTime.value, allTime.value));
 
-
   sound.value.seek(newTime);
   nowTime.value = newTime;
 };
@@ -897,7 +898,6 @@ const handleThumbTouchMove = (e: TouchEvent) => {
 
   // 实时更新UI，但不频繁seek
   nowTime.value = newTime;
-
 };
 
 const handleThumbTouchEnd = (e: TouchEvent) => {
@@ -1020,6 +1020,19 @@ const setTextColors = (background: string) => {
 };
 
 const targetBackground = computed(() => {
+  // 竖屏模式下，非默认样式使用各自专属的深色背景
+  if (!isLandscape.value && props.playerStyle !== 'default') {
+    const styleBackgrounds: Record<string, string> = {
+      stage: 'linear-gradient(to bottom, #1a1a1a, #0d0d0d)',
+      magazine: 'linear-gradient(to bottom, #1a1a1a, #2a2218)',
+      frenzy: 'linear-gradient(to bottom, #1a0a0a, #2a1010)',
+      eerie: 'linear-gradient(to bottom, #0d0d14, #1a1a2e)',
+      neon: 'linear-gradient(to bottom, #1a1a14, #2a2418)'
+    };
+    if (styleBackgrounds[props.playerStyle]) {
+      return styleBackgrounds[props.playerStyle];
+    }
+  }
   if (config.value.theme !== 'default') {
     return themeMusic[config.value.theme] || props.background;
   }
@@ -1081,8 +1094,8 @@ const togglePlayMode = () => {
 };
 
 const closeMusicFull = () => {
-isVisible.value = false;
-playerStore.setMusicFull(false);
+  isVisible.value = false;
+  playerStore.setMusicFull(false);
 };
 
 // 移动端控件显隐状态（默认隐藏，点击屏幕弹出）

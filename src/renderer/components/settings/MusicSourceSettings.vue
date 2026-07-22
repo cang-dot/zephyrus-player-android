@@ -285,7 +285,10 @@
                       "
                     >
                       <i v-if="platform.loggingIn" class="ri-loader-4-line animate-spin"></i>
-                      <i v-else :class="platform.loginStatus ? 'ri-refresh-line' : 'ri-login-circle-line'"></i>
+                      <i
+                        v-else
+                        :class="platform.loginStatus ? 'ri-refresh-line' : 'ri-login-circle-line'"
+                      ></i>
                       {{
                         platform.loggingIn
                           ? t('settings.playback.platforms.loggingIn')

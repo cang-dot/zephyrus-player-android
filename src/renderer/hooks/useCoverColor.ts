@@ -4,12 +4,11 @@
  * 从当前播放歌曲的封面提取主色，动态更新 CSS 变量
  * 替换全局的默认灰色主色
  */
+import tinycolor from 'tinycolor2';
 import { ref, watch } from 'vue';
 
 import { playMusic } from '@/hooks/MusicHook';
 import { getImgUrl } from '@/utils';
-
-import tinycolor from 'tinycolor2';
 
 // 当前提取的颜色
 const primaryColor = ref('#888888');

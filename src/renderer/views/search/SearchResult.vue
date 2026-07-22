@@ -1,17 +1,12 @@
 <template>
-  <div
-    class="search-result-page h-full w-full page-bg transition-colors duration-500"
-  >
+  <div class="search-result-page h-full w-full page-bg transition-colors duration-500">
     <n-scrollbar class="h-full" @scroll="handleScroll">
       <div class="search-result-content pb-32">
         <!-- Header Section -->
         <section class="header-section page-padding-x pt-8 pb-6">
           <div class="flex flex-col gap-6">
             <div>
-              <h1
-                ref="titleElRef"
-                class="d-page-title mb-1"
-              >
+              <h1 ref="titleElRef" class="d-page-title mb-1">
                 {{ currentKeyword }}
               </h1>
               <p class="d-page-subtitle">
@@ -63,7 +58,12 @@
                 class="text-[10px] d-text-muted ml-1 flex items-center gap-1"
               >
                 <i class="ri-loader-4-line animate-spin text-xs"></i>
-                {{ t('search.filter.probeProgress', { done: probeProgress.done, total: probeProgress.total }) }}
+                {{
+                  t('search.filter.probeProgress', {
+                    done: probeProgress.done,
+                    total: probeProgress.total
+                  })
+                }}
               </span>
               <!-- 跨平台搜索加载提示 -->
               <span
@@ -86,25 +86,15 @@
           <div class="flex items-center justify-between gap-4">
             <div class="flex items-center gap-3">
               <!-- Play All Button -->
-              <button
-                class="d-btn-primary"
-                @click="handlePlayAll"
-              >
+              <button class="d-btn-primary" @click="handlePlayAll">
                 <i class="ri-play-circle-line text-lg" />
                 <span>{{ t('search.button.playAll') }}</span>
               </button>
 
               <!-- Batch Actions -->
-              <div
-                v-if="isElectron"
-                class="d-divider-vertical mx-1 hidden md:block"
-              ></div>
+              <div v-if="isElectron" class="d-divider-vertical mx-1 hidden md:block"></div>
 
-              <button
-                v-if="!isSelecting && isElectron"
-                class="d-btn-icon"
-                @click="startSelect"
-              >
+              <button v-if="!isSelecting && isElectron" class="d-btn-icon" @click="startSelect">
                 <i class="ri-checkbox-multiple-line text-lg" />
               </button>
 
@@ -127,10 +117,7 @@
                   <i class="ri-download-line mr-1" />
                   {{ t('favorite.download', { count: selectedSongs.length }) }}
                 </button>
-                <button
-                  class="text-xs d-text-muted hover:d-text-primary"
-                  @click="cancelSelect"
-                >
+                <button class="text-xs d-text-muted hover:d-text-primary" @click="cancelSelect">
                   {{ t('common.cancel') }}
                 </button>
               </div>
@@ -139,11 +126,7 @@
             <!-- Right Tools -->
             <div class="flex items-center gap-3">
               <!-- Layout Toggle -->
-              <button
-                v-if="!isMobile"
-                class="d-btn-icon"
-                @click="toggleLayout"
-              >
+              <button v-if="!isMobile" class="d-btn-icon" @click="toggleLayout">
                 <i :class="isCompactLayout ? 'ri-list-check-2' : 'ri-grid-line'" class="text-lg" />
               </button>
             </div>
@@ -249,10 +232,7 @@
               </div>
 
               <!-- Empty State -->
-              <div
-                v-if="!searchDetailLoading && isResultEmpty"
-                class="d-empty-state"
-              >
+              <div v-if="!searchDetailLoading && isResultEmpty" class="d-empty-state">
                 <i class="ri-search-line"></i>
                 <p>{{ t('comp.musicList.noSearchResults') }}</p>
               </div>
@@ -266,11 +246,7 @@
                   </span>
                 </div>
                 <div v-if="!hasMore && !isResultEmpty" class="text-center">
-                  <span
-                    class="d-footer-text opacity-50"
-                  >
-                    「{{ t('search.noMore') }}」</span
-                  >
+                  <span class="d-footer-text opacity-50"> 「{{ t('search.noMore') }}」</span>
                 </div>
               </div>
             </template>
@@ -288,8 +264,8 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
-import { getSearch } from '@/api/search';
 import { crossPlatformSearch } from '@/api/crossPlatformSearch';
+import { getSearch } from '@/api/search';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
@@ -504,10 +480,7 @@ const loadSearch = async (isLoadMore = false) => {
     // ==================== 跨平台补充搜索 ====================
     // 单曲搜索、第一页时始终触发跨平台搜索（并发进行，不阻塞网易云结果展示）
     // 跨平台搜索结果会异步合并进来，去重逻辑保证不重复
-    if (
-      searchType.value === SEARCH_TYPE.MUSIC &&
-      !isLoadMore
-    ) {
+    if (searchType.value === SEARCH_TYPE.MUSIC && !isLoadMore) {
       triggerCrossPlatformSearch(keywords, songs);
     }
 
@@ -600,9 +573,8 @@ const sourceFilterOptions = computed(() => {
     }
   }
 
-  const options: Array<{ key: SourceLabel | 'all'; label: string; count: number; color?: string }> = [
-    { key: 'all', label: t('search.filter.all'), count: songs.length }
-  ];
+  const options: Array<{ key: SourceLabel | 'all'; label: string; count: number; color?: string }> =
+    [{ key: 'all', label: t('search.filter.all'), count: songs.length }];
 
   for (const [label, count] of counts) {
     options.push({

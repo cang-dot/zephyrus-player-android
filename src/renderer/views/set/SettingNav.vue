@@ -1,7 +1,5 @@
 <template>
-  <div
-    class="setting-nav w-32 h-full flex-shrink-0"
-  >
+  <div class="setting-nav w-32 h-full flex-shrink-0">
     <div
       v-for="section in sections"
       :key="section.id"

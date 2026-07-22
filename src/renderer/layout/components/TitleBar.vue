@@ -1,9 +1,5 @@
 <template>
-  <div
-    class="tb-zone"
-    @mouseenter="handleZoneEnter"
-    @mouseleave="handleZoneLeave"
-  >
+  <div class="tb-zone" @mouseenter="handleZoneEnter" @mouseleave="handleZoneLeave">
     <div
       id="title-bar"
       class="flex justify-between items-center px-6 py-2 select-none relative text-dark dark:text-white"
@@ -32,25 +28,13 @@
           >
             <i :class="isFullScreen ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line'"></i>
           </div>
-          <div
-            class="titlebar-btn"
-            title="小窗模式"
-            @click="miniWindow"
-          >
+          <div class="titlebar-btn" title="小窗模式" @click="miniWindow">
             <i class="ri-picture-in-picture-line"></i>
           </div>
-          <div
-            class="titlebar-btn"
-            title="最小化"
-            @click="minimize"
-          >
+          <div class="titlebar-btn" title="最小化" @click="minimize">
             <i class="ri-subtract-line"></i>
           </div>
-          <div
-            class="titlebar-btn titlebar-btn--close"
-            title="关闭"
-            @click="handleClose"
-          >
+          <div class="titlebar-btn titlebar-btn--close" title="关闭" @click="handleClose">
             <i class="ri-close-line"></i>
           </div>
         </template>
@@ -161,7 +145,9 @@ const showCloseModal = ref(false);
 const rememberChoice = ref(false);
 
 // 是否为悬浮覆盖布局
-const isOverlayMode = computed(() => settingsStore.setData?.layoutMode === 'overlay' && !settingsStore.isMobile);
+const isOverlayMode = computed(
+  () => settingsStore.setData?.layoutMode === 'overlay' && !settingsStore.isMobile
+);
 
 // ==================== 全屏切换 ====================
 // 使用 Electron 原生窗口全屏（win.setFullScreen），而非浏览器全屏 API。
@@ -367,8 +353,9 @@ const drag = (event: MouseEvent) => {
   backdrop-filter: var(--d-glass-blur, blur(8px));
   -webkit-backdrop-filter: var(--d-glass-blur, blur(8px));
   cursor: pointer;
-  transition: background var(--d-duration-normal, 0.2s) var(--d-ease-out, ease),
-              color var(--d-duration-normal, 0.2s) var(--d-ease-out, ease);
+  transition:
+    background var(--d-duration-normal, 0.2s) var(--d-ease-out, ease),
+    color var(--d-duration-normal, 0.2s) var(--d-ease-out, ease);
   color: #fff;
   font-size: 15px;
 }

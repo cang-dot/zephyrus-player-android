@@ -1,10 +1,6 @@
 <!-- 迷你模式布局 -->
 <template>
-  <div
-    class="mini-layout"
-    :class="{ 'mini-mode': settingsStore.isMiniMode }"
-    @mousedown="drag"
-  >
+  <div class="mini-layout" :class="{ 'mini-mode': settingsStore.isMiniMode }" @mousedown="drag">
     <!-- 拖拽区域 + 恢复按钮 -->
     <div class="mini-header">
       <div class="mini-drag-zone" @mousedown="drag"></div>
@@ -26,10 +22,9 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 
+import MiniPlayBar from '@/components/player/MiniPlayBar.vue';
 import { useSettingsStore } from '@/store/modules/settings';
 import { isElectron } from '@/utils';
-
-import MiniPlayBar from '@/components/player/MiniPlayBar.vue';
 
 const settingsStore = useSettingsStore();
 

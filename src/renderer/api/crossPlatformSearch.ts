@@ -14,9 +14,9 @@
  * joox 是 QQ 音乐的国际版，曲库覆盖高度重合。
  */
 
-import { searchFromGDMusic, type GDCrossPlatformSearchItem } from './gdmusic';
-
 import type { Artist, SongResult } from '@/types/music';
+
+import { type GDCrossPlatformSearchItem,searchFromGDMusic } from './gdmusic';
 
 /**
  * 跨平台搜索配置

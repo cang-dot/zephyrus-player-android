@@ -8,7 +8,10 @@
       @click="handleTapToggle"
     >
       <!-- 老旧墙面背景 -->
-      <div class="concrete-bg" :style="{ filter: `brightness(${bgBrightness}) contrast(1.1) sepia(0.3)` }"></div>
+      <div
+        class="concrete-bg"
+        :style="{ filter: `brightness(${bgBrightness}) contrast(1.1) sepia(0.3)` }"
+      ></div>
 
       <!-- 泛黄覆层 -->
       <div class="aged-overlay"></div>
@@ -32,7 +35,11 @@
         </div>
 
         <!-- 降级：笔画数据未加载时显示纯文字 -->
-        <div v-if="!hasAnyStrokes && currentText" class="fallback-lyrics" :style="{ color: neonBright, textShadow: fallbackShadow }">
+        <div
+          v-if="!hasAnyStrokes && currentText"
+          class="fallback-lyrics"
+          :style="{ color: neonBright, textShadow: fallbackShadow }"
+        >
           {{ currentText }}
         </div>
       </div>
@@ -63,16 +70,15 @@
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { useTapToggle } from '@/composables/useTapToggle';
 import { lrcArray, nowIndex } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
+import { getStrokes, loadDictionary } from '@/lib/hanziStrokes';
 import { drumDetector } from '@/services/drumDetector';
-import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { usePlayerStore } from '@/store/modules/player';
+import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import { setCurrentSongId } from '@/utils/emotionalDetector';
-
-import { useTapToggle } from '@/composables/useTapToggle';
-import { loadDictionary, getStrokes } from '@/lib/hanziStrokes';
 
 import NeonStrokeChar from './NeonStrokeChar.vue';
 import PlayerControls from './PlayerControls.vue';
@@ -89,7 +95,10 @@ const playerStore = usePlayerStore();
 const { primaryColor } = useCoverColor();
 const { controlsVisible, handleTapToggle } = useTapToggle();
 
-const isVisible = computed({ get: () => props.modelValue, set: (v) => emit('update:modelValue', v) });
+const isVisible = computed({
+  get: () => props.modelValue,
+  set: (v) => emit('update:modelValue', v)
+});
 
 // ==================== 响应式配置 ====================
 const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
@@ -287,11 +296,16 @@ function close() {
   inset: 0;
   z-index: 0;
   background-color: #2a2620;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='5' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.22 0 0 0 0 0.20 0 0 0 0 0.16 0 0 0 0.7 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='5' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.22 0 0 0 0 0.20 0 0 0 0 0.16 0 0 0 0.7 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
     radial-gradient(circle at 20% 50%, rgba(201, 169, 110, 0.04) 0%, transparent 50%),
     radial-gradient(circle at 80% 50%, rgba(180, 150, 100, 0.03) 0%, transparent 50%),
     radial-gradient(circle at 50% 20%, rgba(160, 130, 90, 0.02) 0%, transparent 50%);
-  background-size: 512px 512px, cover, cover, cover;
+  background-size:
+    512px 512px,
+    cover,
+    cover,
+    cover;
   background-repeat: repeat, no-repeat, no-repeat, no-repeat;
 }
 
@@ -300,7 +314,7 @@ function close() {
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: 
+  background:
     radial-gradient(ellipse at 30% 40%, rgba(201, 169, 110, 0.08) 0%, transparent 60%),
     radial-gradient(ellipse at 70% 60%, rgba(180, 140, 80, 0.06) 0%, transparent 50%),
     linear-gradient(135deg, rgba(80, 60, 30, 0.12) 0%, transparent 40%, rgba(60, 40, 20, 0.08) 100%);

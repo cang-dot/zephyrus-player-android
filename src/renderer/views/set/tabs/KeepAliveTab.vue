@@ -123,7 +123,11 @@ const handleAppDetails = () => {
   margin-bottom: 24px;
   padding: 20px;
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(var(--accent-color-rgb, 30, 215, 96), 0.08), rgba(var(--accent-color-rgb, 30, 215, 96), 0.02));
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-color-rgb, 30, 215, 96), 0.08),
+    rgba(var(--accent-color-rgb, 30, 215, 96), 0.02)
+  );
   border: 1px solid rgba(var(--accent-color-rgb, 30, 215, 96), 0.12);
 }
 
@@ -161,7 +165,9 @@ const handleAppDetails = () => {
   border-radius: 12px;
   background: var(--m-surface, #f5f5f5);
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.1s ease;
+  transition:
+    background 0.2s ease,
+    transform 0.1s ease;
 }
 
 .keep-alive-item:active {

@@ -171,8 +171,8 @@ import { useRoute } from 'vue-router';
 
 import { getDjDetail, getDjProgram, getDjSublist, subscribeDj } from '@/api/podcast';
 import ProgramList from '@/components/podcast/ProgramList.vue';
-import { usePlayerStore, usePlaylistStore, useUserStore } from '@/store';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
+import { usePlayerStore, usePlaylistStore, useUserStore } from '@/store';
 import type { SongResult } from '@/types/music';
 import type { DjProgram, DjRadio } from '@/types/podcast';
 import { formatNumber, getImgUrl } from '@/utils';

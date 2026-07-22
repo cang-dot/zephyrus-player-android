@@ -10,15 +10,17 @@ export const getSystemTheme = (): ThemeType => {
 
 // 应用主题
 export const applyTheme = (theme: ThemeType) => {
-  // 使用 Tailwind 的暗色主题类
+  const root = document.documentElement;
   if (theme === 'dark') {
-    document.documentElement.classList.add('dark');
-  } else {
-    document.documentElement.classList.remove('dark');
+    root.classList.add('dark', 'theme-dark');
+    root.classList.remove('theme-light', 'theme-gray');
+  } else if (theme === 'light') {
+    root.classList.add('theme-light');
+    root.classList.remove('dark', 'theme-dark', 'theme-gray');
   }
 
   // 同时设置 data-theme 属性，供封面取色等模块检测当前主题
-  document.documentElement.setAttribute('data-theme', theme);
+  root.setAttribute('data-theme', theme);
 
   // 保存主题到本地存储
   localStorage.setItem('theme', theme);

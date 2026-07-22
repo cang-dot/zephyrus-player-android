@@ -92,10 +92,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
 import { NSlider, NSwitch } from 'naive-ui';
+import { computed, onMounted, ref, watch } from 'vue';
 
-import { isLevelAvailable, useMixEngineStore, type TransitionLevel } from '@/store/modules/mixEngine';
+import {
+  isLevelAvailable,
+  type TransitionLevel,
+  useMixEngineStore
+} from '@/store/modules/mixEngine';
 
 const mixEngine = useMixEngineStore();
 
@@ -106,7 +110,9 @@ const duration = ref(mixEngine.crossfadeDuration);
 const bpmPreAnalysis = ref(mixEngine.bpmPreAnalysis);
 
 const recommendedLevel = computed(() => mixEngine.hardwareScore?.level ?? 1);
-const hardwareCores = computed(() => mixEngine.hardwareScore?.cpuCores ?? navigator.hardwareConcurrency ?? 4);
+const hardwareCores = computed(
+  () => mixEngine.hardwareScore?.cpuCores ?? navigator.hardwareConcurrency ?? 4
+);
 const hardwareMem = computed(() => (navigator as any).deviceMemory ?? 4);
 const hardwareReason = computed(() => mixEngine.hardwareScore?.reason ?? '');
 
@@ -177,7 +183,9 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 600;
   color: #1a1a1a;
-  .dark & { color: #e0e0e0; }
+  .dark & {
+    color: #e0e0e0;
+  }
 }
 
 .sm-switch-desc {
@@ -274,7 +282,9 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 700;
   color: #1a1a1a;
-  .dark & { color: #e0e0e0; }
+  .dark & {
+    color: #e0e0e0;
+  }
 }
 
 .sm-mode-subtitle {
@@ -289,7 +299,9 @@ onMounted(() => {
   line-height: 1.5;
   white-space: pre-line;
 
-  .dark & { color: #999; }
+  .dark & {
+    color: #999;
+  }
 }
 
 .sm-unavailable {
@@ -306,7 +318,9 @@ onMounted(() => {
   padding: 10px 14px;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.03);
-  .dark & { background: rgba(255, 255, 255, 0.03); }
+  .dark & {
+    background: rgba(255, 255, 255, 0.03);
+  }
 }
 
 .sm-hw-item {
@@ -315,9 +329,13 @@ onMounted(() => {
   gap: 6px;
   font-size: 12px;
   color: #666;
-  .dark & { color: #aaa; }
+  .dark & {
+    color: #aaa;
+  }
 
-  i { font-size: 16px; }
+  i {
+    font-size: 16px;
+  }
 }
 
 .sm-hw-reason {
@@ -337,7 +355,9 @@ onMounted(() => {
   font-size: 13px;
   font-weight: 500;
   color: #333;
-  .dark & { color: #ccc; }
+  .dark & {
+    color: #ccc;
+  }
   white-space: nowrap;
 }
 
@@ -365,7 +385,9 @@ onMounted(() => {
   font-size: 13px;
   font-weight: 500;
   color: #333;
-  .dark & { color: #ccc; }
+  .dark & {
+    color: #ccc;
+  }
 }
 
 .sm-bpm-desc {

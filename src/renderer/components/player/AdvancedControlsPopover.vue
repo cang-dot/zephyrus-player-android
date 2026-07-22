@@ -300,7 +300,7 @@ const selectSpeed = (speed: number) => {
   .speed-option {
     @apply py-2 px-4 rounded-full cursor-pointer transition-all;
     @apply bg-gray-100 dark:bg-gray-800;
-      @apply hover:bg-[var(--accent-color-10)] dark:hover:bg-[var(--accent-color-20)];
+    @apply hover:bg-[var(--accent-color-10)] dark:hover:bg-[var(--accent-color-20)];
   }
   .speed-option.active {
     @apply bg-[var(--accent-color)] text-white;

@@ -4,16 +4,23 @@
     :is="componentToUse"
     v-bind="$attrs"
     :player-style="playerStyle"
-    :key="playerStyle"
+    :key="renderKey"
     ref="musicFullRef"
   />
   <Teleport v-else to="#layout-main">
-    <component :is="componentToUse" v-bind="$attrs" :player-style="playerStyle" :key="playerStyle" ref="musicFullRef" />
+    <component
+      :is="componentToUse"
+      v-bind="$attrs"
+      :player-style="playerStyle"
+      :key="renderKey"
+      ref="musicFullRef"
+    />
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, markRaw, onMounted, onUnmounted, ref } from 'vue';
+import { useWindowSize } from '@vueuse/core';
+import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import EerieMobilePlayer from '@/components/lyric/EerieMobilePlayer.vue';
 import FrenzyMobilePlayer from '@/components/lyric/FrenzyMobilePlayer.vue';
@@ -67,6 +74,10 @@ onUnmounted(() => {
   window.removeEventListener('music-full-config-updated', handleConfigUpdate);
 });
 
+// 横竖屏检测（仅移动端使用）
+const { width, height } = useWindowSize();
+const isLandscape = computed(() => width.value > height.value);
+
 // 全屏样式判断：桌面端某些样式需要 Teleport 到 #layout-main，
 // 移动端组件自带 teleport/n-drawer，不需要外层 teleport。
 const isFullScreenStyle = computed(() => {
@@ -75,28 +86,32 @@ const isFullScreenStyle = computed(() => {
   return style?.isFullScreen ?? false;
 });
 
+// 移动端专用组件映射
+const mobileStyleComponents: Record<string, any> = {
+  magazine: markRaw(MagazineMobilePlayer),
+  stage: markRaw(StageMobilePlayer),
+  frenzy: markRaw(FrenzyMobilePlayer),
+  eerie: markRaw(EerieMobilePlayer),
+  neon: markRaw(NeonMobilePlayer)
+};
+
 const componentToUse = computed(() => {
   const style = getStyle(playerStyle.value);
 
-  // 移动端（竖屏与横屏）：默认样式使用 MusicFullMobile，
-  // 非默认样式使用各自专属的移动端组件（自带全屏滚动歌词+样式背景+控件自动隐藏）。
+  // 移动端
   if (isMobile.value) {
-    if (style) {
-      switch (style.key) {
-        case 'default':
-          return markRaw(MusicFullMobile);
-        case 'magazine':
-          return markRaw(MagazineMobilePlayer);
-        case 'stage':
-          return markRaw(StageMobilePlayer);
-        case 'frenzy':
-          return markRaw(FrenzyMobilePlayer);
-        case 'eerie':
-          return markRaw(EerieMobilePlayer);
-        case 'neon':
-          return markRaw(NeonMobilePlayer);
-      }
+    // 竖屏模式：所有样式统一使用 MusicFullMobile（含滚动歌词）
+    // MusicFullMobile 通过 playerStyle prop 渲染对应的特殊背景
+    if (!isLandscape.value) {
+      return markRaw(MusicFullMobile);
     }
+
+    // 横屏模式：非默认样式使用各自专属的移动端组件（独特歌词显示）
+    if (style && mobileStyleComponents[style.key]) {
+      return mobileStyleComponents[style.key];
+    }
+
+    // 默认样式横屏也用 MusicFullMobile
     return markRaw(MusicFullMobile);
   }
 
@@ -106,6 +121,10 @@ const componentToUse = computed(() => {
   }
   return markRaw(MusicFull);
 });
+
+// 当从竖屏切换到横屏（或反之）时，需要强制重新渲染组件
+// 通过 watch isLandscape 触发 key 变化（已在 template 中用 :key 绑定）
+const renderKey = computed(() => `${playerStyle.value}-${isLandscape.value ? 'l' : 'p'}`);
 
 const musicFullRef = ref<InstanceType<typeof MusicFull>>();
 

@@ -1,4 +1,4 @@
-import { getProvider, type AIProvider } from './providers';
+import { type AIProvider,getProvider } from './providers';
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';

@@ -4,10 +4,10 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
 import i18n from '@/../i18n/renderer';
-import { getParsingMusicUrl } from '@/api/music';
-import { useLocalMusic, isLocalSong } from '@/hooks/useLocalMusic';
-import { useLyrics, useSongDetail } from '@/hooks/usePlayerHooks';
 import { isCrossPlatformSong } from '@/api/crossPlatformSearch';
+import { getParsingMusicUrl } from '@/api/music';
+import { isLocalSong,useLocalMusic } from '@/hooks/useLocalMusic';
+import { useLyrics, useSongDetail } from '@/hooks/usePlayerHooks';
 import { audioService } from '@/services/audioService';
 import { playbackRequestManager } from '@/services/playbackRequestManager';
 import { preloadService } from '@/services/preloadService';
