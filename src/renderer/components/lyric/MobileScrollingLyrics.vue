@@ -1,19 +1,10 @@
 <template>
   <div class="scrolling-lyrics" :class="config.theme">
-    <!-- 顶部歌曲信息 -->
-    <div class="lyrics-header">
-      <div class="song-title" v-html="playMusic?.name"></div>
-      <div class="artist-name">
-        <span v-for="(item, index) in artistList" :key="index">
-          {{ item.name }}{{ index < artistList.length - 1 ? ' / ' : '' }}
-        </span>
-      </div>
-    </div>
-
-    <!-- 歌词滚动区 -->
+    <!-- 歌词滚动区（全屏，点击空白关闭） -->
     <div
       ref="scrollerRef"
       class="lyrics-scroller"
+      @click="handleEmptyClick"
       @touchstart="handleTouchStart"
       @touchmove="handleTouchMove"
       @touchend="handleTouchEnd"
@@ -32,19 +23,17 @@
           'now-text': index === nowIndex,
           'hover-text': item.text && item.startTime !== -1
         }"
+        @click.stop="item.startTime !== -1 ? setAudioTime(index) : null"
       >
         <div v-if="item.hasWordByWord && item.words && item.words.length > 0" class="word-by-word-lyric">
           <template v-for="(word, wordIndex) in item.words" :key="wordIndex">
-            <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)"
-                  @click.stop="item.startTime !== -1 ? setAudioTime(index) : null">
+            <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)">
               {{ word.text }} </span
             ><span class="lyric-word" v-if="word.space">&nbsp;</span></template
           >
         </div>
-        <span v-else :style="getLrcStyle(index)"
-              @click.stop="item.startTime !== -1 ? setAudioTime(index) : null">{{ item.text }}</span>
-        <div v-if="config.showTranslation && item.trText" class="translation"
-             @click.stop="item.startTime !== -1 ? setAudioTime(index) : null">
+        <span v-else :style="getLrcStyle(index)">{{ item.text }}</span>
+        <div v-if="config.showTranslation && item.trText" class="translation">
           {{ item.trText }}
         </div>
       </div>
@@ -59,11 +48,9 @@ import { useI18n } from 'vue-i18n';
 
 import {
   correctionTime,
-  artistList,
   lrcArray,
   nowIndex,
   nowTime,
-  playMusic,
   setAudioTime,
   textColors
 } from '@/hooks/MusicHook';
@@ -71,6 +58,13 @@ import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import { getTextColors } from '@/utils/linearColor';
 
 const { t } = useI18n();
+
+const emit = defineEmits<{ close: [] }>();
+
+// 点击空白区域关闭
+function handleEmptyClick() {
+  emit('close');
+}
 
 // 歌词配置
 const config = ref<LyricConfig>(DEFAULT_LYRIC_CONFIG);
@@ -205,8 +199,6 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .scrolling-lyrics {
-  display: flex;
-  flex-direction: column;
   width: 100%;
   height: 100%;
   position: relative;
@@ -220,56 +212,59 @@ onBeforeUnmount(() => {
   }
 }
 
-.lyrics-header {
-  text-align: center;
-  padding: 20px 16px 8px;
-  flex-shrink: 0;
-
-  .song-title {
-    font-size: 18px;
-    font-weight: 700;
-    margin-bottom: 4px;
-  }
-
-  .artist-name {
-    font-size: 13px;
-    opacity: 0.6;
-  }
-}
-
 .lyrics-scroller {
-  flex: 1;
+  width: 100%;
+  height: 100%;
   overflow-y: auto;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   padding: 0 16px;
+
+  /* 顶部和底部渐变遮罩 */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 8%,
+    black 92%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 8%,
+    black 92%,
+    transparent 100%
+  );
 }
 
 .lyrics-padding-top {
-  height: 70px;
-  min-height: 70px;
+  height: 35vh;
+  min-height: 200px;
 }
 
 .lyrics-padding-bottom {
-  height: 150px;
-  min-height: 150px;
+  height: 65vh;
+  min-height: 400px;
 }
 
 .lyric-line {
-  padding: 12px 8px;
-  text-align: center;
+  width: fit-content;
+  max-width: 90%;
+  margin: 10px auto;
+  padding: 6px 12px;
   font-size: 18px;
   font-weight: 500;
   line-height: 1.6;
-  opacity: 0.5;
+  opacity: 0.45;
   transition: all 0.3s ease;
   cursor: pointer;
+  border-radius: 8px;
 
   &.now-text {
     opacity: 1;
     font-size: 22px;
     font-weight: 600;
-    padding: 16px 8px;
+    padding: 10px 16px;
   }
 
   @media (hover: hover) {

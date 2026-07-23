@@ -43,7 +43,7 @@
           <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
         </transition>
         <transition name="fade">
-          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" />
+          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" @close="showFullLyrics = false" />
         </transition>
 
         <!-- 顶部控件（tap 弹出） -->
@@ -539,10 +539,10 @@ function formatTime(seconds: number): string {
 /* 滚动歌词叠加层 */
 .scrolling-lyrics-overlay {
 position: absolute;
-top: 40px;
+top: 0;
 left: 0;
 right: 0;
-bottom: 100px;
+bottom: 0;
 z-index: 9;
 color: #fff;
 }
