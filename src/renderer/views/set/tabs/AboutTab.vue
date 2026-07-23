@@ -72,8 +72,8 @@
               <i class="ri-close-line text-xl"></i>
             </button>
           </div>
-          <div class="flex-1 overflow-y-auto px-5 py-4">
-            <pre class="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 font-sans leading-relaxed">{{ modalContent }}</pre>
+          <div class="flex-1 overflow-y-auto px-5 py-4 prose prose-sm dark:prose-invert max-w-none">
+            <div v-html="modalContent"></div>
           </div>
         </div>
       </div>
@@ -89,6 +89,7 @@ import { useSettingsStore } from '@/store/modules/settings';
 import { isElectron } from '@/utils';
 import { checkUpdate, UpdateResult } from '@/utils/update';
 
+import { marked } from 'marked';
 import config from '../../../../../package.json';
 import userAgreementText from '../../../../../用户协议.md?raw';
 import licenseText from '../../../../../LICENSE?raw';
@@ -113,7 +114,7 @@ const modalContent = ref('');
 
 function openModal(title: string, content: string) {
   modalTitle.value = title;
-  modalContent.value = content;
+  modalContent.value = marked.parse(content, { async: false });
   modalVisible.value = true;
 }
 
