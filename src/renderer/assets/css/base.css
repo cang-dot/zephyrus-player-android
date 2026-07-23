@@ -2,20 +2,23 @@ html,
 body,
 #app {
   height: 100%;
-  /* 使用动态视口高度，确保内容延伸到系统栏和刘海屏区域 */
-  min-height: 100vh;
-  min-height: 100dvh;
   margin: 0;
   padding: 0;
 }
 
+/* html 根元素背景色：始终填满整个视口（包括挖孔/刘海区域） */
+html {
+  background-color: var(--cover-bg, #f5f1eb);
+}
+
 body {
-  /* 使用封面取色背景，确保沉浸式状态栏区域颜色一致 */
   background-color: var(--cover-bg, #f5f1eb);
   overflow: hidden;
 }
 
-/* 深色模式下 body 背景 */
+/* 深色模式背景 */
+.dark html,
+.theme-dark html,
 .dark body,
 .theme-dark body {
   background-color: var(--cover-bg, #1a1a1a);
