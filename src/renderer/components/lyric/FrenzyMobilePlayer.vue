@@ -18,7 +18,7 @@
         <div class="corner-dot br"></div>
 
         <!-- 巨字歌词（点击切换滚动歌词） -->
-        <div class="giant-text-container">
+        <div class="giant-text-container" v-show="!showFullLyrics">
           <div
             class="giant-text line-1"
             :style="{ fontSize: fontSizePx, color: 'var(--text-dark)' }"
@@ -239,6 +239,9 @@ function handleNext() {
 
 function handlePlayPause() {
   playerStore.setPlay(playMusic.value);
+}
+function openPlaylist() {
+  playerStore.setPlayListDrawerVisible(true);
 }
 
 function handleSeek(e: MouseEvent) {

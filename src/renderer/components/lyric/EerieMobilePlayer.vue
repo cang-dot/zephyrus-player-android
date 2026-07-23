@@ -23,7 +23,7 @@
         </transition-group>
 
         <!-- 歌词层（前奏阶段不显示歌词，只显示噪点背景，点击切换滚动歌词） -->
-        <div class="lyrics-layer">
+        <div class="lyrics-layer" v-show="!showFullLyrics">
           <template v-if="!isIntro && isInClimax && climaxDisplayKeywords.length > 0">
             <div class="climax-keywords">
               <span
@@ -550,6 +550,9 @@ function handleNext() {
 }
 function handlePlayPause() {
   playerStore.setPlay(playMusic.value);
+}
+function openPlaylist() {
+  playerStore.setPlayListDrawerVisible(true);
 }
 function handleSeek(e: MouseEvent) {
   const target = e.currentTarget as HTMLElement;

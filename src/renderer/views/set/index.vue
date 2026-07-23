@@ -104,9 +104,6 @@
             <div v-show="currentSection === 'about'" class="animate-fade-in">
               <about-tab />
             </div>
-            <div v-show="currentSection === 'plugins'" class="animate-fade-in">
-              <extra-features-tab />
-            </div>
           </template>
           <div class="h-20"></div>
           <play-bottom />
@@ -132,7 +129,6 @@ import { SETTINGS_DATA_KEY, SETTINGS_DIALOG_KEY, SETTINGS_MESSAGE_KEY } from './
 import AboutTab from './tabs/AboutTab.vue';
 import ApplicationTab from './tabs/ApplicationTab.vue';
 import BasicTab from './tabs/BasicTab.vue';
-import ExtraFeaturesTab from './tabs/ExtraFeaturesTab.vue';
 import InterfaceTab from './tabs/InterfaceTab.vue';
 import NetworkTab from './tabs/NetworkTab.vue';
 import PlaybackTab from './tabs/PlaybackTab.vue';
@@ -195,8 +191,7 @@ const settingSections: SettingSectionConfig[] = [
   { id: 'application', electron: true },
   { id: 'network', electron: true },
   { id: 'system', electron: true },
-  { id: 'plugins' },
-  { id: 'about' }
+    { id: 'about' }
 ];
 
 const navSections = computed(() => {
@@ -389,22 +384,6 @@ const settingIndex = computed<SearchResult[]>(() => {
       });
     });
   }
-
-  // 插件/扩展功能
-  const pluginItems = [
-    { title: '播放器样式插件', desc: '管理自定义播放器样式' },
-    { title: '歌词翻译引擎', desc: '选择歌词翻译引擎' },
-    { title: '自定义 API 插件', desc: '管理 API 数据源插件' }
-  ];
-  pluginItems.forEach((item) => {
-    items.push({
-      tabId: 'plugins',
-      tabLabel: tabLabels['plugins'],
-      title: item.title,
-      desc: item.desc,
-      titlePath: item.title
-    });
-  });
 
   // 关于
   const aboutItems = [

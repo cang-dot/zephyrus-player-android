@@ -38,6 +38,26 @@
         <i class="ri-github-line mr-1"></i>{{ t('settings.about.gotoGithub') }}
       </s-btn>
     </setting-item>
+
+    <!-- TODO: 用户协议、开源协议、应用介绍（待实现） -->
+    <setting-item
+      title="用户协议"
+      description="查看用户协议"
+      clickable
+      @click="() => { message.info('即将开放，敬请期待'); }"
+    />
+    <setting-item
+      title="开源协议"
+      description="查看开源协议 (MIT)"
+      clickable
+      @click="() => { message.info('即将开放，敬请期待'); }"
+    />
+    <setting-item
+      title="应用介绍"
+      description="了解 Zephyrus Player"
+      clickable
+      @click="() => { message.info('即将开放，敬请期待'); }"
+    />
   </setting-section>
 </template>
 
@@ -65,7 +85,7 @@ const checking = ref(false);
 const webUpdateInfo = ref<UpdateResult>({
   hasUpdate: false,
   latestVersion: '',
-  currentVersion: config.version,
+  currentVersion: 'v1-alpha',
   releaseInfo: null
 });
 
@@ -83,7 +103,7 @@ const updateInfo = computed<UpdateResult>(() => {
   return {
     hasUpdate: hasAppUpdate.value,
     latestVersion: appUpdateState.value.availableVersion ?? '',
-    currentVersion: appUpdateState.value.currentVersion || config.version,
+    currentVersion: 'v1-alpha',
     releaseInfo: appUpdateState.value.availableVersion
       ? {
           tag_name: appUpdateState.value.availableVersion,

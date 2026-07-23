@@ -52,7 +52,7 @@
         <!-- 右侧区域 -->
         <div class="right-area">
           <!-- 歌词区 -->
-          <div class="lyrics-area" ref="lyricsScrollRef">
+          <div class="lyrics-area" ref="lyricsScrollRef" v-show="!showFullLyrics">
             <div
               v-for="(line, index) in visibleLyrics"
               :key="index"

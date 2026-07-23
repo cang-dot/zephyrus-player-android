@@ -11,7 +11,7 @@
         <div class="aged-overlay"></div>
         <div class="ambient-glow" :style="{ opacity: beatGlowOpacity }"></div>
 
-        <div class="lyrics-layer">
+        <div class="lyrics-layer" v-show="!showFullLyrics">
           <div class="neon-lyrics" :style="{ fontSize: lyricFontSize }">
             <template v-for="(char, i) in currentChars" :key="i">
               <span v-if="char === ' '" class="neon-space">&nbsp;</span>
@@ -218,6 +218,9 @@ function handleNext() {
 }
 function handlePlayPause() {
   playerStore.setPlay(playMusic.value);
+}
+function openPlaylist() {
+  playerStore.setPlayListDrawerVisible(true);
 }
 function handleSeek(e: MouseEvent) {
   const target = e.currentTarget as HTMLElement;

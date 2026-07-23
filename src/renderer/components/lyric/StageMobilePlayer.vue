@@ -25,7 +25,7 @@
         </div>
 
         <!-- 中央：歌词 + 翻译（点击切换滚动歌词） -->
-        <div class="lyrics-center">
+        <div class="lyrics-center" v-show="!showFullLyrics">
           <transition name="lyric-change" mode="out-in">
             <div :key="nowIndex" class="lyrics-main" :style="lyricStyle">
               {{ currentLyricText }}
