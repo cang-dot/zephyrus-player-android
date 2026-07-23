@@ -8,8 +8,7 @@
         <div
           class="w-full max-w-md max-h-[85vh] bg-gray-900 rounded-3xl overflow-hidden shadow-2xl flex flex-col border border-white/10"
         >
-          <!-- 顶部渐变条 -->
-          <div class="h-1.5 bg-gradient-to-r from-[var(--accent-color)] via-purple-500 to-blue-500"></div>
+        >
 
           <!-- 标题 -->
           <div class="px-6 pt-8 pb-4 flex-shrink-0">

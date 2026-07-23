@@ -9,14 +9,11 @@
         <div
           class="w-full max-w-sm bg-gray-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col"
         >
-          <!-- 顶部渐变条 -->
-          <div class="h-1.5 bg-gradient-to-r from-[var(--accent-color)] via-purple-500 to-blue-500"></div>
-
           <!-- 内容区 -->
           <div class="px-6 py-8 flex flex-col items-center text-center">
             <!-- 图标 -->
-            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--accent-color)] to-purple-600 flex items-center justify-center mb-5 shadow-lg">
-              <i class="ri-music-2-fill text-3xl text-white"></i>
+            <div class="w-16 h-16 rounded-2xl overflow-hidden mb-5 shadow-lg">
+              <img src="@/assets/icon.png" alt="Zephyrus Player" class="w-full h-full object-cover" />
             </div>
 
             <!-- 标题 -->
