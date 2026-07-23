@@ -39,26 +39,46 @@
       </s-btn>
     </setting-item>
 
-    <!-- TODO: 用户协议、开源协议、应用介绍（待实现） -->
+    <!-- 用户协议 / 开源协议 / 应用介绍 -->
     <setting-item
       title="用户协议"
       description="查看用户协议"
       clickable
-      @click="() => { message.info('即将开放，敬请期待'); }"
+      @click="openModal('用户协议', userAgreementText)"
     />
     <setting-item
       title="开源协议"
       description="查看开源协议 (MIT)"
       clickable
-      @click="() => { message.info('即将开放，敬请期待'); }"
+      @click="openModal('开源协议', licenseText)"
     />
     <setting-item
       title="应用介绍"
       description="了解 Zephyrus Player"
       clickable
-      @click="() => { message.info('即将开放，敬请期待'); }"
+      @click="openModal('应用介绍', readmeText)"
     />
   </setting-section>
+
+  <!-- 内嵌内容弹窗 -->
+  <teleport to="body">
+    <transition name="fade">
+      <div v-if="modalVisible" class="fixed inset-0 z-[99999] flex items-center justify-center p-6" @click.self="closeModal">
+        <div class="absolute inset-0 bg-black/60"></div>
+        <div class="relative w-full max-w-lg max-h-[80vh] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ modalTitle }}</h3>
+            <button @click="closeModal" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">
+              <i class="ri-close-line text-xl"></i>
+            </button>
+          </div>
+          <div class="flex-1 overflow-y-auto px-5 py-4">
+            <pre class="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 font-sans leading-relaxed">{{ modalContent }}</pre>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </teleport>
 </template>
 
 <script setup lang="ts">
@@ -70,6 +90,9 @@ import { isElectron } from '@/utils';
 import { checkUpdate, UpdateResult } from '@/utils/update';
 
 import config from '../../../../../package.json';
+import userAgreementText from '../../../../../用户协议.md?raw';
+import licenseText from '../../../../../LICENSE?raw';
+import readmeText from '../../../../../README.md?raw';
 import { APP_UPDATE_STATUS, hasAvailableAppUpdate } from '../../../../shared/appUpdate';
 import { SETTINGS_DATA_KEY, SETTINGS_MESSAGE_KEY } from '../keys';
 import SBtn from '../SBtn.vue';
@@ -82,6 +105,21 @@ const setData = inject(SETTINGS_DATA_KEY)!;
 const message = inject(SETTINGS_MESSAGE_KEY)!;
 
 const checking = ref(false);
+
+// 内嵌内容弹窗
+const modalVisible = ref(false);
+const modalTitle = ref('');
+const modalContent = ref('');
+
+function openModal(title: string, content: string) {
+  modalTitle.value = title;
+  modalContent.value = content;
+  modalVisible.value = true;
+}
+
+function closeModal() {
+  modalVisible.value = false;
+}
 const webUpdateInfo = ref<UpdateResult>({
   hasUpdate: false,
   latestVersion: '',
@@ -178,3 +216,14 @@ const openAuthor = () => {
 
 defineExpose({ checkForUpdates });
 </script>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
