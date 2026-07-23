@@ -41,10 +41,15 @@ const routes = [
     component: AppLayout,
     children: [...homeRouter, loginRouter, ...otherRouter],
     redirect: () => {
-      // 读取用户设置的默认启动页
-      const settings = getSettingsStore();
-      const defaultPage = settings.setData?.defaultPage || '/';
-      return defaultPage;
+      // 同步读取 localStorage，避免 settings store 异步加载未就绪
+      try {
+        const saved = localStorage.getItem('settings-data');
+        if (saved) {
+          const data = JSON.parse(saved);
+          if (data.defaultPage) return data.defaultPage;
+        }
+      } catch {}
+      return '/';
     }
   },
   {

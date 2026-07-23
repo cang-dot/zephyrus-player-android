@@ -66,11 +66,82 @@
               </div>
             </div>
 
-            <!-- 分隔线 -->
-            <div class="h-px bg-white/10 my-5"></div>
+            <!-- 自定义效果（非默认样式时显示） -->
+            <div v-if="currentPlayerStyle !== 'default'" class="mb-6">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-white/80">自定义效果</span>
+              </div>
+              <div class="space-y-4 px-1">
+                <!-- 通用：字体导入 -->
+                <div class="flex items-center gap-3">
+                  <button
+                    @click="importFont"
+                    class="px-3 py-2 rounded-full text-sm bg-white/10 text-white/70 hover:bg-white/15"
+                  >
+                    <i class="ri-font-line mr-1"></i>导入字体 (.ttf)
+                  </button>
+                  <span v-if="customFontName" class="text-xs text-white/50 truncate">{{ customFontName }}</span>
+                </div>
 
-            <!-- 播放速度 -->
-            <div class="mb-6">
+                <!-- Stage -->
+                <template v-if="currentPlayerStyle === 'stage'">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-white/60">Aurora 速度</span>
+                    <input type="range" min="0.4" max="2" step="0.1" v-model.number="styleConfig.auroraSpeed" class="w-32 accent-[var(--accent-color)]" />
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-white/60">鼓点闪白强度</span>
+                    <input type="range" min="0" max="1" step="0.05" v-model.number="styleConfig.beatFlashIntensity" class="w-32 accent-[var(--accent-color)]" />
+                  </div>
+                </template>
+
+                <!-- Eerie -->
+                <template v-if="currentPlayerStyle === 'eerie'">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-white/60">报纸闪现频率(ms)</span>
+                    <input type="range" min="200" max="1000" step="100" v-model.number="styleConfig.newspaperFreq" class="w-32 accent-[var(--accent-color)]" />
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-white/60">关键词字号</span>
+                    <input type="range" min="16" max="48" step="2" v-model.number="styleConfig.keywordSize" class="w-32 accent-[var(--accent-color)]" />
+                  </div>
+                </template>
+
+                <!-- Neon -->
+                <template v-if="currentPlayerStyle === 'neon'">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-white/60">光晕半径</span>
+                    <input type="range" min="4" max="30" step="2" v-model.number="styleConfig.glowRadius" class="w-32 accent-[var(--accent-color)]" />
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-white/60">脉冲速度</span>
+                    <input type="range" min="0.5" max="3" step="0.1" v-model.number="styleConfig.pulseSpeed" class="w-32 accent-[var(--accent-color)]" />
+                  </div>
+                </template>
+
+                <!-- Frenzy -->
+                <template v-if="currentPlayerStyle === 'frenzy'">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-white/60">巨字字号</span>
+                    <input type="range" min="40" max="120" step="5" v-model.number="styleConfig.giantSize" class="w-32 accent-[var(--accent-color)]" />
+                  </div>
+                </template>
+
+                <!-- Magazine -->
+                <template v-if="currentPlayerStyle === 'magazine'">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-white/60">翻页速度(ms)</span>
+                    <input type="range" min="200" max="800" step="50" v-model.number="styleConfig.flipSpeed" class="w-32 accent-[var(--accent-color)]" />
+                  </div>
+                </template>
+              </div>
+            </div>
+
+<!-- 分隔线 -->
+<div class="h-px bg-white/10 my-5"></div>
+
+<!-- 播放速度 -->
+<div class="mb-6">
               <div class="flex items-center justify-between mb-3">
                 <span class="text-sm font-medium text-white/80">
                   {{ t('player.settings.playbackSpeed') }}
@@ -408,9 +479,78 @@ const currentPlayerStyle = computed(() => lyricConfig.value.playerStyle || 'defa
 const setPlayerStyle = (style: string) => {
   lyricConfig.value.playerStyle = style as LyricConfig['playerStyle'];
   localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
-  // 通知 MusicFullWrapper 重新加载配置（storage 事件不会在同一文档触发）
   window.dispatchEvent(new CustomEvent('music-full-config-updated'));
 };
+
+// ==================== 自定义效果配置 ====================
+const styleConfigDefaults: Record<string, any> = {
+  stage: { auroraSpeed: 0.8, beatFlashIntensity: 0.5 },
+  eerie: { newspaperFreq: 500, keywordSize: 32 },
+  neon: { glowRadius: 12, pulseSpeed: 1.5 },
+  frenzy: { giantSize: 80 },
+  magazine: { flipSpeed: 400 }
+};
+
+const styleConfig = ref<any>({});
+const customFontName = ref('');
+
+function loadStyleConfig() {
+  try {
+    const saved = localStorage.getItem('music-full-config');
+    if (!saved) return;
+    const config = JSON.parse(saved);
+    const allConfigs = config.styleCustomConfig || {};
+    const styleKey = config.playerStyle || 'default';
+    styleConfig.value = { ...styleConfigDefaults[styleKey], ...allConfigs[styleKey] };
+    customFontName.value = allConfigs[styleKey]?.customFontName || '';
+  } catch {}
+}
+
+function saveStyleConfig() {
+  try {
+    const saved = localStorage.getItem('music-full-config');
+    if (!saved) return;
+    const config = JSON.parse(saved);
+    if (!config.styleCustomConfig) config.styleCustomConfig = {};
+    config.styleCustomConfig[config.playerStyle] = { ...styleConfig.value, customFontName: customFontName.value };
+    localStorage.setItem('music-full-config', JSON.stringify(config));
+    window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  } catch (e) {
+    console.error('保存自定义配置失败:', e);
+  }
+}
+
+watch(styleConfig, () => saveStyleConfig(), { deep: true });
+watch(currentPlayerStyle, () => loadStyleConfig(), { immediate: true });
+
+// 导入 TTF 字体
+function importFont() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.ttf,.otf';
+  input.onchange = async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    customFontName.value = file.name;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      const fontName = `UserFont-${currentPlayerStyle.value}`;
+      const oldStyle = document.getElementById(`user-font-${currentPlayerStyle.value}`);
+      if (oldStyle) oldStyle.remove();
+      const styleEl = document.createElement('style');
+      styleEl.id = `user-font-${currentPlayerStyle.value}`;
+      styleEl.textContent = `@font-face { font-family: '${fontName}'; src: url(data:font/ttf;base64,${base64}); }`;
+      document.head.appendChild(styleEl);
+      styleConfig.value.customFontFamily = fontName;
+      saveStyleConfig();
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+loadStyleConfig();
 
 // Props & Emits
 defineProps<{

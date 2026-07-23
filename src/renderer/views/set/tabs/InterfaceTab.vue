@@ -85,13 +85,10 @@ onUnmounted(() => {
   window.removeEventListener('music-full-config-updated', loadPlayerStyle);
 });
 
-// 启动默认页选项（仅保留移动端可用页面）
+// 启动默认页选项（仅移动端可用页面）
 const defaultPageOptions = computed(() => [
   { label: t('comp.home'), value: '/' },
-  { label: t('comp.search'), value: '/search' },
   { label: t('comp.list'), value: '/list' },
-  { label: t('comp.newAlbum.title'), value: '/album' },
-  { label: t('comp.toplist'), value: '/toplist' },
   { label: t('comp.history'), value: '/history' },
   { label: t('comp.localMusic'), value: '/local-music' },
   { label: t('comp.my'), value: '/user' },
