@@ -2,7 +2,7 @@
   <div class="scrolling-lyrics" :class="config.theme">
     <!-- 拖动时显示时间指示器 -->
     <transition name="fade">
-      <div v-if="isDragging" class="time-indicator">
+      <div v-if="isDragging" class="time-indicator" @click.stop="handleTimeIndicatorClick">
         {{ currentTimeText }}
       </div>
     </transition>
@@ -55,6 +55,7 @@ import { useI18n } from 'vue-i18n';
 import {
   correctionTime,
   lrcArray,
+  lrcTimeArray,
   nowIndex,
   nowTime,
   setAudioTime,
@@ -70,11 +71,19 @@ const emit = defineEmits<{ close: []; interact: [] }>();
 // 拖动状态
 const isDragging = ref(false);
 const currentTimeText = ref('');
+const closestIndex = ref(-1);
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// 点击时间指示器跳转
+function handleTimeIndicatorClick() {
+  if (closestIndex.value >= 0) {
+    setAudioTime(closestIndex.value);
+  }
 }
 
 // 点击空白区域关闭
@@ -178,6 +187,7 @@ function updateTimeIndicator() {
   const centerY = container.scrollTop + container.clientHeight / 2;
   let closestTime = 0;
   let closestDist = Infinity;
+  closestIndex.value = -1;
   for (let i = 0; i < lrcArray.value.length; i++) {
     const el = document.getElementById(`msl-lyric-${i}`);
     if (!el) continue;
@@ -185,8 +195,9 @@ function updateTimeIndicator() {
     const dist = Math.abs(elCenter - centerY);
     if (dist < closestDist) {
       closestDist = dist;
-      const item = lrcArray.value[i];
-      closestTime = item.startTime !== -1 ? item.startTime : 0;
+      closestIndex.value = i;
+      // lrcTimeArray 是秒，formatTime 需要秒
+      closestTime = lrcTimeArray.value[i] || 0;
     }
   }
   currentTimeText.value = formatTime(closestTime);
@@ -281,13 +292,11 @@ onBeforeUnmount(() => {
 }
 
 .lyrics-padding-top {
-  height: 35vh;
-  min-height: 200px;
+  height: 50vh;
 }
 
 .lyrics-padding-bottom {
-  height: 65vh;
-  min-height: 400px;
+  height: 50vh;
 }
 
 .lyric-line {
@@ -351,8 +360,12 @@ onBeforeUnmount(() => {
   padding: 8px 14px;
   border-radius: 20px;
   z-index: 15;
-  pointer-events: none;
+  cursor: pointer;
   font-variant-numeric: tabular-nums;
+
+  &:active {
+    background: rgba(0, 0, 0, 0.8);
+  }
 }
 
 .fade-enter-active,
