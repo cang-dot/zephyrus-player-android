@@ -25,7 +25,7 @@
         </div>
 
         <!-- 中央：歌词 + 翻译（点击切换滚动歌词） -->
-        <div class="lyrics-center" @click.stop="showFullLyrics = true">
+        <div class="lyrics-center">
           <transition name="lyric-change" mode="out-in">
             <div :key="nowIndex" class="lyrics-main" :style="lyricStyle">
               {{ currentLyricText }}
@@ -43,7 +43,7 @@
           <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
         </transition>
         <transition name="fade">
-          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" />
+          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" @close="showFullLyrics = false" />
         </transition>
 
         <!-- 顶部控件（tap 弹出） -->
@@ -115,7 +115,9 @@ const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor, primaryColorRgb, averageColor } = useCoverColor();
 
-const { controlsVisible, handleTapToggle } = useTapToggle();
+const { controlsVisible, handleTapToggle } = useTapToggle({
+  onDoubleClick: () => { showFullLyrics.value = true; }
+});
 
 // 滚动歌词叠加层
 const showFullLyrics = ref(false);

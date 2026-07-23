@@ -23,7 +23,7 @@
         </transition-group>
 
         <!-- 歌词层（前奏阶段不显示歌词，只显示噪点背景，点击切换滚动歌词） -->
-        <div class="lyrics-layer" @click.stop="showFullLyrics = true">
+        <div class="lyrics-layer">
           <template v-if="!isIntro && isInClimax && climaxDisplayKeywords.length > 0">
             <div class="climax-keywords">
               <span
@@ -64,7 +64,7 @@
           <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
         </transition>
         <transition name="fade">
-          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" />
+          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" @close="showFullLyrics = false" />
         </transition>
 
         <!-- 顶部控件（tap 弹出） -->
@@ -232,7 +232,9 @@ const emit = defineEmits(['update:modelValue']);
 const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor } = useCoverColor();
-const { controlsVisible, handleTapToggle } = useTapToggle();
+const { controlsVisible, handleTapToggle } = useTapToggle({
+  onDoubleClick: () => { showFullLyrics.value = true; }
+});
 
 const showFullLyrics = ref(false);
 const controlsRef = ref();

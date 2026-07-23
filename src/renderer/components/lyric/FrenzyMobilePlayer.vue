@@ -18,7 +18,7 @@
         <div class="corner-dot br"></div>
 
         <!-- 巨字歌词（点击切换滚动歌词） -->
-        <div class="giant-text-container" @click.stop="showFullLyrics = true">
+        <div class="giant-text-container">
           <div
             class="giant-text line-1"
             :style="{ fontSize: fontSizePx, color: 'var(--text-dark)' }"
@@ -51,7 +51,7 @@
           <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
         </transition>
         <transition name="fade">
-          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" />
+          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" @close="showFullLyrics = false" />
         </transition>
 
         <!-- 底部控件（3秒自动隐藏） -->
@@ -108,7 +108,9 @@ const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor, averageColor } = useCoverColor();
 
-const { controlsVisible, handleTapToggle } = useTapToggle();
+const { controlsVisible, handleTapToggle } = useTapToggle({
+  onDoubleClick: () => { showFullLyrics.value = true; }
+});
 
 const showFullLyrics = ref(false);
 const controlsRef = ref();

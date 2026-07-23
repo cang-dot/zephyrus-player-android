@@ -52,7 +52,7 @@
         <!-- 右侧区域 -->
         <div class="right-area">
           <!-- 歌词区 -->
-          <div class="lyrics-area" ref="lyricsScrollRef" @click.stop="showFullLyrics = true">
+          <div class="lyrics-area" ref="lyricsScrollRef">
             <div
               v-for="(line, index) in visibleLyrics"
               :key="index"
@@ -68,7 +68,7 @@
             <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
           </transition>
           <transition name="fade">
-            <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" />
+            <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" @close="showFullLyrics = false" />
           </transition>
 
           <!-- 底部控件（3秒自动隐藏） -->
@@ -128,7 +128,9 @@ const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor, averageColor } = useCoverColor();
 
-const { controlsVisible, handleTapToggle } = useTapToggle();
+const { controlsVisible, handleTapToggle } = useTapToggle({
+  onDoubleClick: () => { showFullLyrics.value = true; }
+});
 
 const showFullLyrics = ref(false);
 const controlsRef = ref();
