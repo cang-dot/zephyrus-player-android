@@ -98,8 +98,7 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 .mobile-layout {
   @apply w-screen flex flex-col;
   @apply overflow-hidden;
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   position: relative;
   background: var(--m-bg, var(--bg-color));
 }
