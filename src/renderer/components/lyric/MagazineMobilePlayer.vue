@@ -68,16 +68,17 @@
             <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
           </transition>
           <transition name="fade">
-            <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" @close="showFullLyrics = false" />
+            <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" />
           </transition>
 
           <!-- 底部控件（3秒自动隐藏） -->
-          <MobileControlsArea
-            ref="controlsRef"
-            :is-fullscreen="showFullLyrics"
-            @close="showFullLyrics = false"
-            @showPlaylist="openPlaylist"
-          />
+<MobileControlsArea
+:visible="controlsVisible"
+:is-fullscreen="showFullLyrics"
+@close="showFullLyrics = false"
+@showPlaylist="openPlaylist"
+@interact="showControls"
+/>
 
           <!-- 顶部控件 -->
           <transition name="ctrl-fade">
@@ -128,7 +129,7 @@ const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor, averageColor } = useCoverColor();
 
-const { controlsVisible, handleTapToggle } = useTapToggle({
+const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
   onDoubleClick: () => { showFullLyrics.value = true; }
 });
 
@@ -546,12 +547,12 @@ onBeforeUnmount(() => {
 }
 
 .scrolling-lyrics-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 9;
-  color: #fff;
+position: absolute;
+top: 40px;
+left: 0;
+right: 0;
+bottom: 100px;
+z-index: 9;
+color: #fff;
 }
 </style>

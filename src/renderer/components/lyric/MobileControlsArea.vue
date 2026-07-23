@@ -1,5 +1,12 @@
 <template>
-  <div class="mobile-controls" :class="{ visible: visible, 'fullscreen-mode': isFullscreen }">
+  <div
+    class="mobile-controls no-toggle"
+    :class="{ visible: visible, 'fullscreen-mode': isFullscreen }"
+    @click.stop
+    @touchstart.stop="emitInteract"
+    @touchend.stop
+    @mousedown.stop="emitInteract"
+  >
     <!-- 进度条 -->
     <div class="progress-container">
       <div class="time-info">
@@ -48,13 +55,13 @@
       <div class="side-button" @click="togglePlayMode">
         <i :class="[playModeIcon, { 'intelligence-active': playMode === 3 }]"></i>
       </div>
-      <div class="main-button prev" @click="prevSong">
+      <div class="main-button prev" @click="handlePrev">
         <i class="ri-skip-back-fill"></i>
       </div>
-      <div class="main-button play-pause" @click="togglePlay">
+      <div class="main-button play-pause" @click="handleTogglePlay">
         <i :class="playIcon"></i>
       </div>
-      <div class="main-button next" @click="nextSong">
+      <div class="main-button next" @click="handleNext">
         <i class="ri-skip-forward-fill"></i>
       </div>
       <div class="side-button" @click="$emit('showPlaylist')">
@@ -65,119 +72,109 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, ref } from 'vue';
 
-import { allTime, nowTime } from '@/hooks/MusicHook';
+import { allTime, nowTime, pause, play, sound } from '@/hooks/MusicHook';
 import { usePlayMode } from '@/hooks/usePlayMode';
 import { useClimaxStore } from '@/store/modules/climax';
 import { usePlayerStore } from '@/store/modules/player';
 import { secondToMinute } from '@/utils';
 
-defineProps<{
+const props = defineProps<{
+  visible?: boolean;
   isFullscreen?: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   close: [];
   showPlaylist: [];
+  interact: [];
 }>();
 
 const playerStore = usePlayerStore();
 const climaxStore = useClimaxStore();
 const { playMode, playModeIcon, togglePlayMode } = usePlayMode();
 
-const play = computed(() => playerStore.isPlay);
-const playIcon = computed(() => (play.value ? 'ri-pause-fill' : 'ri-play-fill'));
+const playState = computed(() => playerStore.isPlay);
+const playIcon = computed(() => (playState.value ? 'ri-pause-fill' : 'ri-play-fill'));
 
-// 播放控制
-const togglePlay = () => playerStore.setPlay(!play.value);
-const prevSong = () => playerStore.prevPlay();
-const nextSong = () => playerStore.nextPlay();
-
-// ==================== 3秒自动隐藏 ====================
-const visible = ref(true);
-let hideTimer: ReturnType<typeof setTimeout> | null = null;
-
-function showControls() {
-  visible.value = true;
-  resetHideTimer();
+// 播放控制（使用 MusicHook 直接控制音频）
+function handleTogglePlay() {
+  if (playState.value) {
+    pause();
+  } else {
+    play();
+  }
+  emit('interact');
 }
 
-function hideControls() {
-  visible.value = false;
+function handlePrev() {
+  playerStore.prevPlay();
+  emit('interact');
 }
 
-function resetHideTimer() {
-  if (hideTimer) clearTimeout(hideTimer);
-  hideTimer = setTimeout(() => {
-    visible.value = false;
-  }, 3000);
+function handleNext() {
+  playerStore.nextPlay();
+  emit('interact');
 }
 
-// 暴露给父组件调用
-defineExpose({ showControls, hideControls, visible });
-
-// 初始显示，3秒后隐藏
-resetHideTimer();
-
-onBeforeUnmount(() => {
-  if (hideTimer) clearTimeout(hideTimer);
-});
+function emitInteract() {
+  emit('interact');
+}
 
 // ==================== 进度条交互 ====================
 const isThumbDragging = ref(false);
-let dragStartX = 0;
-let dragStartTime = 0;
+
+const seekToRatio = (clientX: number, target: HTMLElement) => {
+  const rect = target.closest('.apple-style-progress')?.getBoundingClientRect();
+  if (!rect) return;
+  const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  const time = ratio * allTime.value;
+  // 使用 sound.seek() 直接控制音频
+  if (sound.value) {
+    sound.value.seek(time);
+  }
+  emit('interact');
+};
 
 const handleProgressBarClick = (e: MouseEvent) => {
-  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-  const ratio = (e.clientX - rect.left) / rect.width;
-  playerStore.setNowTime(ratio * allTime.value);
+  seekToRatio(e.clientX, e.target as HTMLElement);
 };
 
 const handleMouseDown = (e: MouseEvent) => {
   isThumbDragging.value = true;
-  dragStartX = e.clientX;
-  dragStartTime = nowTime.value;
+  seekToRatio(e.clientX, e.target as HTMLElement);
   document.addEventListener('mousemove', handleMouseMove);
   document.addEventListener('mouseup', handleMouseUp);
-  showControls();
 };
 
 const handleMouseMove = (e: MouseEvent) => {
   if (!isThumbDragging.value) return;
-  const rect = (e.target as HTMLElement)?.closest('.apple-style-progress')?.getBoundingClientRect();
-  if (!rect) return;
-  const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-  playerStore.setNowTime(ratio * allTime.value);
+  seekToRatio(e.clientX, e.target as HTMLElement);
 };
 
 const handleMouseUp = () => {
   isThumbDragging.value = false;
   document.removeEventListener('mousemove', handleMouseMove);
   document.removeEventListener('mouseup', handleMouseUp);
-  showControls();
 };
 
 // 触摸拖拽
 const handleThumbTouchStart = (e: TouchEvent) => {
   isThumbDragging.value = true;
-  showControls();
+  emitInteract();
   e.stopPropagation();
 };
 
 const handleThumbTouchMove = (e: TouchEvent) => {
   if (!isThumbDragging.value) return;
-  const rect = (e.target as HTMLElement)?.closest('.apple-style-progress')?.getBoundingClientRect();
-  if (!rect) return;
-  const ratio = Math.max(0, Math.min(1, (e.touches[0].clientX - rect.left) / rect.width));
-  playerStore.setNowTime(ratio * allTime.value);
+  seekToRatio(e.touches[0].clientX, e.target as HTMLElement);
   e.preventDefault();
 };
 
 const handleThumbTouchEnd = () => {
   isThumbDragging.value = false;
-  showControls();
+  emitInteract();
 };
 </script>
 
@@ -187,7 +184,7 @@ const handleThumbTouchEnd = () => {
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 20;
+  z-index: 30;
   padding: 0 24px calc(env(safe-area-inset-bottom, 0px) + 32px);
   opacity: 0;
   transition: opacity 0.3s ease;

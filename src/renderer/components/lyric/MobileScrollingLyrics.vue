@@ -32,7 +32,6 @@
           'now-text': index === nowIndex,
           'hover-text': item.text && item.startTime !== -1
         }"
-        @click="handleLineTap"
       >
         <div v-if="item.hasWordByWord && item.words && item.words.length > 0" class="word-by-word-lyric">
           <template v-for="(word, wordIndex) in item.words" :key="wordIndex">
@@ -72,23 +71,6 @@ import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import { getTextColors } from '@/utils/linearColor';
 
 const { t } = useI18n();
-
-// 双击关闭事件
-const emit = defineEmits<{ close: [] }>();
-
-// 非文字区域双击检测
-let lineTapTimer: ReturnType<typeof setTimeout> | null = null;
-function handleLineTap() {
-  if (lineTapTimer) {
-    clearTimeout(lineTapTimer);
-    lineTapTimer = null;
-    emit('close');
-  } else {
-    lineTapTimer = setTimeout(() => {
-      lineTapTimer = null;
-    }, 300);
-  }
-}
 
 // 歌词配置
 const config = ref<LyricConfig>(DEFAULT_LYRIC_CONFIG);
@@ -290,8 +272,10 @@ onBeforeUnmount(() => {
     padding: 16px 8px;
   }
 
-  &.hover-text:hover {
-    opacity: 0.8;
+  @media (hover: hover) {
+    &.hover-text:hover {
+      opacity: 0.8;
+    }
   }
 }
 
