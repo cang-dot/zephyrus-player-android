@@ -11,7 +11,7 @@
         <div class="aged-overlay"></div>
         <div class="ambient-glow" :style="{ opacity: beatGlowOpacity }"></div>
 
-        <div class="lyrics-layer">
+        <div class="lyrics-layer" @click.stop="showFullLyrics = true">
           <div class="neon-lyrics" :style="{ fontSize: lyricFontSize }">
             <template v-for="(char, i) in currentChars" :key="i">
               <span v-if="char === ' '" class="neon-space">&nbsp;</span>
@@ -44,40 +44,21 @@
           </div>
         </transition>
 
-        <!-- 底部控件（tap 弹出） -->
-        <transition name="ctrl-fade">
-          <div v-show="controlsVisible" class="bottom-controls no-toggle">
-            <div class="progress-row">
-              <span class="time-text">{{ formatTime(currentTime) }}</span>
-              <div class="progress-bar-bg" @click="handleSeek">
-                <div
-                  class="climax-track"
-                  v-if="styleEngine.climaxSegments.length > 0 && duration > 0"
-                >
-                  <div
-                    v-for="(seg, i) in styleEngine.climaxSegments"
-                    :key="'cl-' + i"
-                    class="climax-segment"
-                    :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
-                    :style="{
-                      left: (seg.start / duration) * 100 + '%',
-                      width: Math.max(0.5, ((seg.end - seg.start) / duration) * 100) + '%'
-                    }"
-                  ></div>
-                </div>
-                <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
-              </div>
-              <span class="time-text">{{ formatTime(duration) }}</span>
-            </div>
-            <div class="control-buttons">
-              <div class="ctrl-btn" @click="handlePrev"><i class="ri-skip-back-fill"></i></div>
-              <div class="ctrl-btn play-btn" @click="handlePlayPause">
-                <i :class="isPlaying ? 'ri-pause-fill' : 'ri-play-fill'"></i>
-              </div>
-              <div class="ctrl-btn" @click="handleNext"><i class="ri-skip-forward-fill"></i></div>
-            </div>
-          </div>
+        <!-- 半透明遮罩 + 滚动歌词（点击歌词时显示） -->
+        <transition name="fade">
+          <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
         </transition>
+        <transition name="fade">
+          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" />
+        </transition>
+
+        <!-- 底部控件（3秒自动隐藏） -->
+        <MobileControlsArea
+          ref="controlsRef"
+          :is-fullscreen="showFullLyrics"
+          @close="showFullLyrics = false"
+          @showPlaylist="openPlaylist"
+        />
       </div>
     </transition>
   </teleport>
@@ -89,6 +70,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
+import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
+import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
@@ -113,6 +96,9 @@ const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor } = useCoverColor();
 const { controlsVisible, handleTapToggle } = useTapToggle();
+
+const showFullLyrics = ref(false);
+const controlsRef = ref();
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({
@@ -455,5 +441,27 @@ function formatTime(s: number): string {
   .ambient-glow {
     transition: none;
   }
+}
+
+/* 半透明遮罩 */
+.lyrics-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 8;
+  cursor: pointer;
+}
+
+.scrolling-lyrics-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9;
+  color: #fff;
 }
 </style>

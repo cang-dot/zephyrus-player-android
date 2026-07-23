@@ -37,12 +37,10 @@ export function useTapToggle(options?: {
   const controlsVisible = ref(initial);
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** 显示控件，非移动端启动自动隐藏计时器 */
+  /** 显示控件，启动自动隐藏计时器（所有平台） */
   function showControls() {
     controlsVisible.value = true;
-    if (!isMobile.value) {
-      resetHideTimer();
-    }
+    resetHideTimer();
   }
 
   /** 隐藏控件 */

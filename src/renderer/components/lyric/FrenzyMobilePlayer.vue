@@ -17,8 +17,8 @@
         <div class="corner-dot bl"></div>
         <div class="corner-dot br"></div>
 
-        <!-- 巨字歌词 -->
-        <div class="giant-text-container">
+        <!-- 巨字歌词（点击切换滚动歌词） -->
+        <div class="giant-text-container" @click.stop="showFullLyrics = true">
           <div
             class="giant-text line-1"
             :style="{ fontSize: fontSizePx, color: 'var(--text-dark)' }"
@@ -46,46 +46,21 @@
           </div>
         </transition>
 
-        <!-- 底部控件（tap 弹出） -->
-        <transition name="ctrl-fade">
-          <div v-show="controlsVisible" class="bottom-controls no-toggle">
-            <!-- 进度条 -->
-            <div class="progress-row">
-              <span class="time-text">{{ formatTime(currentTime) }}</span>
-              <div class="progress-bar-bg" @click="handleSeek">
-                <div
-                  class="climax-track"
-                  v-if="styleEngine.climaxSegments.length > 0 && duration > 0"
-                >
-                  <div
-                    v-for="(seg, i) in styleEngine.climaxSegments"
-                    :key="'cl-' + i"
-                    class="climax-segment"
-                    :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
-                    :style="{
-                      left: (seg.start / duration) * 100 + '%',
-                      width: Math.max(0.5, ((seg.end - seg.start) / duration) * 100) + '%'
-                    }"
-                  ></div>
-                </div>
-                <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
-              </div>
-              <span class="time-text">{{ formatTime(duration) }}</span>
-            </div>
-            <!-- 控制按钮 -->
-            <div class="control-buttons">
-              <div class="ctrl-btn" @click="handlePrev">
-                <i class="ri-skip-back-fill"></i>
-              </div>
-              <div class="ctrl-btn play-btn" @click="handlePlayPause">
-                <i :class="isPlaying ? 'ri-pause-fill' : 'ri-play-fill'"></i>
-              </div>
-              <div class="ctrl-btn" @click="handleNext">
-                <i class="ri-skip-forward-fill"></i>
-              </div>
-            </div>
-          </div>
+        <!-- 半透明遮罩 + 滚动歌词（点击歌词时显示） -->
+        <transition name="fade">
+          <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
         </transition>
+        <transition name="fade">
+          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" />
+        </transition>
+
+        <!-- 底部控件（3秒自动隐藏） -->
+        <MobileControlsArea
+          ref="controlsRef"
+          :is-fullscreen="showFullLyrics"
+          @close="showFullLyrics = false"
+          @showPlaylist="openPlaylist"
+        />
       </div>
     </transition>
   </teleport>
@@ -107,6 +82,8 @@
  */
 import { computed, onMounted, ref, watch } from 'vue';
 
+import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
+import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
@@ -132,6 +109,9 @@ const styleEngine = useStyleEngineStore();
 const { primaryColor, averageColor } = useCoverColor();
 
 const { controlsVisible, handleTapToggle } = useTapToggle();
+
+const showFullLyrics = ref(false);
+const controlsRef = ref();
 
 // ==================== 高潮数据加载 ====================
 // 狂躁样式需要 styleEngine 持有 climax segments 来驱动 isInClimax + 进度条高潮段落标注。
@@ -490,5 +470,27 @@ function formatTime(seconds: number): string {
   .ctrl-fade-leave-active {
     transition: opacity 0.2s ease;
   }
+}
+
+/* 半透明遮罩 */
+.lyrics-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 8;
+  cursor: pointer;
+}
+
+.scrolling-lyrics-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9;
+  color: #fff;
 }
 </style>

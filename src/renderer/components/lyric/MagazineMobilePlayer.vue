@@ -52,7 +52,7 @@
         <!-- 右侧区域 -->
         <div class="right-area">
           <!-- 歌词区 -->
-          <div class="lyrics-area" ref="lyricsScrollRef">
+          <div class="lyrics-area" ref="lyricsScrollRef" @click.stop="showFullLyrics = true">
             <div
               v-for="(line, index) in visibleLyrics"
               :key="index"
@@ -63,50 +63,21 @@
             </div>
           </div>
 
-          <!-- 底部控件 -->
-          <transition name="ctrl-fade">
-            <div v-show="controlsVisible" class="bottom-controls no-toggle">
-              <!-- 进度条 -->
-              <div class="progress-row">
-                <span class="time-text">{{ formatTime(currentTime) }}</span>
-                <div class="progress-bar-bg" @click="handleSeek">
-                  <div
-                    v-if="styleEngine.climaxSegments.length > 0 && duration > 0"
-                    class="climax-track"
-                  >
-                    <div
-                      v-for="(seg, i) in styleEngine.climaxSegments"
-                      :key="'cl-' + i"
-                      class="climax-segment"
-                      :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
-                      :style="{
-                        left: (seg.start / duration) * 100 + '%',
-                        width: Math.max(0.5, ((seg.end - seg.start) / duration) * 100) + '%'
-                      }"
-                    ></div>
-                  </div>
-                  <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
-                </div>
-                <span class="time-text">{{ formatTime(duration) }}</span>
-              </div>
-
-              <!-- 控制按钮 -->
-              <div class="control-buttons">
-                <div class="ctrl-btn" @click="handlePrev">
-                  <i class="ri-skip-back-fill"></i>
-                </div>
-                <div class="ctrl-btn play-btn" @click="handlePlayPause">
-                  <i :class="isPlaying ? 'ri-pause-fill' : 'ri-play-fill'"></i>
-                </div>
-                <div class="ctrl-btn" @click="handleNext">
-                  <i class="ri-skip-forward-fill"></i>
-                </div>
-                <div class="ctrl-btn small" @click="openPlaylist">
-                  <i class="ri-list-check"></i>
-                </div>
-              </div>
-            </div>
+          <!-- 半透明遮罩 + 滚动歌词（点击歌词时显示） -->
+          <transition name="fade">
+            <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
           </transition>
+          <transition name="fade">
+            <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" />
+          </transition>
+
+          <!-- 底部控件（3秒自动隐藏） -->
+          <MobileControlsArea
+            ref="controlsRef"
+            :is-fullscreen="showFullLyrics"
+            @close="showFullLyrics = false"
+            @showPlaylist="openPlaylist"
+          />
 
           <!-- 顶部控件 -->
           <transition name="ctrl-fade">
@@ -131,6 +102,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
+import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
@@ -156,6 +129,9 @@ const styleEngine = useStyleEngineStore();
 const { primaryColor, averageColor } = useCoverColor();
 
 const { controlsVisible, handleTapToggle } = useTapToggle();
+
+const showFullLyrics = ref(false);
+const controlsRef = ref();
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({
@@ -553,5 +529,27 @@ onBeforeUnmount(() => {
 .ctrl-fade-enter-from,
 .ctrl-fade-leave-to {
   opacity: 0;
+}
+
+/* 半透明遮罩 */
+.lyrics-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 8;
+  cursor: pointer;
+}
+
+.scrolling-lyrics-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9;
+  color: #fff;
 }
 </style>

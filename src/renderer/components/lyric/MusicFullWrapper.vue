@@ -100,18 +100,12 @@ const componentToUse = computed(() => {
 
   // 移动端
   if (isMobile.value) {
-    // 竖屏模式：所有样式统一使用 MusicFullMobile（含滚动歌词）
-    // MusicFullMobile 通过 playerStyle prop 渲染对应的特殊背景
-    if (!isLandscape.value) {
-      return markRaw(MusicFullMobile);
-    }
-
-    // 横屏模式：非默认样式使用各自专属的移动端组件（独特歌词显示）
+    // 非默认样式使用各自专属的移动端组件（竖屏+横屏）
     if (style && mobileStyleComponents[style.key]) {
       return mobileStyleComponents[style.key];
     }
 
-    // 默认样式横屏也用 MusicFullMobile
+    // 默认样式使用 MusicFullMobile
     return markRaw(MusicFullMobile);
   }
 
