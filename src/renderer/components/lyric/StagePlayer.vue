@@ -824,12 +824,9 @@ onBeforeUnmount(() => {
 .stage-player {
   --accent-color: rgb(180, 150, 100);
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   overflow: hidden;
-  background: #000;
+  background: #1a1510;
   z-index: 9998;
   cursor: default;
 
