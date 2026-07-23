@@ -19,9 +19,9 @@
         @mousedown="handleMouseDown"
       >
         <div class="progress-track">
-          <div class="climax-track" v-if="climaxStore.hasSegments && allTime > 0">
+          <div class="climax-track" v-if="styleEngine.climaxSegments.length > 0 && allTime > 0">
             <div
-              v-for="(seg, i) in climaxStore.segments"
+              v-for="(seg, i) in styleEngine.climaxSegments"
               :key="'cl-' + i"
               class="climax-segment"
               :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
@@ -76,7 +76,7 @@ import { computed, ref } from 'vue';
 
 import { allTime, nowTime, pause, play, sound } from '@/hooks/MusicHook';
 import { usePlayMode } from '@/hooks/usePlayMode';
-import { useClimaxStore } from '@/store/modules/climax';
+import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { usePlayerStore } from '@/store/modules/player';
 import { secondToMinute } from '@/utils';
 
@@ -92,7 +92,7 @@ const emit = defineEmits<{
 }>();
 
 const playerStore = usePlayerStore();
-const climaxStore = useClimaxStore();
+const styleEngine = useStyleEngineStore();
 const { playMode, playModeIcon, togglePlayMode } = usePlayMode();
 
 const playState = computed(() => playerStore.isPlay);

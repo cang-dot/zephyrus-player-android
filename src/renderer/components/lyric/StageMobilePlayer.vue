@@ -43,7 +43,7 @@
           <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
         </transition>
         <transition name="fade">
-          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" @close="showFullLyrics = false" />
+          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" @close="showFullLyrics = false" @interact="showControls" />
         </transition>
 
         <!-- 顶部控件（tap 弹出） -->
@@ -204,19 +204,9 @@ const lyricStyle = computed(() => ({
 }));
 
 /**
- * 背景：高潮时使用强调色与深色底的不透明混合，避免透明背景透出下层内容
+ * 背景：保持深色底，高潮时仅通过文字颜色变化体现
  */
 const backgroundColor = computed(() => {
-  if (styleEngine.isInClimax) {
-    // 高潮时：强调色与深色底混合，保持不透明
-    const accent = tinycolor({
-      r: parseInt(String(primaryColorRgb.value?.split(',')[0] || '136')),
-      g: parseInt(String(primaryColorRgb.value?.split(',')[1]?.trim() || '136')),
-      b: parseInt(String(primaryColorRgb.value?.split(',')[2]?.trim() || '136'))
-    });
-    const mixed = tinycolor.mix(tinycolor('#1a1a1a'), accent, 15);
-    return mixed.toHexString();
-  }
   return '#1a1a1a';
 });
 
@@ -311,7 +301,7 @@ function formatTime(seconds: number): string {
 }
 
 .lyrics-main {
-  font-family: var(--m-font-serif, 'Cormorant Garamond', serif);
+font-family: 'Noto Serif SC', 'STSong', 'SimSun', var(--m-font-serif, 'Cormorant Garamond'), serif;
   font-weight: 700;
   line-height: 1.3;
   letter-spacing: -0.01em;

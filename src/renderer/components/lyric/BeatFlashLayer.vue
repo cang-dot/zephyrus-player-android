@@ -7,14 +7,14 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 import { nowTime } from '@/hooks/MusicHook';
 import { drumDetector } from '@/services/drumDetector';
-import { useClimaxStore } from '@/store/modules/climax';
+import { useStyleEngineStore } from '@/store/modules/styleEngine';
 
-const climaxStore = useClimaxStore();
+const styleEngine = useStyleEngineStore();
 
 // 当前是否在高潮段落内
 const isInClimax = computed(() => {
   const t = nowTime.value;
-  return climaxStore.segments.some((seg) => t >= seg.start && t <= seg.end);
+  return styleEngine.climaxSegments.some((seg) => t >= seg.start && t <= seg.end);
 });
 
 // 鼓点闪白
@@ -59,14 +59,6 @@ watch(
     }
   },
   { immediate: true }
-);
-
-// 切歌时加载高潮段落
-watch(
-  () => climaxStore.segments,
-  () => {
-    // climaxStore 自动管理 segments
-  }
 );
 
 onBeforeUnmount(() => {

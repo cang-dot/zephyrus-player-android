@@ -1,5 +1,11 @@
 <template>
   <div class="scrolling-lyrics" :class="config.theme">
+    <!-- 拖动时显示时间指示器 -->
+    <transition name="fade">
+      <div v-if="isDragging" class="time-indicator">
+        {{ currentTimeText }}
+      </div>
+    </transition>
     <!-- 歌词滚动区（全屏，点击空白关闭） -->
     <div
       ref="scrollerRef"
@@ -59,7 +65,17 @@ import { getTextColors } from '@/utils/linearColor';
 
 const { t } = useI18n();
 
-const emit = defineEmits<{ close: [] }>();
+const emit = defineEmits<{ close: []; interact: [] }>();
+
+// 拖动状态
+const isDragging = ref(false);
+const currentTimeText = ref('');
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 // 点击空白区域关闭
 function handleEmptyClick() {
@@ -123,11 +139,14 @@ watch(nowIndex, () => {
 const handleTouchStart = (e: TouchEvent) => {
   touchStartY.value = e.touches[0].clientY;
   isTouchScrolling.value = true;
+  isDragging.value = true;
+  emit('interact');
 };
 
 const handleTouchMove = () => {
   if (!isTouchScrolling.value) return;
   isAutoScrollEnabled.value = false;
+  updateTimeIndicator();
 };
 
 const handleTouchEnd = () => {
@@ -135,6 +154,7 @@ const handleTouchEnd = () => {
   if (autoScrollTimer) clearTimeout(autoScrollTimer);
   autoScrollTimer = setTimeout(() => {
     isAutoScrollEnabled.value = true;
+    isDragging.value = false;
     nextTick(() => scrollToCurrentLyric());
   }, 3000);
 };
@@ -142,12 +162,35 @@ const handleTouchEnd = () => {
 const handleScroll = () => {
   if (!isTouchScrolling.value) return;
   isAutoScrollEnabled.value = false;
+  updateTimeIndicator();
   if (autoScrollTimer) clearTimeout(autoScrollTimer);
   autoScrollTimer = setTimeout(() => {
     isAutoScrollEnabled.value = true;
+    isDragging.value = false;
     nextTick(() => scrollToCurrentLyric());
   }, 3000);
 };
+
+// 获取当前可视中心歌词的时间
+function updateTimeIndicator() {
+  if (!scrollerRef.value) return;
+  const container = scrollerRef.value;
+  const centerY = container.scrollTop + container.clientHeight / 2;
+  let closestTime = 0;
+  let closestDist = Infinity;
+  for (let i = 0; i < lrcArray.value.length; i++) {
+    const el = document.getElementById(`msl-lyric-${i}`);
+    if (!el) continue;
+    const elCenter = el.offsetTop + el.offsetHeight / 2;
+    const dist = Math.abs(elCenter - centerY);
+    if (dist < closestDist) {
+      closestDist = dist;
+      const item = lrcArray.value[i];
+      closestTime = item.startTime !== -1 ? item.startTime : 0;
+    }
+  }
+  currentTimeText.value = formatTime(closestTime);
+}
 
 // 逐字歌词样式
 const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
@@ -294,5 +337,30 @@ onBeforeUnmount(() => {
   opacity: 0.3;
   font-size: 14px;
   text-align: center;
+}
+
+.time-indicator {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 20px;
+  z-index: 15;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>
