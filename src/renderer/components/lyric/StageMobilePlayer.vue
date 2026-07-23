@@ -94,6 +94,7 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import { useTapToggle } from '@/composables/useTapToggle';
+import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { usePlayerStore } from '@/store/modules/player';
@@ -123,6 +124,7 @@ const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
 // 滚动歌词叠加层
 const showFullLyrics = ref(false);
 const controlsRef = ref();
+const { config: styleCfg } = useStyleCustomConfig('stage');
 
 // ==================== 高潮数据加载 ====================
 // 舞台样式需要 styleEngine 持有 climax segments 才能驱动 isInClimax + 进度条高潮段落标注。
@@ -199,8 +201,9 @@ const lyricColor = computed(() => {
  * 基础 clamp(32px, 5vw, 56px)，高能量时略大
  */
 const lyricStyle = computed(() => ({
-  color: lyricColor.value,
-  fontSize: 'clamp(32px, 5vw, 56px)'
+color: lyricColor.value,
+fontSize: 'clamp(32px, 5vw, 56px)',
+...(styleCfg.value.customFontFamily ? { fontFamily: styleCfg.value.customFontFamily } : {})
 }));
 
 /**

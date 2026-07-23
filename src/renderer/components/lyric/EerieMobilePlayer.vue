@@ -102,6 +102,7 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import { useTapToggle } from '@/composables/useTapToggle';
+import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drawCracks } from '@/lib/crackRenderer';
@@ -239,6 +240,7 @@ const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
 
 const showFullLyrics = ref(false);
 const controlsRef = ref();
+const { config: styleCfg } = useStyleCustomConfig('eerie');
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({
@@ -348,7 +350,8 @@ const currentChars = computed(() => {
 });
 
 const fontFamily = computed(() => {
-  const f = eerieFontFamily.value;
+if (styleCfg.value.customFontFamily) return styleCfg.value.customFontFamily;
+const f = eerieFontFamily.value;
   const fallbacks: Record<string, string> = {
     KaiTi: "'KaiTi', 'STKaiti', 'Noto Serif SC', serif",
     STKaiti: "'STKaiti', 'KaiTi', 'Noto Serif SC', serif",
@@ -360,7 +363,10 @@ const fontFamily = computed(() => {
   return fallbacks[f] || `${f}, 'KaiTi', serif`;
 });
 
-const climaxFontSizePx = computed(() => `${eerieClimaxFontSize.value * eerieLyricScale.value}px`);
+const climaxFontSizePx = computed(() => {
+if (styleCfg.value.keywordSize) return `${styleCfg.value.keywordSize}px`;
+return `${eerieClimaxFontSize.value * eerieLyricScale.value}px`;
+});
 
 // 高潮重点词：优先服务器重点词，降级到本地情感词检测（参考 FrenzyLyrics）
 // 高潮阶段强制每句选择不同的词汇，避免重复
@@ -522,7 +528,7 @@ function startClimaxNewspapers() {
     climaxIndex++;
   };
   cycle();
-  climaxNewspaperTimer = setInterval(cycle, 500);
+  climaxNewspaperTimer = setInterval(cycle, styleCfg.value.newspaperFreq || 500);
 }
 function stopClimaxNewspapers() {
   if (climaxNewspaperTimer) {

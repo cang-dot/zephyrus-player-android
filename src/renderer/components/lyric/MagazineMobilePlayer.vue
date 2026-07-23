@@ -52,7 +52,7 @@
         <!-- 右侧区域 -->
         <div class="right-area">
           <!-- 歌词区 -->
-          <div class="lyrics-area" ref="lyricsScrollRef" v-show="!showFullLyrics">
+          <div class="lyrics-area" ref="lyricsScrollRef" v-show="!showFullLyrics" :style="{ fontFamily: styleCfg.customFontFamily || undefined }">
             <div
               v-for="(line, index) in visibleLyrics"
               :key="index"
@@ -107,6 +107,7 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import { useTapToggle } from '@/composables/useTapToggle';
+import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { extractRegionalColors, useCoverColor } from '@/hooks/useCoverColor';
 import { usePlayerStore } from '@/store/modules/player';
@@ -135,6 +136,7 @@ const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
 
 const showFullLyrics = ref(false);
 const controlsRef = ref();
+const { config: styleCfg } = useStyleCustomConfig('magazine');
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({

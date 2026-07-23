@@ -12,7 +12,7 @@
         <div class="ambient-glow" :style="{ opacity: beatGlowOpacity }"></div>
 
         <div class="lyrics-layer" v-show="!showFullLyrics">
-          <div class="neon-lyrics" :style="{ fontSize: lyricFontSize }">
+          <div class="neon-lyrics" :style="{ fontSize: lyricFontSize, fontFamily: styleCfg.customFontFamily || undefined }">
             <template v-for="(char, i) in currentChars" :key="i">
               <span v-if="char === ' '" class="neon-space">&nbsp;</span>
               <neon-stroke-char
@@ -75,6 +75,7 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import { useTapToggle } from '@/composables/useTapToggle';
+import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { getStrokes, loadDictionary } from '@/lib/hanziStrokes';
@@ -102,6 +103,7 @@ const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
 
 const showFullLyrics = ref(false);
 const controlsRef = ref();
+const { config: styleCfg } = useStyleCustomConfig('neon');
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({

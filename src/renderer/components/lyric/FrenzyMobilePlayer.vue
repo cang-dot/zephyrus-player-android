@@ -19,16 +19,16 @@
 
         <!-- 巨字歌词（点击切换滚动歌词） -->
         <div class="giant-text-container" v-show="!showFullLyrics">
-          <div
-            class="giant-text line-1"
-            :style="{ fontSize: fontSizePx, color: 'var(--text-dark)' }"
-          >
+<div
+  class="giant-text line-1"
+  :style="{ fontSize: fontSizePx, color: 'var(--text-dark)', fontFamily: styleCfg.customFontFamily || undefined }"
+>
             {{ lyricPart1 }}
           </div>
-          <div
-            class="giant-text line-2"
-            :style="{ fontSize: fontSizePx, color: 'var(--text-gray)' }"
-          >
+<div
+  class="giant-text line-2"
+  :style="{ fontSize: fontSizePx, color: 'var(--text-gray)', fontFamily: styleCfg.customFontFamily || undefined }"
+>
             {{ lyricPart2 }}
           </div>
         </div>
@@ -87,6 +87,7 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import { useTapToggle } from '@/composables/useTapToggle';
+import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { usePlayerStore } from '@/store/modules/player';
@@ -115,6 +116,7 @@ const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
 
 const showFullLyrics = ref(false);
 const controlsRef = ref();
+const { config: styleCfg } = useStyleCustomConfig('frenzy');
 
 // ==================== 高潮数据加载 ====================
 // 狂躁样式需要 styleEngine 持有 climax segments 来驱动 isInClimax + 进度条高潮段落标注。
@@ -195,7 +197,8 @@ const lyricPart2 = computed(() => currentLyricParts.value[1] || '');
  * 基础字号 clamp(80px, 14vw, 160px)，鼓点时增加 5-10%
  */
 const fontSizePx = computed(() => {
-  const base = 'clamp(80px, 14vw, 160px)';
+const size = styleCfg.value.giantSize;
+const base = size ? `${size}px` : 'clamp(80px, 14vw, 160px)';
   // 鼓点命中时脉冲（通过 CSS scale 实现，不改变 font-size 避免重排）
   return base;
 });
