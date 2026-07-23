@@ -3,76 +3,42 @@
     <Transition name="disclaimer-modal">
       <div
         v-if="showDisclaimer"
-        class="fixed inset-0 z-[999999] flex items-center justify-center bg-black/60 backdrop-blur-md"
+        class="fixed inset-0 z-[999999] flex items-center justify-center bg-black/70 backdrop-blur-md p-4"
       >
         <div
-          class="w-full max-w-md mx-4 bg-white dark:bg-gray-900 rounded-3xl overflow-hidden shadow-2xl"
+          class="w-full max-w-md max-h-[85vh] bg-gray-900 rounded-3xl overflow-hidden shadow-2xl flex flex-col border border-white/10"
         >
-          <div class="h-2 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500"></div>
-          <h2 class="text-2xl font-bold text-center text-gray-900 dark:text-white px-6 mt-10">
-            {{ t('comp.disclaimer.title') }}
-          </h2>
+          <!-- 顶部渐变条 -->
+          <div class="h-1.5 bg-gradient-to-r from-[var(--accent-color)] via-purple-500 to-blue-500"></div>
 
-          <div class="px-6 py-6">
-            <div class="space-y-4 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-              <div
-                class="p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
-              >
-                <div class="flex items-start gap-3">
-                  <i class="ri-alert-line text-amber-500 text-xl flex-shrink-0 mt-0.5"></i>
-                  <p class="text-amber-700 dark:text-amber-300">
-                    {{ t('comp.disclaimer.warning') }}
-                  </p>
-                </div>
-              </div>
-
-              <div class="space-y-3">
-                <div class="flex items-start gap-3">
-                  <div
-                    class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0"
-                  >
-                    <i class="ri-book-2-line text-blue-500 text-sm"></i>
-                  </div>
-                  <p>{{ t('comp.disclaimer.item1') }}</p>
-                </div>
-
-                <div class="flex items-start gap-3">
-                  <div
-                    class="w-6 h-6 rounded-full bg-[var(--accent-color-10)] dark:bg-[var(--accent-color-20)] flex items-center justify-center flex-shrink-0"
-                  >
-                    <i class="ri-time-line text-[var(--accent-color)] text-sm"></i>
-                  </div>
-                  <p>{{ t('comp.disclaimer.item2') }}</p>
-                </div>
-
-                <div class="flex items-start gap-3">
-                  <div
-                    class="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0"
-                  >
-                    <i class="ri-shield-check-line text-purple-500 text-sm"></i>
-                  </div>
-                  <p>{{ t('comp.disclaimer.item3') }}</p>
-                </div>
-              </div>
-            </div>
+          <!-- 标题 -->
+          <div class="px-6 pt-8 pb-4 flex-shrink-0">
+            <h2 class="text-xl font-bold text-white text-center">用户协议</h2>
+            <p class="text-xs text-white/40 text-center mt-1">请阅读以下协议后继续使用</p>
           </div>
 
-          <div class="px-6 pb-8 space-y-3">
+          <!-- 协议内容（Markdown 渲染） -->
+          <div class="flex-1 overflow-y-auto px-6 pb-4 prose prose-sm prose-invert max-w-none">
+            <div v-html="agreementHtml"></div>
+          </div>
+
+          <!-- 按钮 -->
+          <div class="px-6 pb-8 pt-2 space-y-3 flex-shrink-0">
             <button
               @click="handleAgree"
-              class="w-full py-4 rounded-2xl text-base font-medium text-white bg-gradient-to-r from-[var(--accent-color)] to-[var(--accent-color-dark)] hover:brightness-90 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[var(--accent-color)]/25"
+              class="w-full py-3.5 rounded-2xl text-base font-medium text-white bg-gradient-to-r from-[var(--accent-color)] to-[var(--accent-color-dark)] hover:brightness-110 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[var(--accent-color)]/25"
             >
               <span class="flex items-center justify-center gap-2">
                 <i class="ri-check-line text-lg"></i>
-                {{ t('comp.disclaimer.agree') }}
+                同意并继续
               </span>
             </button>
 
             <button
               @click="handleDisagree"
-              class="w-full py-3 rounded-2xl text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              class="w-full py-2.5 rounded-2xl text-sm font-medium text-white/40 hover:text-white/70 transition-colors"
             >
-              {{ t('comp.disclaimer.disagree') }}
+              不同意，退出应用
             </button>
           </div>
         </div>
@@ -83,16 +49,16 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { useI18n } from 'vue-i18n';
 
 import { isElectron, isLyricWindow } from '@/utils';
-
-const { t } = useI18n();
+import { marked } from 'marked';
+import userAgreementText from '../../../../用户协议.md?raw';
 
 const DISCLAIMER_AGREED_KEY = 'disclaimer_agreed_timestamp';
 
 const showDisclaimer = ref(false);
 const isTransitioning = ref(false);
+const agreementHtml = marked.parse(userAgreementText, { async: false });
 
 const shouldShowDisclaimer = () => {
   return !localStorage.getItem(DISCLAIMER_AGREED_KEY);
