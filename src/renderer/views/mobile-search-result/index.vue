@@ -26,6 +26,20 @@
       </div>
     </div>
 
+    <!-- 来源筛选（仅歌曲搜索且有结果时） -->
+    <div v-if="searchType === SEARCH_TYPE.MUSIC && results.length && sourceFilterOptions.length > 1" class="source-filter">
+      <button
+        v-for="opt in sourceFilterOptions"
+        :key="opt.key"
+        class="source-chip"
+        :class="{ 'source-chip-active': activeSourceFilter === opt.key }"
+        @click="activeSourceFilter = opt.key as any"
+      >
+        {{ opt.label }}
+        <span class="opacity-60 ml-0.5">{{ opt.count }}</span>
+      </button>
+    </div>
+
     <!-- 搜索结果列表 -->
     <div class="result-content" @scroll="handleScroll">
       <!-- 加载中 -->
@@ -43,15 +57,26 @@
       <!-- 搜索结果 -->
       <div v-else-if="results.length" class="result-list">
         <!-- 歌曲搜索 -->
-        <template v-if="searchType === SEARCH_TYPE.MUSIC">
-          <song-item
-            v-for="item in results"
-            :key="item.id"
-            :item="item"
-            :is-next="true"
-            @play="handlePlay"
-          />
-        </template>
+<template v-if="searchType === SEARCH_TYPE.MUSIC">
+<div
+v-for="item in filteredResults"
+:key="item.id"
+class="song-item-wrapper"
+>
+<span
+v-if="getSourceLabel(item.id)"
+class="source-badge"
+:style="getSourceBadgeStyle(item.id)"
+>
+{{ getSourceLabel(item.id) }}
+</span>
+<song-item
+:item="item"
+:is-next="true"
+@play="handlePlay"
+/>
+</div>
+</template>
 
         <!-- 专辑/歌单/MV 搜索 -->
         <template v-else>
@@ -89,6 +114,13 @@ import { getSearch } from '@/api/search';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { SEARCH_TYPE, SEARCH_TYPES } from '@/const/bar-const';
+import {
+  getCachedLabel,
+  quickClassify,
+  setLabel,
+  SOURCE_LABEL_CONFIG,
+  type SourceLabel
+} from '@/services/sourceProbeService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSearchStore } from '@/store/modules/search';
 
@@ -118,6 +150,60 @@ const searchTypes = computed(() => {
 const results = ref<any[]>([]);
 const loading = ref(false);
 const crossSearchLoading = ref(false);
+
+// 来源筛选
+const activeSourceFilter = ref<SourceLabel | 'all'>('all');
+const sourceLabelVersion = ref(0);
+
+function classifySongs(songs: any[]) {
+  for (const song of songs) {
+    const label = quickClassify(song);
+    setLabel(String(song.id), label);
+  }
+  sourceLabelVersion.value++;
+}
+
+function getSourceLabel(songId: string | number): string | null {
+  sourceLabelVersion.value;
+  const label = getCachedLabel(String(songId));
+  if (!label || label === 'pending') return null;
+  return SOURCE_LABEL_CONFIG[label]?.text || null;
+}
+
+function getSourceBadgeStyle(songId: string | number): Record<string, string> {
+  const label = getCachedLabel(String(songId));
+  if (!label) return {};
+  const cfg = SOURCE_LABEL_CONFIG[label];
+  if (!cfg) return {};
+  return { color: cfg.color, background: cfg.bg };
+}
+
+const sourceFilterOptions = computed(() => {
+  sourceLabelVersion.value;
+  const counts: Record<string, number> = {};
+  for (const song of results.value) {
+    const label = getCachedLabel(String(song.id));
+    if (label && label !== 'pending') {
+      counts[label] = (counts[label] || 0) + 1;
+    }
+  }
+  const options = [{ key: 'all', label: '全部', count: results.value.length }];
+  for (const [key, count] of Object.entries(counts)) {
+    const cfg = SOURCE_LABEL_CONFIG[key as SourceLabel];
+    if (cfg) {
+      options.push({ key, label: cfg.text, count });
+    }
+  }
+  return options;
+});
+
+const filteredResults = computed(() => {
+  sourceLabelVersion.value;
+  if (activeSourceFilter.value === 'all') return results.value;
+  return results.value.filter(
+    (song) => getCachedLabel(String(song.id)) === activeSourceFilter.value
+  );
+});
 
 // 分页
 const ITEMS_PER_PAGE = 30;
@@ -159,6 +245,7 @@ const performSearch = async (isLoadMore = false) => {
         results.value = [...results.value, ...songs];
       } else {
         results.value = songs;
+      classifySongs(songs);
       }
 
       hasMore.value = songs.length === ITEMS_PER_PAGE;
@@ -264,6 +351,7 @@ const triggerCrossSearch = async (kw: string, neteaseSongs: any[]) => {
     const crossResults = await crossPlatformSearch(kw, existingSongs);
     if (crossResults.length > 0) {
       results.value = [...results.value, ...crossResults];
+      classifySongs(crossResults);
     }
   } catch (e) {
     console.error('[跨平台搜索失败]:', e);
@@ -408,8 +496,30 @@ onMounted(() => {
 color: var(--accent-color, #6366f1);
 
 i {
-  font-size: 14px;
+font-size: 14px;
 }
+}
+
+.source-filter {
+@apply flex items-center gap-1.5 flex-wrap px-4 py-2;
+}
+
+.source-chip {
+@apply px-2.5 py-1 rounded-full text-xs font-medium transition-colors;
+@apply bg-white/5 text-white/60;
+}
+
+.source-chip-active {
+@apply text-white;
+background: var(--accent-color, #6366f1);
+}
+
+.song-item-wrapper {
+@apply relative;
+}
+
+.source-badge {
+@apply absolute right-2 top-2 z-10 px-1.5 py-0.5 rounded text-[10px] font-medium pointer-events-none;
 }
 
 .result-list {
