@@ -1,0 +1,10 @@
+/* 首页 Hero 图标 — 圆角矩形 */
+.VPHero .VPImage img {
+  border-radius: 24px;
+}
+
+/* 导航栏 Logo — 圆角矩形 */
+.VPNavBarTitle img,
+.VPNavBar .logo {
+  border-radius: 6px;
+}
