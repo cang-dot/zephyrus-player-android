@@ -1,4 +1,4 @@
-name: Build & Release
+name: Build & Release APK
 
 on:
   push:
@@ -10,109 +10,8 @@ permissions:
   contents: write
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Package
-        run: npx electron-builder --win --publish never
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: win
-          path: |
-            dist/*.exe
-            dist/*.yml
-            dist/*.blockmap
-          if-no-files-found: error
-
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Package
-        run: npx electron-builder --mac --publish never
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mac
-          path: |
-            dist/*.dmg
-            dist/*.zip
-            dist/*.yml
-            dist/*.blockmap
-          if-no-files-found: error
-
-  build-linux:
+  build-apk:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Package
-        run: npx electron-builder --linux --publish never
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux
-          path: |
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.rpm
-            dist/*.yml
-            dist/*.blockmap
-          if-no-files-found: error
-
-  build-android:
-    runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -145,39 +44,71 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease --no-daemon
 
-      - name: Upload APK
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_apk
+        with:
+          releaseDirectory: android/app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
+          alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        continue-on-error: true
+
+      - name: Fallback to unsigned if signing fails
+        if: steps.sign_apk.outcome == 'failure'
+        run: |
+          echo "Signing failed, using unsigned release APK"
+          cp android/app/build/outputs/apk/release/*.apk android/app/build/outputs/apk/release/zephyrus-player.apk
+
+      - name: Rename APK
+        run: |
+          APK_DIR="android/app/build/outputs/apk/release"
+          if [ -f "$APK_DIR/zephyrus-player-release-signed.apk" ]; then
+            cp "$APK_DIR/zephyrus-player-release-signed.apk" "zephyrus-player-${{ github.ref_name }}.apk"
+          else
+            cp "$APK_DIR/app-release-unsigned.apk" "zephyrus-player-${{ github.ref_name }}.apk" 2>/dev/null || \
+            cp "$APK_DIR"/*.apk "zephyrus-player-${{ github.ref_name }}.apk"
+          fi
+          ls -la "zephyrus-player-${{ github.ref_name }}.apk"
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android
-          path: android/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: ignore
+          name: apk
+          path: "zephyrus-player-${{ github.ref_name }}.apk"
+          if-no-files-found: error
 
   release:
-    needs: [build-windows, build-macos, build-linux]
+    needs: build-apk
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download all artifacts
+      - name: Download APK artifact
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          name: apk
+          path: release
 
-      - name: Prepare release files
+      - name: Prepare release
         run: |
-          mkdir -p release
-          find artifacts -type f -exec cp {} release/ \;
           ls -la release/
+          echo "## Release ${{ github.ref_name }}" > release_notes.md
+          echo "" >> release_notes.md
+          if [ -f RELEASE_NOTES.md ]; then
+            cat RELEASE_NOTES.md >> release_notes.md
+          fi
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           draft: false
           prerelease: false
-          body_path: RELEASE_NOTES.md
-          files: release/*
+          body_path: release_notes.md
+          files: release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
