@@ -5,6 +5,9 @@ hero:
   name: Zephyrus Player
   text: 西风播放器
   tagline: 沉浸式音乐播放器 · Android · 使用文档
+  image:
+    src: /icon.png
+    alt: Zephyrus Player
   actions:
     - theme: brand
       text: 快速开始

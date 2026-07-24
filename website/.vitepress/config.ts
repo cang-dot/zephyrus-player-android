@@ -7,7 +7,11 @@ export default defineConfig({
   base: '/zephyrus/docs/',
   lastUpdated: true,
   cleanUrls: true,
+  head: [
+    ['link', { rel: 'icon', type: 'image/png', href: '/zephyrus/docs/icon.png' }]
+  ],
   themeConfig: {
+    logo: '/icon.png',
     nav: [
       { text: '安装', link: '/guide/installation' },
       { text: '使用', link: '/guide/getting-started' },
