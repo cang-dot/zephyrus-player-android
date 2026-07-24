@@ -1,5 +1,32 @@
 # Zephyrus Player 更新日志
 
+## v1.0.0-beta
+
+### ✨ 新增
+
+- **雨夜播放器样式**：3D 封面 + Canvas 雨水效果 + 歌词叠加 + 底部反射，竖屏/横屏自适应布局
+- **跨平台搜索（移动端）**：移动端搜索结果接入跨平台搜索，自动搜索 QQ/咪咕/酷狗/酷我/JOOX，结果去重合并
+- **来源标签 + 筛选（移动端）**：搜索结果每首歌标注来源（网易云/JOOX/QQ等），支持按来源筛选
+- **使用文档网站**：VitePress 文档站上线 [www.mucang.xyz/zephyrus/docs](https://www.mucang.xyz/zephyrus/docs)
+- **用户协议**：首次启动弹出用户协议窗口，支持 Markdown 渲染
+- **欢迎页重写**：移除原项目收款码/公众号，改为项目 GitHub 链接 + 软件图标
+- **平台账号管理**：移动端支持手动输入 Cookie，localStorage fallback
+- **设置-关于新增文档入口**：点击跳转到使用文档网站
+- **GitHub Actions 自动构建发布**：推送 tag 自动构建 APK 并发布 Release
+
+### 🐛 修复
+
+- **雨夜样式移动端不显示**：`MobilePlayerSettings` 硬编码数组缺少 rain + `MusicFullWrapper` 缺少 rain 路由 + `isFeatureEnabled` 默认 false
+- **平台登录报错**：`window.api.openPlatformLogin` 在移动端不存在，添加 fallback 到手动输入 Cookie
+- **功能开关默认关闭**：移除额外功能面板后所有 feature flag 默认 false，改为默认 true
+
+### 🎨 优化
+
+- **README 重写**：新增 7 种样式说明、跨平台搜索、文档链接、下载入口
+- **版本号升级至 v1.0.0-beta**
+
+---
+
 ## v0.9.9-update
 
 ### ✨ 新增
