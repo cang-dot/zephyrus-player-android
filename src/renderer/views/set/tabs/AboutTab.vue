@@ -58,6 +58,12 @@
       clickable
       @click="openModal('应用介绍', readmeText)"
     />
+    <setting-item
+      title="使用文档"
+      description="查看完整使用文档"
+      clickable
+      @click="openDocs"
+    />
   </setting-section>
 
   <!-- 内嵌内容弹窗 -->
@@ -212,7 +218,11 @@ const openManualUpdatePage = async () => {
 };
 
 const openAuthor = () => {
-  window.open(setData.value.authorUrl);
+window.open(setData.value.authorUrl);
+};
+
+const openDocs = () => {
+window.open('https://www.mucang.xyz/zephyrus/docs');
 };
 
 defineExpose({ checkForUpdates });
