@@ -9,11 +9,10 @@ export interface LyricConfig {
   theme: 'default' | 'light' | 'dark';
   hidePlayBar: boolean;
   translationEngine?: 'none' | 'opencc';
-  pureModeEnabled: boolean;
   hideMiniPlayBar: boolean;
   hideLyrics: boolean;
   contentWidth: number; // 内容区域宽度百分比
-  playerStyle: 'default' | 'classic' | 'stage' | 'magazine' | 'frenzy';
+  playerStyle: 'default' | 'classic' | 'stage' | 'magazine' | 'frenzy' | 'rain';
   animationIntensity: 'soft' | 'normal' | 'power'; // 舞台模式歌词动画幅度
   // 移动端配置
   mobileLayout: 'default' | 'ios' | 'android';
@@ -52,6 +51,18 @@ export interface LyricConfig {
   frenzyUseCoverBackground: boolean; // 跟随封面背景（级联第二级）
   frenzyBackgroundCustomColor: string; // 背景自定义颜色
   frenzyShowBackgroundColor: boolean; // 自定义背景（总开关）
+  // 雨夜样式配置
+  rainLyricMode: 'split' | 'group';
+  rainShowCover: boolean;
+  rainBackgroundDarkness: number;
+  rainIntensity: number;
+  rainSpeed: number;
+  rainAudioReactive: boolean;
+  rainColor: string;
+  rainOpacity: number;
+  rainAngle: number;
+  rainLength: number;
+
 }
 
 export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
@@ -65,14 +76,13 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   theme: 'default',
   hidePlayBar: true,
   hideMiniPlayBar: false,
-  pureModeEnabled: false,
   hideLyrics: false,
   contentWidth: 75, // 默认100%宽度
   playerStyle: 'default',
   animationIntensity: 'normal',
   // 移动端默认配置
   mobileLayout: 'ios',
-  mobileCoverStyle: 'record',
+  mobileCoverStyle: 'full',
   mobileShowLyricLines: 3,
   // 翻译引擎: 'none' or 'opencc'
   translationEngine: 'none',
@@ -108,7 +118,19 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   frenzyUseWhiteBackground: true,
   frenzyUseCoverBackground: true,
   frenzyBackgroundCustomColor: '#ffffff',
-  frenzyShowBackgroundColor: false
+  frenzyShowBackgroundColor: false,
+  // 雨夜样式默认值
+  rainLyricMode: 'split',
+  rainShowCover: true,
+  rainBackgroundDarkness: 70,
+  rainIntensity: 50,
+  rainSpeed: 1,
+  rainAudioReactive: true,
+  rainColor: '#ffffff',
+  rainOpacity: 0.6,
+  rainAngle: 15,
+  rainLength: 40,
+
 };
 
 export interface ILyric {

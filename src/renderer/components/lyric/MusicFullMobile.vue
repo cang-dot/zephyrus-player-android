@@ -22,8 +22,8 @@
         <i class="ri-loader-4-line loading-icon"></i>
       </div>
       <div
+        v-show="controlsVisible"
         class="control-btn absolute left-5 no-toggle"
-        :class="{ 'pure-mode': config.pureModeEnabled }"
         @click="closeMusicFull"
       >
         <i class="ri-arrow-down-s-line"></i>
@@ -31,9 +31,9 @@
 
       <!-- 右上角设置按钮 -->
       <div
+        v-show="controlsVisible"
         class="control-btn absolute right-5 flex items-center gap-2 no-toggle"
         :class="[
-          { 'pure-mode': config.pureModeEnabled },
           hasSleepTimerActive ? '!w-auto !px-2' : ''
         ]"
       >
@@ -227,18 +227,6 @@
               @mousedown="handleMouseDown"
             >
               <div class="progress-track">
-                <div class="climax-track" v-if="climaxStore.hasSegments && allTime > 0">
-                  <div
-                    v-for="(seg, i) in climaxStore.segments"
-                    :key="'cl-' + i"
-                    class="climax-segment"
-                    :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
-                    :style="{
-                      left: (seg.start / allTime) * 100 + '%',
-                      width: Math.max(0.5, ((seg.end - seg.start) / allTime) * 100) + '%'
-                    }"
-                  ></div>
-                </div>
                 <div
                   class="progress-fill"
                   :style="{ width: `${(nowTime / Math.max(1, allTime)) * 100}%` }"
@@ -345,12 +333,6 @@
         class="unified-controls"
         :class="{ 'fullscreen-mode': showFullLyrics }"
       >
-        <!-- 非默认样式横屏提示 -->
-        <div v-if="showLandscapeHint" class="landscape-hint">
-          <i class="ri-information-line"></i>
-          <span>横屏模式下可获得更佳体验</span>
-        </div>
-
         <!-- 进度条 (苹果风格) -->
         <div class="progress-container">
           <div class="time-info">
@@ -363,18 +345,6 @@
             @mousedown="handleMouseDown"
           >
             <div class="progress-track">
-              <div class="climax-track" v-if="climaxStore.hasSegments && allTime > 0">
-                <div
-                  v-for="(seg, i) in climaxStore.segments"
-                  :key="'cl-' + i"
-                  class="climax-segment"
-                  :class="{ 'climax-active': nowTime >= seg.start && nowTime <= seg.end }"
-                  :style="{
-                    left: (seg.start / allTime) * 100 + '%',
-                    width: Math.max(0.5, ((seg.end - seg.start) / allTime) * 100) + '%'
-                  }"
-                ></div>
-              </div>
               <div
                 class="progress-fill"
                 :style="{ width: `${(nowTime / Math.max(1, allTime)) * 100}%` }"
@@ -440,7 +410,6 @@ import {
 } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
 import { usePlayMode } from '@/hooks/usePlayMode';
-import { useClimaxStore } from '@/store/modules/climax';
 import { usePlayerStore } from '@/store/modules/player';
 import { DEFAULT_LYRIC_CONFIG, LyricConfig } from '@/types/lyric';
 import { getImgUrl, secondToMinute } from '@/utils';
@@ -449,27 +418,13 @@ import { showBottomToast } from '@/utils/shortcutToast';
 
 const { t } = useI18n();
 const playerStore = usePlayerStore();
-const climaxStore = useClimaxStore();
-
-// 切歌时加载高潮段落，使进度条高潮标注可见
-watch(
-  () => playMusic.value?.id,
-  async (newId) => {
-    if (newId) climaxStore.loadSegments(String(newId));
-    else climaxStore.clear();
-  },
-  { immediate: true }
-);
 
 // 播放控制相关
 const play = computed(() => playerStore.isPlay);
 const playIcon = computed(() => (play.value ? 'ri-pause-fill' : 'ri-play-fill'));
 
-// 播放设置弹窗（使用 store 状态，支持返回手势关闭）
-const showPlayerSettings = computed({
-  get: () => playerStore.playerSettingsVisible,
-  set: (val) => playerStore.setPlayerSettingsVisible(val)
-});
+// 播放设置弹窗
+const showPlayerSettings = ref(false);
 
 // 定时器相关
 const sleepTimerRefresh = ref(0);
@@ -537,11 +492,8 @@ const toggleFavorite = () => {
   }
 };
 
-// 歌词全屏控制（使用 store 状态，支持返回手势关闭）
-const showFullLyrics = computed({
-  get: () => playerStore.fullLyricsVisible,
-  set: (val) => playerStore.setFullLyricsVisible(val)
-});
+// 歌词全屏控制
+const showFullLyrics = ref(false);
 const isAutoScrollEnabled = ref(true);
 const lyricsScrollerRef = ref<HTMLElement | null>(null);
 const isTouchScrolling = ref(false);
@@ -554,9 +506,6 @@ const isSongChanging = ref(false);
 const { width, height } = useWindowSize();
 const isLandscape = computed(() => width.value > height.value);
 const landscapeLyricsRef = ref<HTMLElement | null>(null);
-
-// 非默认样式在竖屏模式下显示「横屏更佳」提示
-const showLandscapeHint = computed(() => props.playerStyle !== 'default' && !isLandscape.value);
 
 // 监听横屏变化
 watch(isLandscape, (newVal) => {
@@ -573,7 +522,7 @@ watch(isLandscape, (newVal) => {
 // 显示全屏歌词
 // 显示全屏歌词
 const showFullLyricScreen = () => {
-  playerStore.setFullLyricsVisible(true);
+  showFullLyrics.value = true;
 
   // 使用多次延迟尝试滚动，确保能够滚动到当前歌词
   nextTick(() => {
@@ -595,7 +544,7 @@ const supportAutoScroll = computed(() => {
 
 // 关闭全屏歌词
 const closeFullLyrics = () => {
-  playerStore.setFullLyricsVisible(false);
+  showFullLyrics.value = false;
   if (autoScrollTimer.value) {
     clearTimeout(autoScrollTimer.value);
     autoScrollTimer.value = null;
@@ -635,6 +584,7 @@ const scrollToCurrentLyric = (immediate = false, customScrollerRef?: HTMLElement
       containerRect.height / 2 +
       lineRect.height / 2;
 
+
     scrollerRef.scrollTo({
       top: scrollTop,
       behavior: immediate ? 'auto' : 'smooth'
@@ -646,6 +596,7 @@ const scrollToCurrentLyric = (immediate = false, customScrollerRef?: HTMLElement
 
 // 监听歌词变化，自动滚动
 watch(nowIndex, (newIndex, oldIndex) => {
+
   // 歌曲切换时不自动滚动
   if (isSongChanging.value) return;
 
@@ -800,6 +751,7 @@ const handleProgressBarClick = (e: MouseEvent) => {
   const percentage = offsetX / rect.width;
   const newTime = Math.max(0, Math.min(percentage * allTime.value, allTime.value));
 
+
   sound.value.seek(newTime);
   nowTime.value = newTime;
 };
@@ -898,6 +850,7 @@ const handleThumbTouchMove = (e: TouchEvent) => {
 
   // 实时更新UI，但不频繁seek
   nowTime.value = newTime;
+
 };
 
 const handleThumbTouchEnd = (e: TouchEvent) => {
@@ -957,10 +910,6 @@ const props = defineProps({
   background: {
     type: String,
     default: ''
-  },
-  playerStyle: {
-    type: String,
-    default: 'default'
   }
 });
 
@@ -1020,19 +969,6 @@ const setTextColors = (background: string) => {
 };
 
 const targetBackground = computed(() => {
-  // 竖屏模式下，非默认样式使用各自专属的深色背景
-  if (!isLandscape.value && props.playerStyle !== 'default') {
-    const styleBackgrounds: Record<string, string> = {
-      stage: 'linear-gradient(to bottom, #1a1a1a, #0d0d0d)',
-      magazine: 'linear-gradient(to bottom, #1a1a1a, #2a2218)',
-      frenzy: 'linear-gradient(to bottom, #1a0a0a, #2a1010)',
-      eerie: 'linear-gradient(to bottom, #0d0d14, #1a1a2e)',
-      neon: 'linear-gradient(to bottom, #1a1a14, #2a2418)'
-    };
-    if (styleBackgrounds[props.playerStyle]) {
-      return styleBackgrounds[props.playerStyle];
-    }
-  }
   if (config.value.theme !== 'default') {
     return themeMusic[config.value.theme] || props.background;
   }
@@ -1094,8 +1030,8 @@ const togglePlayMode = () => {
 };
 
 const closeMusicFull = () => {
-  isVisible.value = false;
-  playerStore.setMusicFull(false);
+isVisible.value = false;
+playerStore.setMusicFull(false);
 };
 
 // 移动端控件显隐状态（默认隐藏，点击屏幕弹出）
@@ -1178,7 +1114,7 @@ watch(isVisible, (newVal) => {
       setTextColors(targetBackground.value);
     }
   } else {
-    playerStore.setFullLyricsVisible(false);
+    showFullLyrics.value = false;
     if (autoScrollTimer.value) {
       clearTimeout(autoScrollTimer.value);
       autoScrollTimer.value = null;
@@ -1330,23 +1266,6 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
 
         &:active {
           transform: translate(-50%, -50%) scale(1.3);
-        }
-      }
-
-      // 高潮段落标注（与进度条同高，叠加显示）
-      .climax-track {
-        @apply absolute inset-0 pointer-events-none;
-        z-index: 1;
-      }
-      .climax-segment {
-        @apply absolute top-0 bottom-0;
-        height: 100%;
-        background: rgba(255, 200, 50, 0.35);
-        border-radius: 2px;
-        transition: background 0.2s ease;
-
-        &.climax-active {
-          background: rgba(255, 200, 50, 0.7);
         }
       }
     }
@@ -1985,17 +1904,6 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
     color: var(--text-color-active);
   }
 
-  &.pure-mode {
-    background: transparent;
-    backdrop-filter: none;
-
-    &:not(:hover) {
-      i {
-        opacity: 0;
-      }
-    }
-  }
-
   &:hover {
     background: rgba(126, 121, 121, 0.2);
     i {
@@ -2131,17 +2039,6 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
 .is-dark {
   .square-style {
     @apply shadow-2xl shadow-black/50;
-  }
-}
-
-/* 非默认样式横屏提示 */
-.landscape-hint {
-  @apply flex items-center justify-center gap-1.5 mb-3 text-xs;
-  color: var(--text-color-primary);
-  opacity: 0.5;
-
-  i {
-    font-size: 14px;
   }
 }
 </style>

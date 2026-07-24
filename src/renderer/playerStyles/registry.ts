@@ -37,6 +37,7 @@ export function registerStyle(def: PlayerStyleDefinition) {
   } else {
     styles.push(def);
   }
+  return def;
 }
 
 export function registerExternalStyle(def: PlayerStyleDefinition) {

@@ -1,5 +1,7 @@
 <template>
-  <div class="lyric-settings-panel w-80 rounded-d-2xl border shadow-d-xl overflow-hidden d-glass">
+  <div
+    class="lyric-settings-panel w-80 rounded-d-2xl border shadow-d-xl overflow-hidden d-glass"
+  >
     <!-- 标题栏 -->
     <div class="px-6 py-4 d-border-bottom">
       <div class="flex items-center gap-3">
@@ -15,10 +17,6 @@
     >
       <!-- ==================== 主视图：样式选择器 + 内联设置 ==================== -->
       <div class="space-y-2 pt-2">
-        <div class="setting-item">
-          <span>{{ t('settings.lyricSettings.pureMode') }}</span>
-          <input type="checkbox" v-model="config.pureModeEnabled" class="toggle-switch" />
-        </div>
         <div class="style-grid">
           <div
             v-for="style in playerStyles"
@@ -40,19 +38,39 @@
           <!-- 基础设置 -->
           <div class="setting-item">
             <span>{{ t('settings.lyricSettings.hideCover') }}</span>
-            <input type="checkbox" v-model="config.hideCover" class="toggle-switch" />
+            <input 
+              type="checkbox" 
+              :checked="config.hideCover" 
+              @change="config.hideCover = ($event.target as HTMLInputElement).checked"
+              class="toggle-switch" 
+            />
           </div>
           <div class="setting-item">
             <span>{{ t('settings.lyricSettings.centerDisplay') }}</span>
-            <input type="checkbox" v-model="config.centerLyrics" class="toggle-switch" />
+            <input 
+              type="checkbox" 
+              :checked="config.centerLyrics" 
+              @change="config.centerLyrics = ($event.target as HTMLInputElement).checked"
+              class="toggle-switch" 
+            />
           </div>
           <div class="setting-item">
             <span>{{ t('settings.lyricSettings.showTranslation') }}</span>
-            <input type="checkbox" v-model="config.showTranslation" class="toggle-switch" />
+            <input 
+              type="checkbox" 
+              :checked="config.showTranslation" 
+              @change="config.showTranslation = ($event.target as HTMLInputElement).checked"
+              class="toggle-switch" 
+            />
           </div>
           <div class="setting-item">
             <span>{{ t('settings.lyricSettings.hideLyrics') }}</span>
-            <input type="checkbox" v-model="config.hideLyrics" class="toggle-switch" />
+            <input 
+              type="checkbox" 
+              :checked="config.hideLyrics" 
+              @change="config.hideLyrics = ($event.target as HTMLInputElement).checked"
+              class="toggle-switch" 
+            />
           </div>
 
           <div class="radio-group-divider"></div>
@@ -60,7 +78,12 @@
           <!-- 界面设置 -->
           <div class="setting-item">
             <span>{{ t('settings.lyricSettings.showMiniPlayBar') }}</span>
-            <input type="checkbox" v-model="showMiniPlayBar" class="toggle-switch" />
+            <input 
+              type="checkbox" 
+              :checked="showMiniPlayBar" 
+              @change="showMiniPlayBar = ($event.target as HTMLInputElement).checked"
+              class="toggle-switch" 
+            />
           </div>
           <div class="slider-group">
             <label class="slider-label">{{ t('settings.lyricSettings.contentWidth') }}</label>
@@ -475,6 +498,7 @@ const playerStyles = computed(() => {
       if (s.key === 'frenzy') return isFeatureEnabled('frenzy-style');
       if (s.key === 'eerie') return isFeatureEnabled('eerie-style');
       if (s.key === 'neon') return isFeatureEnabled('neon-style');
+      if (s.key === 'rain') return isFeatureEnabled('rain-style');
       return false;
     })
     .map((s) => ({ key: s.key, label: s.label }));
@@ -841,9 +865,7 @@ defineExpose({
   font-size: 28px;
   font-weight: 700;
   color: #b08040;
-  text-shadow:
-    0 0 4px #b08040,
-    0 0 1px #fff;
+  text-shadow: 0 0 4px #b08040, 0 0 1px #fff;
   opacity: 0.85;
 }
 .preview-eerie::after {
@@ -856,8 +878,8 @@ defineExpose({
   background: rgba(255, 255, 255, 0.15);
   transform: rotate(-15deg);
   box-shadow:
-    0 12px 0 rgba(255, 255, 255, 0.08),
-    0 24px 0 rgba(255, 255, 255, 0.05);
+    0 12px 0 rgba(255,255,255,0.08),
+    0 24px 0 rgba(255,255,255,0.05);
 }
 
 /* 陈旧样式预览：老旧墙面背景 + 泛黄褪色文字 */
@@ -885,8 +907,35 @@ defineExpose({
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 30% 40%, rgba(201, 169, 110, 0.1) 0%, transparent 60%),
-    radial-gradient(ellipse at center, transparent 40%, rgba(92, 74, 46, 0.3) 100%);
+    radial-gradient(ellipse at 30% 40%, rgba(201,169,110,0.1) 0%, transparent 60%),
+    radial-gradient(ellipse at center, transparent 40%, rgba(92,74,46,0.3) 100%);
+}
+
+/* 雨夜样式预览：深色背景 + 雨滴效果 */
+.preview-rain {
+  background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0f0f1a 100%);
+  position: relative;
+  overflow: hidden;
+}
+.preview-rain::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent 0%, rgba(100, 120, 140, 0.1) 100%);
+}
+.preview-rain::after {
+  content: '雨';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  font-weight: 700;
+  color: rgba(200, 220, 240, 0.6);
+  text-shadow:
+    0 0 10px rgba(200, 220, 240, 0.4),
+    0 0 20px rgba(200, 220, 240, 0.2);
 }
 
 .style-card-name {

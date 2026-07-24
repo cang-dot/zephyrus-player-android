@@ -34,6 +34,12 @@
         <span class="ml-2">{{ t('search.loading.searching') }}</span>
       </div>
 
+      <!-- 跨平台搜索加载提示 -->
+      <div v-if="crossSearchLoading" class="cross-search-loading">
+        <i class="ri-loader-4-line animate-spin"></i>
+        <span>正在搜索其他音源...</span>
+      </div>
+
       <!-- 搜索结果 -->
       <div v-else-if="results.length" class="result-list">
         <!-- 歌曲搜索 -->
@@ -78,6 +84,7 @@ import { computed, inject, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
+import { crossPlatformSearch } from '@/api/crossPlatformSearch';
 import { getSearch } from '@/api/search';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
@@ -110,6 +117,7 @@ const searchTypes = computed(() => {
 // 搜索结果
 const results = ref<any[]>([]);
 const loading = ref(false);
+const crossSearchLoading = ref(false);
 
 // 分页
 const ITEMS_PER_PAGE = 30;
@@ -154,6 +162,11 @@ const performSearch = async (isLoadMore = false) => {
       }
 
       hasMore.value = songs.length === ITEMS_PER_PAGE;
+
+      // 第一页时触发跨平台搜索
+      if (!isLoadMore) {
+        triggerCrossSearch(keyword.value, songs);
+      }
     }
     // 专辑搜索
     else if (searchType.value === SEARCH_TYPE.ALBUM) {
@@ -235,6 +248,27 @@ const performSearch = async (isLoadMore = false) => {
   } finally {
     loading.value = false;
     isLoadingMore.value = false;
+  }
+};
+
+// 跨平台补充搜索
+const triggerCrossSearch = async (kw: string, neteaseSongs: any[]) => {
+  crossSearchLoading.value = true;
+  try {
+    const existingSongs = neteaseSongs.map((s: any) => ({
+      ...s,
+      ar: s.artists || s.ar,
+      name: s.name,
+      id: String(s.id)
+    }));
+    const crossResults = await crossPlatformSearch(kw, existingSongs);
+    if (crossResults.length > 0) {
+      results.value = [...results.value, ...crossResults];
+    }
+  } catch (e) {
+    console.error('[跨平台搜索失败]:', e);
+  } finally {
+    crossSearchLoading.value = false;
   }
 };
 
@@ -364,8 +398,18 @@ onMounted(() => {
 }
 
 .loading-state {
-  @apply flex flex-col items-center justify-center py-20;
-  @apply text-gray-500 dark:text-gray-400;
+@apply flex flex-col items-center justify-center py-20;
+@apply text-gray-500 dark:text-gray-400;
+}
+
+.cross-search-loading {
+@apply flex items-center justify-center gap-2 py-3;
+@apply text-xs;
+color: var(--accent-color, #6366f1);
+
+i {
+  font-size: 14px;
+}
 }
 
 .result-list {

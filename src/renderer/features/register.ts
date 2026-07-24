@@ -57,4 +57,12 @@ export function registerBuiltinFeatures() {
     icon: 'ri-time-line',
     type: 'playerStyle'
   });
+
+  registerFeature({
+    id: 'rain-style',
+    name: '雨夜样式',
+    description: '雨夜氛围的歌词展示，带有雨水效果和左右分词歌词',
+    icon: 'ri-rainy-line',
+    type: 'playerStyle'
+  });
 }

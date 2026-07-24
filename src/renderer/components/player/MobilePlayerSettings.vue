@@ -471,6 +471,12 @@ const playerStyles = computed(() => [
     label: tr('player.styles.neon', '陈旧'),
     icon: 'ri-lightbulb-flash-line',
     color: '#c9a96e'
+  },
+  {
+    key: 'rain',
+    label: tr('player.styles.rain', '雨夜'),
+    icon: 'ri-rainy-line',
+    color: '#3b82f6'
   }
 ]);
 

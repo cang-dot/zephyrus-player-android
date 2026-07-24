@@ -73,7 +73,6 @@
             <simple-play-bar
               v-if="!config.hideMiniPlayBar"
               class="mt-4"
-              :pure-mode-enabled="config.pureModeEnabled"
               :isDark="textColors.theme === 'dark'"
             />
           </div>
@@ -1049,21 +1048,7 @@ defineExpose({
 
 .control-left,
 .control-right {
-  &.pure-mode {
-    @apply pointer-events-auto;
-
-    .control-btn {
-      @apply opacity-0 transition-all duration-300;
-      pointer-events: none;
-    }
-
-    &:hover .control-btn {
-      @apply opacity-100;
-      pointer-events: auto;
-    }
-  }
-
-  &:not(.pure-mode) .control-btn {
+  .control-btn {
     pointer-events: auto;
   }
 }

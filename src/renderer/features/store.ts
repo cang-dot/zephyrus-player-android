@@ -19,7 +19,7 @@ function saveFlags(flags: Record<string, boolean>) {
 const flags = reactive<Record<string, boolean>>(loadFlags());
 
 export function isFeatureEnabled(id: string): boolean {
-  return flags[id] ?? false;
+  return flags[id] ?? true;
 }
 
 export function setFeatureEnabled(id: string, enabled: boolean) {
