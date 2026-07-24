@@ -208,68 +208,94 @@ const anyLoggedIn = computed(() =>
 
 // 刷新平台登录状态
 const refreshStatus = async () => {
-  try {
-    const status = await window.api.getPlatformLoginStatus();
-    platformList.value.forEach((p) => {
-      if (p.requiresLogin) {
-        p.loginStatus = Boolean(status[p.key]);
-      }
-    });
-  } catch (error) {
-    console.error('获取平台登录状态失败:', error);
-  }
+try {
+if (window.api?.getPlatformLoginStatus) {
+const status = await window.api.getPlatformLoginStatus();
+platformList.value.forEach((p) => {
+if (p.requiresLogin) {
+p.loginStatus = Boolean(status[p.key]);
+}
+});
+} else {
+// 移动端 fallback：从 localStorage 读取
+platformList.value.forEach((p) => {
+if (p.requiresLogin) {
+const cookie = localStorage.getItem(`platform-cookie-${p.key}`);
+p.loginStatus = Boolean(cookie);
+}
+});
+}
+} catch (error) {
+console.error('获取平台登录状态失败:', error);
+}
 };
 
 // 登录平台
 const loginPlatform = async (platformKey: string) => {
-  const platform = platformList.value.find((p) => p.key === platformKey);
-  if (!platform) return;
+const platform = platformList.value.find((p) => p.key === platformKey);
+if (!platform) return;
 
-  platform.loggingIn = true;
-  try {
-    const result = await window.api.openPlatformLogin(platformKey);
-    if (!result) {
-      message.warning(t('settings.playback.platforms.loginWindowFailed'));
-    }
-  } catch (error: any) {
-    message.error(`${t('common.error')}：${error.message}`);
-  } finally {
-    platform.loggingIn = false;
-  }
+if (!window.api?.openPlatformLogin) {
+// 移动端：跳转手动输入 Cookie
+manualCookiePlatform.value = platformKey;
+showManualInput.value = true;
+return;
+}
+
+platform.loggingIn = true;
+try {
+const result = await window.api.openPlatformLogin(platformKey);
+if (!result) {
+message.warning(t('settings.playback.platforms.loginWindowFailed'));
+}
+} catch (error: any) {
+message.error(`${t('common.error')}：${error.message}`);
+} finally {
+platform.loggingIn = false;
+}
 };
 
 // 退出登录
 const logoutPlatform = async (platformKey: string) => {
-  try {
-    await window.api.setPlatformCookie(platformKey, '');
-    const platform = platformList.value.find((p) => p.key === platformKey);
-    if (platform) {
-      platform.loginStatus = false;
-    }
-    message.success(t('settings.playback.platforms.logoutSuccess'));
-  } catch (error: any) {
-    message.error(`${t('common.error')}：${error.message}`);
-  }
+try {
+if (window.api?.setPlatformCookie) {
+await window.api.setPlatformCookie(platformKey, '');
+} else {
+localStorage.removeItem(`platform-cookie-${platformKey}`);
+}
+const platform = platformList.value.find((p) => p.key === platformKey);
+if (platform) {
+platform.loginStatus = false;
+}
+message.success(t('settings.playback.platforms.logoutSuccess'));
+} catch (error: any) {
+message.error(`${t('common.error')}：${error.message}`);
+}
 };
 
 // 保存手动输入的 Cookie
 const saveManualCookie = async () => {
-  const platform = manualCookiePlatform.value;
-  const cookie = manualCookieValue.value.trim();
-  if (!cookie) return;
+const platform = manualCookiePlatform.value;
+const cookie = manualCookieValue.value.trim();
+if (!cookie) return;
 
-  try {
-    await window.api.setPlatformCookie(platform, cookie);
-    const p = platformList.value.find((item) => item.key === platform);
-    if (p) {
-      p.loginStatus = true;
-    }
-    message.success(t('settings.playback.platforms.cookieSaved'));
-    manualCookieValue.value = '';
-    showManualInput.value = false;
-  } catch (error: any) {
-    message.error(`${t('common.error')}：${error.message}`);
-  }
+try {
+if (window.api?.setPlatformCookie) {
+await window.api.setPlatformCookie(platform, cookie);
+} else {
+// 移动端 fallback：存入 localStorage
+localStorage.setItem(`platform-cookie-${platform}`, cookie);
+}
+const p = platformList.value.find((item) => item.key === platform);
+if (p) {
+p.loginStatus = true;
+}
+message.success(t('settings.playback.platforms.cookieSaved'));
+manualCookieValue.value = '';
+showManualInput.value = false;
+} catch (error: any) {
+message.error(`${t('common.error')}：${error.message}`);
+}
 };
 
 // 监听平台登录 Cookie 到达

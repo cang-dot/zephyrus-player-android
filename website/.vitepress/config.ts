@@ -4,7 +4,7 @@ export default defineConfig({
   lang: 'zh-CN',
   title: 'Zephyrus Player',
   description: '西风播放器 · 使用文档',
-  base: '/docs/zephyrus-android/',
+  base: '/zephyrus/docs/',
   lastUpdated: true,
   cleanUrls: true,
   themeConfig: {
