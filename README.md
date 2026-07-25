@@ -8,7 +8,7 @@
 
 **西风播放器** — 沉浸式音乐播放器 · Android
 
-[![Version](https://img.shields.io/badge/version-v1.0.0--beta-blue)](https://github.com/cang-dot/zephyrus-player-android/releases)
+[![Version](https://img.shields.io/badge/version-v1.0.5-blue)](https://github.com/cang-dot/zephyrus-player-android/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Vue](https://img.shields.io/badge/Vue_3.5-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript_5.9-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -29,27 +29,46 @@ Zephyrus Player 是一款深度集成网易云音乐生态的沉浸式 Android �
 
 ---
 
+## 关于桌面版与安卓版
+
+桌面版与安卓版同源开发，共享绝大部分代码与核心体验。但由于两端各自的侧重不同，可能会出现某一端独有的功能：
+
+- 某些功能有可能在后续版本中移植到另一端，以统一更新进度。
+- 但作者更多会保留某一端的独占功能。（其实是懒）
+
+比如，安卓版拥有深度链接分享、剪贴板智能识别等移动端特性，而桌面版则拥有窗口管理、全局快捷键等桌面端特性。这些差异是设计取舍，而非 Bug。
+
+---
+
 ## 核心特性
 
 ### 7 种播放器样式
 
-| 样式 | 说明 |
-|------|------|
-| 默认 | 封面取色背景 + 逐字歌词 + 渐变遮罩 |
-| 舞台 Stage | 深色背景 + 居中大字歌词 + 高潮鼓点闪白 |
-| 诡谲 Eerie | 噪点底 + 书法字歌词 + 高潮关键词闪现 |
-| 陈旧 Neon | 混凝土底 + 霓虹描边字 + 脉冲光晕 |
-| 狂热 Frenzy | 极简色块 + 巨字歌词分屏 |
-| 杂志 Magazine | 色块拼贴 + 期刊式歌词 |
-| 雨夜 Rain | 3D 封面 + 雨水效果 + 歌词叠加 + 底部反射 |
+| 样式          | 说明                                     |
+| ------------- | ---------------------------------------- |
+| 默认          | 封面取色背景 + 逐字歌词 + 渐变遮罩       |
+| 舞台 Stage    | 深色背景 + 居中大字歌词 + 高潮鼓点闪白   |
+| 诡谲 Eerie    | 噪点底 + 书法字歌词 + 高潮关键词闪现     |
+| 陈旧 Neon     | 混凝土底 + 霓虹描边字 + 脉冲光晕         |
+| 狂热 Frenzy   | 极简色块 + 巨字歌词分屏                  |
+| 杂志 Magazine | 色块拼贴 + 期刊式歌词                    |
+| 雨夜 Rain     | 3D 封面 + 雨水效果 + 歌词叠加 + 底部反射 |
 
 ### 跨平台搜索
 
 搜索时自动搜索网易云、QQ音乐、咪咕、酷狗、酷我等平台，结果去重合并。每首歌标注来源（网易云 / JOOX / QQ 等），支持按来源筛选。
 
+### 歌曲分享（深度链接）
+
+- 支持 `zephyrus://song/{id}` 深度链接协议，点击链接直接拉起 App
+- 分享中转页（relay），海报式布局展示歌曲信息，支持 30 秒试听
+- App 内弹出毛玻璃歌曲卡片（SharedSongCard），点击播放按钮直接播放
+- 从后台切回前台时自动检测剪贴板，智能识别分享链接
+
 ### 自定义效果
 
 每种样式支持独立的效果参数调节：
+
 - **字体导入**：支持 `.ttf` / `.otf` 字体文件，每种样式单独设置
 - **样式参数**：Aurora 速度、鼓点闪白强度、光晕半径、脉冲速度、巨字字号、翻页速度、雨水强度等
 
@@ -77,16 +96,16 @@ Zephyrus Player 是一款深度集成网易云音乐生态的沉浸式 Android �
 
 ## 技术栈
 
-| 层 | 技术 |
-|----|------|
-| 框架 | Vue 3.5 + TypeScript 5.9 |
-| 构建 | Vite 6 |
-| 原生壳 | Capacitor 8 (Android) |
-| 状态管理 | Pinia |
+| 层       | 技术                      |
+| -------- | ------------------------- |
+| 框架     | Vue 3.5 + TypeScript 5.9  |
+| 构建     | Electron-Vite 6           |
+| 原生壳   | Capacitor 8 (Android)     |
+| 状态管理 | Pinia                     |
 | 音频引擎 | Howler.js + Web Audio API |
-| 动画 | GSAP + CSS Animations |
-| 样式 | Tailwind CSS + SCSS |
-| i18n | vue-i18n（5 种语言） |
+| 动画     | GSAP + CSS Animations     |
+| 样式     | Tailwind CSS + SCSS       |
+| i18n     | vue-i18n（5 种语言）      |
 
 ---
 

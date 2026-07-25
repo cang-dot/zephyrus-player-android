@@ -1,23 +1,15 @@
 <template>
   <teleport to="body">
     <transition name="rain-mobile-fade">
-      <div
-        v-if="isVisible"
-        class="rain-mobile-player"
-        @click="handleTapToggle"
-      >
+      <div v-if="isVisible" class="rain-mobile-player" @click="handleTapToggle">
         <!-- 背景层：封面模糊 + 暗化 -->
         <div class="background-layer">
-          <div
-            v-if="playMusic?.picUrl"
-            class="background-cover"
-            :style="backgroundCoverStyle"
-          />
+          <div v-if="playMusic?.picUrl" class="background-cover" :style="backgroundCoverStyle" />
           <div class="background-overlay" :style="backgroundOverlayStyle" />
         </div>
 
         <!-- 雨水效果层 -->
-        <RainCanvas :config="rainConfig" />
+        <rain-canvas :config="rainConfig" />
 
         <!-- 顶部：歌名 + 歌手 -->
         <div class="song-header" :class="{ 'song-header-visible': controlsVisible }">
@@ -73,7 +65,7 @@
           <!-- ===== 横屏：左右分词歌词 + 中间封面 ===== -->
           <div v-else class="landscape-split-layout">
             <div class="lyric-side left-side">
-              <SplitLyrics
+              <split-lyrics
                 v-if="rainConfig.rainLyricMode === 'split'"
                 mode="split"
                 side="left"
@@ -88,7 +80,7 @@
             </div>
 
             <div class="cover-container">
-              <CoverRipple
+              <cover-ripple
                 :src="playMusic?.picUrl ? getImgUrl(playMusic.picUrl, '800y800') : ''"
                 :size="140"
                 :borderRadius="16"
@@ -96,7 +88,7 @@
             </div>
 
             <div class="lyric-side right-side">
-              <SplitLyrics
+              <split-lyrics
                 v-if="rainConfig.rainLyricMode === 'split'"
                 mode="split"
                 side="right"
@@ -117,7 +109,13 @@
           <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
         </transition>
         <transition name="fade">
-          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" @close="showFullLyrics = false" @interact="showControls" />
+          <mobile-scrolling-lyrics
+            v-if="showFullLyrics"
+            class="scrolling-lyrics-overlay"
+            @close="showFullLyrics = false"
+            @interact="showControls"
+            @generatePoster="handleGeneratePoster"
+          />
         </transition>
 
         <!-- 顶部控件 -->
@@ -134,7 +132,7 @@
         </transition>
 
         <!-- 底部控件 -->
-        <MobileControlsArea
+        <mobile-controls-area
           :visible="controlsVisible"
           :is-fullscreen="showFullLyrics"
           @close="showFullLyrics = false"
@@ -146,6 +144,9 @@
   </teleport>
 
   <mobile-player-settings v-model:visible="showPlayerSettings" />
+
+  <!-- 歌词海报分享弹窗 -->
+  <poster-share-modal v-model:visible="showPosterModal" :lyrics="selectedLyrics" />
 </template>
 
 <script setup lang="ts">
@@ -155,8 +156,8 @@
  * 竖屏：3D 封面（带淋雨暗化） + 歌词叠加 + 底部反射
  * 横屏：左右分词歌词 + 中间封面
  */
-import { computed, ref } from 'vue';
 import { useWindowSize } from '@vueuse/core';
+import { computed, ref } from 'vue';
 
 import CoverRipple from '@/components/lyric/CoverRipple.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
@@ -164,6 +165,8 @@ import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue'
 import RainCanvas from '@/components/lyric/RainCanvas.vue';
 import SplitLyrics from '@/components/lyric/SplitLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
+import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { usePosterShare } from '@/composables/usePosterShare';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
@@ -180,10 +183,15 @@ const emit = defineEmits(['update:modelValue']);
 const playerStore = usePlayerStore();
 
 const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
-  onDoubleClick: () => { showFullLyrics.value = true; }
+  onDoubleClick: () => {
+    showFullLyrics.value = true;
+  }
 });
 
 const showFullLyrics = ref(false);
+
+// 海报分享
+const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
 
 const isVisible = computed({
   get: () => props.modelValue,
@@ -245,8 +253,12 @@ const backgroundOverlayStyle = computed(() => {
   };
 });
 
-function close() { isVisible.value = false; }
-function openPlaylist() { playerStore.setPlayListDrawerVisible(true); }
+function close() {
+  isVisible.value = false;
+}
+function openPlaylist() {
+  playerStore.setPlayListDrawerVisible(true);
+}
 </script>
 
 <style lang="scss" scoped>
@@ -264,7 +276,11 @@ function openPlaylist() { playerStore.setPlayListDrawerVisible(true); }
 }
 
 /* ===== 背景层 ===== */
-.background-layer { position: absolute; inset: 0; z-index: 0; }
+.background-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
 
 .background-cover {
   position: absolute;
@@ -277,11 +293,20 @@ function openPlaylist() { playerStore.setPlayListDrawerVisible(true); }
 }
 
 @keyframes coverPulse {
-  0% { transform: scale(1.1); filter: blur(60px) brightness(0.35) saturate(1.2); }
-  100% { transform: scale(1.15); filter: blur(60px) brightness(0.45) saturate(1.4); }
+  0% {
+    transform: scale(1.1);
+    filter: blur(60px) brightness(0.35) saturate(1.2);
+  }
+  100% {
+    transform: scale(1.15);
+    filter: blur(60px) brightness(0.45) saturate(1.4);
+  }
 }
 
-.background-overlay { position: absolute; inset: 0; }
+.background-overlay {
+  position: absolute;
+  inset: 0;
+}
 
 /* ===== 顶部歌名 ===== */
 .song-header {
@@ -293,7 +318,9 @@ function openPlaylist() { playerStore.setPlayListDrawerVisible(true); }
   opacity: 0;
   transition: opacity 0.3s ease;
   z-index: 2;
-  &.song-header-visible { opacity: 1; }
+  &.song-header-visible {
+    opacity: 1;
+  }
 }
 
 .song-header-title {
@@ -379,8 +406,8 @@ function openPlaylist() { playerStore.setPlayListDrawerVisible(true); }
   overflow: hidden;
   margin-top: -1px;
   opacity: 0.25;
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 90%);
-  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 90%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, transparent 90%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, transparent 90%);
 }
 
 .reflection-img {
@@ -422,8 +449,12 @@ function openPlaylist() { playerStore.setPlayListDrawerVisible(true); }
   justify-content: center;
 }
 
-.left-side { text-align: right; }
-.right-side { text-align: left; }
+.left-side {
+  text-align: right;
+}
+.right-side {
+  text-align: left;
+}
 
 .cover-container {
   flex-shrink: 0;
@@ -475,28 +506,36 @@ function openPlaylist() { playerStore.setPlayListDrawerVisible(true); }
   transition: opacity 0.3s ease;
 }
 .translation-fade-enter-from,
-.translation-fade-leave-to { opacity: 0; }
+.translation-fade-leave-to {
+  opacity: 0;
+}
 
 .rain-mobile-fade-enter-active,
 .rain-mobile-fade-leave-active {
   transition: opacity 0.4s ease;
 }
 .rain-mobile-fade-enter-from,
-.rain-mobile-fade-leave-to { opacity: 0; }
+.rain-mobile-fade-leave-to {
+  opacity: 0;
+}
 
 .ctrl-fade-enter-active,
 .ctrl-fade-leave-active {
   transition: opacity 0.2s ease;
 }
 .ctrl-fade-enter-from,
-.ctrl-fade-leave-to { opacity: 0; }
+.ctrl-fade-leave-to {
+  opacity: 0;
+}
 
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.25s ease;
 }
 .fade-enter-from,
-.fade-leave-to { opacity: 0; }
+.fade-leave-to {
+  opacity: 0;
+}
 
 /* ===== 顶部控件 ===== */
 .top-controls {
@@ -517,7 +556,9 @@ function openPlaylist() { playerStore.setPlayListDrawerVisible(true); }
     background: rgba(255, 255, 255, 0.08);
     cursor: pointer;
     transition: transform 160ms ease-out;
-    &:active { transform: scale(0.97); }
+    &:active {
+      transform: scale(0.97);
+    }
   }
 }
 
@@ -533,14 +574,18 @@ function openPlaylist() { playerStore.setPlayListDrawerVisible(true); }
 .scrolling-lyrics-overlay {
   position: absolute;
   inset: 0;
-  z-index: 9;
+  z-index: 40;
   color: #fff;
 }
 
 /* ===== 减少动画 ===== */
 @media (prefers-reduced-motion: reduce) {
-  .background-cover { animation: none; }
+  .background-cover {
+    animation: none;
+  }
   .rain-mobile-fade-enter-active,
-  .rain-mobile-fade-leave-active { transition: opacity 0.2s ease; }
+  .rain-mobile-fade-leave-active {
+    transition: opacity 0.2s ease;
+  }
 }
 </style>

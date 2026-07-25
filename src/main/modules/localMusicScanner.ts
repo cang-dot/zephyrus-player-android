@@ -66,7 +66,7 @@ function extractTrackNumberFromFilename(filePath: string): number {
 function extractYearFromFilename(filePath: string): number {
   const basename = path.basename(filePath);
   const match = basename.match(/\[?(19|20)\d{2}\]?/);
-  if (match) return parseInt(match[0].replace(/[\[\]()]/g, ''), 10);
+  if (match) return parseInt(match[0].replace(/[()[\]]/g, ''), 10);
   return 0;
 }
 
@@ -103,12 +103,15 @@ function extractLyrics(lyrics: mm.ILyricsTag[] | undefined): string | null {
     // 优先使用 syncText（时间戳歌词）
     const syncLyric = lyrics.find((l) => l.syncText && l.syncText.length > 0);
     if (syncLyric?.syncText) {
-      return syncLyric.syncText.map((line) => {
-        const mm = Math.floor(line.timestamp / 60000);
-        const ss = Math.floor((line.timestamp % 60000) / 1000);
-        const ms = Math.floor(line.timestamp % 1000);
-        return `[${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}.${String(ms).padStart(3, '0')}]${line.text || ''}`;
-      }).join('\n');
+      return syncLyric.syncText
+        .map((line) => {
+          const ts = line.timestamp ?? 0;
+          const mm = Math.floor(ts / 60000);
+          const ss = Math.floor((ts % 60000) / 1000);
+          const ms = Math.floor(ts % 1000);
+          return `[${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}.${String(ms).padStart(3, '0')}]${line.text || ''}`;
+        })
+        .join('\n');
     }
     // 回退到纯文本歌词
     const textLyric = lyrics.find((l) => l.text);

@@ -9,6 +9,7 @@
           <router-view></router-view>
           <traffic-warning-drawer v-if="!isElectron"></traffic-warning-drawer>
           <disclaimer-modal></disclaimer-modal>
+          <shared-song-card ref="sharedSongCardRef"></shared-song-card>
         </n-message-provider>
       </n-dialog-provider>
     </n-config-provider>
@@ -18,11 +19,12 @@
 <script setup lang="ts">
 import { cloneDeep } from 'lodash';
 import { darkTheme, lightTheme } from 'naive-ui';
-import { computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import DisclaimerModal from '@/components/common/DisclaimerModal.vue';
+import SharedSongCard from '@/components/common/SharedSongCard.vue';
 import TrafficWarningDrawer from '@/components/TrafficWarningDrawer.vue';
 import { setSmartAudioInstance, useSmartAudio } from '@/composables/useSmartAudio';
 import { registerBuiltinFeatures } from '@/features/register';
@@ -41,6 +43,7 @@ import { initLxMusicRunner } from './services/LxMusicSourceRunner';
 import { useStyleEngineStore } from './store/modules/styleEngine';
 import { isMobile } from './utils';
 import { useAppShortcuts } from './utils/appShortcuts';
+import { setSharedSongCardRef } from './utils/deepLink';
 
 const { locale } = useI18n();
 const settingsStore = useSettingsStore();
@@ -50,6 +53,9 @@ const userStore = useUserStore();
 const router = useRouter();
 const { primaryColor } = useCoverColor();
 const styleEngine = useStyleEngineStore();
+
+// SharedSongCard 组件引用
+const sharedSongCardRef = ref();
 
 // naive-ui 主题覆盖：组件强调色跟随封面取色
 const themeOverrides = computed(() => {
@@ -259,6 +265,12 @@ let focusTrapObserver: MutationObserver | null = null;
 
 onMounted(async () => {
   playerStore.setIsPlay(false);
+
+  // 注册 SharedSongCard 引用到 deepLink 模块
+  // 使剪贴板分享检测可以弹出歌曲卡片
+  watchEffect(() => {
+    setSharedSongCardRef(sharedSongCardRef.value || null);
+  });
 
   // 修复 vueuc FocusTrap 哨兵元素的 aria-hidden 警告
   focusTrapObserver = new MutationObserver(() => {

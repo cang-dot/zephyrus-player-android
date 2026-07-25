@@ -142,6 +142,19 @@ export default {
     minutesRemaining: '剩餘{minutes}分鐘',
     songsRemaining: '剩餘{count}首歌'
   },
+  // 分享功能相關
+  share: {
+    selectLyrics: '選擇歌詞',
+    selectAll: '全選',
+    deselectAll: '取消全選',
+    generatePoster: '生成海報',
+    savedToGallery: '已儲存至相簿',
+    saveFailed: '儲存失敗',
+    shareFailed: '分享失敗',
+    generating: '正在生成海報...',
+    generateFailed: '海報生成失敗',
+    posterTitle: '歌詞海報'
+  },
   playList: {
     clearAll: '清空播放清單',
     alreadyEmpty: '播放清單已經為空',

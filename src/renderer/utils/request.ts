@@ -37,9 +37,9 @@ function computeBaseURL(): string {
   if (api) return api;
   // 兜底：开发环境默认
   if (import.meta.env.DEV) return 'http://localhost:30488';
-  // 生产环境无 API 地址时返回空字符串（请求会失败但不崩溃）
-  console.warn('[request] VITE_API 未配置，非 Electron 环境下 API 请求将失败');
-  return '';
+  // 生产环境兜底：硬编码 API 地址（防止 env 文件未加载导致请求失败）
+  console.warn('[request] VITE_API 未配置，使用硬编码兜底地址');
+  return 'http://43.250.173.177';
 }
 
 const baseURL = computeBaseURL();
@@ -49,7 +49,7 @@ const isCapacitorEnv = isCapacitor();
 
 const request = axios.create({
   baseURL,
-  timeout: 8000,
+  timeout: 15000,
   withCredentials: !isCapacitorEnv
 });
 
@@ -63,7 +63,7 @@ request.interceptors.request.use(
   (config: CustomAxiosRequestConfig) => {
     try {
       setData = getSetData();
-    } catch (e) {
+    } catch {
       // 在 Pinia 未激活时（如 Axios 拦截器早期调用），使用空对象
       setData = setData || {};
     }
@@ -78,7 +78,7 @@ request.interceptors.request.use(
     config.params = {
       ...config.params,
       timestamp: Date.now(),
-      device: isElectron ? 'pc' : isMobile ? 'mobile' : isCapacitor() ? 'capacitor' : 'web'
+      device: isElectron ? 'pc' : isMobile.value ? 'mobile' : isCapacitor() ? 'capacitor' : 'web'
     };
     const token = localStorage.getItem('token');
     if (token && config.method !== 'post') {

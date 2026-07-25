@@ -143,6 +143,19 @@ export default {
     minutesRemaining: '残り{minutes}分',
     songsRemaining: '残り{count}曲'
   },
+  // シェア機能
+  share: {
+    selectLyrics: '歌詞を選択',
+    selectAll: 'すべて選択',
+    deselectAll: '選択解除',
+    generatePoster: 'ポスターを生成',
+    savedToGallery: 'ギャラリーに保存しました',
+    saveFailed: '保存に失敗しました',
+    shareFailed: '共有に失敗しました',
+    generating: 'ポスターを生成中...',
+    generateFailed: 'ポスターの生成に失敗しました',
+    posterTitle: '歌詞ポスター'
+  },
   playList: {
     clearAll: 'プレイリストをクリア',
     alreadyEmpty: 'プレイリストは既に空です',

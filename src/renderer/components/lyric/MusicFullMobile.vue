@@ -33,9 +33,7 @@
       <div
         v-show="controlsVisible"
         class="control-btn absolute right-5 flex items-center gap-2 no-toggle"
-        :class="[
-          hasSleepTimerActive ? '!w-auto !px-2' : ''
-        ]"
+        :class="[hasSleepTimerActive ? '!w-auto !px-2' : '']"
       >
         <!-- 定时器倒计时显示 -->
         <div
@@ -584,7 +582,6 @@ const scrollToCurrentLyric = (immediate = false, customScrollerRef?: HTMLElement
       containerRect.height / 2 +
       lineRect.height / 2;
 
-
     scrollerRef.scrollTo({
       top: scrollTop,
       behavior: immediate ? 'auto' : 'smooth'
@@ -596,7 +593,6 @@ const scrollToCurrentLyric = (immediate = false, customScrollerRef?: HTMLElement
 
 // 监听歌词变化，自动滚动
 watch(nowIndex, (newIndex, oldIndex) => {
-
   // 歌曲切换时不自动滚动
   if (isSongChanging.value) return;
 
@@ -751,7 +747,6 @@ const handleProgressBarClick = (e: MouseEvent) => {
   const percentage = offsetX / rect.width;
   const newTime = Math.max(0, Math.min(percentage * allTime.value, allTime.value));
 
-
   sound.value.seek(newTime);
   nowTime.value = newTime;
 };
@@ -850,7 +845,6 @@ const handleThumbTouchMove = (e: TouchEvent) => {
 
   // 实时更新UI，但不频繁seek
   nowTime.value = newTime;
-
 };
 
 const handleThumbTouchEnd = (e: TouchEvent) => {
@@ -1030,8 +1024,8 @@ const togglePlayMode = () => {
 };
 
 const closeMusicFull = () => {
-isVisible.value = false;
-playerStore.setMusicFull(false);
+  isVisible.value = false;
+  playerStore.setMusicFull(false);
 };
 
 // 移动端控件显隐状态（默认隐藏，点击屏幕弹出）
@@ -1825,6 +1819,7 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
 // 全屏歌词相关样式
 .fullscreen-lyrics {
   @apply flex flex-col w-full h-full relative;
+  z-index: 10001;
 
   &.light {
     background: linear-gradient(to bottom, #ffffff, #f5f5f5);
@@ -1943,8 +1938,10 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
     }
   }
 
+  // 竖屏全屏歌词模式下，控制区域降低层级，让歌词覆盖在上面
   .unified-controls {
     &.fullscreen-mode {
+      z-index: 10000 !important;
       background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0) 100%);
     }
 

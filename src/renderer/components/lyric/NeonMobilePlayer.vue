@@ -12,7 +12,10 @@
         <div class="ambient-glow" :style="{ opacity: beatGlowOpacity }"></div>
 
         <div class="lyrics-layer" v-show="!showFullLyrics">
-          <div class="neon-lyrics" :style="{ fontSize: lyricFontSize, fontFamily: styleCfg.customFontFamily || undefined }">
+          <div
+            class="neon-lyrics"
+            :style="{ fontSize: lyricFontSize, fontFamily: styleCfg.customFontFamily || undefined }"
+          >
             <template v-for="(char, i) in currentChars" :key="i">
               <span v-if="char === ' '" class="neon-space">&nbsp;</span>
               <neon-stroke-char
@@ -49,23 +52,32 @@
           <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
         </transition>
         <transition name="fade">
-          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" @close="showFullLyrics = false" @interact="showControls" />
+          <mobile-scrolling-lyrics
+            v-if="showFullLyrics"
+            class="scrolling-lyrics-overlay"
+            @close="showFullLyrics = false"
+            @interact="showControls"
+            @generatePoster="handleGeneratePoster"
+          />
         </transition>
 
         <!-- 底部控件（3秒自动隐藏） -->
-<MobileControlsArea
-:visible="controlsVisible"
-:is-fullscreen="showFullLyrics"
-@close="showFullLyrics = false"
-@showPlaylist="openPlaylist"
-@interact="showControls"
-/>
+        <mobile-controls-area
+          :visible="controlsVisible"
+          :is-fullscreen="showFullLyrics"
+          @close="showFullLyrics = false"
+          @showPlaylist="openPlaylist"
+          @interact="showControls"
+        />
       </div>
     </transition>
   </teleport>
 
   <!-- 播放设置弹窗 -->
   <mobile-player-settings v-model:visible="showPlayerSettings" />
+
+  <!-- 歌词海报分享弹窗 -->
+  <poster-share-modal v-model:visible="showPosterModal" :lyrics="selectedLyrics" />
 </template>
 
 <script setup lang="ts">
@@ -74,8 +86,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
-import { useTapToggle } from '@/composables/useTapToggle';
+import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { usePosterShare } from '@/composables/usePosterShare';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
+import { useTapToggle } from '@/composables/useTapToggle';
 import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { getStrokes, loadDictionary } from '@/lib/hanziStrokes';
@@ -98,10 +112,15 @@ const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor } = useCoverColor();
 const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
-  onDoubleClick: () => { showFullLyrics.value = true; }
+  onDoubleClick: () => {
+    showFullLyrics.value = true;
+  }
 });
 
 const showFullLyrics = ref(false);
+
+// 海报分享
+const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
 const controlsRef = ref();
 const { config: styleCfg } = useStyleCustomConfig('neon');
 
@@ -464,12 +483,12 @@ function formatTime(s: number): string {
 }
 
 .scrolling-lyrics-overlay {
-position: absolute;
-top: 0;
-left: 0;
-right: 0;
-bottom: 0;
-z-index: 9;
-color: #fff;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  color: #fff;
 }
 </style>

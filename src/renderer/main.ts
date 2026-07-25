@@ -24,3 +24,7 @@ app.use(pinia);
 app.use(router);
 app.use(i18n as any);
 app.mount('#app');
+
+// 注册 deep link 处理器（供原生 Android 调用）
+import { setupDeepLinkHandler } from '@/utils/deepLink';
+setupDeepLinkHandler();

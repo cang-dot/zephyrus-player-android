@@ -104,7 +104,6 @@ if (!isSingleInstance) {
 
     if (!enableGpuAcceleration) {
       app.disableHardwareAcceleration();
-    } else {
     }
   } catch (error) {
     console.error('GPU加速设置初始化失败:', error);
@@ -128,7 +127,7 @@ if (!isSingleInstance) {
 
     // 防止网络服务崩溃导致闪退
     app.on('child-process-gone', (_event, details) => {
-      if (details.type === 'utility' && details.reason === 'crashed') {
+      if (details.type === 'Utility' && details.reason === 'crashed') {
         console.warn('[Main] Network service crashed, Electron will auto-restart it');
       }
     });

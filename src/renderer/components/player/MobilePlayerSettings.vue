@@ -80,18 +80,34 @@
                   >
                     <i class="ri-font-line mr-1"></i>导入字体 (.ttf)
                   </button>
-                  <span v-if="customFontName" class="text-xs text-white/50 truncate">{{ customFontName }}</span>
+                  <span v-if="customFontName" class="text-xs text-white/50 truncate">{{
+                    customFontName
+                  }}</span>
                 </div>
 
                 <!-- Stage -->
                 <template v-if="currentPlayerStyle === 'stage'">
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-white/60">Aurora 速度</span>
-                    <input type="range" min="0.4" max="2" step="0.1" v-model.number="styleConfig.auroraSpeed" class="w-32 accent-[var(--accent-color)]" />
+                    <input
+                      type="range"
+                      min="0.4"
+                      max="2"
+                      step="0.1"
+                      v-model.number="styleConfig.auroraSpeed"
+                      class="w-32 accent-[var(--accent-color)]"
+                    />
                   </div>
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-white/60">鼓点闪白强度</span>
-                    <input type="range" min="0" max="1" step="0.05" v-model.number="styleConfig.beatFlashIntensity" class="w-32 accent-[var(--accent-color)]" />
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      v-model.number="styleConfig.beatFlashIntensity"
+                      class="w-32 accent-[var(--accent-color)]"
+                    />
                   </div>
                 </template>
 
@@ -99,11 +115,25 @@
                 <template v-if="currentPlayerStyle === 'eerie'">
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-white/60">报纸闪现频率(ms)</span>
-                    <input type="range" min="200" max="1000" step="100" v-model.number="styleConfig.newspaperFreq" class="w-32 accent-[var(--accent-color)]" />
+                    <input
+                      type="range"
+                      min="200"
+                      max="1000"
+                      step="100"
+                      v-model.number="styleConfig.newspaperFreq"
+                      class="w-32 accent-[var(--accent-color)]"
+                    />
                   </div>
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-white/60">关键词字号</span>
-                    <input type="range" min="16" max="48" step="2" v-model.number="styleConfig.keywordSize" class="w-32 accent-[var(--accent-color)]" />
+                    <input
+                      type="range"
+                      min="16"
+                      max="48"
+                      step="2"
+                      v-model.number="styleConfig.keywordSize"
+                      class="w-32 accent-[var(--accent-color)]"
+                    />
                   </div>
                 </template>
 
@@ -111,11 +141,25 @@
                 <template v-if="currentPlayerStyle === 'neon'">
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-white/60">光晕半径</span>
-                    <input type="range" min="4" max="30" step="2" v-model.number="styleConfig.glowRadius" class="w-32 accent-[var(--accent-color)]" />
+                    <input
+                      type="range"
+                      min="4"
+                      max="30"
+                      step="2"
+                      v-model.number="styleConfig.glowRadius"
+                      class="w-32 accent-[var(--accent-color)]"
+                    />
                   </div>
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-white/60">脉冲速度</span>
-                    <input type="range" min="0.5" max="3" step="0.1" v-model.number="styleConfig.pulseSpeed" class="w-32 accent-[var(--accent-color)]" />
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="3"
+                      step="0.1"
+                      v-model.number="styleConfig.pulseSpeed"
+                      class="w-32 accent-[var(--accent-color)]"
+                    />
                   </div>
                 </template>
 
@@ -123,7 +167,14 @@
                 <template v-if="currentPlayerStyle === 'frenzy'">
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-white/60">巨字字号</span>
-                    <input type="range" min="40" max="120" step="5" v-model.number="styleConfig.giantSize" class="w-32 accent-[var(--accent-color)]" />
+                    <input
+                      type="range"
+                      min="40"
+                      max="120"
+                      step="5"
+                      v-model.number="styleConfig.giantSize"
+                      class="w-32 accent-[var(--accent-color)]"
+                    />
                   </div>
                 </template>
 
@@ -131,17 +182,52 @@
                 <template v-if="currentPlayerStyle === 'magazine'">
                   <div class="flex items-center justify-between">
                     <span class="text-xs text-white/60">翻页速度(ms)</span>
-                    <input type="range" min="200" max="800" step="50" v-model.number="styleConfig.flipSpeed" class="w-32 accent-[var(--accent-color)]" />
+                    <input
+                      type="range"
+                      min="200"
+                      max="800"
+                      step="50"
+                      v-model.number="styleConfig.flipSpeed"
+                      class="w-32 accent-[var(--accent-color)]"
+                    />
                   </div>
                 </template>
               </div>
             </div>
 
-<!-- 分隔线 -->
-<div class="h-px bg-white/10 my-5"></div>
+            <!-- 分隔线 -->
+            <div class="h-px bg-white/10 my-5"></div>
 
-<!-- 播放速度 -->
-<div class="mb-6">
+            <!-- 歌词设置 -->
+            <div class="mb-6">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-white/80">
+                  <i class="ri-translate-2 mr-1"></i>
+                  歌词设置
+                </span>
+              </div>
+
+              <!-- 显示翻译 -->
+              <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                <div>
+                  <div class="text-sm text-white/80">显示翻译</div>
+                  <div class="text-xs text-white/40 mt-1">在歌词下方显示翻译文本</div>
+                </div>
+                <button
+                  class="share-toggle-switch"
+                  :class="{ on: lyricConfig.showTranslation }"
+                  @click="toggleShowTranslation"
+                >
+                  <span class="share-toggle-knob"></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 分隔线 -->
+            <div class="h-px bg-white/10 my-5"></div>
+
+            <!-- 播放速度 -->
+            <div class="mb-6">
               <div class="flex items-center justify-between mb-3">
                 <span class="text-sm font-medium text-white/80">
                   {{ t('player.settings.playbackSpeed') }}
@@ -238,6 +324,63 @@
                 class="flex items-center justify-center mt-3 text-xs text-white/30"
               >
                 <i class="ri-database-2-line mr-1"></i> 缓存结果
+              </div>
+            </div>
+
+            <!-- 分隔线 -->
+            <div class="h-px bg-white/10 my-5"></div>
+
+            <!-- 分享功能 -->
+            <div class="mb-6">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-white/80">
+                  <i class="ri-share-line mr-1"></i>
+                  分享功能
+                </span>
+              </div>
+
+              <!-- 截图自动添加二维码 -->
+              <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                <div>
+                  <div class="text-sm text-white/80">截图自动添加二维码</div>
+                  <div class="text-xs text-white/40 mt-1">截图后自动叠加歌曲深链二维码</div>
+                </div>
+                <button
+                  class="share-toggle-switch"
+                  :class="{ on: lyricConfig.shareScreenshotQRCode }"
+                  @click="toggleShareScreenshotQRCode"
+                >
+                  <span class="share-toggle-knob"></span>
+                </button>
+              </div>
+
+              <!-- 默认海报布局 -->
+              <div class="p-3 rounded-2xl bg-white/5 mb-2">
+                <div class="text-sm text-white/80 mb-2">默认海报布局</div>
+                <div class="flex gap-2">
+                  <button
+                    v-for="layout in posterLayouts"
+                    :key="layout.key"
+                    @click="setShareDefaultLayout(layout.key)"
+                    class="px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                    :class="
+                      lyricConfig.shareDefaultPosterLayout === layout.key
+                        ? 'bg-[var(--accent-color)] text-white'
+                        : 'bg-white/10 text-white/60'
+                    "
+                  >
+                    <i :class="layout.icon" class="mr-1"></i>
+                    {{ layout.label }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- 长按歌词提示 -->
+              <div class="p-3 rounded-2xl bg-white/5">
+                <div class="flex items-center gap-2 text-xs text-white/50">
+                  <i class="ri-information-line"></i>
+                  <span>在歌词页面长按歌词可进入多选模式，生成精美海报</span>
+                </div>
               </div>
             </div>
 
@@ -427,7 +570,9 @@ const analyzeLyrics = async () => {
       const { getAlbum } = await import('@/api/list');
       const res = await getAlbum(song.al.id);
       albumDesc = res?.data?.album?.description || '';
-    } catch {}
+    } catch {
+      // 忽略专辑描述获取失败
+    }
   }
   await metaphorAnalyze(lyrics, songName, artist, albumDesc);
 };
@@ -509,7 +654,9 @@ function loadStyleConfig() {
     const styleKey = config.playerStyle || 'default';
     styleConfig.value = { ...styleConfigDefaults[styleKey], ...allConfigs[styleKey] };
     customFontName.value = allConfigs[styleKey]?.customFontName || '';
-  } catch {}
+  } catch {
+    // 忽略配置读取失败
+  }
 }
 
 function saveStyleConfig() {
@@ -518,7 +665,10 @@ function saveStyleConfig() {
     if (!saved) return;
     const config = JSON.parse(saved);
     if (!config.styleCustomConfig) config.styleCustomConfig = {};
-    config.styleCustomConfig[config.playerStyle] = { ...styleConfig.value, customFontName: customFontName.value };
+    config.styleCustomConfig[config.playerStyle] = {
+      ...styleConfig.value,
+      customFontName: customFontName.value
+    };
     localStorage.setItem('music-full-config', JSON.stringify(config));
     window.dispatchEvent(new CustomEvent('music-full-config-updated'));
   } catch (e) {
@@ -557,6 +707,31 @@ function importFont() {
 }
 
 loadStyleConfig();
+
+// ==================== 歌词设置 ====================
+function toggleShowTranslation() {
+  lyricConfig.value.showTranslation = !lyricConfig.value.showTranslation;
+  localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
+  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+}
+
+// ==================== 分享功能配置 ====================
+const posterLayouts = [
+  { key: 'torn-paper' as const, label: '撕纸文艺', icon: 'ri-quill-pen-line' },
+  { key: 'immersive' as const, label: '沉浸全屏', icon: 'ri-image-line' }
+];
+
+function toggleShareScreenshotQRCode() {
+  lyricConfig.value.shareScreenshotQRCode = !lyricConfig.value.shareScreenshotQRCode;
+  localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
+  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+}
+
+function setShareDefaultLayout(layout: 'torn-paper' | 'immersive') {
+  lyricConfig.value.shareDefaultPosterLayout = layout;
+  localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
+  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+}
 
 // Props & Emits
 defineProps<{
@@ -749,5 +924,35 @@ onUnmounted(() => {
 
 .style-card:active {
   transform: scale(0.96);
+}
+
+/* 分享功能开关 */
+.share-toggle-switch {
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.12);
+  position: relative;
+  transition: background 0.3s;
+  flex-shrink: 0;
+}
+
+.share-toggle-switch.on {
+  background: var(--accent-color, #6366f1);
+}
+
+.share-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.share-toggle-switch.on .share-toggle-knob {
+  transform: translateX(18px);
 }
 </style>

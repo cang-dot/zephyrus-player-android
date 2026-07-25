@@ -64,7 +64,13 @@
           <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
         </transition>
         <transition name="fade">
-          <MobileScrollingLyrics v-if="showFullLyrics" class="scrolling-lyrics-overlay" @close="showFullLyrics = false" @interact="showControls" />
+          <mobile-scrolling-lyrics
+            v-if="showFullLyrics"
+            class="scrolling-lyrics-overlay"
+            @close="showFullLyrics = false"
+            @interact="showControls"
+            @generatePoster="handleGeneratePoster"
+          />
         </transition>
 
         <!-- 顶部控件（tap 弹出） -->
@@ -79,19 +85,22 @@
         </transition>
 
         <!-- 底部控件（3秒自动隐藏） -->
-<MobileControlsArea
-:visible="controlsVisible"
-:is-fullscreen="showFullLyrics"
-@close="showFullLyrics = false"
-@showPlaylist="openPlaylist"
-@interact="showControls"
-/>
+        <mobile-controls-area
+          :visible="controlsVisible"
+          :is-fullscreen="showFullLyrics"
+          @close="showFullLyrics = false"
+          @showPlaylist="openPlaylist"
+          @interact="showControls"
+        />
       </div>
     </transition>
   </teleport>
 
   <!-- 播放设置弹窗 -->
   <mobile-player-settings v-model:visible="showPlayerSettings" />
+
+  <!-- 歌词海报分享弹窗 -->
+  <poster-share-modal v-model:visible="showPosterModal" :lyrics="selectedLyrics" />
 </template>
 
 <script setup lang="ts">
@@ -101,8 +110,10 @@ import newspaperManifest from '@/assets/textures/newspaper/manifest.json';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
-import { useTapToggle } from '@/composables/useTapToggle';
+import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { usePosterShare } from '@/composables/usePosterShare';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
+import { useTapToggle } from '@/composables/useTapToggle';
 import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drawCracks } from '@/lib/crackRenderer';
@@ -235,10 +246,15 @@ const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor } = useCoverColor();
 const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
-  onDoubleClick: () => { showFullLyrics.value = true; }
+  onDoubleClick: () => {
+    showFullLyrics.value = true;
+  }
 });
 
 const showFullLyrics = ref(false);
+
+// 海报分享
+const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
 const controlsRef = ref();
 const { config: styleCfg } = useStyleCustomConfig('eerie');
 
@@ -350,8 +366,8 @@ const currentChars = computed(() => {
 });
 
 const fontFamily = computed(() => {
-if (styleCfg.value.customFontFamily) return styleCfg.value.customFontFamily;
-const f = eerieFontFamily.value;
+  if (styleCfg.value.customFontFamily) return styleCfg.value.customFontFamily;
+  const f = eerieFontFamily.value;
   const fallbacks: Record<string, string> = {
     KaiTi: "'KaiTi', 'STKaiti', 'Noto Serif SC', serif",
     STKaiti: "'STKaiti', 'KaiTi', 'Noto Serif SC', serif",
@@ -364,8 +380,8 @@ const f = eerieFontFamily.value;
 });
 
 const climaxFontSizePx = computed(() => {
-if (styleCfg.value.keywordSize) return `${styleCfg.value.keywordSize}px`;
-return `${eerieClimaxFontSize.value * eerieLyricScale.value}px`;
+  if (styleCfg.value.keywordSize) return `${styleCfg.value.keywordSize}px`;
+  return `${eerieClimaxFontSize.value * eerieLyricScale.value}px`;
 });
 
 // 高潮重点词：优先服务器重点词，降级到本地情感词检测（参考 FrenzyLyrics）
@@ -816,12 +832,12 @@ onBeforeUnmount(() => {
 }
 
 .scrolling-lyrics-overlay {
-position: absolute;
-top: 0;
-left: 0;
-right: 0;
-bottom: 0;
-z-index: 9;
-color: #fff;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  color: #fff;
 }
 </style>

@@ -142,6 +142,19 @@ export default {
     minutesRemaining: '남은 시간 {minutes}분',
     songsRemaining: '남은 곡 수 {count}곡'
   },
+  // 공유 기능
+  share: {
+    selectLyrics: '가사 선택',
+    selectAll: '전체 선택',
+    deselectAll: '선택 해제',
+    generatePoster: '포스터 생성',
+    savedToGallery: '갤러리에 저장됨',
+    saveFailed: '저장 실패',
+    shareFailed: '공유 실패',
+    generating: '포스터 생성 중...',
+    generateFailed: '포스터 생성 실패',
+    posterTitle: '가사 포스터'
+  },
   playList: {
     clearAll: '재생 목록 비우기',
     alreadyEmpty: '재생 목록이 이미 비어있습니다',

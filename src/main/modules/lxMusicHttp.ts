@@ -43,7 +43,6 @@ export const initLxMusicHttp = () => {
       abortControllers.set(requestId, controller);
 
       try {
-
         const fetchOptions: RequestInit = {
           method: options.method || 'GET',
           headers: {
@@ -83,7 +82,6 @@ export const initLxMusicHttp = () => {
 
         const response = await fetch(url, fetchOptions);
         clearTimeout(timeoutId);
-
 
         // 读取响应体
         const rawBody = await response.text();
@@ -134,14 +132,13 @@ export const initLxMusicHttp = () => {
       abortControllers.delete(requestId);
     }
   });
-
 };
 
 /**
  * 清理所有正在进行的请求
  */
 export const cleanupLxMusicHttp = () => {
-  for (const [requestId, controller] of abortControllers.entries()) {
+  for (const [_requestId, controller] of abortControllers.entries()) {
     controller.abort();
   }
   abortControllers.clear();

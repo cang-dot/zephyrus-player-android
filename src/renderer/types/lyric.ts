@@ -62,7 +62,10 @@ export interface LyricConfig {
   rainOpacity: number;
   rainAngle: number;
   rainLength: number;
-
+  // 分享功能配置
+  shareScreenshotQRCode: boolean; // 截图自动添加二维码（默认关闭）
+  shareDefaultPosterLayout: 'torn-paper' | 'immersive'; // 默认海报布局
+  shareDefaultFontId: string; // 默认字体 ID
 }
 
 export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
@@ -130,7 +133,10 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   rainOpacity: 0.6,
   rainAngle: 15,
   rainLength: 40,
-
+  // 分享功能默认值
+  shareScreenshotQRCode: false,
+  shareDefaultPosterLayout: 'torn-paper',
+  shareDefaultFontId: 'hengshan-maoxing'
 };
 
 export interface ILyric {

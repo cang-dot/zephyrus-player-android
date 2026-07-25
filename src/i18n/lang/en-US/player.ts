@@ -143,6 +143,19 @@ export default {
     minutesRemaining: '{minutes} min remaining',
     songsRemaining: '{count} songs remaining'
   },
+  // Share feature
+  share: {
+    selectLyrics: 'Select Lyrics',
+    selectAll: 'Select All',
+    deselectAll: 'Deselect All',
+    generatePoster: 'Generate Poster',
+    savedToGallery: 'Saved to gallery',
+    saveFailed: 'Save failed',
+    shareFailed: 'Share failed',
+    generating: 'Generating poster...',
+    generateFailed: 'Poster generation failed',
+    posterTitle: 'Lyric Poster'
+  },
   playList: {
     clearAll: 'Clear Playlist',
     alreadyEmpty: 'Playlist is already empty',

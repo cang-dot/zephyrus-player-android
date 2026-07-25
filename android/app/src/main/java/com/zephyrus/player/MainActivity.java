@@ -1,10 +1,14 @@
 package com.zephyrus.player;
 
+import android.content.ClipboardManager;
+import android.content.ClipData;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.WindowManager;
 import android.graphics.Color;
 import android.webkit.WebView;
+import android.util.Log;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.view.WindowCompat;
@@ -16,6 +20,10 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     private NativeBridge nativeBridge;
     private static MainActivity instance;
+    // 记录上次处理的剪贴板内容，避免重复处理
+    private String lastClipboardContent = "";
+    // 标记是否已通过 deep link intent 处理过（避免与剪贴板重复）
+    private boolean deepLinkHandled = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,6 +90,100 @@ public class MainActivity extends BridgeActivity {
 
         // 启动音乐播放前台服务（确保后台播放不被杀死）
         startMusicPlaybackService();
+
+        // 处理通过 deep link 启动时的初始 Intent
+        if (handleDeepLink(getIntent())) {
+            deepLinkHandled = true;
+        }
+    }
+
+    @Override
+    protected void onPostResume() {
+        super.onPostResume();
+        // 如果 deep link 已处理，跳过本次剪贴板检查
+        if (deepLinkHandled) {
+            deepLinkHandled = false;
+            return;
+        }
+        // 检查剪贴板是否包含 zephyrus:// 歌曲链接
+        checkClipboardForDeepLink();
+    }
+
+    /**
+     * 处理通过 deep link (zephyrus://song/{id}) 启动或恢复时的 Intent
+     * 将 URL 传递给 WebView，由前端 JS 解析并播放对应歌曲
+     * @return true 表示成功处理了 deep link
+     */
+    private boolean handleDeepLink(Intent intent) {
+        if (intent == null) return false;
+        Uri data = intent.getData();
+        if (data == null) return false;
+        String url = data.toString();
+        // 只处理 zephyrus:// scheme
+        if (!url.startsWith("zephyrus://")) return false;
+        Log.i("ZephyrusDeepLink", "Received deep link: " + url);
+
+        WebView webView = bridge.getWebView();
+        if (webView != null) {
+            // 统一调用 __handleClipboardShare：Intent 和剪贴板都走卡片流程
+            final String js = "window.__handleClipboardShare && window.__handleClipboardShare('" + url + "');";
+            // 延迟执行，确保前端 JS 已就绪
+            webView.postDelayed(() -> evaluateJavascript(js), 500);
+            // 兜底：1.5秒后再试一次（冷启动时 JS 可能尚未注册）
+            webView.postDelayed(() -> evaluateJavascript(js), 1500);
+            // 再次兜底：3秒后最后试一次
+            webView.postDelayed(() -> evaluateJavascript(js), 3000);
+        }
+        // 记录到 lastClipboardContent 防止 onResume 重复处理
+        lastClipboardContent = url;
+        return true;
+    }
+
+    /**
+     * 检查剪贴板是否包含 zephyrus://song/ 格式的歌曲链接
+     * 如果包含且与上次处理的不同，则传递给前端播放
+     */
+    private void checkClipboardForDeepLink() {
+        try {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard == null) return;
+            if (!clipboard.hasPrimaryClip()) return;
+            ClipData clip = clipboard.getPrimaryClip();
+            if (clip == null || clip.getItemCount() == 0) return;
+            CharSequence text = clip.getItemAt(0).coerceToText(this);
+            if (text == null) return;
+            String content = text.toString().trim();
+
+            // 检查是否是 zephyrus:// 歌曲链接
+            if (!content.startsWith("zephyrus://song/")) return;
+
+            // 避免重复处理同一内容
+            if (content.equals(lastClipboardContent)) return;
+            lastClipboardContent = content;
+
+            Log.i("ZephyrusClipboard", "Found deep link in clipboard: " + content);
+
+            // 传递给前端处理：弹出歌曲卡片
+            WebView webView = bridge.getWebView();
+            if (webView != null) {
+                final String js = "window.__handleClipboardShare && window.__handleClipboardShare('" + content + "');";
+                // 延迟执行，确保前端 JS 已就绪
+                webView.postDelayed(() -> evaluateJavascript(js), 500);
+                // 兜底：1.5秒后再试一次
+                webView.postDelayed(() -> evaluateJavascript(js), 1500);
+            }
+        } catch (Exception e) {
+            Log.w("ZephyrusClipboard", "Failed to read clipboard", e);
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (handleDeepLink(intent)) {
+            deepLinkHandled = true;
+        }
     }
 
     /**

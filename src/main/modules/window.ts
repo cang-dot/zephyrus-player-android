@@ -201,7 +201,6 @@ export function initializeWindowManager() {
       win.setResizable(true);
       win.setMaximumSize(0, 0); // 取消最大尺寸限制
 
-
       // 设置适当的最小尺寸
       const { minWidth, minHeight } = calculateMinimumWindowSize();
       win.setMinimumSize(minWidth, minHeight);
@@ -308,7 +307,6 @@ export function initializeWindowManager() {
  * 创建主窗口
  */
 export function createMainWindow(icon: Electron.NativeImage): BrowserWindow {
-
   // 获取窗口创建选项
   const options = getWindowOptions();
 
@@ -321,7 +319,6 @@ export function createMainWindow(icon: Electron.NativeImage): BrowserWindow {
     contextIsolation: true,
     webSecurity: false
   };
-
 
   // 创建窗口
   const mainWindow = new BrowserWindow(options);
@@ -393,8 +390,6 @@ export function createMainWindow(icon: Electron.NativeImage): BrowserWindow {
   });
 
   mainWindow.on('ready-to-show', () => {
-    const [width, height] = mainWindow.getSize();
-
     // 强制确保窗口使用正确的大小
     if (savedState && !savedState.isMaximized) {
       mainWindow.setSize(savedState.width, savedState.height, false);
