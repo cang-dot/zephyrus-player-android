@@ -39,6 +39,11 @@ npm run lint               # 代码检查
 
 APK 输出：`android/app/build/outputs/apk/debug/app-debug.apk`
 
+安装到设备（USB 调试）：
+```bash
+adb -s <device_id> install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
 ## 三、项目结构（关键路径）
 
 ```
@@ -81,18 +86,127 @@ zephyrus-player-android/
 │       │   └── drumDetector.ts           # 鼓点检测
 │       ├── hooks/
 │       │   ├── MusicHook.ts             # ★ 播放/歌词/进度核心
-│       │   └── useCoverColor.ts          # 封面取色
-│       ├── views/set/                   # 设置页
-│       │   ├── index.vue                # 设置主页
-│       │   └── tabs/
-│       │       ├── AboutTab.vue         # 关于（版本/协议/介绍）
-│       │       ├── InterfaceTab.vue     # 界面设置
-│       │       └── ...
+│       │   └── useCoverColor.ts          # ★ 封面取色 → 动态颜色变量
+│       ├── layout/
+│       │   ├── MobileLayout.vue          # ★ 移动端主布局
+│       │   └── components/
+│       │       └── MobileHeader.vue      # ★ 浮动顶栏（页面名+搜索框+头像）
+│       ├── views/
+│       │   ├── home/
+│       │   │   └── components/
+│       │   │       └── ModularHome.vue   # ★★ 模块化首页（核心）
+│       │   ├── set/                   # 设置页
+│       │   │   ├── index.vue                # 设置主页
+│       │   │   └── tabs/
+│       │   │       ├── AboutTab.vue         # 关于（版本/协议/介绍）
+│       │   │       ├── InterfaceTab.vue     # 界面设置
+│       │   │       └── ...
+│       │   └── ...
 │       └── i18n/lang/                   # 5 种语言
 └── package.json
 ```
 
 ## 四、核心架构要点
+
+### 模块化首页（ModularHome.vue）★★ 核心
+
+首页采用 Apple Music 风格的模块化设计，包含两大区域：
+
+1. **顶部卡片轮播区**：全屏宽度卡片，横向滑动浏览
+2. **下方功能网格区**：4 列网格，组件可变大小（1-4 宽 × 1-2 高）
+
+#### 数据模型
+
+```typescript
+interface LayoutItem {
+  type: BlockType;  // 'daily-recommend' | 'personal-fm' | 'user' | ...
+  w: number;        // 宽度：1-4（网格列数）
+  h: number;        // 高度：1-2（网格行数）
+}
+
+// 存储在 localStorage 'homeLayoutV2'，包含 cards 和 blocks 两个数组
+const cardItems = ref<LayoutItem[]>([]);
+const blockItems = ref<LayoutItem[]>([]);
+```
+
+#### 4 列可变大小网格
+
+- 网格使用 `grid-template-columns: repeat(4, 1fr)`
+- 每个组件通过 `grid-column: span {w}` 和 `grid-row: span {h}` 控制大小
+- 默认大小为 2×2（正方形），可通过编辑模式下的拖拽把手调整
+- 不同大小的组件 UI 有变化（如 3+ 宽度显示更多歌曲预览）
+
+#### 两种编辑模式
+
+| 模式 | 进入方式 | 退出方式 |
+|------|----------|----------|
+| `drag` | 长按组件 600ms 后开始拖拽 | 手指抬起时自动退出 |
+| `manual` | 长按 600ms 但未拖动 | 点击空白区域退出 |
+
+- `drag` 模式：用户长按组件进入编辑并开始拖拽，松手后自动退出
+- `manual` 模式：用户长按进入编辑但未拖动，此时可自由拖拽组件，点击空白退出
+- 编辑模式下组件会抖动（jiggle 动画），显示删除按钮和拖拽把手
+
+#### FLIP 动画系统
+
+使用 `recordRects()` + `playFlip()` 实现 First-Last-Invert-Play 动画：
+
+```typescript
+// 1. 记录变化前位置
+const beforeRects = recordRects(container, selector);
+// 2. 执行 DOM 变更（通过 Vue nextTick）
+await nextTick();
+// 3. 计算位移差并播放弹簧动画
+playFlip(container, selector, beforeRects);
+```
+
+弹簧曲线：`cubic-bezier(0.34, 1.56, 0.64, 1)`，时长 0.45s
+
+#### 跨区域拖拽
+
+- 从网格拖入卡片区：组件变为卡片样式，FLIP 动画平滑过渡
+- 从卡片拖出到网格：解除 `overflow: hidden` 防止截断，组件变为 2×2 网格块
+- 拖入卡片区时有 morph 动画（快速变圆角）
+
+#### 播放/前往按钮
+
+每个组件右下角有按钮：
+- **可播放组件**（每日推荐、私人FM）：显示播放按钮（白色圆形 + 播放图标）
+- **其他组件**：显示前往按钮（半透明圆形 + 右箭头）
+
+#### 添加菜单
+
+- 编辑模式下点击"添加"按钮弹出底部抽屉
+- 抽屉中以 2×2 缩略图形式展示可用组件
+- 缩略图可直接长按拖入主界面
+
+#### 动态取色（Dynamic Color）
+
+通过 `useCoverColor.ts` 提取当前播放歌曲封面颜色，生成 CSS 变量：
+- `--cover-bg`：背景色
+- `--cover-surface`：表面色（毛玻璃）
+- `--accent-color` / `--accent-color-dark` / `--accent-color-light`：强调色
+
+所有组件的渐变、发光、背景都使用这些变量，实现 UI 随音乐变色。
+
+### 浮动顶栏（MobileHeader.vue）
+
+所有页面统一使用浮动顶栏，包含三个超大圆角矩形 pill：
+- **页面名**（左侧）：显示当前页面标题或返回箭头
+- **搜索框**（中间）：flex-1 占满剩余空间，点击跳转搜索页
+- **头像**（右侧）：用户头像，点击跳转"我的"页面
+
+顶栏使用 `position: fixed`，`pointer-events: none`（pill 间区域允许穿透滚动），毛玻璃背景。
+
+### 页面转场动画
+
+```css
+/* Apple 风格：交叉淡入 + 微滑动 */
+.page-fade-enter-from { opacity: 0; transform: translateY(12px) scale(0.98); }
+.page-fade-leave-to { opacity: 0; transform: translateY(-8px) scale(1.01); }
+```
+
+搜索框等共享元素因位于固定顶栏中，页面切换时不会消失，自然实现"相同元素过渡"。
 
 ### 播放器样式路由
 
@@ -108,8 +222,6 @@ isMobile.value === true
   └─ style.key === 'neon'     → NeonMobilePlayer.vue
 ```
 
-竖屏和横屏均使用同一个移动端组件，通过 CSS 自适应。
-
 ### 共享组件
 
 | 组件 | 功能 |
@@ -117,48 +229,6 @@ isMobile.value === true
 | `MobileScrollingLyrics.vue` | 全屏滚动歌词：fit-content 行宽、点击文字跳转、点击空白关闭、拖动显示时间、渐变遮罩 |
 | `MobileControlsArea.vue` | 底部控件：进度条+高潮标注+按钮，3秒自动隐藏，z-index 30 |
 | `BeatFlashLayer.vue` | 鼓点闪白：高潮时段 `drumDetector` 启动，白色覆盖 150ms 衰减 |
-
-### 交互逻辑
-
-```
-单击屏幕 → 切换控件显隐（300ms 延迟区分双击）
-双击屏幕 → 进入滚动歌词（showFullLyrics = true）
-滚动歌词内：
-  ├─ 点击文字 → setAudioTime(index) 跳转进度
-  ├─ 点击空白 → emit('close') 关闭滚动歌词
-  ├─ 拖动滚动 → 右侧时间指示器 + emit('interact') 显示控件
-  └─ 点击时间指示器 → setAudioTime 跳转
-```
-
-### 自定义效果配置
-
-`useStyleCustomConfig(styleKey)` composable 从 `localStorage` 读取 `styleCustomConfig[styleKey]`：
-
-| 样式 | 参数 |
-|------|------|
-| Stage | auroraSpeed, beatFlashIntensity |
-| Eerie | newspaperFreq, keywordSize |
-| Neon | glowRadius, pulseSpeed |
-| Frenzy | giantSize |
-| Magazine | flipSpeed |
-| 通用 | customFontFamily（TTF 导入） |
-
-数据流：`MobilePlayerSettings` 滑块 → `styleConfig` watch → `saveStyleConfig()` → localStorage → `dispatchEvent` → 各组件 `useStyleCustomConfig` 重新加载 → computed 更新。
-
-### 播放控制
-
-```ts
-// 进度条 seek
-import { sound } from '@/hooks/MusicHook';
-sound.value?.seek(time);  // 直接控制音频
-
-// 播放/暂停
-import { play, pause } from '@/hooks/MusicHook';
-play();   // 或 pause()
-
-// 播放状态
-const isPlaying = computed(() => playerStore.isPlay);
-```
 
 ### 高潮数据
 
@@ -179,25 +249,7 @@ const isInClimax = computed(() => {
 });
 ```
 
-**注意**：高潮数据存在 `styleEngine`（`useStyleEngineStore`），不是 `climaxStore`（`useClimaxStore`）。`BeatFlashLayer` 和 `MobileControlsArea` 都应使用 `styleEngine.climaxSegments`。
-
-### 启动默认页
-
-路由 redirect 同步读 `localStorage`（非异步 store）：
-```ts
-redirect: () => {
-  try {
-    const saved = localStorage.getItem('settings-data');
-    if (saved) {
-      const data = JSON.parse(saved);
-      if (data.defaultPage) return data.defaultPage;
-    }
-  } catch {}
-  return '/';
-}
-```
-
-`defaultPageOptions` 仅包含移动端可用页面（移除了 `/search`、`/album`、`/toplist`）。
+**注意**：高潮数据存在 `styleEngine`（`useStyleEngineStore`），不是 `climaxStore`（`useClimaxStore`）。
 
 ## 五、代码约定
 
@@ -206,7 +258,9 @@ redirect: () => {
 - CSS：Tailwind + SCSS（scoped）
 - 平台判断：`isMobile`（`@/utils`）
 - 提交格式：`<type>: <描述>`（feat / fix / refactor / style / docs / chore）
-- **每次修改后必须 commit**
+- **每次修改后必须 commit + push**
+- 动画使用 Apple 弹簧曲线：`cubic-bezier(0.34, 1.56, 0.64, 1)`
+- 颜色使用动态 CSS 变量（`--cover-bg`, `--accent-color` 等），不硬编码
 
 ## 六、已知问题与历史修复
 
@@ -220,3 +274,7 @@ redirect: () => {
 | 控件层级被滚动歌词遮住 | z-index 不够 | `MobileControlsArea` z-index 改为 30 |
 | 启动默认页手机端无效 | 路由 redirect 依赖异步 store | 改为同步读 `localStorage` |
 | 舞台中文歌词字体 | 默认 Cormorant Garamond | 添加 Noto Serif SC |
+| FLIP 拖拽动画瞬移 | 使用双 rAF 但与 Vue 响应式不同步 | 改用 `nextTick()` + `recordRects/playFlip` |
+| 卡片拖出被容器截断 | `cards-track` 的 `overflow: hidden` | 拖出时设为 `overflow: visible` |
+| 编辑模式误触发 | 长按阈值太低 | 600ms + 10px 移动检测 |
+| 旧布局数据不兼容 | `homeLayout` 格式变化 | 自动迁移到 `homeLayoutV2` |

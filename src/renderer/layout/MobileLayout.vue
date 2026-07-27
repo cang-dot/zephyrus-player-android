@@ -200,20 +200,24 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   @apply w-full;
 }
 
-/* Apple-style page fade transition */
-.page-fade-enter-active,
+/* Apple-style page transition: shared element illusion via crossfade + slide */
+.page-fade-enter-active {
+  transition: opacity 0.35s cubic-bezier(0.32, 0.72, 0, 1),
+              transform 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+}
 .page-fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 0.25s cubic-bezier(0.32, 0.72, 0, 1),
+              transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .page-fade-enter-from {
   opacity: 0;
-  transform: scale(0.96);
+  transform: translateY(12px) scale(0.98);
 }
 
 .page-fade-leave-to {
   opacity: 0;
-  transform: scale(1.02);
+  transform: translateY(-8px) scale(1.01);
 }
 
 @media (prefers-reduced-motion: reduce) {
