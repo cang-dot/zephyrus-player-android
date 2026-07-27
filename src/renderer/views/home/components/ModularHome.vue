@@ -1347,6 +1347,8 @@ onBeforeUnmount(() => {
 /* ==================== Block Grid (4-column) ==================== */
 .block-grid {
   display: grid; grid-template-columns: repeat(4, 1fr);
+  /* Each row height = one column width (square unit) */
+  grid-auto-rows: calc((100vw - 32px - 36px) / 4);
   gap: 12px; padding: 16px 16px;
 }
 .grid-move { transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
@@ -1356,22 +1358,8 @@ onBeforeUnmount(() => {
 .block-item {
   position: relative; border-radius: 24px; overflow: hidden; cursor: pointer;
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
-  transition: transform 0.3s var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
-              grid-column 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-              grid-row 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.3s var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   min-height: 0;
-
-  /* Default size: 2x2 (square) */
-  aspect-ratio: 1;
-
-  /* Width variants override aspect ratio */
-  &.w-1 { aspect-ratio: 1 / 2; }
-  &.w-3 { aspect-ratio: 3 / 2; }
-  &.w-4 { aspect-ratio: 2 / 1; }
-  &.h-2 { aspect-ratio: 1; }
-  &.w-1.h-2 { aspect-ratio: 1 / 4; }
-  &.w-3.h-2 { aspect-ratio: 3 / 4; }
-  &.w-4.h-2 { aspect-ratio: 2 / 1; }
 
   .block-glow { position: absolute; inset: -20px; border-radius: 50%; filter: blur(30px); opacity: 0.2; z-index: 0; pointer-events: none; }
   &:active:not(.edit-mode):not(.dragging) { transform: scale(0.96); }
