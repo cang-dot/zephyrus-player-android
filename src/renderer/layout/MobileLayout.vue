@@ -6,10 +6,10 @@
     @touchstart="onLayoutTouchStart"
     @touchend="onLayoutTouchEnd"
   >
-    <!-- 顶部头部（首页不显示，使用模块化设计） -->
-    <mobile-header v-if="!isHomePage" />
+    <!-- 浮动顶栏（所有页面统一显示） -->
+    <mobile-header />
 
-    <!-- 主内容区域 -->
+    <!-- 主内容区域（铺满全屏，顶部留出浮动顶栏空间） -->
     <div
       class="mobile-content"
       :class="{ 'has-bottom-menu': shouldShowBottomMenu, 'has-player': isPlay }"
@@ -165,10 +165,15 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 
 .mobile-content {
   @apply flex-1 overflow-auto;
+  height: 100%;
+
+  /* 顶部留出浮动顶栏空间 */
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);
 
   /* 首页模块化设计占满全屏 */
   &:has(.modular-home) {
     overflow: hidden;
+    padding-top: 0;
   }
 
   /* 播放栏为 fixed 叠加层，仅需在有播放栏时补偿 */

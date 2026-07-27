@@ -12,11 +12,8 @@
 
     <!-- ==================== Scrollable Content ==================== -->
     <div ref="scrollContainer" class="home-scroll">
-      <!-- Search pill -->
-      <div class="search-pill-wrapper" @click="openSearch">
-        <i class="ri-search-line" />
-        <span>{{ t('comp.searchBar.searchPlaceholder') }}</span>
-      </div>
+      <!-- 顶部留白（浮动顶栏空间） -->
+      <div class="topbar-spacer" />
 
       <!-- ==================== Card Carousel (Apple Music style) ==================== -->
       <div v-if="cardOrder.length > 0" class="card-section">
@@ -876,8 +873,6 @@ const onCardsScroll = () => {
 
 // ==================== Item Actions ====================
 
-const openSearch = () => router.push('/mobile-search');
-
 const onItemClick = (type: BlockType) => {
   if (isEditMode.value) return;
   switch (type) {
@@ -1386,25 +1381,10 @@ onBeforeUnmount(() => {
   &::-webkit-scrollbar { display: none; }
 }
 
-/* ==================== Search Pill ==================== */
-.search-pill-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 16px;
-  margin-top: calc(var(--safe-area-inset-top, 0px) + 12px);
-  height: 44px;
-  padding: 0 16px;
-  border-radius: var(--m-radius-full, 9999px);
-  background: var(--cover-surface, rgba(0, 0, 0, 0.05));
-  backdrop-filter: blur(20px) saturate(180%);
-  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
-  font-size: 14px;
-  cursor: pointer;
-  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  i { font-size: 18px; flex-shrink: 0; }
-  span { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  &:active { transform: scale(0.97); }
+/* 顶部留白（为浮动顶栏留出空间） */
+.topbar-spacer {
+  height: calc(var(--safe-area-inset-top, 0px) + 56px);
+  flex-shrink: 0;
 }
 
 /* ==================== Card Carousel ==================== */

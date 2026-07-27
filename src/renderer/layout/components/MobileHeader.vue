@@ -1,36 +1,22 @@
 <template>
-  <div class="mobile-header" :class="{ 'safe-area-top': hasSafeArea }">
-    <!-- 左侧区域 -->
-    <div class="header-left">
-      <div v-if="showBack" class="header-btn" @click="goBack">
-        <i class="ri-arrow-left-s-line"></i>
-      </div>
-      <div v-else class="header-logo">
-        <span class="logo-text">Zephyrus</span>
-      </div>
+  <div class="floating-topbar" :class="{ 'safe-area-top': hasSafeArea }">
+    <!-- 页面名 -->
+    <div class="topbar-pill topbar-title-pill" @click="onTitleClick">
+      <i v-if="showBack" class="ri-arrow-left-s-line"></i>
+      <span class="topbar-title-text">{{ displayTitle }}</span>
     </div>
 
-    <!-- 中间区域 -->
-    <div class="header-title">
-      <!-- 首页：可点击搜索 pill -->
-      <div v-if="isHomePage" class="header-search-pill" @click="openSearch">
-        <i class="ri-search-line"></i>
-        <span>{{ t('comp.searchBar.searchPlaceholder') }}</span>
-      </div>
-      <span v-else-if="title">{{ t(title) }}</span>
+    <!-- 搜索框 -->
+    <div class="topbar-pill topbar-search-pill" @click="openSearch">
+      <i class="ri-search-line"></i>
+      <span class="topbar-search-text">{{ t('comp.searchBar.searchPlaceholder') }}</span>
     </div>
 
-    <!-- 右侧区域 -->
-    <div class="header-right">
-      <div v-if="!isHomePage" class="header-btn" @click="openSearch">
-        <i class="ri-search-line"></i>
-      </div>
-      <!-- 首页：用户头像，点击跳转「我的」页 -->
-      <div v-if="isHomePage" class="header-avatar" @click="goToUser">
-        <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-img" />
-        <div v-else class="avatar-placeholder">
-          <i class="ri-user-3-line"></i>
-        </div>
+    <!-- 头像 -->
+    <div class="topbar-pill topbar-avatar-pill" @click="goToUser">
+      <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-img" />
+      <div v-else class="avatar-placeholder">
+        <i class="ri-user-3-line"></i>
       </div>
     </div>
   </div>
@@ -51,157 +37,148 @@ const userStore = useUserStore();
 
 const hasSafeArea = inject('hasSafeArea', false);
 
-const showBack = computed(() => {
-  return route.meta.back === true;
+const showBack = computed(() => route.meta.back === true);
+
+const displayTitle = computed(() => {
+  if (route.path === '/') return 'Zephyrus';
+  const title = route.meta.title as string;
+  return title ? t(title) : '';
 });
 
-// 首页展示搜索 pill 而非标题
-const isHomePage = computed(() => route.path === '/');
-
-const title = computed(() => {
-  return (route.meta.title as string) || '';
-});
-
-const goBack = () => {
-  router.back();
-};
-
-// 打开搜索
-const openSearch = () => {
-  router.push('/mobile-search');
-};
-
-const openSettings = () => {
-  router.push('/set');
-};
-
-// 跳转到「我的」页面
-const goToUser = () => {
-  router.push('/user');
-};
-
-// 用户头像 URL
 const avatarUrl = computed(() => {
   const url = userStore.user?.avatarUrl;
   return url ? getImgUrl(url, '72y72') : '';
 });
+
+const onTitleClick = () => {
+  if (showBack.value) router.back();
+};
+
+const openSearch = () => router.push('/mobile-search');
+
+const goToUser = () => router.push('/user');
 </script>
 
 <style lang="scss" scoped>
-.mobile-header {
-  @apply flex items-center justify-between px-4 py-3;
-  border-bottom: 1px solid var(--m-border, transparent);
-  background: var(--m-bg, var(--bg-color));
-  min-height: 56px;
-  flex-shrink: 0;
-
-  &.safe-area-top {
-    padding-top: var(--safe-area-inset-top, 0px);
-    transition: padding-top 0.2s ease;
-  }
+.floating-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  padding-top: var(--safe-area-inset-top, 0px);
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 8px);
+  padding-bottom: 8px;
+  pointer-events: none; /* allow scroll-through on gaps */
+  transition: padding-top 0.3s ease;
 }
 
-.header-left {
-  @apply flex items-center;
-  min-width: 80px;
-}
-
-.header-logo {
-  @apply flex items-center;
-
-  .logo-text {
-    font-family: var(--m-font-serif, 'Cormorant Garamond', serif);
-    font-weight: 700;
-    font-size: 20px;
-    color: var(--m-text-primary, var(--text-color));
-  }
-}
-
-.header-title {
-  @apply flex-1 text-center min-w-0;
-
-  span {
-    font-size: 16px;
-    font-weight: 500;
-    color: var(--m-text-primary, var(--text-color));
-  }
-}
-
-/* 首页搜索 pill */
-.header-search-pill {
-  @apply flex items-center gap-2 px-4 mx-1;
-  height: 36px;
-  border-radius: var(--m-radius-full, 9999px);
-  background: var(--m-surface, rgba(0, 0, 0, 0.05));
-  color: var(--m-text-muted, #9a9590);
-  font-size: 13px;
+.topbar-pill {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  border-radius: 20px;
+  background: var(--cover-surface, rgba(255, 255, 255, 0.08));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--cover-border, rgba(255, 255, 255, 0.06));
   cursor: pointer;
-  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  pointer-events: auto;
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.4s ease, border-color 0.4s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+/* 页面名 */
+.topbar-title-pill {
+  flex-shrink: 0;
+  padding: 0 14px;
+  gap: 2px;
+  max-width: 120px;
 
   i {
-    font-size: 16px;
+    font-size: 22px;
+    color: var(--cover-text-primary, var(--text-color));
     flex-shrink: 0;
   }
-
-  span {
-    @apply truncate flex-1 text-left;
-    font-size: 13px;
-    font-weight: 400;
-    color: var(--m-text-muted, #9a9590);
-  }
-
-  &:active {
-    transform: scale(0.97);
-  }
 }
 
-.header-right {
-  @apply flex items-center gap-2;
-  min-width: 80px;
-  justify-content: flex-end;
-}
-
-.header-btn {
-  @apply flex items-center justify-center;
-  @apply w-10 h-10 rounded-full;
-  @apply text-xl;
-  color: var(--m-text-secondary, #6b6560);
-  @apply transition-colors duration-150;
-  cursor: pointer;
-
-  &:active {
-    background: var(--m-surface, rgba(0, 0, 0, 0.05));
-  }
-}
-
-/* 首页用户头像 */
-.header-avatar {
-  @apply flex items-center justify-center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+.topbar-title-text {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--cover-text-primary, var(--text-color));
+  white-space: nowrap;
   overflow: hidden;
-  cursor: pointer;
-  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  text-overflow: ellipsis;
+  transition: opacity 0.25s ease;
+}
 
-  &:active {
-    transform: scale(0.92);
+/* 搜索框 */
+.topbar-search-pill {
+  flex: 1;
+  min-width: 0;
+  padding: 0 14px;
+  gap: 8px;
+
+  i {
+    font-size: 17px;
+    color: var(--cover-text-muted, #9a9590);
+    flex-shrink: 0;
   }
+}
+
+.topbar-search-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--cover-text-muted, #9a9590);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+/* 头像 */
+.topbar-avatar-pill {
+  flex-shrink: 0;
+  padding: 3px;
+  width: 40px;
+  height: 40px;
+  justify-content: center;
 }
 
 .avatar-img {
   width: 100%;
   height: 100%;
+  border-radius: 17px;
   object-fit: cover;
 }
 
 .avatar-placeholder {
-  @apply flex items-center justify-center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 100%;
-  border-radius: 50%;
-  background: var(--m-surface, rgba(0, 0, 0, 0.05));
-  color: var(--m-text-muted, #9a9590);
+  border-radius: 17px;
+  background: var(--cover-surface-hover, rgba(255, 255, 255, 0.12));
+  color: var(--cover-text-muted, #9a9590);
   font-size: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topbar-pill {
+    transition: none;
+  }
 }
 </style>
