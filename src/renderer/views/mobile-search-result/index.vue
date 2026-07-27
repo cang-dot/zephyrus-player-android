@@ -5,11 +5,19 @@
       <div class="header-back" @click="goBack">
         <i class="ri-arrow-left-s-line"></i>
       </div>
-      <div class="header-keyword">{{ keyword }}</div>
-      <div class="header-actions">
-        <div class="action-btn" @click="openSearch">
-          <i class="ri-search-line"></i>
-        </div>
+      <div class="search-input-wrapper">
+        <i class="ri-search-line search-icon"></i>
+        <input
+          ref="headerSearchInputRef"
+          v-model="headerSearchValue"
+          type="text"
+          class="search-input"
+          @keydown.enter="handleHeaderSearch"
+        />
+        <i v-if="headerSearchValue" class="ri-close-circle-fill clear-icon" @click="clearHeaderSearch"></i>
+      </div>
+      <div class="search-button" @click="handleHeaderSearch">
+        {{ t('common.search') }}
       </div>
     </div>
 
@@ -43,19 +51,19 @@
     <!-- 搜索结果列表 -->
     <div class="result-content" @scroll="handleScroll">
       <!-- 加载中 -->
-      <div v-if="loading && !results.length" class="loading-state">
+      <div v-if="loading && !results.length && !artistResults.length" class="loading-state">
         <n-spin size="medium" />
         <span class="ml-2">{{ t('search.loading.searching') }}</span>
       </div>
 
-      <!-- 跨平台搜索加载提示 -->
+      <!-- 跨平台搜索加载提示（独立显示，不隐藏已有结果） -->
       <div v-if="crossSearchLoading" class="cross-search-loading">
         <i class="ri-loader-4-line animate-spin"></i>
         <span>正在搜索其他音源...</span>
       </div>
 
       <!-- 搜索结果 -->
-      <div v-else-if="results.length" class="result-list">
+      <div v-if="results.length || artistResults.length" class="result-list">
         <!-- 歌曲搜索 -->
 <template v-if="searchType === SEARCH_TYPE.MUSIC">
 <div
@@ -78,8 +86,42 @@ class="source-badge"
 </div>
 </template>
 
+        <!-- 歌手搜索 -->
+        <template v-if="searchType === SEARCH_TYPE.ARTIST">
+          <div v-if="artistResults.length" class="artist-list">
+            <div
+              v-for="(item, index) in artistResults"
+              :key="item.id"
+              class="artist-item"
+              @click="goToArtist(item.id)"
+            >
+              <div class="artist-avatar">
+                <n-image
+                  :src="getImgUrl(item.picUrl || item.img1v1Url, '200y200')"
+                  lazy
+                  preview-disabled
+                  class="w-full h-full object-cover rounded-full"
+                />
+              </div>
+              <div class="artist-info">
+                <div class="artist-name-row">
+                  <span class="artist-name">{{ item.name }}</span>
+                  <span v-if="index === 0 && item.matchedSong" class="artist-badge">
+                    演唱过《{{ item.matchedSong }}》
+                  </span>
+                </div>
+                <div class="artist-meta">
+                  <span v-if="item.musicSize" class="meta-item">{{ item.musicSize }}首单曲</span>
+                  <span v-if="item.albumSize" class="meta-item">{{ item.albumSize }}张专辑</span>
+                </div>
+              </div>
+              <i class="ri-arrow-right-s-line artist-arrow"></i>
+            </div>
+          </div>
+        </template>
+
         <!-- 专辑/歌单/MV 搜索 -->
-        <template v-else>
+        <template v-else-if="searchType !== SEARCH_TYPE.MUSIC">
           <search-item v-for="item in results" :key="item.id" :item="item" class="mb-3" />
         </template>
 
@@ -90,13 +132,13 @@ class="source-badge"
         </div>
 
         <!-- 没有更多 -->
-        <div v-if="!hasMore && results.length" class="no-more">
+        <div v-if="!hasMore && (results.length || artistResults.length)" class="no-more">
           {{ t('search.noMore') }}
         </div>
       </div>
 
       <!-- 无结果 -->
-      <div v-else-if="!loading" class="empty-state">
+      <div v-else-if="!loading && !results.length && !artistResults.length" class="empty-state">
         <i class="ri-search-line"></i>
         <span>{{ t('comp.musicList.noSearchResults') }}</span>
       </div>
@@ -110,6 +152,7 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import { crossPlatformSearch } from '@/api/crossPlatformSearch';
+import { searchServerSongs, type ServerSong } from '@/api/serverSongs';
 import { getSearch } from '@/api/search';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
@@ -123,6 +166,8 @@ import {
 } from '@/services/sourceProbeService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSearchStore } from '@/store/modules/search';
+import type { Artist, SongResult } from '@/types/music';
+import { getImgUrl } from '@/utils';
 
 const { t, locale } = useI18n();
 const route = useRoute();
@@ -135,6 +180,29 @@ const hasSafeArea = inject('hasSafeArea', false);
 
 // 搜索关键词
 const keyword = ref((route.query.keyword as string) || '');
+
+// 顶栏搜索框
+const headerSearchInputRef = ref<HTMLInputElement | null>(null);
+const headerSearchValue = ref(keyword.value);
+
+const handleHeaderSearch = () => {
+  const kw = headerSearchValue.value.trim();
+  if (!kw) return;
+  keyword.value = kw;
+  router.replace({
+    path: '/mobile-search-result',
+    query: { ...route.query, keyword: kw }
+  });
+  performSearch();
+};
+
+const clearHeaderSearch = () => {
+  headerSearchValue.value = '';
+  headerSearchInputRef.value?.focus();
+};
+
+// 歌手搜索结果
+const artistResults = ref<any[]>([]);
 
 // 搜索类型
 const searchType = ref(Number(route.query.type) || searchStore.searchType || 1);
@@ -199,10 +267,13 @@ const sourceFilterOptions = computed(() => {
 
 const filteredResults = computed(() => {
   sourceLabelVersion.value;
-  if (activeSourceFilter.value === 'all') return results.value;
-  return results.value.filter(
-    (song) => getCachedLabel(String(song.id)) === activeSourceFilter.value
-  );
+  let list = results.value;
+  if (activeSourceFilter.value !== 'all') {
+    list = list.filter(
+      (song) => getCachedLabel(String(song.id)) === activeSourceFilter.value
+    );
+  }
+  return list;
 });
 
 // 分页
@@ -221,8 +292,10 @@ const performSearch = async (isLoadMore = false) => {
   } else {
     loading.value = true;
     results.value = [];
+    artistResults.value = [];
     page.value = 1;
     hasMore.value = true;
+    activeSourceFilter.value = 'all';
   }
 
   try {
@@ -250,10 +323,77 @@ const performSearch = async (isLoadMore = false) => {
 
       hasMore.value = songs.length === ITEMS_PER_PAGE;
 
-      // 第一页时触发跨平台搜索
+      // 第一页时触发跨平台搜索和云端搜索
       if (!isLoadMore) {
         triggerCrossSearch(keyword.value, songs);
+        triggerServerSearch(keyword.value, songs);
       }
+    }
+    // 歌手搜索
+    else if (searchType.value === SEARCH_TYPE.ARTIST) {
+      // 先搜索歌曲，拿到最匹配歌曲的歌手信息
+      let topSongArtist: { id: number; name: string; songName: string } | null = null;
+      try {
+        const songRes = await getSearch({
+          keywords: keyword.value,
+          type: SEARCH_TYPE.MUSIC,
+          limit: 1,
+          offset: 0
+        });
+        const topSong = songRes.data?.result?.songs?.[0];
+        if (topSong) {
+          const firstArtist = topSong.ar?.[0] || topSong.artists?.[0];
+          if (firstArtist) {
+            topSongArtist = {
+              id: firstArtist.id,
+              name: firstArtist.name,
+              songName: topSong.name
+            };
+          }
+        }
+      } catch (e) {
+        console.error('[歌曲搜索失败]:', e);
+      }
+
+      // 搜索歌手
+      const { data } = await getSearch({
+        keywords: keyword.value,
+        type: searchType.value,
+        limit: ITEMS_PER_PAGE,
+        offset: (page.value - 1) * ITEMS_PER_PAGE
+      });
+
+      const artists = (data.result?.artists || []).map((item: any) => ({
+        ...item,
+        type: 'artist'
+      }));
+
+      // 如果有最匹配歌曲的歌手，将其提到第一位并标注
+      if (topSongArtist) {
+        const idx = artists.findIndex((a: any) => a.id === topSongArtist!.id);
+        if (idx >= 0) {
+          // 已在列表中，移动到第一位并标注
+          const [found] = artists.splice(idx, 1);
+          found.matchedSong = topSongArtist.songName;
+          artists.unshift(found);
+        } else {
+          // 不在搜索结果中，插入到第一位
+          artists.unshift({
+            id: topSongArtist.id,
+            name: topSongArtist.name,
+            matchedSong: topSongArtist.songName,
+            type: 'artist'
+          });
+        }
+      }
+
+      if (isLoadMore) {
+        artistResults.value = [...artistResults.value, ...artists];
+      } else {
+        artistResults.value = artists;
+      }
+
+      hasMore.value = artists.length === ITEMS_PER_PAGE;
     }
     // 专辑搜索
     else if (searchType.value === SEARCH_TYPE.ALBUM) {
@@ -360,6 +500,102 @@ const triggerCrossSearch = async (kw: string, neteaseSongs: any[]) => {
   }
 };
 
+/**
+ * 将 ServerSong 转换为 SongResult 格式
+ */
+function convertServerSongToSongResult(s: ServerSong): SongResult {
+  const artists: Artist[] = s.artists.map((name, idx) => ({
+    name,
+    id: idx,
+    picId: 0,
+    img1v1Id: 0,
+    briefDesc: '',
+    picUrl: '',
+    img1v1Url: '',
+    albumSize: 0,
+    alias: [],
+    trans: '',
+    musicSize: 0,
+    topicPerson: 0
+  }));
+
+  const album = {
+    name: s.album || '',
+    id: 0,
+    type: '',
+    size: 0,
+    picId: 0,
+    blurPicUrl: '',
+    companyId: 0,
+    pic: 0,
+    picUrl: s.picUrl || '',
+    publishTime: 0,
+    description: '',
+    tags: '',
+    company: '',
+    briefDesc: '',
+    artist: artists[0] || ({} as Artist),
+    songs: [],
+    alias: [],
+    status: 0,
+    copyrightId: 0,
+    commentThreadId: '',
+    artists,
+    subType: '',
+    transName: null,
+    onSale: false,
+    mark: 0,
+    picId_str: ''
+  };
+
+  return {
+    id: `server:${s.id}`,
+    name: s.name,
+    picUrl: s.picUrl,
+    ar: artists,
+    artists,
+    al: album,
+    album,
+    count: s.duration,
+    dt: s.duration,
+    platform: 'server',
+    platformId: s.id,
+    playMusicUrl: s.audioUrl,
+    source: 'netease' as any
+  };
+}
+
+// Zephyrus 云端歌曲搜索
+const triggerServerSearch = async (kw: string, existingSongs: any[]) => {
+  try {
+    const serverSongs = await searchServerSongs(kw, 20);
+    if (serverSongs.length === 0) return;
+
+    // 转换为 SongResult
+    const songResults = serverSongs.map(convertServerSongToSongResult);
+
+    // 去重（与已有结果合并）
+    const existingKeys = new Set(
+      existingSongs.map((s: any) =>
+        `${(s.name || '').toLowerCase()}|${(s.ar || s.artists || []).map((a: any) => a.name).join(',')}`.toLowerCase()
+      )
+    );
+    const deduped = songResults.filter(
+      (s) =>
+        !existingKeys.has(
+          `${(s.name || '').toLowerCase()}|${s.ar?.map((a) => a.name).join(',')}`.toLowerCase()
+        )
+    );
+
+    if (deduped.length > 0) {
+      results.value = [...results.value, ...deduped];
+      classifySongs(deduped);
+    }
+  } catch (e) {
+    console.error('[云端歌曲搜索失败]:', e);
+  }
+};
+
 // 选择搜索类型
 const selectType = (type: number) => {
   if (searchType.value === type) return;
@@ -398,9 +634,9 @@ const goBack = () => {
   router.back();
 };
 
-// 打开搜索
-const openSearch = () => {
-  router.push('/mobile-search');
+// 跳转歌手详情
+const goToArtist = (id: number) => {
+  router.push({ name: 'artistDetail', params: { id } });
 };
 
 // 监听路由变化
@@ -409,6 +645,7 @@ watch(
   (query) => {
     if (route.path === '/mobile-search-result' && query.keyword) {
       keyword.value = query.keyword as string;
+      headerSearchValue.value = keyword.value;
       searchType.value = Number(query.type) || searchStore.searchType || 1;
       performSearch();
     }
@@ -434,7 +671,7 @@ onMounted(() => {
   @apply border-b border-gray-100 dark:border-gray-800;
 
   &.safe-area-top {
-    padding-top: calc(var(--safe-area-inset-top, 0px) + 12px);
+    padding-top: var(--safe-area-inset-top, 0px);
   }
 }
 
@@ -445,21 +682,35 @@ onMounted(() => {
   @apply active:bg-gray-100 dark:active:bg-gray-800;
 }
 
-.header-keyword {
-  @apply flex-1 text-base font-medium;
-  @apply text-gray-900 dark:text-white;
-  @apply truncate;
+.search-input-wrapper {
+  @apply flex-1 flex items-center gap-2;
+  @apply rounded-full;
+  @apply px-4 py-1;
+  background: var(--m-surface, #eae6df);
 }
 
-.header-actions {
-  @apply flex items-center gap-2;
+.search-icon {
+  @apply text-gray-400 text-lg;
 }
 
-.action-btn {
-  @apply flex items-center justify-center;
-  @apply w-10 h-10 rounded-full text-xl;
-  @apply text-gray-600 dark:text-gray-300;
-  @apply active:bg-gray-100 dark:active:bg-gray-800;
+.search-input {
+  @apply flex-1 bg-transparent border-none outline-none;
+  @apply text-base;
+  color: var(--m-text-primary, #2c2c2c);
+
+  &::placeholder {
+    color: var(--m-text-muted, #9a9590);
+  }
+}
+
+.clear-icon {
+  @apply text-lg cursor-pointer;
+  color: var(--m-text-muted, #9a9590);
+}
+
+.search-button {
+  @apply text-sm font-medium whitespace-nowrap;
+  color: var(--accent-color, #6366f1);
 }
 
 .search-types {
@@ -486,8 +737,9 @@ onMounted(() => {
 }
 
 .loading-state {
-@apply flex flex-col items-center justify-center py-20;
-@apply text-gray-500 dark:text-gray-400;
+  @apply flex flex-col items-center justify-center;
+  @apply h-full py-20;
+  @apply text-gray-500 dark:text-gray-400;
 }
 
 .cross-search-loading {
@@ -506,7 +758,7 @@ font-size: 14px;
 
 .source-chip {
 @apply px-2.5 py-1 rounded-full text-xs font-medium transition-colors;
-@apply bg-white/5 text-white/60;
+@apply bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400;
 }
 
 .source-chip-active {
@@ -543,5 +795,54 @@ background: var(--accent-color, #6366f1);
   i {
     @apply text-6xl mb-4;
   }
+}
+
+.artist-list {
+  @apply px-4 py-2;
+}
+
+.artist-item {
+  @apply flex items-center gap-3 py-3 cursor-pointer;
+  @apply transition-colors duration-200;
+  @apply active:bg-gray-50 dark:active:bg-gray-800/50;
+  @apply rounded-xl px-2;
+}
+
+.artist-avatar {
+  @apply w-14 h-14 rounded-full overflow-hidden flex-shrink-0;
+  @apply bg-gray-100 dark:bg-gray-800;
+}
+
+.artist-info {
+  @apply flex-1 min-w-0;
+}
+
+.artist-name-row {
+  @apply flex items-center gap-2 flex-wrap;
+}
+
+.artist-name {
+  @apply text-base font-medium;
+  @apply text-gray-900 dark:text-white;
+}
+
+.artist-badge {
+  @apply text-xs px-2 py-0.5 rounded-full;
+  background: color-mix(in srgb, var(--accent-color, #6366f1) 10%, transparent);
+  color: var(--accent-color, #6366f1);
+}
+
+.artist-meta {
+  @apply flex items-center gap-3 mt-1;
+}
+
+.meta-item {
+  @apply text-xs;
+  color: var(--m-text-muted, #9a9590);
+}
+
+.artist-arrow {
+  @apply text-xl flex-shrink-0;
+  color: var(--m-text-muted, #9a9590);
 }
 </style>

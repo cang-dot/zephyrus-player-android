@@ -148,13 +148,15 @@ export default {
     selectLyrics: '歌詞を選択',
     selectAll: 'すべて選択',
     deselectAll: '選択解除',
+    copyLyrics: '歌詞をコピー',
     generatePoster: 'ポスターを生成',
     savedToGallery: 'ギャラリーに保存しました',
     saveFailed: '保存に失敗しました',
     shareFailed: '共有に失敗しました',
     generating: 'ポスターを生成中...',
     generateFailed: 'ポスターの生成に失敗しました',
-    posterTitle: '歌詞ポスター'
+    posterTitle: '歌詞ポスター',
+    lyricsTruncated: '選択が長すぎるため、12行に切り詰めました'
   },
   playList: {
     clearAll: 'プレイリストをクリア',

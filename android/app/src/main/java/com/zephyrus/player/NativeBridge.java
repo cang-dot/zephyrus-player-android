@@ -47,16 +47,42 @@ public class NativeBridge {
     public String getSafeAreaInsets() {
         JSONObject result = new JSONObject();
         try {
-            // 沉浸模式下系统栏已隐藏，safe-area insets 返回 0
-            // 内容从屏幕最顶端开始铺满，无需为状态栏/导航栏留出避让空间
-            result.put("top", 0);
+            // 优先使用 DisplayCutout API 获取精确挖孔避让高度
+            int top = getCutoutSafeInsetTop();
+            // 回退：如果没有挖孔或获取失败，使用状态栏高度
+            if (top <= 0) {
+                top = getStatusBarHeight();
+            }
+            result.put("top", top);
             result.put("bottom", 0);
             result.put("left", 0);
             result.put("right", 0);
+            result.put("density", activity.getResources().getDisplayMetrics().density);
         } catch (Exception e) {
             // ignore
         }
         return result.toString();
+    }
+
+    /**
+     * 通过 DisplayCutout API 获取挖孔区域的安全避让高度（像素）
+     * 仅在 API 28+ 可用
+     */
+    private int getCutoutSafeInsetTop() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P) {
+            return 0;
+        }
+        try {
+            android.view.View decorView = activity.getWindow().getDecorView();
+            if (decorView == null) return 0;
+            android.view.WindowInsets insets = decorView.getRootWindowInsets();
+            if (insets == null) return 0;
+            android.view.DisplayCutout cutout = insets.getDisplayCutout();
+            if (cutout == null) return 0;
+            return cutout.getSafeInsetTop();
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     /**

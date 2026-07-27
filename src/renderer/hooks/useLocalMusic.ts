@@ -23,7 +23,7 @@ const getMessage = () => {
 */
 export function isLocalSong(song: SongResult | null | undefined): boolean {
 if (!song) return false;
-// 跨平台歌曲（非网易云）不是本地歌曲
+// 云端托管歌曲和跨平台歌曲不是本地歌曲
 if (song.platform && song.platform !== 'netease') return false;
 return song.playMusicUrl?.startsWith('local://') || typeof song.id === 'string';
 }

@@ -147,13 +147,15 @@ export default {
     selectLyrics: '가사 선택',
     selectAll: '전체 선택',
     deselectAll: '선택 해제',
+    copyLyrics: '가사 복사',
     generatePoster: '포스터 생성',
     savedToGallery: '갤러리에 저장됨',
     saveFailed: '저장 실패',
     shareFailed: '공유 실패',
     generating: '포스터 생성 중...',
     generateFailed: '포스터 생성 실패',
-    posterTitle: '가사 포스터'
+    posterTitle: '가사 포스터',
+    lyricsTruncated: '선택이 너무 길어 12줄로 잘렸습니다'
   },
   playList: {
     clearAll: '재생 목록 비우기',

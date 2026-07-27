@@ -9,7 +9,10 @@
   >
     <div
       id="mobile-drawer-target"
+      ref="drawerTargetRef"
       @click="handleTapToggle"
+      @touchstart="onDrawerTouchStart"
+      @touchend="onDrawerTouchEnd"
       :class="[
         config.theme,
         `cover-style-${config.mobileCoverStyle}`,
@@ -393,6 +396,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n';
 
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
+import { useSwipeClose } from '@/composables/useSwipeClose';
 import {
   allTime,
   artistList,
@@ -499,6 +503,13 @@ const touchStartY = ref(0);
 const lastScrollTop = ref(0);
 const autoScrollTimer = ref<number | null>(null);
 const isSongChanging = ref(false);
+
+// 下滑关闭手势
+const drawerTargetRef = ref<HTMLElement | null>(null);
+const { onTouchStart: onDrawerTouchStart, onTouchEnd: onDrawerTouchEnd } = useSwipeClose({
+  shouldClose: () => !showFullLyrics.value && !isLandscape.value,
+  onClose: () => closeMusicFull()
+});
 
 // 横屏检测相关
 const { width, height } = useWindowSize();

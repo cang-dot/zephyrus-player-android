@@ -98,7 +98,7 @@ const handleItemClick = (item: any) => {
 
 .page-header {
   flex-shrink: 0;
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 16px);
+  padding-top: var(--safe-area-inset-top, 0px);
   padding-bottom: 12px;
 }
 

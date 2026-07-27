@@ -172,8 +172,8 @@ export const usePlayerCoreStore = defineStore(
 
         if (userPlayIntent.value && play.value) {
           checkPlaybackRetryCount++;
-          // 本地音乐不需要刷新 URL
-          if (!playMusic.value.playMusicUrl?.startsWith('local://')) {
+          // 本地音乐和云端歌曲不需要刷新 URL
+          if (!playMusic.value.playMusicUrl?.startsWith('local://') && playMusic.value.platform !== 'server') {
             playMusic.value.playMusicUrl = undefined;
           }
           const refreshedSong = { ...song, isFirstPlay: true };
@@ -232,8 +232,8 @@ export const usePlayerCoreStore = defineStore(
 
           checkPlaybackRetryCount++;
 
-          // 本地音乐不需要刷新 URL
-          if (!playMusic.value.playMusicUrl?.startsWith('local://')) {
+          // 本地音乐和云端歌曲不需要刷新 URL
+          if (!playMusic.value.playMusicUrl?.startsWith('local://') && playMusic.value.platform !== 'server') {
             playMusic.value.playMusicUrl = undefined;
           }
           (async () => {
@@ -285,6 +285,23 @@ export const usePlayerCoreStore = defineStore(
       // 本地歌曲：使用专属逻辑加载歌词（不走网易云 API）
       const [lyrics, { backgroundColor, primaryColor }] = await Promise.all([
         (async () => {
+          // 云端托管歌曲：从服务器加载歌词
+          if (music.platform === 'server' && music.platformId) {
+            try {
+              const { getServerSongDetail } = await import('@/api/serverSongs');
+              const detail = await getServerSongDetail(music.platformId);
+              if (detail.lyricsText) {
+                const { parseLyricContent } = await import('@/utils/localMusicUtils');
+                const parsed = parseLyricContent(detail.lyricsText);
+                if (parsed && parsed.lrcTimeArray.length > 0) {
+                  return parsed;
+                }
+              }
+            } catch (e) {
+              console.warn('[云端歌曲] 歌词加载失败:', e);
+            }
+            return { lrcTimeArray: [], lrcArray: [], hasWordByWord: false };
+          }
           // 本地歌曲始终走专属歌词加载（优先级：外部 .lrc → 内嵌歌词 → 社区歌词）
           if (isLocalSong(music)) {
             return await localMusic.loadLocalLyrics(music);
@@ -630,14 +647,15 @@ export const usePlayerCoreStore = defineStore(
         try {
           const isPlaying = settingStore.setData.autoPlay;
 
-          // 本地音乐（local:// 协议）不需要重新获取 URL，保留原始路径
+          // 本地音乐和云端歌曲不需要重新获取 URL，保留原始路径
           const isLocalMusic = playMusic.value.playMusicUrl?.startsWith('local://');
+          const isServerMusic = playMusic.value.platform === 'server';
 
           await handlePlayMusic(
             {
               ...playMusic.value,
               isFirstPlay: true,
-              playMusicUrl: isLocalMusic ? playMusic.value.playMusicUrl : undefined
+              playMusicUrl: (isLocalMusic || isServerMusic) ? playMusic.value.playMusicUrl : undefined
             },
             isPlaying
           );

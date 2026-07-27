@@ -98,7 +98,7 @@ const getCurrentMv = () => {
 };
 
 const handleClick = async () => {
-  if (props.item.type === '专辑') {
+  if (props.item.type === 'album' || props.item.type === '专辑') {
     navigateToMusicList(router, {
       id: props.item.id,
       type: 'album',
@@ -116,6 +116,11 @@ const handleClick = async () => {
       name: props.item.name,
       listInfo: { picUrl: props.item.picUrl },
       canRemove: false
+    });
+  } else if (props.item.type === 'artist' || props.item.type === '歌手') {
+    router.push({
+      name: 'artistDetail',
+      params: { id: props.item.id }
     });
   } else if (props.item.type === 'mv') {
     handleShowMv();

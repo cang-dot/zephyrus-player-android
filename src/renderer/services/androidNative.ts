@@ -74,22 +74,11 @@ export function setStatusBarBgColor(hexColor: string) {
 }
 
 /**
- * 请求原生层注入安全区域 CSS 变量
- * 将状态栏和导航栏高度注入为 CSS 变量 --safe-area-inset-*
+ * 安全区域 CSS 变量现在完全由 env(safe-area-inset-*) 驱动
+ * WebView 在 viewport-fit=cover 下自动计算，无需 JS 注入
  */
 export function injectSafeAreaInsets() {
-  if (!isAndroidNative()) return;
-  try {
-    const json = window.AndroidNative!.getSafeAreaInsets();
-    const insets = JSON.parse(json);
-    const root = document.documentElement;
-    root.style.setProperty('--safe-area-inset-top', `${insets.top}px`);
-    root.style.setProperty('--safe-area-inset-bottom', `${insets.bottom}px`);
-    root.style.setProperty('--safe-area-inset-left', `${insets.left}px`);
-    root.style.setProperty('--safe-area-inset-right', `${insets.right}px`);
-  } catch (e) {
-    console.warn('[NativeBridge] 注入安全区域失败:', e);
-  }
+  // no-op: CSS env() handles everything
 }
 
 /**

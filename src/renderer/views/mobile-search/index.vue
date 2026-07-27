@@ -266,7 +266,7 @@ onMounted(() => {
   border-bottom: 1px solid var(--m-border, transparent);
 
   &.safe-area-top {
-    padding-top: calc(var(--safe-area-inset-top, 0px) + 12px);
+    padding-top: var(--safe-area-inset-top, 0px);
   }
 }
 

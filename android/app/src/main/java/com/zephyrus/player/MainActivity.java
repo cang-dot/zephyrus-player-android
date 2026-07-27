@@ -3,6 +3,7 @@ package com.zephyrus.player;
 import android.content.ClipboardManager;
 import android.content.ClipData;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.WindowManager;
@@ -37,26 +38,22 @@ public class MainActivity extends BridgeActivity {
         // setTheme() 在 super.onCreate() 之后调用，不会自动更新已应用的 windowBackground
         getWindow().setBackgroundDrawableResource(R.color.windowBackground);
 
-        // 沉浸式状态栏：内容延伸到状态栏和导航栏下方
+        // 内容延伸到状态栏和导航栏下方
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
-        // 沉浸式模式：状态栏和导航栏完全透明，内容由 CSS 延伸
-        // 仅控制图标明暗外观，背景色由前端 CSS / 封面取色决定
+        // 状态栏和导航栏背景透明
         getWindow().setStatusBarColor(Color.TRANSPARENT);
         getWindow().setNavigationBarColor(Color.TRANSPARENT);
 
-        // 沉浸式模式：系统栏完全隐藏，从边缘滑入时临时呼出，松手后自动隐藏
-        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(
-                getWindow(), getWindow().getDecorView());
-        controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-        controller.hide(WindowInsetsCompat.Type.systemBars());
-
-        // 允许内容延伸到刘海屏区域
+        // 允许内容延伸到挖孔屏区域
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
             WindowManager.LayoutParams lp = getWindow().getAttributes();
             lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
             getWindow().setAttributes(lp);
         }
+
+        // 根据当前方向应用对应的系统栏模式
+        applySystemBarsMode();
 
         instance = this;
 
@@ -274,23 +271,44 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * 窗口焦点变化时重新隐藏系统栏，保持沉浸模式
+     * 窗口焦点变化时重新应用系统栏模式
      */
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
-            applyImmersiveMode();
+            applySystemBarsMode();
         }
     }
 
     /**
-     * 应用沉浸式模式：隐藏系统栏
+     * 配置变化（横竖屏切换）时重新应用系统栏模式
      */
-    private void applyImmersiveMode() {
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        applySystemBarsMode();
+    }
+
+    /**
+     * 根据当前屏幕方向应用对应的系统栏模式：
+     * - 竖屏：状态栏可见且背景透明（不隐藏系统栏）
+     * - 横屏：沉浸式全屏（隐藏系统栏，从边缘滑入时临时呼出）
+     */
+    private void applySystemBarsMode() {
         WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(
                 getWindow(), getWindow().getDecorView());
-        controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-        controller.hide(WindowInsetsCompat.Type.systemBars());
+
+        boolean isLandscape = getResources().getConfiguration().orientation
+                == Configuration.ORIENTATION_LANDSCAPE;
+
+        if (isLandscape) {
+            // 横屏：沉浸式全屏，隐藏系统栏
+            controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            controller.hide(WindowInsetsCompat.Type.systemBars());
+        } else {
+            // 竖屏：显示系统栏，背景透明
+            controller.show(WindowInsetsCompat.Type.systemBars());
+        }
     }
 }

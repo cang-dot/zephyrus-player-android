@@ -5,6 +5,9 @@
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
     @dblclick.stop="playMusicEvent(item)"
+    @touchstart.passive="handleTouchStart"
+    @touchend="handleTouchEnd"
+    @touchmove="handleTouchEnd"
   >
     <slot name="index"></slot>
     <slot name="select" v-if="selectable"></slot>
@@ -12,6 +15,7 @@
     <slot name="content"></slot>
     <slot name="operating"></slot>
 
+    <!-- 桌面端右键菜单 -->
     <song-item-dropdown
       v-if="isElectron"
       :item="item"
@@ -31,19 +35,37 @@
       @toggle-dislike="toggleDislike"
       @remove="$emit('remove-song', $event)"
     />
+
+    <!-- 移动端长按菜单 -->
+    <mobile-song-action-sheet
+      v-if="!isElectron && showActionSheet"
+      :item="item"
+      :show="showActionSheet"
+      :is-favorite="isFavorite"
+      :can-remove="canRemove"
+      @update:show="showActionSheet = $event"
+      @play="playMusicEvent(item); $emit('play', item)"
+      @play-next="handlePlayNext"
+      @add-to-playlist="handleAddToPlaylist"
+      @favorite="toggleFavorite"
+      @remove="$emit('remove-song', item.id)"
+    />
   </div>
 </template>
 
 <script lang="ts" setup>
+import { inject, ref } from 'vue';
+
 import { useSongItem } from '@/hooks/useSongItem';
 import { usePlayerStore } from '@/store/modules/player';
 import type { SongResult } from '@/types/music';
-import { isElectron } from '@/utils';
+import { getImgUrl, isElectron } from '@/utils';
 import { readLocalLyricFile, selectLyricFile, setLocalLyricPath } from '@/utils/localLyricStorage';
 import { parseTtml } from '@/utils/ttmlParser';
 import { parseLyrics } from '@/utils/yrcParser';
 
 import SongItemDropdown from './SongItemDropdown.vue';
+import MobileSongActionSheet from '../MobileSongActionSheet.vue';
 
 const props = defineProps<{
   item: SongResult;
@@ -118,7 +140,29 @@ const bindLocalLyric = async () => {
   }
 };
 
-// 把图片处理、艺术家处理等公共方法暴露给子组件
+// 移动端长按菜单
+const showActionSheet = ref(false);
+let longPressTimer: number | null = null;
+
+const handleTouchStart = () => {
+  if (isElectron) return;
+  longPressTimer = window.setTimeout(() => {
+    showActionSheet.value = true;
+  }, 500);
+};
+
+const handleTouchEnd = () => {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+};
+
+// 移动端添加到歌单
+const openPlaylistDrawer = inject<(songOrId: number | SongResult) => void>('openPlaylistDrawer');
+const handleAddToPlaylist = () => {
+  openPlaylistDrawer?.(props.item);
+};
 defineExpose({
   imageLoad,
   toggleSelect,

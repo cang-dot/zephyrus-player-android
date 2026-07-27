@@ -1,0 +1,2228 @@
+<template>
+  <div class="modular-home">
+    <!-- ==================== Ambient Background ==================== -->
+    <div class="ambient-bg">
+      <div class="ambient-orb orb-1" />
+      <div class="ambient-orb orb-2" />
+      <div class="ambient-orb orb-3" />
+    </div>
+
+    <!-- Top gradient mask (safe area + fade) -->
+    <div class="top-mask" />
+
+    <!-- ==================== Scrollable Content ==================== -->
+    <div ref="scrollContainer" class="home-scroll">
+      <!-- Search pill -->
+      <div class="search-pill-wrapper" @click="openSearch">
+        <i class="ri-search-line" />
+        <span>{{ t('comp.searchBar.searchPlaceholder') }}</span>
+      </div>
+
+      <!-- ==================== Card Carousel (Apple Music style) ==================== -->
+      <div v-if="cardOrder.length > 0" class="card-section">
+        <div
+          ref="cardsTrack"
+          class="cards-track"
+          @scroll.passive="onCardsScroll"
+        >
+          <div
+            v-for="cardType in cardOrder"
+            :key="cardType"
+            :data-card-id="cardType"
+            class="card-item"
+            :class="{
+              'dragging': drag.active && drag.itemId === cardType && drag.source === 'card',
+              'edit-mode': isEditMode,
+            }"
+            @touchstart.passive="onItemTouchStart($event, cardType, 'card')"
+            @click="onItemClick(cardType)"
+          >
+            <div class="card-inner">
+              <!-- Card Background -->
+              <div class="card-bg" :style="cardBgStyle(cardType)" />
+              <div class="card-overlay" />
+              <div class="card-glow" :style="{ background: meta[cardType].glowColor }" />
+
+              <!-- Remove button (edit mode) -->
+              <div v-if="isEditMode" class="card-remove" @click.stop="removeItem(cardType, 'card')">
+                <i class="ri-close-circle-fill" />
+              </div>
+
+              <!-- ===== Daily Recommend Card ===== -->
+              <template v-if="cardType === 'daily-recommend'">
+                <div class="card-content card-daily">
+                  <div class="card-top-row">
+                    <span class="card-badge">
+                      <i class="ri-calendar-check-fill" />
+                      {{ dailyCount }}{{ t('comp.homeHero.songs') }}
+                    </span>
+                    <div class="daily-date">
+                      <span class="daily-day">{{ dayOfMonth }}</span>
+                      <span class="daily-weekday">{{ weekdayLabel }}</span>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <h2 class="card-title">{{ t('comp.homeHero.dailyRecommend') }}</h2>
+                    <div v-if="dailySongs.length > 0" class="daily-preview">
+                      <div
+                        v-for="(song, i) in dailySongs.slice(0, 3)"
+                        :key="song.id"
+                        class="daily-preview-item"
+                      >
+                        <span class="preview-num">{{ i + 1 }}</span>
+                        <span class="preview-name truncate">{{ song.name }}</span>
+                        <span class="preview-artist truncate">{{ song.ar?.[0]?.name }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button class="card-play-btn" @click.stop="playDayRecommend">
+                    <i class="ri-play-fill" />
+                  </button>
+                </div>
+              </template>
+
+              <!-- ===== Personal FM Card ===== -->
+              <template v-else-if="cardType === 'personal-fm'">
+                <div class="card-content card-fm">
+                  <div class="card-top-row">
+                    <span class="card-badge">
+                      <i :class="activeMode === 'intelligence' ? 'ri-heart-pulse-fill' : 'ri-radio-fill'" />
+                      {{ activeMode === 'intelligence' ? t('comp.homeHero.intelligenceMode') : t('comp.homeHero.personalFm') }}
+                    </span>
+                  </div>
+                  <div class="card-body fm-body">
+                    <div class="fm-cover-wrap">
+                      <img
+                        v-if="displayCover"
+                        :src="getImgUrl(displayCover, '300y300')"
+                        alt=""
+                        class="fm-cover"
+                      />
+                      <div v-else class="fm-cover-placeholder">
+                        <i class="ri-radio-fill" />
+                      </div>
+                      <div v-if="isFmPlaying" class="fm-eq">
+                        <span v-for="i in 3" :key="i" class="eq-bar" :style="{ animationDelay: `${(i - 1) * 0.15}s` }" />
+                      </div>
+                    </div>
+                    <div class="fm-info">
+                      <h2 class="card-title">{{ displaySong?.name || t('comp.homeHero.discoverMusic') }}</h2>
+                      <p class="card-subtitle">{{ displayArtist }}</p>
+                      <div class="fm-controls">
+                        <button v-if="activeMode === 'intelligence'" class="fm-icon-btn" :class="{ fav: isFavorite }" @click.stop="toggleFavorite">
+                          <i :class="isFavorite ? 'ri-heart-3-fill' : 'ri-heart-3-line'" />
+                        </button>
+                        <button v-else class="fm-icon-btn" @click.stop="handleFmTrash">
+                          <i class="ri-thumb-down-line" />
+                        </button>
+                        <button class="fm-play-btn" @click.stop="handleFmPlay">
+                          <i :class="isFmPlaying ? 'ri-pause-fill' : 'ri-play-fill'" />
+                        </button>
+                        <button class="fm-icon-btn" @click.stop="handleNext">
+                          <i class="ri-skip-forward-fill" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- ===== User Card ===== -->
+              <template v-else-if="cardType === 'user'">
+                <div class="card-content card-user">
+                  <div class="card-body user-body">
+                    <div class="user-avatar-wrap">
+                      <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="user-avatar" />
+                      <div v-else class="user-avatar-placeholder">
+                        <i class="ri-user-3-fill" />
+                      </div>
+                    </div>
+                    <div class="user-info">
+                      <h2 class="card-title">{{ userNickname || t('comp.modularHome.blocks.user') }}</h2>
+                      <p v-if="isLoggedIn" class="card-subtitle">{{ t('comp.modularHome.viewProfile') }}</p>
+                      <p v-else class="card-subtitle">{{ t('comp.modularHome.loginToUnlock') }}</p>
+                    </div>
+                    <i class="ri-arrow-right-s-line user-arrow" />
+                  </div>
+                </div>
+              </template>
+
+              <!-- ===== Artists Card ===== -->
+              <template v-else-if="cardType === 'artists'">
+                <div class="card-content card-artists">
+                  <div class="card-top-row">
+                    <span class="card-badge">
+                      <i class="ri-mic-fill" />
+                      {{ t('comp.homeHero.hotArtists') }}
+                    </span>
+                  </div>
+                  <div class="card-body">
+                    <div v-if="artists.length > 0" class="artists-row">
+                      <div
+                        v-for="artist in artists.slice(0, 5)"
+                        :key="artist.id"
+                        class="artist-chip"
+                        @click.stop="navigateToArtist(artist.id)"
+                      >
+                        <img :src="getImgUrl(artist.picUrl || artist.img1v1Url, '150y150')" alt="" class="artist-chip-img" />
+                        <span class="artist-chip-name truncate">{{ artist.name }}</span>
+                      </div>
+                    </div>
+                    <div v-else class="card-empty-hint">
+                      <i class="ri-mic-fill" />
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- ===== Playlists Card ===== -->
+              <template v-else-if="cardType === 'playlists'">
+                <div class="card-content card-playlists">
+                  <div class="card-top-row">
+                    <span class="card-badge">
+                      <i class="ri-play-list-2-fill" />
+                      {{ t('comp.homeHero.hotPlaylists') }}
+                    </span>
+                  </div>
+                  <div class="card-body">
+                    <div v-if="playlists.length > 0" class="playlists-row">
+                      <div
+                        v-for="(pl, i) in playlists.slice(0, 4)"
+                        :key="i"
+                        class="pl-chip"
+                      >
+                        <img :src="getImgUrl(pl.picUrl, '150y150')" alt="" class="pl-chip-img" />
+                        <span class="pl-chip-name truncate">{{ pl.name }}</span>
+                      </div>
+                    </div>
+                    <div v-else class="card-empty-hint">
+                      <i class="ri-play-list-2-fill" />
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- ===== Daily Album Card ===== -->
+              <template v-else-if="cardType === 'daily-album'">
+                <div class="card-content card-daily-album">
+                  <div class="card-top-row">
+                    <span class="card-badge">
+                      <i class="ri-disc-fill" />
+                      {{ t('comp.modularHome.blocks.dailyAlbum') }}
+                    </span>
+                  </div>
+                  <div class="card-body daily-album-body">
+                    <div v-if="dailyAlbum" class="daily-album-cover-wrap">
+                      <img :src="getImgUrl(dailyAlbum.picUrl || dailyAlbum.album?.picUrl, '300y300')" alt="" class="daily-album-cover" />
+                    </div>
+                    <div v-else class="daily-album-placeholder">
+                      <i class="ri-disc-fill" />
+                    </div>
+                    <div class="daily-album-info">
+                      <h2 class="card-title">{{ dailyAlbum?.name || t('comp.modularHome.blocks.dailyAlbum') }}</h2>
+                      <p class="card-subtitle">{{ dailyAlbum?.artist?.name || t('comp.modularHome.dailyAlbumDesc') }}</p>
+                    </div>
+                    <i class="ri-arrow-right-s-line daily-album-arrow" />
+                  </div>
+                </div>
+              </template>
+
+              <!-- ===== Static shortcut cards ===== -->
+              <template v-else>
+                <div class="card-content card-static">
+                  <div class="card-top-row">
+                    <span class="card-badge">
+                      <i :class="meta[cardType].icon" />
+                      {{ t(meta[cardType].titleKey) }}
+                    </span>
+                  </div>
+                  <div class="card-body">
+                    <h2 class="card-title">{{ t(meta[cardType].titleKey) }}</h2>
+                    <p class="card-subtitle">{{ t(meta[cardType].descKey || 'comp.modularHome.tapToExplore') }}</p>
+                  </div>
+                  <i :class="meta[cardType].icon" class="card-watermark" />
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page dots -->
+        <div class="page-dots">
+          <span
+            v-for="(_, i) in cardOrder"
+            :key="i"
+            class="page-dot"
+            :class="{ active: i === currentCardIndex }"
+          />
+        </div>
+      </div>
+
+      <!-- Drop zone indicator (when dragging) -->
+      <Transition name="fade">
+        <div
+          v-if="drag.active"
+          class="drop-zone-indicator"
+          :class="drag.targetZone"
+        >
+          <span v-if="drag.targetZone === 'card'">{{ t('comp.modularHome.dropAsCard') }}</span>
+          <span v-else>{{ t('comp.modularHome.dropAsBlock') }}</span>
+        </div>
+      </Transition>
+
+      <!-- ==================== Block Grid ==================== -->
+      <TransitionGroup name="grid" tag="div" class="block-grid">
+        <div
+          v-for="blockType in blockOrder"
+          :key="blockType"
+          :data-block-id="blockType"
+          class="block-item"
+          :class="{
+            'dragging': drag.active && drag.itemId === blockType && drag.source === 'grid',
+            'edit-mode': isEditMode,
+          }"
+          @touchstart.passive="onItemTouchStart($event, blockType, 'grid')"
+          @click="onItemClick(blockType)"
+        >
+          <!-- Block Background -->
+          <div class="block-bg" :style="{ background: meta[blockType].gradient }" />
+          <div class="block-glow" :style="{ background: meta[blockType].glowColor }" />
+
+          <!-- Remove button (edit mode) -->
+          <div v-if="isEditMode" class="block-remove" @click.stop="removeItem(blockType, 'grid')">
+            <i class="ri-close-circle-fill" />
+          </div>
+
+          <!-- Block content (compact square) -->
+          <div class="block-inner">
+            <!-- Daily Recommend -->
+            <template v-if="blockType === 'daily-recommend'">
+              <div class="block-top">
+                <span class="block-mini-badge">{{ dailyCount }}{{ t('comp.homeHero.songs') }}</span>
+                <i class="ri-calendar-check-fill block-corner-icon" />
+              </div>
+              <div class="block-date">
+                <span class="block-date-day">{{ dayOfMonth }}</span>
+                <span class="block-date-week">{{ weekdayLabel }}</span>
+              </div>
+              <div class="block-label">{{ t('comp.homeHero.dailyRecommend') }}</div>
+            </template>
+
+            <!-- Personal FM -->
+            <template v-else-if="blockType === 'personal-fm'">
+              <div v-if="isLoggedIn" class="block-fm-cover-wrap">
+                <img v-if="displayCover" :src="getImgUrl(displayCover, '300y300')" alt="" class="block-fm-cover" />
+                <div v-else class="block-fm-placeholder"><i class="ri-radio-fill" /></div>
+                <div v-if="isFmPlaying" class="block-fm-eq">
+                  <span v-for="i in 3" :key="i" class="eq-bar" :style="{ animationDelay: `${(i - 1) * 0.15}s` }" />
+                </div>
+              </div>
+              <div v-else class="block-icon-large"><i class="ri-radio-fill" /></div>
+              <div class="block-label">{{ t('comp.homeHero.personalFm') }}</div>
+              <div v-if="isLoggedIn && displaySong?.name" class="block-fm-song truncate">{{ displaySong.name }}</div>
+              <div v-else-if="!isLoggedIn" class="block-hint">{{ t('comp.modularHome.loginToUnlock') }}</div>
+            </template>
+
+            <!-- User -->
+            <template v-else-if="blockType === 'user'">
+              <div class="block-user-avatar-wrap">
+                <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="block-user-avatar" />
+                <div v-else class="block-user-placeholder"><i class="ri-user-3-fill" /></div>
+              </div>
+              <div class="block-label">{{ userNickname || t('comp.modularHome.blocks.user') }}</div>
+              <div v-if="!isLoggedIn" class="block-hint">{{ t('comp.modularHome.loginToUnlock') }}</div>
+            </template>
+
+            <!-- Artists -->
+            <template v-else-if="blockType === 'artists'">
+              <div v-if="artists.length > 0" class="block-collage">
+                <img
+                  v-for="(artist, i) in artists.slice(0, 4)"
+                  :key="artist.id"
+                  :src="getImgUrl(artist.picUrl || artist.img1v1Url, '150y150')"
+                  alt=""
+                  class="collage-img"
+                  :style="{ animationDelay: `${i * 0.06}s` }"
+                />
+              </div>
+              <div v-else class="block-icon-large"><i class="ri-mic-fill" /></div>
+              <div class="block-label">{{ t('comp.homeHero.hotArtists') }}</div>
+            </template>
+
+            <!-- Playlists -->
+            <template v-else-if="blockType === 'playlists'">
+              <div v-if="playlists.length > 0" class="block-collage">
+                <img
+                  v-for="(pl, i) in playlists.slice(0, 4)"
+                  :key="i"
+                  :src="getImgUrl(pl.picUrl, '150y150')"
+                  alt=""
+                  class="collage-img"
+                  :style="{ animationDelay: `${i * 0.06}s` }"
+                />
+              </div>
+              <div v-else class="block-icon-large"><i class="ri-play-list-2-fill" /></div>
+              <div class="block-label">{{ t('comp.homeHero.hotPlaylists') }}</div>
+            </template>
+
+            <!-- Daily Album -->
+            <template v-else-if="blockType === 'daily-album'">
+              <div v-if="dailyAlbum" class="block-album-cover-wrap">
+                <img :src="getImgUrl(dailyAlbum.picUrl || dailyAlbum.album?.picUrl, '300y300')" alt="" class="block-album-cover" />
+              </div>
+              <div v-else class="block-icon-large"><i class="ri-disc-fill" /></div>
+              <div class="block-label">{{ dailyAlbum?.name || t('comp.modularHome.blocks.dailyAlbum') }}</div>
+              <div v-if="!dailyAlbum" class="block-hint">{{ t('comp.modularHome.dailyAlbumDesc') }}</div>
+            </template>
+
+            <!-- Static blocks -->
+            <template v-else>
+              <div class="block-icon-large"><i :class="meta[blockType].icon" /></div>
+              <div class="block-label">{{ t(meta[blockType].titleKey) }}</div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Add block button (edit mode) -->
+        <div
+          v-if="isEditMode && availableBlocks.length > 0"
+          key="add-block"
+          class="block-item add-block"
+          @click="showAddSheet = true"
+        >
+          <div class="block-bg add-bg" />
+          <div class="block-inner add-inner">
+            <i class="ri-add-line" />
+            <span>{{ t('comp.modularHome.addBlock') }}</span>
+          </div>
+        </div>
+      </TransitionGroup>
+
+      <!-- Bottom spacer -->
+      <div class="bottom-spacer" />
+    </div>
+
+    <!-- Add block bottom sheet -->
+    <Transition name="sheet">
+      <div v-if="showAddSheet" class="add-sheet-overlay" @click="showAddSheet = false">
+        <div class="add-sheet" @click.stop>
+          <div class="add-sheet-handle" />
+          <h3 class="add-sheet-title">{{ t('comp.modularHome.addBlock') }}</h3>
+          <div class="add-sheet-grid">
+            <div
+              v-for="blockType in availableBlocks"
+              :key="blockType"
+              class="add-sheet-item"
+              @click="addItem(blockType)"
+            >
+              <div class="add-sheet-icon" :style="{ background: meta[blockType].gradient }">
+                <i :class="meta[blockType].icon" />
+              </div>
+              <span>{{ t(meta[blockType].titleKey) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
+
+import { getHotSinger, getPersonalFM, getPersonalizedPlaylist } from '@/api/home';
+import { fmTrash } from '@/api/music';
+import { navigateToMusicList } from '@/components/common/MusicListNavigator';
+import { useFavorite } from '@/hooks/useFavorite';
+import { useArtist } from '@/hooks/useArtist';
+import {
+  useIntelligenceModeStore,
+  usePlayerCoreStore,
+  usePlayerStore,
+  useRecommendStore,
+  useUserStore
+} from '@/store';
+import { getImgUrl } from '@/utils';
+
+defineOptions({
+  name: 'ModularHome'
+});
+
+const { t, locale } = useI18n();
+const router = useRouter();
+const recommendStore = useRecommendStore();
+const intelligenceModeStore = useIntelligenceModeStore();
+const userStore = useUserStore();
+const playerCoreStore = usePlayerCoreStore();
+const playerStore = usePlayerStore();
+const { isFavorite, toggleFavorite } = useFavorite();
+const { navigateToArtist } = useArtist();
+
+// ==================== Block Configuration ====================
+
+type BlockType =
+  | 'daily-recommend'
+  | 'personal-fm'
+  | 'user'
+  | 'artists'
+  | 'playlists'
+  | 'daily-album'
+  | 'toplist'
+  | 'albums'
+  | 'history'
+  | 'favorites'
+  | 'podcast'
+  | 'mv';
+
+type Zone = 'card' | 'grid';
+
+const meta: Record<BlockType, {
+  icon: string;
+  titleKey: string;
+  descKey?: string;
+  glowColor: string;
+  gradient: string;
+  requiresLogin?: boolean;
+}> = {
+  'daily-recommend': {
+    icon: 'ri-calendar-check-fill',
+    titleKey: 'comp.homeHero.dailyRecommend',
+    glowColor: 'var(--accent-color)',
+    gradient: 'linear-gradient(135deg, var(--accent-color), var(--accent-color-dark, #4a4a4a))',
+    requiresLogin: true,
+  },
+  'personal-fm': {
+    icon: 'ri-radio-fill',
+    titleKey: 'comp.homeHero.personalFm',
+    glowColor: 'var(--accent-color-light, #8b5cf6)',
+    gradient: 'linear-gradient(135deg, var(--accent-color), var(--accent-color-dark, #4a4a4a))',
+    requiresLogin: true,
+  },
+  'user': {
+    icon: 'ri-user-3-fill',
+    titleKey: 'comp.modularHome.blocks.user',
+    descKey: 'comp.modularHome.viewProfile',
+    glowColor: 'var(--accent-color-light, #6366f1)',
+    gradient: 'linear-gradient(135deg, var(--accent-color-light, #6366f1), var(--accent-color, #4f46e5))',
+  },
+  'artists': {
+    icon: 'ri-mic-fill',
+    titleKey: 'comp.homeHero.hotArtists',
+    glowColor: 'var(--accent-color-dark, #f59e0b)',
+    gradient: 'linear-gradient(135deg, var(--accent-color-dark, #f59e0b), var(--accent-color, #d97706))',
+  },
+  'playlists': {
+    icon: 'ri-play-list-2-fill',
+    titleKey: 'comp.homeHero.hotPlaylists',
+    glowColor: 'var(--accent-color, #8b5cf6)',
+    gradient: 'linear-gradient(135deg, var(--accent-color, #8b5cf6), var(--accent-color-dark, #7c3aed))',
+  },
+  'daily-album': {
+    icon: 'ri-disc-fill',
+    titleKey: 'comp.modularHome.blocks.dailyAlbum',
+    descKey: 'comp.modularHome.dailyAlbumDesc',
+    glowColor: 'var(--accent-color-light, #14b8a6)',
+    gradient: 'linear-gradient(135deg, var(--accent-color-light, #14b8a6), var(--accent-color, #0d9488))',
+    requiresLogin: true,
+  },
+  'toplist': {
+    icon: 'ri-trophy-fill',
+    titleKey: 'comp.toplist',
+    glowColor: 'var(--accent-color-dark, #eab308)',
+    gradient: 'linear-gradient(135deg, var(--accent-color-dark, #eab308), var(--accent-color, #ca8a04))',
+  },
+  'albums': {
+    icon: 'ri-album-fill',
+    titleKey: 'comp.newAlbum.title',
+    glowColor: 'var(--accent-color-light, #06b6d4)',
+    gradient: 'linear-gradient(135deg, var(--accent-color-light, #06b6d4), var(--accent-color, #0891b2))',
+  },
+  'history': {
+    icon: 'ri-history-fill',
+    titleKey: 'comp.history',
+    glowColor: 'var(--accent-color, #10b981)',
+    gradient: 'linear-gradient(135deg, var(--accent-color, #10b981), var(--accent-color-dark, #059669))',
+  },
+  'favorites': {
+    icon: 'ri-heart-3-fill',
+    titleKey: 'comp.homeHero.quickNav.myFavorite',
+    glowColor: 'var(--accent-color-light, #ec4899)',
+    gradient: 'linear-gradient(135deg, var(--accent-color-light, #ec4899), var(--accent-color, #db2777))',
+  },
+  'podcast': {
+    icon: 'ri-radio-2-fill',
+    titleKey: 'podcast.podcast',
+    glowColor: 'var(--accent-color-dark, #6366f1)',
+    gradient: 'linear-gradient(135deg, var(--accent-color-dark, #6366f1), var(--accent-color, #4f46e5))',
+  },
+  'mv': {
+    icon: 'ri-movie-2-fill',
+    titleKey: 'comp.mv',
+    glowColor: 'var(--accent-color, #ef4444)',
+    gradient: 'linear-gradient(135deg, var(--accent-color, #ef4444), var(--accent-color-dark, #dc2626))',
+  },
+};
+
+const ALL_BLOCKS: BlockType[] = [
+  'daily-recommend', 'personal-fm', 'user', 'artists', 'playlists', 'daily-album',
+  'toplist', 'albums', 'history', 'favorites', 'podcast', 'mv',
+];
+
+// ==================== Persistence ====================
+
+const loadLayout = (): { cards: BlockType[]; blocks: BlockType[] } => {
+  try {
+    const saved = localStorage.getItem('homeLayout');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && Array.isArray(parsed.cards) && Array.isArray(parsed.blocks)) {
+        const valid = (arr: any[]) => arr.filter((b: string) => ALL_BLOCKS.includes(b as BlockType)) as BlockType[];
+        return { cards: valid(parsed.cards), blocks: valid(parsed.blocks) };
+      }
+    }
+  } catch { /* ignore */ }
+  // Default: daily-recommend and personal-fm as cards, rest as blocks
+  return {
+    cards: ['daily-recommend', 'personal-fm'],
+    blocks: ['user', 'artists', 'playlists', 'daily-album', 'toplist'],
+  };
+};
+
+const saveLayout = (cards: BlockType[], blocks: BlockType[]) => {
+  try {
+    localStorage.setItem('homeLayout', JSON.stringify({ cards, blocks }));
+  } catch { /* ignore */ }
+};
+
+const initial = loadLayout();
+const cardOrder = ref<BlockType[]>(initial.cards);
+const blockOrder = ref<BlockType[]>(initial.blocks);
+
+const availableBlocks = computed(() =>
+  ALL_BLOCKS.filter(b => !cardOrder.value.includes(b) && !blockOrder.value.includes(b))
+);
+
+// ==================== User State ====================
+
+const isLoggedIn = computed(() => !!userStore.user);
+const avatarUrl = computed(() => {
+  const url = userStore.user?.avatarUrl;
+  return url ? getImgUrl(url, '72y72') : '';
+});
+const userNickname = computed(() => userStore.user?.nickname || '');
+
+// ==================== Daily Recommend ====================
+
+const dayOfMonth = new Date().getDate();
+const weekdayLabel = new Date().toLocaleDateString(locale.value, { weekday: 'short' });
+const dailySongs = computed(() => recommendStore.dailyRecommendSongs);
+const dailyCount = computed(() => recommendStore.dailyRecommendSongs.length);
+
+const showDayRecommend = () => {
+  if (dailySongs.value.length === 0) return;
+  navigateToMusicList(router, {
+    type: 'dailyRecommend',
+    name: t('comp.recommendSinger.songlist'),
+    songList: dailySongs.value,
+    canRemove: false
+  });
+};
+
+const playDayRecommend = async () => {
+  if (dailySongs.value.length === 0) return;
+  try {
+    const { usePlayerCoreStore: pcs } = await import('@/store/modules/playerCore');
+    const { usePlaylistStore } = await import('@/store/modules/playlist');
+    const playerCore = pcs();
+    const playlistStore = usePlaylistStore();
+    const songs = dailySongs.value.map((s: any) => ({
+      id: s.id, name: s.name, picUrl: s.al?.picUrl,
+      source: 'netease', song: s, ...s, playLoading: false
+    }));
+    playlistStore.setPlayList(songs, false, false);
+    await playerCore.handlePlayMusic(songs[0], true);
+  } catch (error) {
+    console.error('Failed to play daily recommend:', error);
+  }
+};
+
+// ==================== Personal FM ====================
+
+const fmCurrentSong = ref<any>(null);
+const fmNextSong = ref<any>(null);
+const fmLoading = ref(false);
+
+const activeMode = computed(() =>
+  intelligenceModeStore.isIntelligenceMode ? 'intelligence' : 'fm'
+);
+
+const fmCurrentCover = computed(
+  () => fmCurrentSong.value?.album?.picUrl || fmCurrentSong.value?.al?.picUrl || ''
+);
+const fmCurrentArtist = computed(() => {
+  const song = fmCurrentSong.value;
+  if (!song) return t('comp.homeHero.personalFmDesc');
+  const artists = song.artists || song.ar;
+  return artists?.map((a: any) => a.name).join(' / ') || '';
+});
+
+const displaySong = computed(() => {
+  if (activeMode.value === 'intelligence') return playerCoreStore.currentSong;
+  return fmCurrentSong.value;
+});
+const displayCover = computed(() => {
+  if (activeMode.value === 'intelligence')
+    return playerCoreStore.currentSong?.al?.picUrl || playerCoreStore.currentSong?.album?.picUrl || '';
+  return fmCurrentCover.value;
+});
+const displayArtist = computed(() => {
+  if (activeMode.value === 'intelligence') {
+    const song = playerCoreStore.currentSong;
+    if (!song) return '';
+    const artists = song.artists || song.ar;
+    return artists?.map((a: any) => a.name).join(' / ') || '';
+  }
+  return fmCurrentArtist.value;
+});
+
+const isFmPlaying = computed(() => {
+  if (activeMode.value === 'intelligence') {
+    return !!playerCoreStore.currentSong?.id && playerCoreStore.isPlaying;
+  }
+  return (
+    !!fmCurrentSong.value &&
+    playerCoreStore.currentSong?.id === fmCurrentSong.value.id &&
+    playerCoreStore.isPlaying
+  );
+});
+
+const cardBgStyle = (type: BlockType) => {
+  if (type === 'personal-fm' && displayCover.value) {
+    return {
+      backgroundImage: `url(${getImgUrl(displayCover.value, '300y300')})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+    };
+  }
+  return { background: meta[type].gradient };
+};
+
+const fetchFmSongs = async (retries = 3): Promise<any[]> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await getPersonalFM();
+      const songs = res.data?.data;
+      if (Array.isArray(songs) && songs.length > 0) return songs;
+    } catch {
+      if (i < retries - 1) await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+  return [];
+};
+
+const loadFmSongs = async () => {
+  if (fmLoading.value) return;
+  fmLoading.value = true;
+  try {
+    const songs = await fetchFmSongs();
+    if (songs.length > 0) {
+      fmCurrentSong.value = songs[0];
+      fmNextSong.value = songs[1] || null;
+    }
+  } finally {
+    fmLoading.value = false;
+  }
+};
+
+const preloadNextFm = async () => {
+  if (fmNextSong.value) return;
+  try {
+    const songs = await fetchFmSongs(1);
+    if (songs.length > 0) fmNextSong.value = songs[0];
+  } catch { /* silent */ }
+};
+
+const handleFmPlay = async () => {
+  if (activeMode.value === 'intelligence') {
+    const { usePlaylistStore } = await import('@/store/modules/playlist');
+    const playlistStore = usePlaylistStore();
+    await playlistStore.setPlay(playerCoreStore.currentSong);
+    return;
+  }
+  if (!fmCurrentSong.value) return;
+  if (playerCoreStore.currentSong?.id === fmCurrentSong.value.id) {
+    const { usePlaylistStore } = await import('@/store/modules/playlist');
+    const playlistStore = usePlaylistStore();
+    await playlistStore.setPlay(playerCoreStore.currentSong);
+    return;
+  }
+  try {
+    const { usePlayerCoreStore: pcs } = await import('@/store/modules/playerCore');
+    const { usePlaylistStore } = await import('@/store/modules/playlist');
+    const playerCore = pcs();
+    const playlistStore = usePlaylistStore();
+    const song = fmCurrentSong.value;
+    const playlist = [{
+      id: song.id, name: song.name, picUrl: song.al?.picUrl || song.album?.picUrl,
+      ar: song.artists || song.ar, al: song.al || song.album,
+      source: 'netease' as const, song, ...song, playLoading: false
+    }];
+    playlistStore.setPlayList(playlist, false, false);
+    playerCore.isFmPlaying = true;
+    await playerCore.handlePlayMusic(playlist[0], true);
+  } catch (error) {
+    console.error('Failed to play Personal FM:', error);
+  }
+};
+
+const handleFmNext = async () => {
+  if (fmLoading.value) return;
+  if (fmNextSong.value) {
+    fmCurrentSong.value = fmNextSong.value;
+    fmNextSong.value = null;
+    preloadNextFm();
+  } else {
+    await loadFmSongs();
+  }
+  await handleFmPlay();
+};
+
+const handleFmTrash = async () => {
+  const song = fmCurrentSong.value;
+  if (!song) return;
+  try { await fmTrash(song.id); } catch { /* ignore */ }
+  await handleFmNext();
+};
+
+const handleNext = async () => {
+  if (activeMode.value === 'intelligence') {
+    playerStore.nextPlay();
+    return;
+  }
+  await handleFmNext();
+};
+
+// ==================== Daily Album (from collected albums) ====================
+
+const dailyAlbum = ref<any>(null);
+
+const pickDailyAlbum = () => {
+  const albums = userStore.albumList;
+  if (!albums || albums.length === 0) {
+    dailyAlbum.value = null;
+    return;
+  }
+  // Use date as seed for deterministic daily pick
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+  const saved = localStorage.getItem('dailyAlbum');
+  const savedDate = localStorage.getItem('dailyAlbumDate');
+  if (saved && savedDate === dateStr) {
+    try {
+      const parsed = JSON.parse(saved);
+      // Verify album still exists in collection
+      if (albums.some((a: any) => a.id === parsed.id)) {
+        dailyAlbum.value = parsed;
+        return;
+      }
+    } catch { /* ignore */ }
+  }
+  // Pick random album
+  const idx = Math.floor(Math.random() * albums.length);
+  const picked = albums[idx];
+  dailyAlbum.value = picked;
+  localStorage.setItem('dailyAlbum', JSON.stringify(picked));
+  localStorage.setItem('dailyAlbumDate', dateStr);
+};
+
+const openDailyAlbum = () => {
+  if (!dailyAlbum.value) return;
+  router.push(`/music-list/${dailyAlbum.value.id}?type=album`);
+};
+
+// ==================== Artists & Playlists Data ====================
+
+const artists = ref<any[]>([]);
+const playlists = ref<any[]>([]);
+
+const fetchArtists = async () => {
+  try {
+    const { data } = await getHotSinger({ offset: 0, limit: 6 });
+    if (data.code === 200) artists.value = data.artists.slice(0, 6);
+  } catch { /* ignore */ }
+};
+
+const fetchPlaylists = async () => {
+  try {
+    const res = await getPersonalizedPlaylist(8);
+    const list = res.result || res.data;
+    if (list) playlists.value = list;
+  } catch { /* ignore */ }
+};
+
+// ==================== Card Carousel ====================
+
+const cardsTrack = ref<HTMLElement | null>(null);
+const currentCardIndex = ref(0);
+
+const onCardsScroll = () => {
+  if (!cardsTrack.value) return;
+  const track = cardsTrack.value;
+  const cardWidth = track.offsetWidth;
+  currentCardIndex.value = Math.round(track.scrollLeft / cardWidth);
+};
+
+// ==================== Item Actions ====================
+
+const openSearch = () => router.push('/mobile-search');
+
+const onItemClick = (type: BlockType) => {
+  if (isEditMode.value) return;
+  switch (type) {
+    case 'daily-recommend': showDayRecommend(); break;
+    case 'personal-fm':
+      if (isLoggedIn.value) handleFmPlay();
+      else router.push('/user');
+      break;
+    case 'user': router.push('/user'); break;
+    case 'artists':
+      if (artists.value.length > 0) navigateToArtist(artists.value[0].id);
+      else router.push('/list');
+      break;
+    case 'playlists': router.push('/list'); break;
+    case 'daily-album':
+      if (dailyAlbum.value) openDailyAlbum();
+      else router.push('/album');
+      break;
+    case 'toplist': router.push('/toplist'); break;
+    case 'albums': router.push('/album'); break;
+    case 'history': router.push('/history'); break;
+    case 'favorites': router.push('/favorite'); break;
+    case 'podcast': router.push('/podcast'); break;
+    case 'mv': router.push('/mv'); break;
+  }
+};
+
+// ==================== Edit Mode ====================
+
+const isEditMode = ref(false);
+const showAddSheet = ref(false);
+const scrollContainer = ref<HTMLElement | null>(null);
+
+const exitEditMode = () => { isEditMode.value = false; };
+
+const removeItem = (type: BlockType, zone: Zone) => {
+  if (zone === 'card') {
+    cardOrder.value = cardOrder.value.filter(b => b !== type);
+    blockOrder.value.push(type);
+  } else {
+    blockOrder.value = blockOrder.value.filter(b => b !== type);
+  }
+  saveLayout(cardOrder.value, blockOrder.value);
+};
+
+const addItem = (type: BlockType) => {
+  blockOrder.value.push(type);
+  saveLayout(cardOrder.value, blockOrder.value);
+  showAddSheet.value = false;
+};
+
+// ==================== FLIP Animation Utilities ====================
+// Apple-style spring: critically damped for repositioning (no overshoot)
+
+const SPRING_EASE = 'cubic-bezier(0.34, 1.56, 0.64, 1)'; // slight overshoot, Apple-like
+const SPRING_DURATION = '0.45s';
+
+const flipAnimate = (container: HTMLElement, selector: string) => {
+  // Record positions before Vue re-renders
+  const children = Array.from(container.querySelectorAll<HTMLElement>(selector));
+  const beforeRects = new Map<string, DOMRect>();
+  children.forEach(child => {
+    const id = child.getAttribute('data-block-id') || child.getAttribute('data-card-id');
+    if (id) beforeRects.set(id, child.getBoundingClientRect());
+  });
+
+  // After Vue re-renders (nextTick)
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const newChildren = Array.from(container.querySelectorAll<HTMLElement>(selector));
+      newChildren.forEach(child => {
+        const id = child.getAttribute('data-block-id') || child.getAttribute('data-card-id');
+        if (!id) return;
+        const before = beforeRects.get(id);
+        if (!before) return;
+        const after = child.getBoundingClientRect();
+        const dx = before.left - after.left;
+        const dy = before.top - after.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+
+        // Apply inverse transform (FLIP: First, Last, Invert, Play)
+        child.style.transform = `translate(${dx}px, ${dy}px)`;
+        child.style.transition = 'none';
+
+        // Force reflow then animate to identity
+        child.offsetHeight; // reflow
+        child.style.transform = '';
+        child.style.transition = `transform ${SPRING_DURATION} ${SPRING_EASE}`;
+        setTimeout(() => {
+          child.style.transition = '';
+          child.style.transform = '';
+        }, 500);
+      });
+    });
+  });
+};
+
+// ==================== Drag & Drop (document-level, Apple-style) ====================
+
+const drag = reactive({
+  active: false,
+  itemId: '' as string,
+  source: '' as Zone,
+  targetZone: '' as Zone,
+  startTouchX: 0,
+  startTouchY: 0,
+  deltaX: 0,
+  deltaY: 0,
+  cardSectionTop: 0,
+  cardSectionBottom: 0,
+  hasMoved: false,
+});
+
+let pressTimer: number | undefined;
+let touchStartX = 0;
+let touchStartY = 0;
+let docMoveHandler: ((e: TouchEvent) => void) | null = null;
+let docEndHandler: ((e: TouchEvent) => void) | null = null;
+
+const onItemTouchStart = (e: TouchEvent, itemType: BlockType, source: Zone) => {
+  const touch = e.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+  drag.startTouchX = touch.clientX;
+  drag.startTouchY = touch.clientY;
+  drag.itemId = itemType;
+  drag.source = source;
+  drag.targetZone = source;
+  drag.hasMoved = false;
+
+  // Record card section bounds for zone detection
+  const cardSection = document.querySelector('.card-section');
+  if (cardSection) {
+    const rect = cardSection.getBoundingClientRect();
+    drag.cardSectionTop = rect.top;
+    drag.cardSectionBottom = rect.bottom;
+  } else {
+    drag.cardSectionTop = 0;
+    drag.cardSectionBottom = window.innerHeight * 0.4;
+  }
+
+  // If already in edit mode, start drag immediately (no long press needed)
+  if (isEditMode.value) {
+    startDrag();
+    attachDocListeners();
+    return;
+  }
+
+  // Not in edit mode: require long press (600ms) to enter edit mode + start drag
+  pressTimer = window.setTimeout(() => {
+    isEditMode.value = true;
+    startDrag();
+    attachDocListeners();
+  }, 600);
+};
+
+const attachDocListeners = () => {
+  docMoveHandler = (ev: TouchEvent) => onDocTouchMove(ev);
+  docEndHandler = (ev: TouchEvent) => onDocTouchEnd(ev);
+  document.addEventListener('touchmove', docMoveHandler, { passive: false });
+  document.addEventListener('touchend', docEndHandler, { passive: false });
+  document.addEventListener('touchcancel', docEndHandler, { passive: false });
+};
+
+const detachDocListeners = () => {
+  if (docMoveHandler) {
+    document.removeEventListener('touchmove', docMoveHandler);
+    docMoveHandler = null;
+  }
+  if (docEndHandler) {
+    document.removeEventListener('touchend', docEndHandler);
+    document.removeEventListener('touchcancel', docEndHandler);
+    docEndHandler = null;
+  }
+};
+
+const onDocTouchMove = (e: TouchEvent) => {
+  const touch = e.touches[0];
+  const moveDx = touch.clientX - touchStartX;
+  const moveDy = touch.clientY - touchStartY;
+
+  // Cancel long-press if user moves too much before timer fires
+  if (!drag.active && pressTimer) {
+    if (Math.abs(moveDx) > 10 || Math.abs(moveDy) > 10) {
+      clearTimeout(pressTimer);
+      pressTimer = undefined;
+    }
+    return;
+  }
+
+  if (!drag.active) return;
+
+  e.preventDefault();
+
+  drag.deltaX = touch.clientX - drag.startTouchX;
+  drag.deltaY = touch.clientY - drag.startTouchY;
+  drag.hasMoved = true;
+
+  // Move the dragged element with 1:1 tracking (Apple direct manipulation)
+  const selector = drag.source === 'card'
+    ? `[data-card-id="${drag.itemId}"]`
+    : `[data-block-id="${drag.itemId}"]`;
+  const el = document.querySelector(selector) as HTMLElement;
+  if (el) {
+    el.style.transform = `translate(${drag.deltaX}px, ${drag.deltaY}px) scale(1.08)`;
+    el.style.boxShadow = '0 20px 60px rgba(0, 0, 0, 0.35)';
+  }
+
+  // Detect target zone based on finger Y position
+  const fingerY = touch.clientY;
+  const isCardZone = fingerY < drag.cardSectionBottom + 80;
+
+  if (drag.source === 'grid' && isCardZone) {
+    drag.targetZone = 'card';
+  } else if (drag.source === 'card' && !isCardZone) {
+    drag.targetZone = 'grid';
+  } else {
+    drag.targetZone = drag.source;
+  }
+
+  // Find swap target within same zone (with FLIP animation for others)
+  const elementUnder = document.elementFromPoint(touch.clientX, touch.clientY);
+  if (!elementUnder) return;
+
+  if (drag.source === 'card' && drag.targetZone === 'card') {
+    const targetCard = elementUnder.closest('.card-item:not(.dragging)') as HTMLElement | null;
+    if (targetCard) {
+      const targetId = targetCard.getAttribute('data-card-id');
+      if (targetId && targetId !== drag.itemId) {
+        // Record positions before swap for FLIP
+        const track = cardsTrack.value;
+        if (track) flipAnimate(track, '.card-item:not(.dragging)');
+        swapInArray(cardOrder, drag.itemId, targetId);
+      }
+    }
+  } else if (drag.source === 'grid' && drag.targetZone === 'grid') {
+    const targetBlock = elementUnder.closest('.block-item:not(.dragging):not(.add-block)') as HTMLElement | null;
+    if (targetBlock) {
+      const targetId = targetBlock.getAttribute('data-block-id');
+      if (targetId && targetId !== drag.itemId) {
+        // Record positions before swap for FLIP
+        const grid = document.querySelector('.block-grid');
+        if (grid) flipAnimate(grid as HTMLElement, '.block-item:not(.dragging):not(.add-block)');
+        swapInArray(blockOrder, drag.itemId, targetId);
+      }
+    }
+  }
+};
+
+const swapInArray = (arr: { value: BlockType[] }, fromId: string, toId: string) => {
+  const fromIdx = arr.value.indexOf(fromId as BlockType);
+  const toIdx = arr.value.indexOf(toId as BlockType);
+  if (fromIdx !== -1 && toIdx !== -1) {
+    const newOrder = [...arr.value];
+    [newOrder[fromIdx], newOrder[toIdx]] = [newOrder[toIdx], newOrder[fromIdx]];
+    arr.value = newOrder;
+    saveLayout(cardOrder.value, blockOrder.value);
+
+    // Adjust start position after swap so the element stays under finger
+    const selector = `[data-block-id="${fromId}"], [data-card-id="${fromId}"]`;
+    const el = document.querySelector(selector) as HTMLElement;
+    if (el) {
+      const oldRect = el.getBoundingClientRect();
+      requestAnimationFrame(() => {
+        const newEl = document.querySelector(selector) as HTMLElement;
+        if (newEl) {
+          const newRect = newEl.getBoundingClientRect();
+          drag.startTouchX += (newRect.left - oldRect.left);
+          drag.startTouchY += (newRect.top - oldRect.top);
+        }
+      });
+    }
+  }
+};
+
+const onDocTouchEnd = () => {
+  clearTimeout(pressTimer);
+  pressTimer = undefined;
+
+  if (!drag.active) {
+    detachDocListeners();
+    return;
+  }
+
+  // Record dragged element's current screen position before any DOM changes
+  const dragSelector = `[data-block-id="${drag.itemId}"], [data-card-id="${drag.itemId}"]`;
+  const draggedEl = document.querySelector(dragSelector) as HTMLElement;
+  const draggedRectBefore = draggedEl ? draggedEl.getBoundingClientRect() : null;
+  // Get the current transform (delta from finger)
+  const currentTransform = draggedEl?.style.transform || '';
+
+  // Cross-zone move
+  if (drag.source !== drag.targetZone) {
+    if (drag.source === 'grid' && drag.targetZone === 'card') {
+      // FLIP for grid items
+      const grid = document.querySelector('.block-grid');
+      if (grid) flipAnimate(grid as HTMLElement, '.block-item:not(.dragging):not(.add-block)');
+
+      blockOrder.value = blockOrder.value.filter(b => b !== drag.itemId);
+      cardOrder.value.push(drag.itemId as BlockType);
+    } else if (drag.source === 'card' && drag.targetZone === 'grid') {
+      // FLIP for card items
+      const track = cardsTrack.value;
+      if (track) flipAnimate(track, '.card-item:not(.dragging)');
+
+      cardOrder.value = cardOrder.value.filter(b => b !== drag.itemId);
+      blockOrder.value.push(drag.itemId as BlockType);
+    }
+    saveLayout(cardOrder.value, blockOrder.value);
+
+    // After cross-zone move, animate the element from its old position to new
+    if (draggedRectBefore && draggedEl) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const newEl = document.querySelector(dragSelector) as HTMLElement;
+          if (newEl) {
+            const newRect = newEl.getBoundingClientRect();
+            const dx = draggedRectBefore.left - newRect.left;
+            const dy = draggedRectBefore.top - newRect.top;
+            // Start from old position
+            newEl.style.transform = `translate(${dx}px, ${dy}px) scale(1.08)`;
+            newEl.style.transition = 'none';
+            newEl.style.zIndex = '1000';
+            newEl.offsetHeight; // reflow
+            // Animate to new position with spring
+            newEl.style.transform = '';
+            newEl.style.transition = `transform ${SPRING_DURATION} ${SPRING_EASE}`;
+            setTimeout(() => {
+              newEl.style.transition = '';
+              newEl.style.transform = '';
+              newEl.style.zIndex = '';
+              newEl.style.pointerEvents = '';
+              newEl.style.touchAction = '';
+              newEl.style.boxShadow = '';
+            }, 500);
+          }
+        });
+      });
+    }
+  } else {
+    // Same zone: just reset the dragged element with spring
+    if (draggedEl) {
+      draggedEl.style.transition = `transform ${SPRING_DURATION} ${SPRING_EASE}`;
+      draggedEl.style.transform = '';
+      draggedEl.style.zIndex = '';
+      draggedEl.style.pointerEvents = '';
+      draggedEl.style.touchAction = '';
+      draggedEl.style.boxShadow = '';
+      setTimeout(() => { if (draggedEl) draggedEl.style.transition = ''; }, 500);
+    }
+  }
+
+  if (scrollContainer.value) {
+    scrollContainer.value.style.overflow = '';
+    scrollContainer.value.style.touchAction = '';
+  }
+  if (cardsTrack.value) {
+    cardsTrack.value.style.overflow = '';
+  }
+
+  detachDocListeners();
+
+  drag.active = false;
+  drag.itemId = '';
+  drag.deltaX = 0;
+  drag.deltaY = 0;
+
+  // Auto-exit edit mode after drag completes (with slight delay for visual feedback)
+  setTimeout(() => {
+    isEditMode.value = false;
+  }, 100);
+};
+
+const startDrag = () => {
+  const selector = `[data-block-id="${drag.itemId}"], [data-card-id="${drag.itemId}"]`;
+  const el = document.querySelector(selector) as HTMLElement;
+  if (!el) return;
+
+  el.style.zIndex = '1000';
+  el.style.pointerEvents = 'none';
+  el.style.transition = 'none';
+  el.style.touchAction = 'none';
+
+  drag.active = true;
+
+  if (scrollContainer.value) {
+    scrollContainer.value.style.overflow = 'hidden';
+    scrollContainer.value.style.touchAction = 'none';
+  }
+  if (cardsTrack.value) {
+    cardsTrack.value.style.overflow = 'hidden';
+  }
+};
+
+// ==================== Edit Mode: Back gesture exit ====================
+
+const onPopState = (e: PopStateEvent) => {
+  if (isEditMode.value) {
+    e.preventDefault();
+    isEditMode.value = false;
+    history.pushState(null, '', location.href);
+  }
+};
+
+watch(isEditMode, (val) => {
+  if (val) {
+    history.pushState(null, '', location.href);
+    window.addEventListener('popstate', onPopState);
+  } else {
+    window.removeEventListener('popstate', onPopState);
+  }
+});
+
+// ==================== Data Fetching ====================
+
+const fetchAllData = async () => {
+  const promises: Promise<any>[] = [];
+  promises.push(recommendStore.refreshIfStale());
+  promises.push(fetchArtists());
+  promises.push(fetchPlaylists());
+  if (isLoggedIn.value) {
+    promises.push(loadFmSongs());
+    promises.push(userStore.initializeAlbumList().then(() => pickDailyAlbum()));
+  }
+  await Promise.allSettled(promises);
+};
+
+onMounted(() => {
+  fetchAllData();
+  // Pick daily album immediately if album list is already loaded
+  if (userStore.albumList && userStore.albumList.length > 0) {
+    pickDailyAlbum();
+  }
+});
+
+onActivated(() => {
+  recommendStore.refreshIfStale();
+  if (userStore.albumList && userStore.albumList.length > 0) {
+    pickDailyAlbum();
+  }
+});
+
+onBeforeUnmount(() => {
+  clearTimeout(pressTimer);
+  detachDocListeners();
+  window.removeEventListener('popstate', onPopState);
+});
+</script>
+
+<style scoped lang="scss">
+.modular-home {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--cover-bg, var(--m-bg, var(--bg-color)));
+  transition: background 0.6s ease;
+}
+
+/* ==================== Ambient Background ==================== */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.1;
+  animation: orbFloat 25s ease-in-out infinite;
+}
+.orb-1 { width: 320px; height: 320px; background: var(--accent-color, #888); top: 5%; left: -15%; }
+.orb-2 { width: 280px; height: 280px; background: var(--accent-color-dark, #8b5cf6); top: 35%; right: -15%; animation-delay: -8s; }
+.orb-3 { width: 240px; height: 240px; background: var(--accent-color-light, #06b6d4); bottom: 15%; left: 25%; animation-delay: -16s; }
+@keyframes orbFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(40px, -30px) scale(1.1); }
+  66% { transform: translate(-30px, 40px) scale(0.92); }
+}
+
+/* ==================== Top Gradient Mask ==================== */
+.top-mask {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: calc(var(--safe-area-inset-top, 0px) + 100px);
+  background: linear-gradient(to bottom,
+    var(--cover-bg, var(--m-bg, var(--bg-color))) 0%,
+    var(--cover-bg, var(--m-bg, var(--bg-color))) 30%,
+    transparent 100%);
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* ==================== Scrollable Content ==================== */
+.home-scroll {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+/* ==================== Search Pill ==================== */
+.search-pill-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px;
+  margin-top: calc(var(--safe-area-inset-top, 0px) + 12px);
+  height: 44px;
+  padding: 0 16px;
+  border-radius: var(--m-radius-full, 9999px);
+  background: var(--cover-surface, rgba(0, 0, 0, 0.05));
+  backdrop-filter: blur(20px) saturate(180%);
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  i { font-size: 18px; flex-shrink: 0; }
+  span { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &:active { transform: scale(0.97); }
+}
+
+/* ==================== Card Carousel ==================== */
+.card-section {
+  margin-top: 20px;
+}
+
+.cards-track {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  gap: 0;
+  padding: 0 16px;
+  scroll-behavior: smooth;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.card-item {
+  flex: 0 0 calc(100vw - 32px);
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative;
+  aspect-ratio: 16 / 11;
+  margin-right: 12px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: transform 0.3s var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+
+  &:active:not(.edit-mode):not(.dragging) { transform: scale(0.98); }
+  &.edit-mode { animation: jiggle 0.4s ease-in-out infinite; }
+  &.dragging {
+    opacity: 0.95;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.card-item:last-child { margin-right: 0; }
+
+@keyframes jiggle {
+  0%, 100% { transform: rotate(-0.5deg); }
+  50% { transform: rotate(0.5deg); }
+}
+
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 24px;
+}
+
+.card-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.card-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(180deg,
+    rgba(0, 0, 0, 0.15) 0%,
+    rgba(0, 0, 0, 0.35) 100%);
+}
+.card-glow {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.2;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.card-content {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #fff;
+}
+
+.card-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  font-size: 11px;
+  font-weight: 600;
+  i { font-size: 13px; }
+}
+
+.card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.card-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  margin: 0;
+}
+
+.card-subtitle {
+  font-size: 14px;
+  opacity: 0.75;
+  margin-top: 4px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.2);
+}
+
+.card-play-btn {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1a1a1a;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  cursor: pointer;
+  transition: transform 160ms var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  &:active { transform: scale(0.9); }
+  i { margin-left: 2px; }
+}
+
+.card-watermark {
+  position: absolute;
+  bottom: -10px;
+  right: -10px;
+  font-size: 120px;
+  opacity: 0.08;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Daily Recommend Card */
+.daily-date {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.daily-day {
+  font-family: var(--m-font-serif, 'Cormorant Garamond', serif);
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+}
+.daily-weekday {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+.daily-preview {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.daily-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.preview-num {
+  width: 16px;
+  text-align: center;
+  opacity: 0.5;
+  font-weight: 600;
+}
+.preview-name {
+  flex: 1;
+  font-weight: 500;
+}
+.preview-artist {
+  opacity: 0.5;
+  max-width: 80px;
+}
+
+/* Personal FM Card */
+.fm-body {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+}
+.fm-cover-wrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+.fm-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.fm-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  i { font-size: 28px; opacity: 0.5; }
+}
+.fm-eq {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+.eq-bar {
+  width: 3px;
+  border-radius: 9999px;
+  background: #fff;
+  animation: eqPulse 0.8s ease-in-out infinite;
+  &:nth-child(1) { height: 6px; }
+  &:nth-child(2) { height: 12px; }
+  &:nth-child(3) { height: 8px; }
+}
+@keyframes eqPulse {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.6); }
+}
+.fm-info {
+  flex: 1;
+  min-width: 0;
+}
+.fm-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.fm-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 160ms var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  &.fav { color: #ef4444; }
+  &:active { transform: scale(0.9); }
+}
+.fm-play-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 160ms var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  &:active { transform: scale(0.9); }
+}
+
+/* User Card */
+.user-body {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+}
+.user-avatar-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+}
+.user-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.user-avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.15);
+  i { font-size: 24px; opacity: 0.6; }
+}
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+.user-arrow {
+  font-size: 24px;
+  opacity: 0.5;
+}
+
+/* Artists Card */
+.artists-row {
+  display: flex;
+  gap: 12px;
+  overflow: hidden;
+}
+.artist-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.artist-chip-img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.artist-chip-name {
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.85;
+  max-width: 100%;
+}
+
+/* Playlists Card */
+.playlists-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.pl-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pl-chip-img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.pl-chip-name {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.card-empty-hint {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  i {
+    font-size: 40px;
+    opacity: 0.3;
+  }
+}
+
+/* ==================== Page Dots ==================== */
+.page-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.page-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  opacity: 0.3;
+  transition: all 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  &.active {
+    opacity: 1;
+    background: var(--accent-color, #888);
+    width: 18px;
+    border-radius: 3px;
+  }
+}
+
+/* ==================== Drop Zone Indicator ==================== */
+.drop-zone-indicator {
+  text-align: center;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-color, #888);
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+/* ==================== Block Grid ==================== */
+.block-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  padding: 20px 16px;
+}
+.grid-move {
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.grid-enter-active, .grid-leave-active {
+  transition: all 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.grid-enter-from, .grid-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.block-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 28px;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: transform 0.3s var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+
+  .block-glow {
+    position: absolute;
+    inset: -20px;
+    border-radius: 50%;
+    filter: blur(30px);
+    opacity: 0.2;
+    z-index: 0;
+    pointer-events: none;
+  }
+  &:active:not(.edit-mode):not(.dragging) { transform: scale(0.96); }
+  &.edit-mode { animation: jiggle 0.4s ease-in-out infinite; }
+  &.edit-mode:nth-child(even) { animation-delay: 0.2s; }
+  &.dragging {
+    opacity: 0.95;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.block-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.block-inner {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #fff;
+}
+
+.block-label {
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.block-hint {
+  font-size: 11px;
+  opacity: 0.65;
+  margin-top: 2px;
+}
+.block-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.block-mini-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(4px);
+}
+.block-corner-icon {
+  font-size: 18px;
+  opacity: 0.7;
+}
+.block-date {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.block-date-day {
+  font-family: var(--m-font-serif, 'Cormorant Garamond', serif);
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+}
+.block-date-week {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+.block-icon-large {
+  font-size: 32px;
+  opacity: 0.85;
+  align-self: flex-start;
+}
+.block-fm-cover-wrap {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.block-fm-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.block-fm-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  i { font-size: 22px; opacity: 0.4; }
+}
+.block-fm-eq {
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+.block-fm-song {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.block-user-avatar-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+}
+.block-user-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.block-user-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.15);
+  i { font-size: 22px; opacity: 0.5; }
+}
+.block-collage {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+.collage-img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  animation: fadeIn 0.5s ease both;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Add Block */
+.add-block {
+  .add-bg {
+    background: var(--cover-surface, rgba(0, 0, 0, 0.05));
+    border: 2px dashed var(--cover-border, rgba(128, 128, 128, 0.3));
+  }
+  .add-inner {
+    align-items: center;
+    justify-content: center;
+    i { font-size: 32px; color: var(--cover-text-muted, var(--m-text-muted, #9a9590)); margin-bottom: 4px; }
+    span { font-size: 13px; color: var(--cover-text-muted, var(--m-text-muted, #9a9590)); }
+  }
+}
+
+/* Remove Button */
+.block-remove, .card-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px) saturate(180%);
+  i { font-size: 22px; color: #ff4444; }
+}
+
+/* (Done button removed - auto-exit on drag end) */
+
+/* Add Block Sheet */
+.add-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px) saturate(180%);
+  display: flex;
+  align-items: flex-end;
+}
+.add-sheet {
+  width: 100%;
+  background: var(--cover-bg, var(--m-bg, var(--bg-color)));
+  border-radius: 28px 28px 0 0;
+  padding: 8px 20px 32px;
+  padding-bottom: calc(var(--safe-area-inset-bottom, 0px) + 32px);
+}
+.add-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  opacity: 0.3;
+  margin: 0 auto 16px;
+}
+.add-sheet-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--cover-text-primary, var(--m-text-primary, var(--text-color)));
+  margin-bottom: 20px;
+}
+.add-sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.add-sheet-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  &:active { transform: scale(0.92); }
+  span { font-size: 12px; color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560)); text-align: center; }
+}
+.add-sheet-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.bottom-spacer { height: 240px; flex-shrink: 0; }
+
+/* Transitions */
+.fade-up-enter-active, .fade-up-leave-active {
+  transition: all 0.3s var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+.fade-up-enter-from, .fade-up-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+.sheet-enter-active, .sheet-leave-active {
+  transition: opacity 0.3s ease;
+  .add-sheet { transition: transform 0.3s var(--m-ease-drawer, cubic-bezier(0.32, 0.72, 0, 1)); }
+}
+.sheet-enter-from, .sheet-leave-to {
+  opacity: 0;
+  .add-sheet { transform: translateY(100%); }
+}
+
+/* ==================== Daily Album Card ==================== */
+.card-daily-album {
+  .daily-album-body {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 8px;
+  }
+  .daily-album-cover-wrap {
+    width: 80px;
+    height: 80px;
+    border-radius: 14px;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
+  .daily-album-cover {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .daily-album-placeholder {
+    width: 80px;
+    height: 80px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    i { font-size: 32px; color: rgba(255, 255, 255, 0.5); }
+  }
+  .daily-album-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .daily-album-info .card-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .daily-album-info .card-subtitle {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 4px 0 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .daily-album-arrow {
+    font-size: 22px;
+    color: rgba(255, 255, 255, 0.5);
+    flex-shrink: 0;
+  }
+}
+
+/* ==================== Daily Album Block ==================== */
+.block-album-cover-wrap {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+.block-album-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-orb, .block-item.edit-mode, .card-item.edit-mode { animation: none; }
+  .grid-move { transition: none; }
+}
+</style>

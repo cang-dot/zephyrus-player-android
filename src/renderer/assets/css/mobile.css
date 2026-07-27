@@ -169,7 +169,7 @@
 /* ==================== 安全区域 ==================== */
 
 .mobile .safe-area-top {
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 16px);
+  padding-top: var(--safe-area-inset-top, 0px);
 }
 
 .mobile .safe-area-bottom {

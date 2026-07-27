@@ -75,7 +75,7 @@ export interface SongResult {
    * - 'joox'：JOOX（QQ 音乐国际版）
    * 用于标识非网易云的跨平台搜索结果
    */
-  platform?: 'netease' | 'qq' | 'migu' | 'kugou' | 'kuwo' | 'joox' | string;
+  platform?: 'netease' | 'qq' | 'migu' | 'kugou' | 'kuwo' | 'joox' | 'server' | string;
   /**
    * 跨平台歌曲在对应平台的原始 ID
    * 与 platform 配合使用，用于直接获取播放 URL

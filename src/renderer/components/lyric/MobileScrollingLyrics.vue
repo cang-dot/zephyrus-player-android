@@ -19,7 +19,7 @@
         </button>
         <span class="select-hint">
           {{ t('player.share.selectLyrics') || '选择歌词' }}
-          <span class="select-count">{{ selectedSet.size }}/10</span>
+          <span class="select-count">{{ selectedSet.size }}</span>
         </span>
         <button class="select-all-btn" @click="toggleSelectAll">
           {{
@@ -112,6 +112,14 @@
         </div>
       </div>
     </transition>
+
+    <!-- 截断提示 Toast -->
+    <Transition name="toast">
+      <div v-if="toastMsg" class="lyric-toast">
+        <i class="ri-information-line"></i>
+        <span>{{ toastMsg }}</span>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -137,7 +145,7 @@ const { t } = useI18n();
 const emit = defineEmits<{ close: []; interact: []; generatePoster: [lyrics: SelectedLyric[]] }>();
 
 // ==================== 多选模式 ====================
-const MAX_SELECTION = 10;
+const POSTER_MAX_LYRICS = 12; // 海报最多展示的歌词行数
 const selectMode = ref(false);
 const selectedSet = ref<Set<number>>(new Set());
 
@@ -170,7 +178,6 @@ function toggleSelection(index: number) {
     selectedSet.value.delete(index);
     selectedSet.value = new Set(selectedSet.value); // 触发响应式
   } else {
-    if (selectedSet.value.size >= MAX_SELECTION) return;
     selectedSet.value.add(index);
     selectedSet.value = new Set(selectedSet.value); // 触发响应式
   }
@@ -179,9 +186,7 @@ function toggleSelection(index: number) {
 /** 全选/取消全选 */
 const isAllSelected = computed(() => {
   const validLines = lrcArray.value.filter((l) => l.text && l.text.trim());
-  return (
-    validLines.length > 0 && selectedSet.value.size >= Math.min(validLines.length, MAX_SELECTION)
-  );
+  return validLines.length > 0 && selectedSet.value.size >= validLines.length;
 });
 
 function toggleSelectAll() {
@@ -189,7 +194,7 @@ function toggleSelectAll() {
     selectedSet.value = new Set();
   } else {
     const indices: number[] = [];
-    for (let i = 0; i < lrcArray.value.length && indices.length < MAX_SELECTION; i++) {
+    for (let i = 0; i < lrcArray.value.length; i++) {
       if (lrcArray.value[i].text && lrcArray.value[i].text.trim()) {
         indices.push(i);
       }
@@ -302,8 +307,31 @@ function handleGeneratePoster() {
       });
     }
   }
-  emit('generatePoster', lyrics);
+  // 超过海报最大行数时截断
+  if (lyrics.length > POSTER_MAX_LYRICS) {
+    const truncated = lyrics.slice(0, POSTER_MAX_LYRICS);
+    emit('generatePoster', truncated);
+    // 提示用户已截断
+    if (navigator.vibrate) navigator.vibrate([20, 50, 20]);
+    // 使用 toast 提示（通过 emit interact 保持选择模式，然后退出）
+    showToast(
+      t('player.share.lyricsTruncated') || `选中内容过长，已截断至${POSTER_MAX_LYRICS}句`
+    );
+  } else {
+    emit('generatePoster', lyrics);
+  }
   exitSelectMode();
+}
+
+/** 简易 toast 提示 */
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+const toastMsg = ref('');
+function showToast(msg: string) {
+  toastMsg.value = msg;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toastMsg.value = '';
+  }, 3000);
 }
 
 // ==================== 拖动 & 滚动逻辑 ====================
@@ -492,6 +520,7 @@ import { getLrcStyle } from '@/hooks/MusicHook';
 onBeforeUnmount(() => {
   if (autoScrollTimer) clearTimeout(autoScrollTimer);
   if (longPressTimer) clearTimeout(longPressTimer);
+  if (toastTimer) clearTimeout(toastTimer);
 });
 </script>
 
@@ -801,5 +830,37 @@ onBeforeUnmount(() => {
 .slide-up-leave-to {
   opacity: 0;
   transform: translateY(100%);
+}
+
+/* ===== Toast 提示 ===== */
+.lyric-toast {
+  position: absolute;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 20px;
+  background: rgba(20, 20, 25, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: #fff;
+  font-size: 13px;
+  z-index: 30;
+  white-space: nowrap;
+  max-width: 90%;
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
 }
 </style>

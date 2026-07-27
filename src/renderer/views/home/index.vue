@@ -1,6 +1,10 @@
 <template>
   <div class="home-container h-full w-full transition-colors duration-500">
-    <n-scrollbar class="h-full">
+    <!-- Mobile: Modular block-based design -->
+    <ModularHome v-if="isMobile" />
+
+    <!-- Desktop: Original layout -->
+    <n-scrollbar v-else class="h-full">
       <div class="home-content w-full pb-32 page-padding">
         <!-- Hero Section -->
         <home-hero class="enter-fade" />
@@ -48,11 +52,14 @@ import { NScrollbar } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
+import { isMobile } from '@/utils';
+
 import HomeAlbumSection from './components/HomeAlbumSection.vue';
 import HomeArtists from './components/HomeArtists.vue';
 import HomeHero from './components/HomeHero.vue';
 import HomeNewSongs from './components/HomeNewSongs.vue';
 import HomePlaylistSection from './components/HomePlaylistSection.vue';
+import ModularHome from './components/ModularHome.vue';
 
 defineOptions({
   name: 'Home'

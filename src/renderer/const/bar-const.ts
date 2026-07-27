@@ -27,6 +27,10 @@ export const SEARCH_TYPES = [
     key: 1
   },
   {
+    label: 'search.search.artist', // 歌手
+    key: 100
+  },
+  {
     label: 'search.search.album', // 专辑
     key: 10
   },

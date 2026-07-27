@@ -10,6 +10,8 @@
           background: backgroundColor
         }"
         @click="handleTapToggle"
+        @touchstart="onSwipeCloseTouchStart"
+        @touchend="onSwipeCloseTouchEnd"
       >
         <!-- 四角装饰圆点 -->
         <div class="corner-dot tl"></div>
@@ -107,6 +109,7 @@ import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useTapToggle } from '@/composables/useTapToggle';
+import { useSwipeClose } from '@/composables/useSwipeClose';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { usePlayerStore } from '@/store/modules/player';
@@ -136,6 +139,10 @@ const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
 });
 
 const showFullLyrics = ref(false);
+const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({
+  shouldClose: () => !showFullLyrics.value,
+  onClose: () => close()
+});
 
 // 海报分享
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();

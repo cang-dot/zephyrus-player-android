@@ -1,0 +1,23 @@
+{
+  "songs": [
+    {
+      "id": "mekadel_001",
+      "name": "我是K",
+      "artists": ["梅卡德尔"],
+      "album": "梅卡德尔",
+      "albumArtist": "梅卡德尔",
+      "composer": "赵泰",
+      "genre": "Post Punk",
+      "year": "2014",
+      "track": "6/10",
+      "duration": 340613,
+      "picUrl": "https://www.mucang.xyz/server-music/cover_mekadel_k.jpg",
+      "audioUrl": "https://www.mucang.xyz/server-music/mekadel_wo_shi_k.wav",
+      "lyricsUrl": "https://www.mucang.xyz/server-music/lyrics_mekadel_k.lrc",
+      "climax": {
+        "start": 160000,
+        "end": 298000
+      }
+    }
+  ]
+}

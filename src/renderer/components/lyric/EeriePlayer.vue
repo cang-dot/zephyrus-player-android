@@ -101,7 +101,7 @@ import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import { getClimaxWordCandidates, setCurrentSongId } from '@/utils/emotionalDetector';
 // 使用 Vite glob import 在构建时正确解析报纸纹理图片 URL
 // 避免 manifest.json 中的字符串路径在构建后失效（dev 可用 / build 404）
-const newspaperImageModules = import.meta.glob('@/assets/textures/newspaper/newspaper-*.png', {
+const newspaperImageModules = import.meta.glob('../../assets/textures/newspaper/newspaper-*.png', {
   eager: true,
   query: '?url',
   import: 'default'

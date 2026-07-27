@@ -367,6 +367,7 @@ import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { useScrollTitle } from '@/hooks/useScrollTitle';
 import { useMusicStore, usePlayerStore, useRecommendStore, useUserStore } from '@/store';
+import { useLocalPlaylistStore } from '@/store/modules/localPlaylist';
 import { usePlayHistoryStore } from '@/store/modules/playHistory';
 import { SongResult } from '@/types/music';
 import { calculateAnimationDelay, getImgUrl, isElectron, isMobile } from '@/utils';
@@ -465,7 +466,23 @@ useScrollTitle(name, titleElRef);
 
 const songList = computed(() => {
   if (isDailyRecommend.value) return recommendStore.dailyRecommendSongs;
-  return musicStore.currentMusicList || [];
+  const neteaseSongs = musicStore.currentMusicList || [];
+
+  // 合并本地附加歌曲（本地/云端/跨平台歌曲仅在本地展示）
+  const playlistId = route.query.id;
+  if (playlistId && !isAlbum.value) {
+    try {
+      const localPlaylistStore = useLocalPlaylistStore();
+      const localSongs = localPlaylistStore.getLocalSongs(Number(playlistId));
+      if (localSongs.length > 0) {
+        return [...neteaseSongs, ...localSongs];
+      }
+    } catch {
+      // store 未加载时忽略
+    }
+  }
+
+  return neteaseSongs;
 });
 
 const listInfo = computed(() => {

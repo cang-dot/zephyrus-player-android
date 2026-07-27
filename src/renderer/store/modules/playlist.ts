@@ -455,7 +455,12 @@ export const usePlaylistStore = defineStore(
         const nextSong = { ...playList.value[nowPlayListIndex] };
 
         // 同一首歌重试时强制刷新在线 URL，避免卡在失效链接上
-        if (singleTrackRetryCount > 0 && !nextSong.playMusicUrl?.startsWith('local://')) {
+        // 本地歌曲和云端托管歌曲的 URL 不会过期，不需要刷新
+        if (
+          singleTrackRetryCount > 0 &&
+          !nextSong.playMusicUrl?.startsWith('local://') &&
+          nextSong.platform !== 'server'
+        ) {
           nextSong.playMusicUrl = undefined;
           nextSong.expiredAt = undefined;
         }
@@ -602,8 +607,8 @@ export const usePlaylistStore = defineStore(
 
         // 检查URL是否已过期
         if (song.expiredAt && song.expiredAt < Date.now()) {
-          // 本地音乐（local:// 协议）不会过期
-          if (!song.playMusicUrl?.startsWith('local://')) {
+          // 本地音乐和云端托管歌曲不会过期
+          if (!song.playMusicUrl?.startsWith('local://') && song.platform !== 'server') {
             console.info(`歌曲URL已过期，重新获取: ${song.name}`);
             song.playMusicUrl = undefined;
             song.expiredAt = undefined;

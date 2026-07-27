@@ -148,13 +148,15 @@ export default {
     selectLyrics: 'Select Lyrics',
     selectAll: 'Select All',
     deselectAll: 'Deselect All',
+    copyLyrics: 'Copy Lyrics',
     generatePoster: 'Generate Poster',
     savedToGallery: 'Saved to gallery',
     saveFailed: 'Save failed',
     shareFailed: 'Share failed',
     generating: 'Generating poster...',
     generateFailed: 'Poster generation failed',
-    posterTitle: 'Lyric Poster'
+    posterTitle: 'Lyric Poster',
+    lyricsTruncated: 'Selection too long, truncated to 12 lines'
   },
   playList: {
     clearAll: 'Clear Playlist',

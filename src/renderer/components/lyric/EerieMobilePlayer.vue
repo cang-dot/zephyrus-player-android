@@ -10,6 +10,8 @@
           '--bg-color': bgColor
         }"
         @click="handleTapToggle"
+        @touchstart="onSwipeCloseTouchStart"
+        @touchend="onSwipeCloseTouchEnd"
       >
         <canvas ref="bgCanvasRef" class="bg-canvas"></canvas>
 
@@ -114,6 +116,7 @@ import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useTapToggle } from '@/composables/useTapToggle';
+import { useSwipeClose } from '@/composables/useSwipeClose';
 import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drawCracks } from '@/lib/crackRenderer';
@@ -252,6 +255,10 @@ const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
 });
 
 const showFullLyrics = ref(false);
+const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({
+  shouldClose: () => !showFullLyrics.value,
+  onClose: () => close()
+});
 
 // 海报分享
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();

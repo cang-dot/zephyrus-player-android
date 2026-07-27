@@ -33,6 +33,27 @@ export const useClimaxStore = defineStore('climax', () => {
     currentSongId.value = songId;
 
     try {
+      // 云端托管歌曲：从歌曲数据中的 serverMeta 获取高潮段落
+      if (songId.startsWith('server:')) {
+        // 通过 playerStore 获取当前歌曲
+        const { usePlayerStore } = await import('./player');
+        const playerStore = usePlayerStore();
+        const song = playerStore.playMusic;
+        if (song?.platformId) {
+          const { getServerSongDetail } = await import('@/api/serverSongs');
+          const detail = await getServerSongDetail(song.platformId);
+          if (detail.climax) {
+            segments.value = [detail.climax];
+            contributor.value = 'Zephyrus云端';
+          } else {
+            segments.value = [];
+            contributor.value = null;
+          }
+        }
+        loading.value = false;
+        return;
+      }
+
       // 本地歌曲：从本地永久存储加载
       if (!/^\d+$/.test(songId)) {
         const localData = await getLocalClimax(songId);

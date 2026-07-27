@@ -147,13 +147,15 @@ export default {
     selectLyrics: '選擇歌詞',
     selectAll: '全選',
     deselectAll: '取消全選',
+    copyLyrics: '複製歌詞',
     generatePoster: '生成海報',
     savedToGallery: '已儲存至相簿',
     saveFailed: '儲存失敗',
     shareFailed: '分享失敗',
     generating: '正在生成海報...',
     generateFailed: '海報生成失敗',
-    posterTitle: '歌詞海報'
+    posterTitle: '歌詞海報',
+    lyricsTruncated: '選中內容過長，已截斷至12句歌詞'
   },
   playList: {
     clearAll: '清空播放清單',

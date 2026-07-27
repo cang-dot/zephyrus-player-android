@@ -510,6 +510,25 @@ export const useSongDetail = () => {
       throw new Error('Request cancelled');
     }
 
+    // 云端托管歌曲：已有直链 URL，跳过网易云 URL 获取
+    if (playMusic.platform === 'server' && playMusic.playMusicUrl) {
+      playMusic.createdAt = Date.now();
+      // 云端歌曲不会过期（设为 1 年后）
+      playMusic.expiredAt = playMusic.createdAt + 365 * 24 * 3600 * 1000;
+
+      const { backgroundColor, primaryColor } =
+        playMusic.backgroundColor && playMusic.primaryColor
+          ? playMusic
+          : await getImageLinearBackground(getImgUrl(playMusic?.picUrl, '30y30'));
+
+      if (requestId && !playbackRequestManager.isRequestValid(requestId)) {
+        throw new Error('Request cancelled');
+      }
+
+      playMusic.playLoading = false;
+      return { ...playMusic, playMusicUrl: playMusic.playMusicUrl, backgroundColor, primaryColor } as SongResult;
+    }
+
     if (playMusic.expiredAt && playMusic.expiredAt < Date.now()) {
       // 本地音乐（local:// 协议）不会过期，跳过清除
       if (!playMusic.playMusicUrl?.startsWith('local://')) {

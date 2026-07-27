@@ -49,7 +49,7 @@ const emits = defineEmits([
   'remove'
 ]);
 
-const openPlaylistDrawer = inject<(songId: number | string) => void>('openPlaylistDrawer');
+const openPlaylistDrawer = inject<(songOrId: number | SongResult) => void>('openPlaylistDrawer');
 
 // 渲染歌曲预览
 const renderSongPreview = () => {
@@ -222,7 +222,7 @@ const handleSelect = (key: string | number) => {
       emits('play-next');
       break;
     case 'addToPlaylist':
-      openPlaylistDrawer?.(props.item.id);
+      openPlaylistDrawer?.(props.item);
       break;
     case 'favorite':
       emits('toggle-favorite');

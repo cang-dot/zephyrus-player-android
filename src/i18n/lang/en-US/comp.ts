@@ -151,6 +151,20 @@ export default {
       toplist: 'Top Charts'
     }
   },
+  modularHome: {
+    done: 'Done',
+    addBlock: 'Add Feature',
+    loginToUnlock: 'Login to unlock',
+    viewProfile: 'View Profile',
+    tapToExplore: 'Tap to explore',
+    dropAsCard: 'Drop here as card',
+    dropAsBlock: 'Drop here as block',
+    dailyAlbumDesc: 'Random from your albums',
+    blocks: {
+      user: 'Me',
+      dailyAlbum: 'Daily Album',
+    },
+  },
   searchBar: {
     login: 'Login',
     toLogin: 'To Login',

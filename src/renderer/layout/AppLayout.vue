@@ -3,7 +3,7 @@
   <mobile-layout :is-phone="true" />
 
   <!-- 歌单抽屉（全局） -->
-  <playlist-drawer v-model="showPlaylistDrawer" :song-id="currentSongId" />
+  <playlist-drawer v-model="showPlaylistDrawer" :song="currentSong" :song-id="currentSongId" />
   <playing-list-drawer />
 </template>
 
@@ -12,6 +12,7 @@ import { defineAsyncComponent, onMounted, provide, ref } from 'vue';
 
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
+import type { SongResult } from '@/types/music';
 
 import MobileLayout from './MobileLayout.vue';
 
@@ -30,9 +31,16 @@ onMounted(() => {
 
 const showPlaylistDrawer = ref(false);
 const currentSongId = ref<number | undefined>();
+const currentSong = ref<SongResult | undefined>();
 
-const openPlaylistDrawer = (songId: number, isOpen: boolean = true) => {
-  currentSongId.value = songId;
+const openPlaylistDrawer = (songOrId: number | SongResult, isOpen: boolean = true) => {
+  if (typeof songOrId === 'number') {
+    currentSongId.value = songOrId;
+    currentSong.value = undefined;
+  } else {
+    currentSong.value = songOrId;
+    currentSongId.value = typeof songOrId.id === 'number' ? songOrId.id : undefined;
+  }
   showPlaylistDrawer.value = isOpen;
   playerStore.setMusicFull(false);
   playerStore.setPlayListDrawerVisible(!isOpen);

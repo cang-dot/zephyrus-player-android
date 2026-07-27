@@ -144,6 +144,20 @@ export default {
       toplist: '排行榜'
     }
   },
+  modularHome: {
+    done: '完成',
+    addBlock: '添加功能',
+    loginToUnlock: '登录解锁',
+    viewProfile: '查看个人主页',
+    tapToExplore: '点击探索',
+    dropAsCard: '拖到此处变为卡片',
+    dropAsBlock: '拖到此处变为功能块',
+    dailyAlbumDesc: '从收藏专辑随机推荐',
+    blocks: {
+      user: '我的',
+      dailyAlbum: '每日专辑',
+    },
+  },
   searchBar: {
     login: '登录',
     toLogin: '去登录',
