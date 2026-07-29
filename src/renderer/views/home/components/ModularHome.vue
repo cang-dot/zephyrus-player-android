@@ -9,7 +9,7 @@
     <div class="top-mask" />
 
     <!-- Scrollable Content -->
-    <div ref="scrollContainer" class="home-scroll" @click.stop>
+    <div ref="scrollContainer" class="home-scroll" @click.stop @touchstart.passive="onBlankTouchStart">
       <div class="topbar-spacer" />
 
       <!-- Card Carousel -->
@@ -105,7 +105,6 @@
                       <p v-if="isLoggedIn" class="card-subtitle">{{ t('comp.modularHome.viewProfile') }}</p>
                       <p v-else class="card-subtitle">{{ t('comp.modularHome.loginToUnlock') }}</p>
                     </div>
-                    <button class="action-btn go-btn" @click.stop="router.push('/user')"><i class="ri-arrow-right-s-line" /></button>
                   </div>
                 </div>
               </template>
@@ -123,7 +122,6 @@
                     </div>
                     <div v-else class="card-empty-hint"><i class="ri-mic-fill" /></div>
                   </div>
-                  <button class="action-btn go-btn" @click.stop="router.push('/list')"><i class="ri-arrow-right-s-line" /></button>
                 </div>
               </template>
 
@@ -140,7 +138,6 @@
                     </div>
                     <div v-else class="card-empty-hint"><i class="ri-play-list-2-fill" /></div>
                   </div>
-                  <button class="action-btn go-btn" @click.stop="router.push('/list')"><i class="ri-arrow-right-s-line" /></button>
                 </div>
               </template>
 
@@ -157,7 +154,6 @@
                       <h2 class="card-title">{{ dailyAlbum?.name || t('comp.modularHome.blocks.dailyAlbum') }}</h2>
                       <p class="card-subtitle">{{ dailyAlbum?.artist?.name || t('comp.modularHome.dailyAlbumDesc') }}</p>
                     </div>
-                    <button class="action-btn go-btn" @click.stop="openDailyAlbum"><i class="ri-arrow-right-s-line" /></button>
                   </div>
                 </div>
               </template>
@@ -170,7 +166,6 @@
                     <h2 class="card-title">{{ t(meta[item.type].titleKey) }}</h2>
                     <p class="card-subtitle">{{ t(meta[item.type].descKey || 'comp.modularHome.tapToExplore') }}</p>
                   </div>
-                  <button class="action-btn go-btn" @click.stop="onItemClick(item.type)"><i class="ri-arrow-right-s-line" /></button>
                   <i :class="meta[item.type].icon" class="card-watermark" />
                 </div>
               </template>
@@ -190,8 +185,7 @@
         </div>
       </Transition>
 
-      <!-- Block Grid (4-column, variable size) -->
-      <TransitionGroup name="grid" tag="div" class="block-grid">
+      <div ref="blockGridRef" class="block-grid-container">
         <div
           v-for="item in blockItems"
           :key="item.type"
@@ -200,10 +194,8 @@
           :class="{
             'dragging': drag.active && drag.itemId === item.type && drag.source === 'grid',
             'edit-mode': isEditMode,
-            [`w-${item.w}`]: true,
-            [`h-${item.h}`]: true,
           }"
-          :style="{ gridColumn: `span ${item.w}`, gridRow: `span ${item.h}` }"
+          :style="blockStyle(item)"
           @touchstart.passive="onItemTouchStart($event, item.type, 'grid')"
           @click="onItemClick(item.type)"
         >
@@ -212,13 +204,10 @@
           <div v-if="isEditMode" class="block-remove" @click.stop="removeItem(item.type, 'grid')">
             <i class="ri-close-circle-fill" />
           </div>
-
-          <!-- Resize handle -->
           <div v-if="isEditMode" class="resize-handle" @touchstart.stop.prevent="onResizeStart($event, item)">
             <i class="ri-drag-move-2-fill" />
           </div>
 
-          <!-- Block content -->
           <div class="block-inner">
             <!-- Daily Recommend -->
             <template v-if="item.type === 'daily-recommend'">
@@ -265,7 +254,6 @@
               </div>
               <div class="block-label">{{ userNickname || t('comp.modularHome.blocks.user') }}</div>
               <div v-if="!isLoggedIn" class="block-hint">{{ t('comp.modularHome.loginToUnlock') }}</div>
-              <button class="action-btn go-btn" @click.stop="router.push('/user')"><i class="ri-arrow-right-s-line" /></button>
             </template>
 
             <!-- Artists -->
@@ -279,7 +267,6 @@
               </div>
               <div v-else class="block-icon-large"><i class="ri-mic-fill" /></div>
               <div class="block-label">{{ t('comp.homeHero.hotArtists') }}</div>
-              <button class="action-btn go-btn" @click.stop="router.push('/list')"><i class="ri-arrow-right-s-line" /></button>
             </template>
 
             <!-- Playlists -->
@@ -293,7 +280,6 @@
               </div>
               <div v-else class="block-icon-large"><i class="ri-play-list-2-fill" /></div>
               <div class="block-label">{{ t('comp.homeHero.hotPlaylists') }}</div>
-              <button class="action-btn go-btn" @click.stop="router.push('/list')"><i class="ri-arrow-right-s-line" /></button>
             </template>
 
             <!-- Daily Album -->
@@ -304,24 +290,27 @@
               <div v-else class="block-icon-large"><i class="ri-disc-fill" /></div>
               <div class="block-label">{{ dailyAlbum?.name || t('comp.modularHome.blocks.dailyAlbum') }}</div>
               <div v-if="!dailyAlbum" class="block-hint">{{ t('comp.modularHome.dailyAlbumDesc') }}</div>
-              <button class="action-btn go-btn" @click.stop="openDailyAlbum"><i class="ri-arrow-right-s-line" /></button>
             </template>
 
             <!-- Static blocks -->
             <template v-else>
               <div class="block-icon-large"><i :class="meta[item.type].icon" /></div>
               <div class="block-label">{{ t(meta[item.type].titleKey) }}</div>
-              <button class="action-btn go-btn" @click.stop="onItemClick(item.type)"><i class="ri-arrow-right-s-line" /></button>
             </template>
           </div>
         </div>
 
         <!-- Add block button -->
-        <div v-if="isEditMode && availableBlocks.length > 0" key="add-block" class="block-item add-block" @click="showAddSheet = true">
+        <div
+          v-if="isEditMode && availableBlocks.length > 0"
+          class="block-item add-block"
+          :style="blockStyle({ type: 'add' as any, w: 2, h: 2 } as LayoutItem)"
+          @click="showAddSheet = true"
+        >
           <div class="block-bg add-bg" />
           <div class="block-inner add-inner"><i class="ri-add-line" /><span>{{ t('comp.modularHome.addBlock') }}</span></div>
         </div>
-      </TransitionGroup>
+      </div>
 
       <div class="bottom-spacer" />
     </div>
@@ -354,6 +343,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useWindowSize } from '@vueuse/core';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
@@ -375,6 +365,7 @@ defineOptions({ name: 'ModularHome' });
 
 const { t, locale } = useI18n();
 const router = useRouter();
+const { width: winWidth } = useWindowSize();
 const recommendStore = useRecommendStore();
 const intelligenceModeStore = useIntelligenceModeStore();
 const userStore = useUserStore();
@@ -397,7 +388,6 @@ interface LayoutItem {
   h: number; // 1-2
 }
 
-// Blocks that can play music
 const PLAYABLE_BLOCKS: BlockType[] = ['daily-recommend', 'personal-fm'];
 
 const meta: Record<BlockType, {
@@ -423,6 +413,40 @@ const ALL_BLOCKS: BlockType[] = [
   'toplist', 'albums', 'history', 'favorites', 'podcast', 'mv',
 ];
 
+// ==================== Grid Sizing (JS-computed, bulletproof) ====================
+
+const GAP = 12;
+const PADDING = 16;
+
+/** Compute exact pixel size for a block based on w/h */
+const blockSize = (item: LayoutItem) => {
+  // container width = viewport width - 2*padding
+  const containerW = winWidth.value - PADDING * 2;
+  // 4 columns, 3 gaps between them
+  const unitW = (containerW - GAP * 3) / 4;
+  const unitH = unitW; // square units
+
+  const w = Math.max(1, Math.min(4, item.w));
+  const h = Math.max(1, Math.min(2, item.h));
+
+  return {
+    width: unitW * w + GAP * (w - 1),
+    height: unitH * h + GAP * (h - 1),
+    unitW,
+    unitH,
+  };
+};
+
+/** Inline style for a block item — CSS Grid span */
+const blockStyle = (item: LayoutItem) => {
+  const w = Math.max(1, Math.min(4, item.w));
+  const h = Math.max(1, Math.min(2, item.h));
+  return {
+    gridColumn: `span ${w}`,
+    gridRow: `span ${h}`,
+  };
+};
+
 // ==================== Persistence ====================
 
 const loadLayout = (): { cards: LayoutItem[]; blocks: LayoutItem[] } => {
@@ -438,13 +462,12 @@ const loadLayout = (): { cards: LayoutItem[]; blocks: LayoutItem[] } => {
       }
     }
   } catch { /* ignore */ }
-  // Migrate from old layout
   try {
     const old = localStorage.getItem('homeLayout');
     if (old) {
       const parsed = JSON.parse(old);
       if (parsed && Array.isArray(parsed.cards) && Array.isArray(parsed.blocks)) {
-        const toItems = (arr: string[]) => arr.filter((b: string) => ALL_BLOCKS.includes(b as BlockType)).map((type: string) => ({ type: type as BlockType, w: 2, h: 2 }));
+        const toItems = (arr: string[]) => arr.filter((b: string) => ALL_BLOCKS.includes(b as BlockType)).map((type: string) => ({ type: type as BlockType, w: 2, h: 2 } as LayoutItem));
         return { cards: toItems(parsed.cards), blocks: toItems(parsed.blocks) };
       }
     }
@@ -471,8 +494,6 @@ const blockItems = ref<LayoutItem[]>(initial.blocks);
 const availableBlocks = computed(() =>
   ALL_BLOCKS.filter(b => !cardItems.value.some(i => i.type === b) && !blockItems.value.some(i => i.type === b))
 );
-
-const isPlayable = (type: BlockType) => PLAYABLE_BLOCKS.includes(type);
 
 // ==================== User State ====================
 
@@ -659,6 +680,7 @@ const fetchPlaylists = async () => {
 // ==================== Card Carousel ====================
 
 const cardsTrack = ref<HTMLElement | null>(null);
+const blockGridRef = ref<HTMLElement | null>(null);
 const currentCardIndex = ref(0);
 
 const onCardsScroll = () => {
@@ -687,7 +709,6 @@ const onItemClick = (type: BlockType) => {
 };
 
 // ==================== Edit Mode ====================
-// Two modes: 'drag' (exit on release) and 'manual' (exit on blank tap)
 
 const editModeType = ref<'none' | 'drag' | 'manual'>('none');
 const isEditMode = computed(() => editModeType.value !== 'none');
@@ -717,12 +738,11 @@ const addItem = (type: BlockType) => {
   showAddSheet.value = false;
 };
 
-// ==================== FLIP Animation (fixed) ====================
+// ==================== FLIP Animation ====================
 
 const SPRING_EASE = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
 const SPRING_DURATION = '0.45s';
 
-/** Record positions of all matching elements */
 const recordRects = (container: HTMLElement, selector: string): Map<string, DOMRect> => {
   const map = new Map<string, DOMRect>();
   container.querySelectorAll<HTMLElement>(selector).forEach(child => {
@@ -732,7 +752,6 @@ const recordRects = (container: HTMLElement, selector: string): Map<string, DOMR
   return map;
 };
 
-/** Play FLIP animation from before positions to current positions */
 const playFlip = (container: HTMLElement, selector: string, beforeRects: Map<string, DOMRect>) => {
   container.querySelectorAll<HTMLElement>(selector).forEach(child => {
     const id = child.getAttribute('data-block-id') || child.getAttribute('data-card-id');
@@ -745,14 +764,13 @@ const playFlip = (container: HTMLElement, selector: string, beforeRects: Map<str
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
     child.style.transform = `translate(${dx}px, ${dy}px)`;
     child.style.transition = 'none';
-    child.offsetHeight; // force reflow
+    child.offsetHeight;
     child.style.transform = '';
     child.style.transition = `transform ${SPRING_DURATION} ${SPRING_EASE}`;
     setTimeout(() => { child.style.transition = ''; child.style.transform = ''; }, 500);
   });
 };
 
-/** Record + mutate + flip in one synchronous flow using nextTick */
 const flipAfterMutation = async (container: HTMLElement | null, selector: string) => {
   if (!container) return;
   const beforeRects = recordRects(container, selector);
@@ -774,7 +792,6 @@ const drag = reactive({
   cardSectionTop: 0,
   cardSectionBottom: 0,
   hasMoved: false,
-  enteredCardZone: false, // track cross-zone transition for morph animation
 });
 
 let pressTimer: number | undefined;
@@ -782,6 +799,70 @@ let touchStartX = 0;
 let touchStartY = 0;
 let docMoveHandler: ((e: TouchEvent) => void) | null = null;
 let docEndHandler: ((e: TouchEvent) => void) | null = null;
+
+// 抖动过滤：累计位移记录，只有持续定向移动才取消长按
+let jitterSamples: { x: number; y: number; t: number }[] = [];
+const JITTER_WINDOW = 5;          // 取最近5个采样点
+const JITTER_THRESHOLD = 24;       // 累计位移超过此值才算"真的在移动"
+
+const onBlankTouchStart = (e: TouchEvent) => {
+  // 如果触摸到了卡片或区块项，不处理空白触发
+  const target = e.target as HTMLElement;
+  if (target.closest('.card-item') || target.closest('.block-item') || target.closest('.add-sheet-item')) {
+    return;
+  }
+
+  // 已在编辑模式 — 点击空白退出（由 onBackgroundClick 处理）
+  if (isEditMode.value) return;
+
+  const touch = e.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+  jitterSamples = [{ x: touch.clientX, y: touch.clientY, t: Date.now() }];
+
+  // 长按空白区域进入手动编辑模式
+  pressTimer = window.setTimeout(() => {
+    if (editModeType.value === 'none') {
+      editModeType.value = 'manual';
+      // 触觉反馈
+      if (navigator.vibrate) navigator.vibrate(30);
+    }
+  }, 600);
+
+  // 监听移动和结束
+  docMoveHandler = (ev: TouchEvent) => {
+    const t = ev.touches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+
+    // 抖动过滤：采样并计算最近窗口内的累计位移
+    jitterSamples.push({ x: t.clientX, y: t.clientY, t: Date.now() });
+    if (jitterSamples.length > JITTER_WINDOW + 1) {
+      jitterSamples.shift();
+    }
+
+    // 只有最近窗口内位移超过阈值才取消长按（过滤微小抖动）
+    if (jitterSamples.length >= 2) {
+      const oldest = jitterSamples[0];
+      const newest = jitterSamples[jitterSamples.length - 1];
+      const netDx = Math.abs(newest.x - oldest.x);
+      const netDy = Math.abs(newest.y - oldest.y);
+      if (netDx > JITTER_THRESHOLD || netDy > JITTER_THRESHOLD) {
+        clearTimeout(pressTimer);
+        pressTimer = undefined;
+        detachDocListeners();
+      }
+    }
+  };
+  docEndHandler = () => {
+    clearTimeout(pressTimer);
+    pressTimer = undefined;
+    detachDocListeners();
+  };
+  document.addEventListener('touchmove', docMoveHandler, { passive: true });
+  document.addEventListener('touchend', docEndHandler, { passive: true });
+  document.addEventListener('touchcancel', docEndHandler, { passive: true });
+};
 
 const onItemTouchStart = (e: TouchEvent, itemType: BlockType, source: Zone) => {
   const touch = e.touches[0];
@@ -793,7 +874,7 @@ const onItemTouchStart = (e: TouchEvent, itemType: BlockType, source: Zone) => {
   drag.source = source;
   drag.targetZone = source;
   drag.hasMoved = false;
-  drag.enteredCardZone = false;
+  jitterSamples = [{ x: touch.clientX, y: touch.clientY, t: Date.now() }];
 
   const cardSection = document.querySelector('.card-section');
   if (cardSection) {
@@ -806,17 +887,16 @@ const onItemTouchStart = (e: TouchEvent, itemType: BlockType, source: Zone) => {
   }
 
   if (isEditMode.value) {
-    // Already in manual edit mode - start drag immediately, stay in manual mode
     startDrag();
     attachDocListeners();
     return;
   }
 
-  // Long press to enter drag edit mode (exits on release)
   pressTimer = window.setTimeout(() => {
     editModeType.value = 'drag';
     startDrag();
     attachDocListeners();
+    if (navigator.vibrate) navigator.vibrate(30);
   }, 600);
 };
 
@@ -835,18 +915,27 @@ const detachDocListeners = () => {
 
 const onDocTouchMove = (e: TouchEvent) => {
   const touch = e.touches[0];
-  const moveDx = touch.clientX - touchStartX;
-  const moveDy = touch.clientY - touchStartY;
 
-  // Cancel long-press if user moves too much before timer fires
+  // 抖动过滤：采样并计算最近窗口内的累计位移
+  jitterSamples.push({ x: touch.clientX, y: touch.clientY, t: Date.now() });
+  if (jitterSamples.length > JITTER_WINDOW + 1) {
+    jitterSamples.shift();
+  }
+
   if (!drag.active && pressTimer) {
-    if (Math.abs(moveDx) > 10 || Math.abs(moveDy) > 10) {
-      clearTimeout(pressTimer);
-      pressTimer = undefined;
-      // But if user is already in manual edit mode, they might want to drag
-      if (editModeType.value === 'manual') {
-        startDrag();
-        attachDocListeners();
+    // 只有持续定向移动超过阈值才取消长按（过滤微小抖动）
+    if (jitterSamples.length >= 2) {
+      const oldest = jitterSamples[0];
+      const newest = jitterSamples[jitterSamples.length - 1];
+      const netDx = Math.abs(newest.x - oldest.x);
+      const netDy = Math.abs(newest.y - oldest.y);
+      if (netDx > JITTER_THRESHOLD || netDy > JITTER_THRESHOLD) {
+        clearTimeout(pressTimer);
+        pressTimer = undefined;
+        if (editModeType.value === 'manual') {
+          startDrag();
+          attachDocListeners();
+        }
       }
     }
     return;
@@ -860,7 +949,6 @@ const onDocTouchMove = (e: TouchEvent) => {
   drag.deltaY = touch.clientY - drag.startTouchY;
   drag.hasMoved = true;
 
-  // Move the dragged element
   const selector = drag.source === 'card' ? `[data-card-id="${drag.itemId}"]` : `[data-block-id="${drag.itemId}"]`;
   const el = document.querySelector(selector) as HTMLElement;
   if (el) {
@@ -868,31 +956,44 @@ const onDocTouchMove = (e: TouchEvent) => {
     el.style.boxShadow = '0 20px 60px rgba(0, 0, 0, 0.35)';
   }
 
-  // Detect target zone
   const fingerY = touch.clientY;
   const isCardZone = fingerY < drag.cardSectionBottom + 80;
 
   if (drag.source === 'grid' && isCardZone) {
     if (drag.targetZone !== 'card') {
       drag.targetZone = 'card';
-      drag.enteredCardZone = true;
-      // Morph animation: quickly scale to card-like aspect
       if (el) {
-        el.style.transition = 'width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-radius 0.3s ease';
+        el.style.transition = 'border-radius 0.3s ease';
         el.style.borderRadius = '24px';
       }
     }
   } else if (drag.source === 'card' && !isCardZone) {
-    drag.targetZone = 'grid';
-    // Remove overflow constraint from cards track so element isn't clipped
+    if (drag.targetZone !== 'grid') {
+      drag.targetZone = 'grid';
+      const size = blockSize({ type: drag.itemId as BlockType, w: 2, h: 2 });
+      if (el) {
+        el.style.transition = 'width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), border-radius 0.3s ease';
+        el.style.width = size.width + 'px';
+        el.style.height = size.height + 'px';
+        el.style.borderRadius = '24px';
+      }
+    }
     if (cardsTrack.value) {
       cardsTrack.value.style.overflow = 'visible';
+    }
+  } else if (drag.source === 'card' && isCardZone) {
+    if (drag.targetZone === 'grid') {
+      drag.targetZone = 'card';
+      if (el) {
+        el.style.transition = 'width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), border-radius 0.3s ease';
+        el.style.width = '';
+        el.style.height = '';
+      }
     }
   } else {
     drag.targetZone = drag.source;
   }
 
-  // Find swap target within same zone
   const elementUnder = document.elementFromPoint(touch.clientX, touch.clientY);
   if (!elementUnder) return;
 
@@ -904,7 +1005,7 @@ const onDocTouchMove = (e: TouchEvent) => {
         const track = cardsTrack.value;
         if (track) {
           const beforeRects = recordRects(track, '.card-item:not(.dragging)');
-          swapInArray(cardItems, drag.itemId, targetId);
+          moveInArray(cardItems, drag.itemId, targetId);
           nextTick(() => playFlip(track, '.card-item:not(.dragging)', beforeRects));
         }
       }
@@ -914,10 +1015,10 @@ const onDocTouchMove = (e: TouchEvent) => {
     if (targetBlock) {
       const targetId = targetBlock.getAttribute('data-block-id');
       if (targetId && targetId !== drag.itemId) {
-        const grid = document.querySelector('.block-grid') as HTMLElement;
+        const grid = blockGridRef.value;
         if (grid) {
           const beforeRects = recordRects(grid, '.block-item:not(.dragging):not(.add-block)');
-          swapInArray(blockItems, drag.itemId, targetId);
+          moveInArray(blockItems, drag.itemId, targetId);
           nextTick(() => playFlip(grid, '.block-item:not(.dragging):not(.add-block)', beforeRects));
         }
       }
@@ -925,16 +1026,16 @@ const onDocTouchMove = (e: TouchEvent) => {
   }
 };
 
-const swapInArray = (arr: { value: LayoutItem[] }, fromId: string, toId: string) => {
+const moveInArray = (arr: { value: LayoutItem[] }, fromId: string, toId: string) => {
   const fromIdx = arr.value.findIndex(i => i.type === fromId);
   const toIdx = arr.value.findIndex(i => i.type === toId);
-  if (fromIdx !== -1 && toIdx !== -1) {
+  if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
     const newOrder = [...arr.value];
-    [newOrder[fromIdx], newOrder[toIdx]] = [newOrder[toIdx], newOrder[fromIdx]];
+    const [moved] = newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, moved);
     arr.value = newOrder;
     saveLayout();
 
-    // Adjust start position so element stays under finger
     const selector = `[data-block-id="${fromId}"], [data-card-id="${fromId}"]`;
     const el = document.querySelector(selector) as HTMLElement;
     if (el) {
@@ -957,7 +1058,6 @@ const onDocTouchEnd = () => {
 
   if (!drag.active) {
     detachDocListeners();
-    // If user just long-pressed without dragging (manual mode)
     if (editModeType.value === 'drag' && !drag.hasMoved) {
       editModeType.value = 'manual';
     }
@@ -968,21 +1068,17 @@ const onDocTouchEnd = () => {
   const draggedEl = document.querySelector(dragSelector) as HTMLElement;
   const draggedRectBefore = draggedEl ? draggedEl.getBoundingClientRect() : null;
 
-  // Cross-zone move
   if (drag.source !== drag.targetZone) {
-    const grid = document.querySelector('.block-grid') as HTMLElement;
+    const grid = blockGridRef.value;
     const track = cardsTrack.value;
 
     if (drag.source === 'grid' && drag.targetZone === 'card') {
-      // Moving to cards
-      if (grid) { const before = recordRects(grid, '.block-item:not(.dragging):not(.add-block)'); }
       const item = blockItems.value.find(i => i.type === drag.itemId);
       blockItems.value = blockItems.value.filter(i => i.type !== drag.itemId);
       if (item) cardItems.value.push(item);
       saveLayout();
       if (grid) flipAfterMutation(grid, '.block-item:not(.dragging):not(.add-block)');
     } else if (drag.source === 'card' && drag.targetZone === 'grid') {
-      // Moving to grid
       const item = cardItems.value.find(i => i.type === drag.itemId);
       cardItems.value = cardItems.value.filter(i => i.type !== drag.itemId);
       if (item) blockItems.value.push({ ...item, w: 2, h: 2 });
@@ -990,7 +1086,6 @@ const onDocTouchEnd = () => {
       if (track) flipAfterMutation(track, '.card-item:not(.dragging)');
     }
 
-    // Animate element from old position to new
     if (draggedRectBefore && draggedEl) {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -1008,19 +1103,19 @@ const onDocTouchEnd = () => {
             setTimeout(() => {
               newEl.style.transition = ''; newEl.style.transform = ''; newEl.style.zIndex = '';
               newEl.style.pointerEvents = ''; newEl.style.touchAction = ''; newEl.style.boxShadow = '';
-              newEl.style.borderRadius = '';
+              newEl.style.borderRadius = ''; newEl.style.width = ''; newEl.style.height = '';
             }, 500);
           }
         });
       });
     }
   } else {
-    // Same zone: reset with spring
     if (draggedEl) {
       draggedEl.style.transition = `transform ${SPRING_DURATION} ${SPRING_EASE}`;
       draggedEl.style.transform = '';
       draggedEl.style.zIndex = ''; draggedEl.style.pointerEvents = ''; draggedEl.style.touchAction = '';
       draggedEl.style.boxShadow = ''; draggedEl.style.borderRadius = '';
+      draggedEl.style.width = ''; draggedEl.style.height = '';
       setTimeout(() => { if (draggedEl) draggedEl.style.transition = ''; }, 500);
     }
   }
@@ -1035,7 +1130,6 @@ const onDocTouchEnd = () => {
   drag.deltaX = 0;
   drag.deltaY = 0;
 
-  // Exit drag edit mode on release; stay in manual mode
   if (editModeType.value === 'drag') {
     setTimeout(() => { editModeType.value = 'none'; }, 100);
   }
@@ -1054,7 +1148,6 @@ const startDrag = () => {
   drag.active = true;
 
   if (scrollContainer.value) { scrollContainer.value.style.overflow = 'hidden'; scrollContainer.value.style.touchAction = 'none'; }
-  // Don't hide overflow on cards track here - only when dragging out of cards
   if (cardsTrack.value && drag.source === 'card') {
     cardsTrack.value.style.overflow = 'hidden';
   }
@@ -1074,10 +1167,11 @@ const onResizeStart = (e: TouchEvent, item: LayoutItem) => {
     if (!resizeData) return;
     ev.preventDefault();
     const t = ev.touches[0];
-    const grid = document.querySelector('.block-grid') as HTMLElement;
+    const grid = blockGridRef.value;
     if (!grid) return;
-    const colWidth = (grid.offsetWidth - 14 * 3 - 32) / 4; // 4 cols, gap 14, padding 16 each side
-    const rowHeight = colWidth; // square rows
+    const size = blockSize({ type: 'x' as any, w: 1, h: 1 } as LayoutItem);
+    const colWidth = size.unitW + GAP;
+    const rowHeight = size.unitH + GAP;
 
     const dx = t.clientX - resizeData.startX;
     const dy = t.clientY - resizeData.startY;
@@ -1110,16 +1204,13 @@ const onResizeStart = (e: TouchEvent, item: LayoutItem) => {
 // ==================== Add Sheet Drag ====================
 
 const onAddItemTouchStart = (e: TouchEvent, blockType: BlockType) => {
-  // Long press to start dragging from add sheet to main grid
   const touch = e.touches[0];
   pressTimer = window.setTimeout(() => {
     showAddSheet.value = false;
-    // Add item to grid immediately then start dragging it
     const newItem: LayoutItem = { type: blockType, w: 2, h: 2 };
     blockItems.value.push(newItem);
     saveLayout();
 
-    // Start dragging the new item
     drag.itemId = blockType;
     drag.source = 'grid';
     drag.targetZone = 'grid';
@@ -1193,7 +1284,6 @@ onBeforeUnmount(() => {
   transition: background 0.6s ease;
 }
 
-/* Ambient Background */
 .ambient-bg { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .ambient-orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.1; animation: orbFloat 25s ease-in-out infinite; }
 .orb-1 { width: 320px; height: 320px; background: var(--accent-color, #888); top: 5%; left: -15%; }
@@ -1219,7 +1309,7 @@ onBeforeUnmount(() => {
 /* ==================== Card Carousel ==================== */
 .card-section { margin-top: 8px; }
 .cards-track {
-  display: flex; overflow-x: auto; overflow-y: visible; /* visible to prevent clipping */
+  display: flex; overflow-x: auto; overflow-y: visible;
   scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
   scrollbar-width: none; gap: 0; padding: 0 16px; scroll-behavior: smooth;
   &::-webkit-scrollbar { display: none; }
@@ -1261,7 +1351,6 @@ onBeforeUnmount(() => {
 .card-subtitle { font-size: 14px; opacity: 0.75; margin-top: 4px; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.2); }
 .card-watermark { position: absolute; bottom: -10px; right: -10px; font-size: 120px; opacity: 0.08; z-index: 2; pointer-events: none; }
 
-/* Action buttons (play / go) */
 .action-btn {
   position: absolute; bottom: 16px; right: 16px; z-index: 5;
   width: 40px; height: 40px; border-radius: 50%; border: none;
@@ -1273,11 +1362,7 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.9); color: #1a1a1a; font-size: 20px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2); i { margin-left: 2px; }
 }
-.go-btn {
-  background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(8px); color: #fff; font-size: 20px;
-}
 
-/* Daily Recommend Card */
 .daily-date { display: flex; flex-direction: column; align-items: flex-end; }
 .daily-day { font-family: var(--m-font-serif, 'Cormorant Garamond', serif); font-size: 36px; font-weight: 700; line-height: 1; }
 .daily-weekday { font-size: 10px; letter-spacing: 0.1em; opacity: 0.8; margin-top: 2px; }
@@ -1287,7 +1372,6 @@ onBeforeUnmount(() => {
 .preview-name { flex: 1; font-weight: 500; }
 .preview-artist { opacity: 0.5; max-width: 80px; }
 
-/* Personal FM Card */
 .fm-body { flex-direction: row; align-items: center; gap: 16px; }
 .fm-cover-wrap { position: relative; width: 72px; height: 72px; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); flex-shrink: 0; }
 .fm-cover { width: 100%; height: 100%; object-fit: cover; }
@@ -1313,27 +1397,23 @@ onBeforeUnmount(() => {
   transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1); &:active { transform: scale(0.9); }
 }
 
-/* User Card */
 .user-body { flex-direction: row; align-items: center; gap: 16px; }
 .user-avatar-wrap { width: 56px; height: 56px; border-radius: 50%; overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.3); flex-shrink: 0; }
 .user-avatar { width: 100%; height: 100%; object-fit: cover; }
 .user-avatar-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.15); i { font-size: 24px; opacity: 0.6; } }
 .user-info { flex: 1; min-width: 0; }
 
-/* Artists Card */
 .artists-row { display: flex; gap: 12px; overflow: hidden; }
 .artist-chip { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; flex: 1; }
 .artist-chip-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
 .artist-chip-name { font-size: 11px; text-align: center; opacity: 0.85; max-width: 100%; }
 
-/* Playlists Card */
 .playlists-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .pl-chip { display: flex; flex-direction: column; gap: 4px; }
 .pl-chip-img { width: 100%; aspect-ratio: 1; border-radius: 10px; object-fit: cover; }
 .pl-chip-name { font-size: 10px; opacity: 0.7; }
 .card-empty-hint { flex: 1; display: flex; align-items: center; justify-content: center; i { font-size: 40px; opacity: 0.3; } }
 
-/* Page Dots */
 .page-dots { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
 .page-dot {
   width: 6px; height: 6px; border-radius: 50%;
@@ -1344,22 +1424,20 @@ onBeforeUnmount(() => {
 
 .drop-zone-indicator { text-align: center; padding: 8px; font-size: 12px; font-weight: 600; color: var(--accent-color, #888); opacity: 0.8; }
 
-/* ==================== Block Grid (4-column) ==================== */
-.block-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  /* Each row height = one column width (square unit) */
+/* ==================== Block Grid (CSS Grid + dense packing) ==================== */
+.block-grid-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-flow: dense;
   grid-auto-rows: calc((100vw - 32px - 36px) / 4);
-  gap: 12px; padding: 16px 16px;
+  gap: 12px; padding: 16px;
+  position: relative;
 }
-.grid-move { transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
-.grid-enter-active, .grid-leave-active { transition: all 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
-.grid-enter-from, .grid-leave-to { opacity: 0; transform: scale(0.8); }
 
 .block-item {
   position: relative; border-radius: 24px; overflow: hidden; cursor: pointer;
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
   transition: transform 0.3s var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
-  min-height: 0;
 
   .block-glow { position: absolute; inset: -20px; border-radius: 50%; filter: blur(30px); opacity: 0.2; z-index: 0; pointer-events: none; }
   &:active:not(.edit-mode):not(.dragging) { transform: scale(0.96); }
@@ -1402,7 +1480,6 @@ onBeforeUnmount(() => {
 .block-album-cover-wrap { width: 100%; aspect-ratio: 1; border-radius: 12px; overflow: hidden; margin-bottom: 6px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2); }
 .block-album-cover { width: 100%; height: 100%; object-fit: cover; }
 
-/* Resize handle */
 .resize-handle {
   position: absolute; bottom: 0; right: 0; z-index: 10;
   width: 36px; height: 36px;
@@ -1411,7 +1488,6 @@ onBeforeUnmount(() => {
   i { font-size: 18px; color: rgba(255, 255, 255, 0.6); filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.3)); }
 }
 
-/* Add Block */
 .add-block {
   .add-bg { background: var(--cover-surface, rgba(0, 0, 0, 0.05)); border: 2px dashed var(--cover-border, rgba(128, 128, 128, 0.3)); }
   .add-inner {
@@ -1421,7 +1497,6 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Remove Button */
 .block-remove, .card-remove {
   position: absolute; top: 8px; right: 8px; z-index: 10;
   width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
@@ -1429,7 +1504,6 @@ onBeforeUnmount(() => {
   i { font-size: 22px; color: #ff4444; }
 }
 
-/* Add Block Sheet */
 .add-sheet-overlay {
   position: fixed; inset: 0; z-index: 200;
   background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(8px) saturate(180%);
@@ -1444,7 +1518,6 @@ onBeforeUnmount(() => {
 .add-sheet-title { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; color: var(--cover-text-primary, var(--m-text-primary, var(--text-color))); margin-bottom: 20px; }
 .add-sheet-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .add-sheet-item { cursor: pointer; transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1); &:active { transform: scale(0.92); } }
-/* 2x2 thumbnail preview */
 .add-sheet-thumb {
   width: 100%; aspect-ratio: 1; border-radius: 20px; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -1456,7 +1529,6 @@ onBeforeUnmount(() => {
 
 .bottom-spacer { height: 240px; flex-shrink: 0; }
 
-/* Transitions */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .sheet-enter-active, .sheet-leave-active {
@@ -1465,7 +1537,6 @@ onBeforeUnmount(() => {
 }
 .sheet-enter-from, .sheet-leave-to { opacity: 0; .add-sheet { transform: translateY(100%); } }
 
-/* Daily Album Card */
 .card-daily-album {
   .daily-album-body { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
   .daily-album-cover-wrap { width: 80px; height: 80px; border-radius: 14px; overflow: hidden; flex-shrink: 0; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3); }
@@ -1478,6 +1549,5 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .ambient-orb, .block-item.edit-mode, .card-item.edit-mode { animation: none; }
-  .grid-move { transition: none; }
 }
 </style>

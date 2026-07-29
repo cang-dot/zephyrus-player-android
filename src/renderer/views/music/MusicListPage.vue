@@ -1,138 +1,136 @@
 <template>
-  <div
-    class="music-list-page h-full w-full transition-colors duration-500"
-    :style="{ background: 'var(--m-bg, var(--bg-color, #fff))' }"
-  >
+  <div class="music-list-page">
     <n-scrollbar ref="scrollbarRef" class="flex-1 min-h-0" @scroll="handleScroll">
       <div class="music-list-content">
-        <!-- Hero Section 和 Action Bar -->
-        <n-spin :show="loading">
-          <!-- Hero Section -->
-          <section class="hero-section relative rounded-tl-2xl">
-            <!-- Background Image with Blur -->
-            <div class="hero-bg absolute inset-0 -top-20">
-              <div
-                class="absolute inset-0 bg-cover bg-center scale-110 blur-3xl opacity-40 dark:opacity-30"
-                :style="{
-                  backgroundImage: `url(${getImgUrl(getCoverImgUrl, '800y800')})`
-                }"
-              ></div>
-              <div
-                class="absolute inset-0"
-                :style="{
-                  background:
-                    'linear-gradient(to bottom, transparent, color-mix(in srgb, var(--m-bg, #fff) 80%, transparent), var(--m-bg, #fff))'
-                }"
-              ></div>
+        <!-- Loading skeleton -->
+        <div v-if="loading" class="hero-skeleton">
+          <div class="skeleton-cover skeleton-shimmer" />
+          <div class="skeleton-info">
+            <div class="skeleton-title skeleton-shimmer" />
+            <div class="skeleton-badge skeleton-shimmer" />
+            <div class="skeleton-meta skeleton-shimmer" />
+          </div>
+        </div>
+
+        <template v-else>
+          <!--
+            Hero Zone — 信息+控制合为一体
+            展开态: [封面] / [标题+详情] / [控制栏]  纵向居中
+            收缩态: [小封面] [标题]  [播放] [收藏]   横向单行
+            同一组 DOM 元素通过 CSS 形变实现过渡，不创建新对象
+          -->
+          <section class="hero-zone" :class="{ compact: isCompact }">
+            <!-- 封面：160px → 40px -->
+            <div class="cover-wrap">
+              <img
+                :src="getImgUrl(getCoverImgUrl, '500y500')"
+                class="cover-img"
+                alt=""
+                draggable="false"
+              />
             </div>
 
-            <!-- Hero Content -->
-            <div class="hero-content relative z-10 page-padding-x pt-4 md:pt-10 pb-8">
-              <div class="flex flex-col md:flex-row gap-8 md:gap-12 items-center md:items-end">
-                <!-- Playlist Cover -->
-                <div class="cover-wrapper relative group">
-                  <div
-                    class="cover-glow absolute -inset-2 rounded-2xl bg-gradient-to-br from-primary/30 via-primary/10 to-transparent blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                  ></div>
-                  <div
-                    class="cover-container relative w-48 h-48 md:w-64 md:h-64 rounded-2xl overflow-hidden shadow-2xl ring-4 ring-white/50 dark:ring-neutral-800/50"
-                  >
-                    <n-image
-                      :src="getImgUrl(getCoverImgUrl, '500y500')"
-                      class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                      preview-disabled
-                    />
-                    <!-- Play overlay on cover -->
-                    <div
-                      class="absolute inset-0 flex items-center justify-center bg-transparent group-hover:bg-black/30 transition-all duration-300"
-                      :class="isMobile ? 'pointer-events-none' : 'cursor-pointer'"
-                      @click="!isMobile && handlePlayAll()"
-                    >
-                      <button
-                        v-if="!isMobile"
-                        type="button"
-                        class="play-icon w-16 h-16 rounded-full bg-white/90 flex items-center justify-center opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 shadow-xl hover:scale-110 active:scale-95 pointer-events-auto"
-                        @click.stop="handlePlayAll"
-                      >
-                        <i class="ri-play-fill text-3xl text-neutral-900 ml-1" />
-                      </button>
-                    </div>
-                  </div>
+            <!-- 文字区：标题始终可见，详情收缩时淡出 -->
+            <div class="hero-text">
+              <h1 ref="titleElRef" class="hero-title">{{ name }}</h1>
+              <div class="hero-detail">
+                <div class="hero-badge-row">
+                  <span class="hero-badge">{{ isAlbum ? 'Album' : 'Playlist' }}</span>
                 </div>
-
-                <!-- Playlist Info -->
-                <div class="playlist-info flex-1 text-center md:text-left">
-                  <div class="playlist-badge mb-3">
-                    <span
-                      class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--accent-color)]/10 dark:bg-[var(--accent-color)]/20 text-[var(--accent-color)] text-xs font-semibold uppercase tracking-wider"
-                    >
-                      {{ isAlbum ? 'Album' : 'Playlist' }}
-                    </span>
+                <div class="hero-meta">
+                  <div v-if="isAlbum && listInfo?.artist" class="meta-creator">
+                    <img
+                      :src="getImgUrl(listInfo.artist.picUrl, '50y50')"
+                      class="meta-avatar"
+                      alt=""
+                    />
+                    <span class="meta-name" @click="navigateToArtist(listInfo.artist.id)">{{ listInfo.artist.name }}</span>
                   </div>
-                  <h1
-                    ref="titleElRef"
-                    class="playlist-name text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-4"
-                    :style="{ color: 'var(--m-text-primary, #1a1a1a)' }"
-                  >
-                    {{ name }}
-                  </h1>
-
-                  <!-- Meta Info -->
-                  <div
-                    class="flex flex-wrap items-center justify-center md:justify-start gap-4 mb-6"
-                  >
-                    <div v-if="isAlbum && listInfo?.artist" class="flex items-center gap-2">
-                      <n-avatar
-                        round
-                        :size="28"
-                        :src="getImgUrl(listInfo.artist.picUrl, '50y50')"
-                      />
-                      <span
-                        class="text-sm font-semibold cursor-pointer transition-colors"
-                        :style="{ color: 'var(--m-text-secondary, #6b6560)' }"
-                        @click="navigateToArtist(listInfo.artist.id)"
-                        >{{ listInfo.artist.name }}</span
-                      >
-                    </div>
-                    <div v-else-if="!isAlbum && listInfo?.creator" class="flex items-center gap-2">
-                      <n-avatar
-                        round
-                        :size="28"
-                        :src="getImgUrl(listInfo.creator.avatarUrl, '50y50')"
-                      />
-                      <span class="text-sm font-semibold" :style="{ color: 'var(--m-text-secondary, #6b6560)' }">{{
-                        listInfo.creator.nickname
-                      }}</span>
-                    </div>
-                    <div class="h-1 w-1 rounded-full" :style="{ background: 'var(--m-border, #d5d0c9)' }"></div>
-                    <span class="text-sm" :style="{ color: 'var(--m-text-muted, #9a9590)' }">
-                      {{ t('player.songNum', { num: total }) }}
-                    </span>
+                  <div v-else-if="!isAlbum && listInfo?.creator" class="meta-creator">
+                    <img
+                      :src="getImgUrl(listInfo.creator.avatarUrl, '50y50')"
+                      class="meta-avatar"
+                      alt=""
+                    />
+                    <span class="meta-name">{{ listInfo.creator.nickname }}</span>
                   </div>
-
-                  <div v-if="listInfo?.description" class="relative">
-                    <p
-                      class="text-sm md:text-base line-clamp-2 leading-relaxed max-w-3xl cursor-pointer transition-colors"
-                      :style="{ color: 'var(--m-text-muted, #9a9590)' }"
-                      @click.stop="showDescriptionPopover = !showDescriptionPopover"
-                    >
-                      {{ listInfo.description }}
-                    </p>
-                  </div>
+                  <span class="meta-count">{{ t('common.songCount', { count: total }) }}</span>
+                </div>
+                <div v-if="listInfo?.description" class="hero-desc" @click.stop="showDescriptionPopover = !showDescriptionPopover">
+                  {{ listInfo.description }}
                 </div>
               </div>
             </div>
-          </section>
-        </n-spin>
 
-        <!-- 专辑介绍弹窗（Teleport 到 body 避免被裁剪） -->
+            <!-- 控制区：播放全部+收藏始终可见，其余收缩时淡出 -->
+            <div v-if="songList.length > 0" class="hero-controls">
+              <button class="play-all-btn" @click="handlePlayAll">
+                <i class="ri-play-fill" />
+                <span class="play-all-label">{{ t('comp.musicList.playAll') }}</span>
+              </button>
+
+              <button v-if="canCollect" class="collect-btn" :class="{ collected: isCollected }" @click="toggleCollect">
+                <i :class="isCollected ? 'ri-heart-fill' : 'ri-heart-line'" />
+              </button>
+
+              <!-- 额外控制：选择/搜索/排序等，收缩态隐藏 -->
+              <div class="controls-extra">
+                <button v-if="!isSelecting && isElectron" class="icon-btn" @click="startSelect">
+                  <i class="ri-checkbox-multiple-line" />
+                </button>
+
+                <div v-if="isSelecting" class="batch-actions">
+                  <n-checkbox :checked="isAllSelected" :indeterminate="isIndeterminate" @update:checked="handleSelectAll">
+                    {{ t('common.selectAll') }}
+                  </n-checkbox>
+                  <button class="batch-btn" :disabled="selectedSongs.length === 0 || isDownloading" @click="handleBatchDownload">
+                    <i class="ri-download-line" />
+                    {{ t('favorite.download', { count: selectedSongs.length }) }}
+                  </button>
+                  <button class="batch-btn" :disabled="selectedSongs.length === 0" @click="handleAddToPlaylist">
+                    <i class="ri-play-list-add-line" />
+                    {{ t('comp.musicList.addToPlaylist') }}
+                  </button>
+                  <button class="cancel-btn" @click="cancelSelect">{{ t('common.cancel') }}</button>
+                </div>
+
+                <div class="hidden sm:block list-search-wrap">
+                  <n-input
+                    v-model:value="searchKeyword"
+                    :placeholder="t('comp.musicList.searchSongs')"
+                    round
+                    clearable
+                    size="small"
+                    class="list-search-input"
+                  >
+                    <template #prefix>
+                      <i class="ri-search-line text-neutral-400"></i>
+                    </template>
+                  </n-input>
+                </div>
+
+                <button v-if="currentPlayingIndex >= 0" class="icon-btn" :title="t('comp.musicList.locateCurrent', '定位当前播放')" @click="scrollToCurrentSong">
+                  <i class="ri-focus-3-line" />
+                </button>
+
+                <button v-if="!isMobile" class="icon-btn" @click="toggleLayout">
+                  <i :class="isCompactLayout ? 'ri-list-check-2' : 'ri-grid-line'" />
+                </button>
+
+                <n-dropdown :options="sortOptions" :value="sortBy" @select="handleSortChange">
+                  <button class="icon-btn">
+                    <i class="ri-sort-asc" />
+                  </button>
+                </n-dropdown>
+              </div>
+            </div>
+          </section>
+        </template>
+
+        <!-- 专辑介绍弹窗 -->
         <Teleport to="body">
           <Transition name="popover-fade">
-            <div
-              v-if="showDescriptionPopover"
-              class="description-popover-overlay"
-              @click.stop="showDescriptionPopover = false"
-            ></div>
+            <div v-if="showDescriptionPopover" class="description-popover-overlay" @click.stop="showDescriptionPopover = false"></div>
           </Transition>
           <Transition name="popover-slide">
             <div v-if="showDescriptionPopover" class="description-popover-card" @click.stop>
@@ -142,154 +140,10 @@
           </Transition>
         </Teleport>
 
-        <!-- Action Bar (Sticky) -->
-        <section
-          v-if="songList.length > 0"
-          class="action-bar sticky top-0 z-20 page-padding-x py-3 md:py-4 backdrop-blur-xl"
-          :style="{
-            background: 'color-mix(in srgb, var(--m-bg, #f5f1eb) 80%, transparent)',
-            borderBottom: '1px solid var(--m-border, rgba(0, 0, 0, 0.06))'
-          }"
-        >
-          <div class="flex items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-              <!-- Play All Button -->
-              <button
-                class="play-all-btn flex items-center gap-1.5 md:gap-2 px-3.5 md:px-6 py-1.5 md:py-2.5 rounded-full bg-primary hover:bg-[var(--accent-color)]/90 text-white font-semibold text-xs md:text-sm transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg shadow-[var(--accent-color)]/25"
-                @click="handlePlayAll"
-              >
-                <i class="ri-play-circle-line text-base md:text-lg" />
-                <span>{{ t('comp.musicList.playAll') }}</span>
-              </button>
-
-              <!-- Collect Button -->
-              <button
-                v-if="canCollect"
-                class="action-btn-pill flex items-center gap-1.5 md:gap-2 px-3.5 md:px-6 py-1.5 md:py-2.5 rounded-full font-semibold text-xs md:text-sm transition-all duration-200 hover:scale-105 active:scale-95 shadow-sm border"
-                :style="
-                  isCollected
-                    ? { background: 'var(--m-surface, #eae6df)', color: '#ef4444', borderColor: 'var(--m-border, #d5d0c9)' }
-                    : { background: 'var(--m-surface-alt, #e0dbd3)', color: 'var(--m-text-secondary, #6b6560)', borderColor: 'var(--m-border, #d5d0c9)' }
-                "
-                @click="toggleCollect"
-              >
-                <i
-                  :class="isCollected ? 'ri-heart-fill' : 'ri-heart-line'"
-                  class="text-base md:text-lg"
-                />
-                <span>{{
-                  isCollected ? t('comp.musicList.cancelCollect') : t('comp.musicList.collect')
-                }}</span>
-              </button>
-
-              <!-- Batch Actions -->
-              <div
-                v-if="filteredSongs.length > 0 && isElectron"
-                class="h-8 w-[1px] bg-neutral-200 dark:bg-neutral-800 mx-1 hidden md:block"
-              ></div>
-
-              <button
-                v-if="!isSelecting && isElectron"
-                class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center transition-all"
-                :style="{ background: 'var(--m-surface-alt, #e0dbd3)', color: 'var(--m-text-secondary, #6b6560)' }"
-                @click="startSelect"
-              >
-                <i class="ri-checkbox-multiple-line text-lg" />
-              </button>
-
-              <div
-                v-if="isSelecting"
-                class="flex items-center gap-2 animate-in fade-in slide-in-from-left-2"
-              >
-                <n-checkbox
-                  :checked="isAllSelected"
-                  :indeterminate="isIndeterminate"
-                  @update:checked="handleSelectAll"
-                >
-                  {{ t('common.selectAll') }}
-                </n-checkbox>
-                <button
-                  class="px-4 py-1.5 rounded-full bg-[var(--accent-color)]/10 text-[var(--accent-color)] text-xs font-bold hover:bg-[var(--accent-color)]/20 transition-all"
-                  :disabled="selectedSongs.length === 0 || isDownloading"
-                  @click="handleBatchDownload"
-                >
-                  <i class="ri-download-line mr-1" />
-                  {{ t('favorite.download', { count: selectedSongs.length }) }}
-                </button>
-                <button
-                  class="px-4 py-1.5 rounded-full bg-[var(--accent-color)]/10 text-[var(--accent-color)] text-xs font-bold hover:bg-[var(--accent-color)]/20 transition-all"
-                  :disabled="selectedSongs.length === 0"
-                  @click="handleAddToPlaylist"
-                >
-                  <i class="ri-play-list-add-line mr-1" />
-                  {{ t('comp.musicList.addToPlaylist') }}
-                </button>
-                <button
-                  class="text-xs text-neutral-400 hover:text-neutral-600"
-                  @click="cancelSelect"
-                >
-                  {{ t('common.cancel') }}
-                </button>
-              </div>
-            </div>
-
-            <!-- Right Tools -->
-            <div class="flex items-center gap-3">
-              <!-- Search within list -->
-              <div class="relative group hidden sm:block">
-                <n-input
-                  v-model:value="searchKeyword"
-                  :placeholder="t('comp.musicList.searchSongs')"
-                  round
-                  clearable
-                  size="small"
-                  class="w-48 focus:w-64 transition-all duration-300 border-none"
-                  :style="{ background: 'var(--m-surface-alt, #e0dbd3)' }"
-                >
-                  <template #prefix>
-                    <i class="ri-search-line text-neutral-400"></i>
-                  </template>
-                </n-input>
-              </div>
-
-              <!-- Locate Current Song -->
-              <button
-                v-if="currentPlayingIndex >= 0"
-                class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center transition-all"
-                :style="{ background: 'var(--m-surface-alt, #e0dbd3)', color: 'var(--m-text-secondary, #6b6560)' }"
-                :title="t('comp.musicList.locateCurrent', '定位当前播放')"
-                @click="scrollToCurrentSong"
-              >
-                <i class="ri-focus-3-line text-lg" />
-              </button>
-
-              <!-- Layout Toggle -->
-              <button
-                v-if="!isMobile"
-                class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center transition-all"
-                :style="{ background: 'var(--m-surface-alt, #e0dbd3)', color: 'var(--m-text-secondary, #6b6560)' }"
-                @click="toggleLayout"
-              >
-                <i :class="isCompactLayout ? 'ri-list-check-2' : 'ri-grid-line'" class="text-lg" />
-              </button>
-
-              <!-- Sort Dropdown -->
-              <n-dropdown :options="sortOptions" :value="sortBy" @select="handleSortChange">
-                <button
-                  class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center transition-all"
-                  :style="{ background: 'var(--m-surface-alt, #e0dbd3)', color: 'var(--m-text-secondary, #6b6560)' }"
-                >
-                  <i class="ri-sort-asc text-lg" />
-                </button>
-              </n-dropdown>
-            </div>
-          </div>
-        </section>
-
         <!-- List Content -->
-        <section class="song-list-section page-padding-x mt-6">
-            <div v-if="filteredSongs.length === 0 && searchKeyword" class="empty-state py-20 text-center" :style="{ color: 'var(--m-text-muted, #9a9590)' }">
-            <i class="ri-search-line text-4xl mb-4 opacity-20" />
+        <section class="song-list-section">
+          <div v-if="filteredSongs.length === 0 && searchKeyword" class="empty-state">
+            <i class="ri-search-line"></i>
             <p>{{ t('comp.musicList.noSearchResults') }}</p>
           </div>
 
@@ -297,13 +151,9 @@
             <div
               v-for="(item, index) in filteredSongs"
               :key="item.id"
-              class="mb-2"
+              class="song-item-wrap"
               :class="{ 'animate-item': index < initialAnimateCount }"
-              :style="
-                index < initialAnimateCount
-                  ? { animationDelay: calculateAnimationDelay(index, 0.03) }
-                  : undefined
-              "
+              :style="index < initialAnimateCount ? { animationDelay: calculateAnimationDelay(index, 0.03) } : undefined"
             >
               <song-item
                 :index="index"
@@ -318,25 +168,14 @@
               />
             </div>
 
-            <!-- 未渲染项占位，保持滚动条高度稳定 -->
             <div v-if="placeholderHeight > 0" :style="{ height: placeholderHeight + 'px' }" />
 
-            <!-- 底部加载指示器 -->
-            <div v-if="loadingList" class="flex items-center justify-center py-6 gap-2">
+            <div v-if="loadingList" class="list-loading">
               <n-spin :size="18" />
-              <span class="text-sm" :style="{ color: 'var(--m-text-muted, #9a9590)' }">{{ t('common.loading') }}</span>
+              <span>{{ t('common.loading') }}</span>
             </div>
-            <div
-              v-else-if="
-                !hasMore &&
-                renderLimit >= allFilteredSongs.length &&
-                filteredSongs.length > 0 &&
-                !searchKeyword
-              "
-              class="py-6 text-center text-sm"
-              :style="{ color: 'var(--m-text-muted, #9a9590)' }"
-            >
-              — {{ t('common.noMore') }} —
+            <div v-else-if="!hasMore && renderLimit >= allFilteredSongs.length && filteredSongs.length > 0 && !searchKeyword" class="list-end">
+              {{ t('common.noMore') }}
             </div>
           </div>
         </section>
@@ -349,7 +188,7 @@
 <script setup lang="ts">
 import { useMessage } from 'naive-ui';
 import PinyinMatch from 'pinyin-match';
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 
@@ -390,13 +229,16 @@ const userStore = useUserStore();
 const message = useMessage();
 const playHistoryStore = usePlayHistoryStore();
 
-const loading = ref(false);
+const loading = ref(true);
 
 const fetchData = async () => {
   const id = route.params.id;
   const type = route.query.type;
 
-  if (!id || type === 'dailyRecommend') return;
+  if (!id || type === 'dailyRecommend') {
+    loading.value = false;
+    return;
+  }
 
   // 检查是否需要加载数据
   if (
@@ -404,9 +246,11 @@ const fetchData = async () => {
     musicStore.currentMusicList &&
     musicStore.currentMusicList.length > 0
   ) {
+    loading.value = false;
     return;
   }
 
+  // 需要加载：立即显示骨架屏
   loading.value = true;
   try {
     let data: any;
@@ -532,6 +376,9 @@ const { isDownloading, batchDownloadMusic } = useDownload();
 const isCompactLayout = ref(
   isMobile.value ? false : localStorage.getItem('musicListLayout') === 'compact'
 );
+
+// Hero zone morphing state — 滚动时驱动形变
+const isCompact = ref(false);
 
 const total = computed(() => {
   if (listInfo.value?.trackIds) return listInfo.value.trackIds.length;
@@ -738,14 +585,38 @@ const handleRemoveSong = async (songId: number) => {
   }
 };
 
+// 滞回阈值：进入和退出用不同阈值，防止高度变化→滚动位移→状态翻转的反馈循环
+const COMPACT_ENTER = 80; // 滚动超过 80px 才收缩
+const COMPACT_EXIT = 10;  // 回滚到 10px 以内才展开
+// transition 期间锁定状态，防止动画过程中反复触发
+let compactLocked = false;
+
+const setCompact = (val: boolean) => {
+  if (val === isCompact.value) return;
+  if (compactLocked) return;
+  isCompact.value = val;
+  compactLocked = true;
+  // 等过渡动画完成后再解锁
+  setTimeout(() => { compactLocked = false; }, 450);
+};
+
 // 根据滚动位置计算需要渲染多少项，快速滚动也不会出现空白
 const handleScroll = (e: Event) => {
-  if (searchKeyword.value) return;
-
   const target = e.target as HTMLElement;
   const { scrollTop, clientHeight } = target;
 
-  // 列表区域在滚动内容中的起始偏移（hero + action bar + margin）
+  // 滞回判断：选择模式下始终展开
+  if (!isSelecting.value) {
+    if (!isCompact.value && scrollTop > COMPACT_ENTER) {
+      setCompact(true);
+    } else if (isCompact.value && scrollTop < COMPACT_EXIT) {
+      setCompact(false);
+    }
+  }
+
+  if (searchKeyword.value) return;
+
+  // 列表区域在滚动内容中的起始偏移（hero zone 高度 + margin）
   const listSection = document.querySelector('.song-list-section') as HTMLElement;
   const listStart = listSection?.offsetTop || 0;
 
@@ -938,15 +809,15 @@ const scrollToCurrentSong = async () => {
   // 目标在滚动内容中的绝对位置
   const targetAbsoluteTop = currentScrollTop + targetRect.top - scrollRect.top;
 
-  // 粘性 action bar 占用的高度
-  const actionBarEl = document.querySelector('.action-bar') as HTMLElement;
-  const actionBarHeight = actionBarEl?.offsetHeight || 0;
+  // 粘性 hero-zone 占用的高度
+  const heroZoneEl = document.querySelector('.hero-zone') as HTMLElement;
+  const heroZoneHeight = heroZoneEl?.offsetHeight || 0;
 
-  // 可视区域高度（去掉 action bar）
-  const visibleHeight = scrollRect.height - actionBarHeight;
+  // 可视区域高度（去掉 hero zone）
+  const visibleHeight = scrollRect.height - heroZoneHeight;
 
   // 滚动到目标居中（在可视区域中间）
-  const scrollTop = targetAbsoluteTop - actionBarHeight - visibleHeight / 2 + targetRect.height / 2;
+  const scrollTop = targetAbsoluteTop - heroZoneHeight - visibleHeight / 2 + targetRect.height / 2;
 
   scrollbarRef.value.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
 
@@ -991,6 +862,14 @@ const checkCollectionStatus = () => {
   }
 };
 
+// 进入选择模式时强制展开 hero-zone
+watch(isSelecting, (selecting) => {
+  if (selecting) {
+    isCompact.value = false;
+    compactLocked = false;
+  }
+});
+
 watch(
   songList,
   (newSongs) => {
@@ -1009,172 +888,345 @@ watch(
 onMounted(() => {
   checkCollectionStatus();
 });
+
+// keep-alive 重新激活时重置状态
+onActivated(() => {
+  isCompact.value = false;
+  compactLocked = false;
+  if (scrollbarRef.value) {
+    scrollbarRef.value.scrollTo(0);
+  }
+});
 </script>
 
 <style scoped lang="scss">
+$spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
 .music-list-page {
   position: relative;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  height: 100%;
 }
 
-.hero-section {
-  min-height: 300px;
+.music-list-content {
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);
 }
 
-.action-bar {
-  transition:
-    background-color 0.3s,
-    box-shadow 0.3s;
+/* ===== Loading skeleton ===== */
+.hero-skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 20px;
+  margin: 0 16px;
 }
-
-.animate-item {
-  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+.skeleton-cover { width: 160px; height: 160px; border-radius: 16px; }
+.skeleton-info { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 280px; }
+.skeleton-title { height: 24px; width: 70%; border-radius: 8px; }
+.skeleton-badge { height: 18px; width: 80px; border-radius: 9999px; }
+.skeleton-meta { height: 14px; width: 50%; border-radius: 6px; }
+.skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(128,128,128,0.08) 25%, rgba(128,128,128,0.16) 50%, rgba(128,128,128,0.08) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+/* ============================================================
+   Hero Zone — 单一形变容器
+   展开态: flex-direction column, 封面居中 160px, 标题 24px
+   收缩态: flex-direction row, 封面 40px 靠左, 标题 15px, 控制靠右
+   同一组 DOM 元素，通过 CSS transition 实现形变
+   overflow:hidden + max-height 过渡平滑遮盖 flex-direction 瞬切
+   ============================================================ */
+.hero-zone {
+  position: sticky;
+  top: calc(var(--safe-area-inset-top, 0px) + 52px);
+  z-index: 30;
+  margin: 0 16px 8px;
+  border-radius: 22px;
+  background: var(--cover-surface, rgba(255, 255, 255, 0.92));
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
 
-.action-btn-pill {
-  @apply transition-all border-neutral-200 dark:border-neutral-800;
-  &:hover:not(:disabled) {
-    border-color: rgba(var(--accent-color-rgb), 0.3);
-    background-color: rgba(var(--accent-color-rgb), 0.05);
-  }
-}
+  /* 展开态：纵向排列，居中 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 16px 14px;
+  max-height: 500px;
 
-.action-btn-icon {
-  @apply transition-all;
-  &:hover {
-    @apply scale-110;
-    color: var(--accent-color);
-    background-color: rgba(var(--accent-color-rgb), 0.1);
-  }
-}
+  transition: border-radius 0.4s $spring,
+              box-shadow 0.4s ease,
+              padding 0.4s $spring,
+              gap 0.4s $spring,
+              max-height 0.4s $spring;
 
-.song-list-container {
-  padding-bottom: 20px;
-}
-
-.song-highlight {
-  animation: highlightPulse 2s ease-out;
-}
-
-@keyframes highlightPulse {
-  0%,
-  30% {
-    background-color: rgba(var(--accent-color-rgb), 0.15);
-    border-radius: 12px;
-  }
-  100% {
-    background-color: transparent;
-  }
-}
-
-.mobile {
-  .hero-section {
-    min-height: auto;
-  }
-  .action-bar {
-    @apply py-2;
-    background: color-mix(in srgb, var(--m-bg, #fff) 80%, transparent) !important;
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-color: var(--m-border, rgba(0, 0, 0, 0.06)) !important;
+  /* 收缩态：横向单行 */
+  &.compact {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    max-height: 64px;
   }
 }
 
-// 专辑介绍弹窗遮罩
-.description-popover-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-  background: rgba(0, 0, 0, 0.3);
+/* ===== 封面：160px → 40px ===== */
+.cover-wrap {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+
+  .hero-zone.compact & {
+    justify-content: flex-start;
+  }
 }
 
-// 专辑介绍弹窗
-.description-popover-card {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: 16px;
-  background: #ffffff;
-  border: 1px solid #e5e5e5;
-  border-radius: 12px;
+.cover-img {
+  width: 160px;
+  height: 160px;
+  border-radius: 16px;
+  object-fit: cover;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-  max-width: 400px;
-  width: 90vw;
-  max-height: 70vh;
-  overflow-y: auto;
-  z-index: 9999;
+  transition: width 0.4s $spring,
+              height 0.4s $spring,
+              border-radius 0.4s $spring,
+              box-shadow 0.4s ease;
 
-  .dark & {
-    background: #1a1a1a;
-    border-color: #333;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  .hero-zone.compact & {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
   }
 }
 
-// 弹窗动画
-.popover-fade-enter-active,
-.popover-fade-leave-active {
-  transition: opacity 0.2s ease;
+/* ===== 文字区 ===== */
+.hero-text {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+
+  .hero-zone.compact & {
+    text-align: left;
+  }
 }
 
-.popover-fade-enter-from,
-.popover-fade-leave-to {
-  opacity: 0;
+.hero-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--cover-text-primary, var(--m-text-primary, #1a1a1a));
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: font-size 0.4s $spring, font-weight 0.4s;
+
+  .hero-zone.compact & {
+    font-size: 15px;
+    font-weight: 600;
+  }
 }
 
-.popover-slide-enter-active {
-  transition: all 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+/* 详情区（badge + meta + desc）：收缩时淡出+折叠 */
+.hero-detail {
+  opacity: 1;
+  max-height: 120px;
+  overflow: hidden;
+  margin-top: 8px;
+  transition: opacity 0.25s ease,
+              max-height 0.35s $spring,
+              margin-top 0.35s $spring;
+
+  .hero-zone.compact & {
+    opacity: 0;
+    max-height: 0;
+    margin-top: 0;
+    pointer-events: none;
+  }
 }
 
-.popover-slide-leave-active {
-  transition: all 0.2s ease;
-}
-
-.popover-slide-enter-from {
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(0.95);
-}
-
-.popover-slide-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(0.95);
-}
-
-.description-popover-title {
-  font-size: 14px;
+.hero-badge-row { /* no extra margin needed */ }
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 10px;
   font-weight: 600;
-  color: #1a1a1a;
-  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.12);
+  color: var(--accent-color, #888);
+}
 
-  .dark & {
-    color: #e0e0e0;
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.meta-creator { display: flex; align-items: center; gap: 6px; }
+.meta-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.meta-name { font-size: 12px; font-weight: 600; color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560)); cursor: pointer; }
+.meta-count { font-size: 12px; color: var(--cover-text-muted, var(--m-text-muted, #9a9590)); }
+
+.hero-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  margin-top: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+/* ===== 控制区 ===== */
+.hero-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  flex-shrink: 0;
+
+  .hero-zone.compact & {
+    justify-content: flex-end;
+    margin-left: auto;
   }
 }
 
-.description-popover-text {
-  font-size: 13px;
-  line-height: 1.6;
-  color: #666;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 300px;
-  overflow-y: auto;
+/* 额外控制（选择/搜索/排序等）：收缩时淡出+折叠 */
+.controls-extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 1;
+  max-width: 600px;
+  overflow: hidden;
+  transition: opacity 0.25s ease,
+              max-width 0.35s $spring;
 
-  .dark & {
-    color: #999;
+  .hero-zone.compact & {
+    opacity: 0;
+    max-width: 0;
+    pointer-events: none;
   }
+}
+
+/* 播放全部按钮：收缩时缩小 */
+.play-all-btn {
+  display: flex; align-items: center; gap: 4px;
+  padding: 8px 16px; border-radius: 9999px; border: none;
+  background: var(--accent-color, #888); color: #fff;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 2px 12px rgba(var(--accent-color-rgb, 136, 136, 136), 0.25);
+  white-space: nowrap; flex-shrink: 0;
+  transition: padding 0.3s $spring, font-size 0.3s $spring;
+
+  i { font-size: 16px; transition: font-size 0.3s $spring; }
+
+  .hero-zone.compact & {
+    padding: 6px 12px; font-size: 12px;
+    i { font-size: 14px; }
+  }
+
+  &:active { transform: scale(0.94); }
+}
+
+/* 收藏按钮：收缩时缩小 */
+.collect-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%; border: none;
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
+  font-size: 18px; cursor: pointer; flex-shrink: 0;
+  transition: width 0.3s $spring, height 0.3s $spring, font-size 0.3s $spring;
+
+  .hero-zone.compact & {
+    width: 32px; height: 32px; font-size: 16px;
+  }
+
+  &.collected { color: #ef4444; }
+  &:active { transform: scale(0.88); }
+}
+
+.icon-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%; border: none;
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
+  font-size: 18px; cursor: pointer; flex-shrink: 0;
+  transition: all 0.2s $spring;
+  &:active { transform: scale(0.88); }
+}
+
+.batch-actions { display: flex; align-items: center; gap: 8px; }
+.batch-btn {
+  display: flex; align-items: center; gap: 4px;
+  padding: 6px 12px; border-radius: 9999px; border: none;
+  background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.1);
+  color: var(--accent-color, #888);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s ease;
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+.cancel-btn { border: none; background: transparent; color: var(--cover-text-muted, var(--m-text-muted, #9a9590)); font-size: 12px; cursor: pointer; }
+
+.list-search-wrap { width: 180px; }
+.list-search-input { border: none !important; background: rgba(128, 128, 128, 0.1) !important; }
+
+/* ===== Song list ===== */
+.song-list-section { padding: 0 16px; margin-top: 4px; }
+.song-list-container { padding-bottom: 20px; }
+.song-item-wrap { margin-bottom: 6px; }
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 80px 20px; gap: 12px;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  i { font-size: 48px; opacity: 0.2; }
+  p { font-size: 14px; }
+}
+
+.list-loading { display: flex; align-items: center; justify-content: center; padding: 24px 0; gap: 8px; color: var(--cover-text-muted, var(--m-text-muted, #9a9590)); font-size: 14px; }
+.list-end { padding: 24px 0; text-align: center; font-size: 14px; color: var(--cover-text-muted, var(--m-text-muted, #9a9590)); }
+
+.animate-item { animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+.song-highlight { animation: highlightPulse 2s ease-out; }
+@keyframes highlightPulse { 0%, 30% { background-color: rgba(var(--accent-color-rgb), 0.15); border-radius: 12px; } 100% { background-color: transparent; } }
+
+/* ===== Description popover ===== */
+.description-popover-overlay { position: fixed; inset: 0; z-index: 9998; background: rgba(0, 0, 0, 0.4); }
+.description-popover-card {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  padding: 20px; background: var(--cover-bg, #fff); border-radius: 20px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2); max-width: 400px; width: 90vw; max-height: 70vh; overflow-y: auto; z-index: 9999;
+}
+.popover-fade-enter-active, .popover-fade-leave-active { transition: opacity 0.2s ease; }
+.popover-fade-enter-from, .popover-fade-leave-to { opacity: 0; }
+.popover-slide-enter-active { transition: all 0.25s $spring; }
+.popover-slide-leave-active { transition: all 0.2s ease; }
+.popover-slide-enter-from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+.popover-slide-leave-to { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+.description-popover-title { font-size: 16px; font-weight: 700; color: var(--cover-text-primary, #1a1a1a); margin-bottom: 12px; }
+.description-popover-text { font-size: 14px; line-height: 1.6; color: var(--cover-text-muted, #666); white-space: pre-wrap; word-break: break-word; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-item { animation: none; }
 }
 </style>

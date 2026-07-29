@@ -1,17 +1,5 @@
 <template>
-  <div :id="id" :ref="setRef" class="mb-8 scroll-mt-20">
-    <!-- 分组标题 -->
-    <div class="text-2xl font-bold leading-tight mb-1 -mt-1 text-gray-900 dark:text-white px-1">
-      <slot name="title">{{ title }}</slot>
-    </div>
-    <div
-      v-if="description || $slots.description"
-      class="text-sm text-gray-500 dark:text-gray-400 mb-4 px-1"
-    >
-      <slot name="description">{{ description }}</slot>
-    </div>
-    <div v-else class="mb-4"></div>
-
+  <div :id="id" :ref="setRef" class="mb-6 scroll-mt-20">
     <!-- 设置项列表 -->
     <div class="space-y-px">
       <slot></slot>

@@ -2,8 +2,8 @@
   <div
     class="artist-detail-page h-full w-full bg-white dark:bg-neutral-900 transition-colors duration-500"
   >
-    <n-scrollbar ref="scrollbarRef" class="h-full">
-      <div class="artist-detail-content w-full pb-32">
+    <n-scrollbar ref="scrollbarRef" class="h-full" @scroll="handleScroll">
+      <div class="artist-detail-content w-full pb-32" style="padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);">
         <!-- Loading State -->
         <div v-if="loading" class="artist-content">
           <!-- Hero Skeleton -->
@@ -44,206 +44,101 @@
 
         <!-- Main Content -->
         <div v-else-if="artistInfo" class="artist-content">
-          <!-- Hero Section -->
-          <section class="hero-section relative overflow-hidden overflow-hidden rounded-tl-2xl">
-            <!-- Background Image with Blur -->
-            <div class="hero-bg absolute inset-0 -top-20">
-              <div
-                class="absolute inset-0 bg-cover bg-center scale-110 blur-2xl opacity-40 dark:opacity-30"
-                :style="{
-                  backgroundImage: `url(${getImgUrl(artistInfo.cover || artistInfo.picUrl, '800y800')})`
-                }"
-              />
-              <div
-                class="absolute inset-0 bg-gradient-to-b from-transparent via-white/80 to-white dark:via-neutral-900/80 dark:to-neutral-900"
+          <!--
+            Hero Zone — 歌手信息+控制合为一体（和 MusicListPage 相同的形变模式）
+            展开态: 封面/名/统计/控制 纵向
+            收缩态: 封面/名  控制  横向单行
+          -->
+          <section class="hero-zone" :class="{ compact: isCompact }">
+            <!-- 封面 -->
+            <div class="cover-wrap">
+              <img
+                :src="getImgUrl(artistInfo.cover || artistInfo.picUrl, '500y500')"
+                :alt="artistInfo.name"
+                class="cover-img"
+                draggable="false"
               />
             </div>
 
-            <!-- Hero Content -->
-            <div class="hero-content relative z-10 page-padding-x pt-4 md:pt-8 pb-6">
-              <div class="flex flex-col md:flex-row gap-6 md:gap-10 items-center md:items-end">
-                <!-- Artist Avatar -->
-                <div class="artist-avatar-wrapper relative group">
-                  <div
-                    class="avatar-glow absolute -inset-2 rounded-full bg-gradient-to-br from-primary/30 via-primary/10 to-transparent blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                  />
-                  <div
-                    class="avatar-container relative w-36 h-36 md:w-48 md:h-48 rounded-full overflow-hidden shadow-2xl ring-4 ring-white/50 dark:ring-neutral-800/50"
-                  >
-                    <img
-                      :src="getImgUrl(artistInfo.cover || artistInfo.picUrl, '500y500')"
-                      :alt="artistInfo.name"
-                      class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                    />
-                    <!-- Play overlay on avatar -->
-                    <div
-                      class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-all duration-300"
-                    >
-                      <div
-                        class="play-icon w-14 h-14 rounded-full bg-white/90 flex items-center justify-center opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 shadow-xl cursor-pointer hover:scale-110 active:scale-95"
-                        @click="handlePlayAll"
-                      >
-                        <i class="iconfont icon-playfill text-2xl text-neutral-900 ml-1" />
-                      </div>
-                    </div>
-                  </div>
+            <!-- 文字区 -->
+            <div class="hero-text">
+              <h1 ref="titleElRef" class="hero-title">{{ artistInfo.name }}</h1>
+              <div class="hero-detail">
+                <div class="hero-badge-row">
+                  <span class="hero-badge">Artist</span>
                 </div>
-
-                <!-- Artist Info -->
-                <div class="artist-info flex-1 text-center md:text-left">
-                  <div class="artist-badge mb-2 md:mb-3">
-                    <span
-                      class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 dark:bg-primary/20 text-primary text-xs font-semibold uppercase tracking-wider"
-                    >
-                      <i class="iconfont icon-verified text-sm" />
-                      Artist
-                    </span>
+                <div class="hero-meta">
+                  <div v-if="artistInfo.musicSize" class="meta-stat">
+                    <i class="ri-music-2-line" />
+                    <span class="meta-stat-num">{{ artistInfo.musicSize }}</span>
+                    <span class="meta-stat-label">{{ t('artist.hotSongs') }}</span>
                   </div>
-                  <h1
-                    ref="titleElRef"
-                    class="artist-name text-3xl md:text-4xl lg:text-5xl font-bold text-neutral-900 dark:text-white tracking-tight"
-                  >
-                    {{ artistInfo.name }}
-                  </h1>
-
-                  <!-- Stats -->
-                  <div
-                    class="artist-stats flex flex-wrap items-center justify-center md:justify-start gap-4 md:gap-6 mt-4 md:mt-5"
-                  >
-                    <div v-if="artistInfo.musicSize" class="stat-item flex items-center gap-2">
-                      <i class="iconfont icon-music text-primary text-lg" />
-                      <span class="text-sm font-medium text-neutral-600 dark:text-neutral-300">
-                        <span class="font-bold text-neutral-900 dark:text-white">{{
-                          artistInfo.musicSize
-                        }}</span>
-                        {{ t('artist.hotSongs') }}
-                      </span>
-                    </div>
-                    <div v-if="artistInfo.albumSize" class="stat-item flex items-center gap-2">
-                      <i class="iconfont icon-album text-primary text-lg" />
-                      <span class="text-sm font-medium text-neutral-600 dark:text-neutral-300">
-                        <span class="font-bold text-neutral-900 dark:text-white">{{
-                          artistInfo.albumSize
-                        }}</span>
-                        {{ t('artist.albums') }}
-                      </span>
-                    </div>
+                  <div v-if="artistInfo.albumSize" class="meta-stat">
+                    <i class="ri-album-line" />
+                    <span class="meta-stat-num">{{ artistInfo.albumSize }}</span>
+                    <span class="meta-stat-label">{{ t('artist.albums') }}</span>
                   </div>
                 </div>
               </div>
             </div>
-          </section>
 
-          <!-- Action Bar -->
-          <section
-            class="action-bar sticky top-0 z-20 page-padding-x py-3 md:py-4 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border-b border-neutral-100 dark:border-neutral-800/50"
-          >
-            <div class="flex items-center justify-between gap-3">
-              <!-- Left Actions -->
-              <div class="flex items-center gap-2 md:gap-3">
-                <!-- Play All Button -->
-                <button
-                  class="play-all-btn flex items-center gap-2 px-4 md:px-5 py-2 md:py-2.5 rounded-full bg-primary hover:bg-primary/90 text-white font-semibold text-sm transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg"
-                  @click="handlePlayAll"
-                >
-                  <i class="iconfont icon-playfill text-lg" />
-                  <span class="hidden sm:inline">{{ t('comp.musicList.playAll') }}</span>
-                </button>
+            <!-- 控制区 -->
+            <div class="hero-controls">
+              <button class="play-all-btn" @click="handlePlayAll">
+                <i class="ri-play-fill" />
+                <span class="play-all-label">{{ t('comp.musicList.playAll') }}</span>
+              </button>
 
-                <!-- Add to Playlist Button -->
-                <button
-                  class="add-btn flex items-center justify-center w-10 h-10 md:w-auto md:h-auto md:px-4 md:py-2.5 rounded-full md:rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-medium text-sm transition-all duration-200 hover:scale-105 active:scale-95"
-                  @click="addToPlaylist"
-                >
-                  <i class="iconfont icon-add text-lg" />
-                  <span class="hidden md:inline ml-2">{{ t('comp.musicList.addToPlaylist') }}</span>
-                </button>
-              </div>
+              <button class="icon-btn" @click="addToPlaylist">
+                <i class="ri-play-list-add-line" />
+              </button>
 
-              <!-- Right Actions -->
-              <div class="flex items-center gap-2">
-                <!-- Search Toggle -->
+              <div class="controls-extra">
                 <button
                   v-if="activeTab === 'songs'"
-                  class="action-btn w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
-                  :class="
-                    isSearchVisible
-                      ? 'bg-primary/10 dark:bg-primary/20 text-primary'
-                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-                  "
+                  class="icon-btn"
+                  :class="{ 'icon-btn-active': isSearchVisible }"
                   @click="isSearchVisible ? closeSearch() : showSearch()"
                 >
-                  <i class="iconfont" :class="isSearchVisible ? 'icon-close' : 'icon-search'" />
+                  <i :class="isSearchVisible ? 'ri-close-line' : 'ri-search-line'" />
                 </button>
 
-                <!-- Layout Toggle (Desktop only) -->
                 <button
                   v-if="activeTab === 'songs' && !isMobile"
-                  class="action-btn w-10 h-10 rounded-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all duration-200 hover:scale-105 active:scale-95"
-                  :title="
-                    isCompactLayout
-                      ? t('comp.musicList.switchToNormal')
-                      : t('comp.musicList.switchToCompact')
-                  "
+                  class="icon-btn"
                   @click="toggleLayout"
                 >
-                  <i class="iconfont" :class="isCompactLayout ? 'icon-list' : 'icon-menu'" />
+                  <i :class="isCompactLayout ? 'ri-list-check' : 'ri-grid-line'" />
                 </button>
               </div>
             </div>
-
-            <!-- Search Input (Expandable) -->
-            <Transition name="search-slide">
-              <div v-if="isSearchVisible && activeTab === 'songs'" class="search-container mt-3">
-                <div
-                  class="relative flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-xl overflow-hidden"
-                >
-                  <i class="iconfont icon-search text-neutral-400 dark:text-neutral-500 ml-4" />
-                  <input
-                    v-model="searchKeyword"
-                    type="text"
-                    :placeholder="t('comp.musicList.searchSongs')"
-                    class="flex-1 px-3 py-2.5 bg-transparent text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 outline-none"
-                    @blur="handleSearchBlur"
-                  />
-                  <button
-                    v-if="searchKeyword"
-                    class="px-3 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-                    @click="searchKeyword = ''"
-                  >
-                    <i class="iconfont icon-close text-sm" />
-                  </button>
-                </div>
-              </div>
-            </Transition>
           </section>
 
-          <!-- Tab Navigation -->
-          <section class="tab-nav page-padding-x pt-4 md:pt-6">
-            <div
-              class="tab-list relative flex gap-1 p-1 bg-neutral-100 dark:bg-neutral-800/50 rounded-xl w-fit"
-            >
-              <button
-                v-for="tab in tabs"
-                :key="tab.value"
-                class="tab-item relative px-4 md:px-6 py-2 md:py-2.5 rounded-lg text-sm font-medium transition-all duration-200"
-                :class="
-                  activeTab === tab.value
-                    ? 'text-neutral-900 dark:text-white'
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300'
-                "
-                @click="activeTab = tab.value"
-              >
-                <span class="relative z-10">{{ tab.label }}</span>
-                <!-- Active indicator -->
-                <Transition name="tab-indicator">
-                  <div
-                    v-if="activeTab === tab.value"
-                    class="absolute inset-0 bg-white dark:bg-neutral-700 rounded-lg shadow-sm"
-                  />
-                </Transition>
-              </button>
+          <!-- Search Input (Expandable) — 在 hero-zone 下方 -->
+          <Transition name="search-slide">
+            <div v-if="isSearchVisible && activeTab === 'songs'" class="search-container page-padding-x mt-2">
+              <div class="search-input-wrap">
+                <i class="ri-search-line search-input-icon" />
+                <input
+                  v-model="searchKeyword"
+                  type="text"
+                  :placeholder="t('comp.musicList.searchSongs')"
+                  class="search-input"
+                  @blur="handleSearchBlur"
+                />
+                <button v-if="searchKeyword" class="search-clear-btn" @click="searchKeyword = ''">
+                  <i class="ri-close-line" />
+                </button>
+              </div>
             </div>
+          </Transition>
+
+          <!-- Tab Navigation — glow风格 -->
+          <section class="tab-nav page-padding-x pt-4 md:pt-6">
+            <GlowTabs
+              v-model="activeTab"
+              :tabs="tabs.map(tab => ({ key: tab.value, label: tab.label }))"
+            />
           </section>
 
           <!-- Tab Content -->
@@ -441,6 +336,7 @@ import router from '@/router';
 import { usePlayerStore } from '@/store';
 import { IArtist } from '@/types/artist';
 import { calculateAnimationDelay, getImgUrl, isMobile } from '@/utils';
+import GlowTabs from '@/components/common/GlowTabs.vue';
 
 defineOptions({
   name: 'ArtistDetail'
@@ -456,6 +352,28 @@ const artistId = computed(() => Number(route.params.id));
 const activeTab = ref('songs');
 
 const scrollbarRef = ref<any>(null);
+
+// Hero zone 可收缩状态
+const isCompact = ref(false);
+const COMPACT_ENTER = 80;
+const COMPACT_EXIT = 10;
+let compactLocked = false;
+const setCompact = (val: boolean) => {
+  if (val === isCompact.value) return;
+  if (compactLocked) return;
+  isCompact.value = val;
+  compactLocked = true;
+  setTimeout(() => { compactLocked = false; }, 450);
+};
+const handleScroll = (e: Event) => {
+  const target = e.target as HTMLElement;
+  const { scrollTop } = target;
+  if (!isCompact.value && scrollTop > COMPACT_ENTER) {
+    setCompact(true);
+  } else if (isCompact.value && scrollTop < COMPACT_EXIT) {
+    setCompact(false);
+  }
+};
 
 // Tab configuration
 const tabs = computed(() => [
@@ -938,78 +856,189 @@ const formatSong = (item: any) => {
 </script>
 
 <style lang="scss" scoped>
+$spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+$smooth: cubic-bezier(0.32, 0.72, 0, 1);
+
 /* Artist Detail Page Styles */
 .artist-detail-page {
   position: relative;
 }
 
-/* Hero Section */
-.hero-section {
-  min-height: 200px;
+.page-padding-x {
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
-/* Action Bar Sticky Behavior */
-.action-bar {
-  transition:
-    background-color 0.3s,
-    box-shadow 0.3s;
+/* ============================================================
+   Hero Zone — 单一形变容器（和 MusicListPage 相同的设计语言）
+   ============================================================ */
+.hero-zone {
+  position: sticky;
+  top: calc(var(--safe-area-inset-top, 0px) + 52px);
+  z-index: 30;
+  margin: 0 16px 8px;
+  border-radius: 22px;
+  background: var(--cover-surface, rgba(255, 255, 255, 0.92));
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 16px 14px;
+  max-height: 500px;
+  transition: border-radius 0.4s $spring,
+              box-shadow 0.4s ease,
+              padding 0.4s $spring,
+              gap 0.4s $spring,
+              max-height 0.4s $spring;
+
+  &.compact {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    max-height: 64px;
+  }
 }
 
-/* Tab Indicator Animation */
-.tab-item {
-  z-index: 1;
+.cover-wrap {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  .hero-zone.compact & { justify-content: flex-start; }
 }
 
-.tab-item > div {
-  z-index: -1;
+.cover-img {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  transition: width 0.4s $spring, height 0.4s $spring, border-radius 0.4s $spring, box-shadow 0.4s ease;
+  .hero-zone.compact & {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+  }
 }
 
-.tab-indicator-enter-active,
-.tab-indicator-leave-active {
-  transition: all 0.2s ease;
+.hero-text {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  .hero-zone.compact & { text-align: left; }
 }
 
-.tab-indicator-enter-from,
-.tab-indicator-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
+.hero-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--cover-text-primary, var(--m-text-primary, #1a1a1a));
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: font-size 0.4s $spring, font-weight 0.4s;
+  .hero-zone.compact & { font-size: 15px; font-weight: 600; }
 }
+
+.hero-detail {
+  opacity: 1;
+  max-height: 120px;
+  overflow: hidden;
+  margin-top: 8px;
+  transition: opacity 0.25s ease, max-height 0.35s $spring, margin-top 0.35s $spring;
+  .hero-zone.compact & { opacity: 0; max-height: 0; margin-top: 0; pointer-events: none; }
+}
+
+.hero-badge-row { margin-top: 8px; }
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 9999px;
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.12);
+  color: var(--accent-color, #888);
+}
+
+.hero-meta {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 12px; margin-top: 8px;
+}
+.meta-stat { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560)); }
+.meta-stat i { font-size: 14px; color: var(--accent-color, #888); }
+.meta-stat-num { font-weight: 700; color: var(--cover-text-primary, var(--m-text-primary, #1a1a1a)); }
+.meta-stat-label { color: var(--cover-text-muted, var(--m-text-muted, #9a9590)); }
+
+.hero-controls {
+  display: flex; align-items: center; gap: 8px; justify-content: center; flex-shrink: 0;
+  .hero-zone.compact & { justify-content: flex-end; margin-left: auto; }
+}
+
+.controls-extra {
+  display: flex; align-items: center; gap: 8px;
+  opacity: 1; max-width: 600px; overflow: hidden;
+  transition: opacity 0.25s ease, max-width 0.35s $spring;
+  .hero-zone.compact & { opacity: 0; max-width: 0; pointer-events: none; }
+}
+
+.play-all-btn {
+  display: flex; align-items: center; gap: 4px;
+  padding: 8px 16px; border-radius: 9999px; border: none;
+  background: var(--accent-color, #888); color: #fff;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 2px 12px rgba(var(--accent-color-rgb, 136, 136, 136), 0.25);
+  white-space: nowrap; flex-shrink: 0;
+  transition: padding 0.3s $spring, font-size 0.3s $spring;
+  i { font-size: 16px; transition: font-size 0.3s $spring; }
+  .hero-zone.compact & { padding: 6px 12px; font-size: 12px; i { font-size: 14px; } }
+  &:active { transform: scale(0.94); }
+}
+
+.icon-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%; border: none;
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
+  font-size: 18px; cursor: pointer; flex-shrink: 0;
+  transition: all 0.2s $spring;
+  &:active { transform: scale(0.88); }
+  &.icon-btn-active { background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.15); color: var(--accent-color, #888); }
+}
+
+/* Search */
+.search-container { padding: 0 16px; }
+.search-input-wrap {
+  display: flex; align-items: center;
+  background: rgba(128, 128, 128, 0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  padding: 0 12px;
+}
+.search-input-icon { color: var(--cover-text-muted, #999); font-size: 16px; }
+.search-input {
+  flex: 1; padding: 10px 8px; border: none; background: transparent; outline: none;
+  font-size: 14px; color: var(--cover-text-primary, #1a1a1a);
+  &::placeholder { color: var(--cover-text-muted, #999); }
+}
+.search-clear-btn { border: none; background: none; color: var(--cover-text-muted, #999); cursor: pointer; padding: 4px; }
 
 /* Search Slide Animation */
-.search-slide-enter-active,
-.search-slide-leave-active {
-  transition: all 0.25s ease;
-}
-
-.search-slide-enter-from,
-.search-slide-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-  max-height: 0;
-  margin-top: 0;
-}
-
-.search-slide-enter-to,
-.search-slide-leave-from {
-  max-height: 60px;
-}
+.search-slide-enter-active, .search-slide-leave-active { transition: all 0.25s ease; }
+.search-slide-enter-from, .search-slide-leave-to { opacity: 0; transform: translateY(-8px); max-height: 0; margin-top: 0; }
+.search-slide-enter-to, .search-slide-leave-from { max-height: 60px; }
 
 /* Virtual Song List */
-.virtual-song-list {
-  @apply w-full;
-}
+.virtual-song-list { @apply w-full; }
+.song-list { @apply w-full; }
 
-.song-list {
-  @apply w-full;
-}
-
-/* CSS-based virtualization for performance */
 .song-item-container {
   content-visibility: auto;
-  contain-intrinsic-size: 0 72px; /* 预估高度，防止布局抖动 */
+  contain-intrinsic-size: 0 72px;
 }
-
-/* Compact layout - smaller item height */
 .song-list.compact-mode .song-item-container {
   contain-intrinsic-size: 0 52px;
 }
@@ -1018,70 +1047,26 @@ const formatSong = (item: any) => {
 .album-card {
   animation: fadeInUp 0.4s ease backwards;
 }
-
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Loading Spinner */
-.loading-spinner {
-  animation: pulse 2s ease-in-out infinite;
-}
-
+.loading-spinner { animation: pulse 2s ease-in-out infinite; }
 @keyframes pulse {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }
 
 /* Hover Effects */
-.album-cover {
-  transition: box-shadow 0.3s ease;
-}
-
+.album-cover { transition: box-shadow 0.3s ease; }
 .album-card:hover .album-cover {
   @apply shadow-2xl;
-  box-shadow:
-    0 10px 15px -3px rgba(var(--accent-color-rgb, 0, 0, 0), 0.1),
-    0 4px 6px -2px rgba(var(--accent-color-rgb, 0, 0, 0), 0.05);
-}
-
-/* Mobile Optimizations */
-@media (max-width: 768px) {
-  .hero-section {
-    min-height: auto;
-  }
-
-  .action-bar {
-    @apply py-2;
-  }
-
-  .tab-list {
-    @apply w-full;
-  }
-
-  .tab-item {
-    @apply flex-1 text-center;
-  }
+  box-shadow: 0 10px 15px -3px rgba(var(--accent-color-rgb, 0, 0, 0), 0.1), 0 4px 6px -2px rgba(var(--accent-color-rgb, 0, 0, 0), 0.05);
 }
 
 /* Focus states for accessibility */
-button:focus-visible {
-  @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-white dark:ring-offset-neutral-900;
-}
-
-input:focus-visible {
-  @apply outline-none ring-2 ring-primary ring-opacity-50;
-}
+button:focus-visible { @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-white dark:ring-offset-neutral-900; }
+input:focus-visible { @apply outline-none ring-2 ring-primary ring-opacity-50; }
 </style>

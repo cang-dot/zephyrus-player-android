@@ -5,7 +5,8 @@
     :class="[
       setAnimationClass('animate__fadeInUp'),
       playerStore.musicFull ? 'play-bar-expanded' : 'play-bar-mini',
-      shouldShowMobileMenu ? 'is-menu-show' : 'is-menu-hide'
+      shouldShowMobileMenu ? 'is-menu-show' : 'is-menu-hide',
+      (isCompactNav && shouldShowMobileMenu) ? 'compact-nav' : ''
     ]"
     :style="{
       color: playerStore.musicFull
@@ -71,6 +72,7 @@ import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl, setAnimationClass } from '@/utils';
 
 const shouldShowMobileMenu = inject('shouldShowMobileMenu') as Ref<boolean>;
+const isCompactNav = inject('isCompactNav', ref(false)) as Ref<boolean>;
 
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
@@ -150,15 +152,18 @@ watch(
   @apply fixed bottom-[76px] left-0 w-full flex flex-col;
   z-index: 100000;
   animation-duration: 0.3s !important;
-  transition: all 0.3s ease;
+  /* 统一弹簧过渡 — 位置、宽度、高度、边距全部平滑形变，不创建新对象 */
+  transition: bottom 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+              left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+              width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+              max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+              min-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
   &.is-menu-show {
-    bottom: calc(var(--m-bottom-nav-height, 64px) + var(--safe-area-inset-bottom, 0px) + 8px);
-    transition: bottom 0.2s ease;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 60px);
   }
   &.is-menu-hide {
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 10px);
-    transition: bottom 0.2s ease;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
   }
 
   &.play-bar-expanded {
@@ -276,17 +281,30 @@ watch(
   .mobile-mini-controls {
     @apply flex items-center justify-between pr-4 mx-3 h-12 rounded-full shadow-lg;
     background: var(--m-surface, #eae6df);
+    /* 内部元素形变过渡 — 与外层同步 */
+    transition: margin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                padding 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                gap 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                background 0.5s ease,
+                border 0.5s ease;
 
     .mini-song-info {
       @apply flex items-center flex-1 min-w-0 cursor-pointer;
+      transition: flex 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
       .mini-song-cover {
         @apply w-12 h-12 rounded-full;
         border: 8px solid var(--m-surface-alt, #e0dbd3);
+        transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                    height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                    border-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
       }
 
       .mini-song-text {
         @apply ml-3 min-w-0 flex-1 flex items-center;
+        transition: opacity 0.3s ease, max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        overflow: hidden;
 
         .mini-song-title {
           @apply text-sm font-medium;
@@ -302,12 +320,16 @@ watch(
 
     .mini-playback-controls {
       @apply flex items-center;
+      transition: gap 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
       .mini-control-btn {
         @apply flex items-center justify-center cursor-pointer transition;
 
         &.play {
           @apply w-9 h-9 rounded-full flex items-center justify-center mr-2;
+          transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                      height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                      margin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
           .iconfont {
             @apply text-xl transition;
@@ -326,7 +348,80 @@ watch(
       }
     }
   }
-}
+
+  /* ═══ 紧凑模式覆盖 — 直接复制底栏的精确位置和高度参数 ═══ */
+  &.compact-nav {
+    /* 直接复制 .mobile-glow-nav-wrap 的定位参数 */
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px) !important;
+    left: 12px !important;
+    right: auto !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: calc(45vw - 6px);
+    min-width: 130px;
+    /* 覆盖 h-14 (56px) — 与底栏高度完全一致 */
+    height: auto !important;
+    padding: 0 !important;
+  }
+
+    /* 直接复制 .mobile-glow-nav 的样式参数 */
+    &.compact-nav .mobile-mini-controls {
+      margin: 0 !important;
+      width: 100%;
+      /* 底栏高度 = padding(4+4) + item(36px) + border(1+1) = 46px */
+      height: 46px;
+      /* 直接复制底栏的 padding */
+      padding: 4px 6px;
+      gap: 2px;
+      justify-content: center !important;
+      /* 直接复制 .mobile-glow-nav 的视觉参数 */
+      border-radius: 9999px;
+      background: var(--cover-surface, rgba(20, 20, 22, 0.72));
+      backdrop-filter: blur(28px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      border: 1px solid var(--cover-border, rgba(255, 255, 255, 0.08));
+      box-shadow:
+        0 6px 24px rgba(0, 0, 0, 0.25),
+        0 1px 4px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    /* 紧凑模式隐藏歌名文字（通过 opacity+max-width 平滑过渡） */
+    &.compact-nav .mobile-mini-controls .mini-song-info .mini-song-text {
+      opacity: 0;
+      max-width: 0;
+      margin-left: 0 !important;
+      pointer-events: none;
+    }
+
+    &.compact-nav .mobile-mini-controls .mini-song-info {
+      flex: 0 0 auto !important;
+    }
+
+    &.compact-nav .mobile-mini-controls .mini-song-info .mini-song-cover {
+      width: 36px !important;
+      height: 36px !important;
+      border-width: 3px !important;
+      border-color: var(--cover-border, rgba(255, 255, 255, 0.08)) !important;
+    }
+
+    &.compact-nav .mobile-mini-controls .mini-playback-controls .mini-control-btn.play {
+      width: 36px !important;
+      height: 36px !important;
+      margin-right: 0 !important;
+    }
+
+    &.compact-nav .mobile-mini-controls .mini-playback-controls .mini-control-btn.play .iconfont {
+      font-size: 18px !important;
+      color: var(--accent-color, #fff) !important;
+    }
+
+    &.compact-nav .mobile-mini-controls .mini-playback-controls .mini-list-icon {
+      font-size: 18px !important;
+      padding: 4px !important;
+      color: var(--cover-text-muted, rgba(255, 255, 255, 0.5)) !important;
+    }
+  }
 
 .mobile-play-list-container {
   height: 60vh;

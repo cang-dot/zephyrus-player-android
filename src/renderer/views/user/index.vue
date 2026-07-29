@@ -1,182 +1,148 @@
 <template>
-  <div class="user-page h-full flex flex-col min-h-0">
+  <div class="user-page">
     <template v-if="infoLoading">
-      <div class="flex-1 flex flex-col gap-4 p-4">
-        <div class="rounded-2xl skeleton-shimmer" style="height: 200px" />
-        <div class="grid md:grid-cols-2 gap-4">
-          <div class="rounded-2xl p-4 space-y-4" style="background: var(--d-surface-alt)">
-            <div class="h-8 w-32 skeleton-shimmer rounded-lg" />
-            <div v-for="i in 4" :key="i" class="flex gap-3">
-              <div class="h-[50px] w-[50px] skeleton-shimmer rounded-xl flex-shrink-0" />
-              <div class="flex-1 space-y-2">
-                <div class="h-4 w-1/2 skeleton-shimmer rounded-lg" />
-                <div class="h-3 w-1/3 skeleton-shimmer rounded-lg" />
-              </div>
-            </div>
-          </div>
-          <div class="rounded-2xl p-4 space-y-4" style="background: var(--d-surface-alt)">
-            <div class="h-8 w-32 skeleton-shimmer rounded-lg" />
-            <div v-for="i in 5" :key="i" class="flex items-center gap-3">
-              <div class="h-10 w-10 skeleton-shimmer rounded-full flex-shrink-0" />
-              <div class="h-10 w-10 skeleton-shimmer rounded-xl flex-shrink-0" />
-              <div class="flex-1 space-y-2">
-                <div class="h-4 w-1/3 skeleton-shimmer rounded-lg" />
-                <div class="h-3 w-1/4 skeleton-shimmer rounded-lg" />
-              </div>
-            </div>
-          </div>
+      <div class="skeleton-wrap">
+        <div class="skeleton-card skeleton-shimmer" style="height: 180px" />
+        <div class="skeleton-grid">
+          <div v-for="i in 4" :key="i" class="skeleton-item skeleton-shimmer" />
         </div>
       </div>
     </template>
     <template v-else>
-      <!-- 紧凑头部（移动端优先） -->
-      <div
-        v-if="user"
-        class="relative w-full flex-shrink-0 px-4 pt-4"
-        :class="setAnimationClass('animate__fadeIn')"
-      >
-        <div class="flex items-center gap-4">
-          <n-avatar round :size="56" :src="getImgUrl(user.avatarUrl, '72y72')" />
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-              <span class="text-xl font-bold d-text-primary truncate">{{ user.nickname }}</span>
-              <span
-                v-if="currentLoginType"
-                class="rounded-full border px-2 py-0.5 text-[10px] flex-shrink-0"
-                style="color: var(--accent-color); border-color: rgba(var(--accent-color-rgb), 0.4)"
-                >{{ t('login.title.' + currentLoginType) }}</span
-              >
-            </div>
-            <div class="mt-0.5 truncate text-xs d-text-secondary">
-              {{ userDetail?.profile?.signature || '这个人很懒，什么都没有留下' }}
-            </div>
-          </div>
-        </div>
-        <!-- 统计数据 -->
-        <div class="mt-3 flex gap-6 text-sm">
-          <div class="text-center">
-            <span class="font-bold d-text-primary">{{ userDetail?.profile?.followeds || 0 }}</span>
-            <span class="ml-1 text-xs d-text-muted">{{ t('user.profile.followers') }}</span>
-          </div>
-          <div class="cursor-pointer text-center" @click="showFollowList">
-            <span class="font-bold d-text-primary">{{ userDetail?.profile?.follows || 0 }}</span>
-            <span class="ml-1 text-xs d-text-muted">{{ t('user.profile.following') }}</span>
-          </div>
-          <div class="text-center">
-            <span class="font-bold d-text-primary">{{ userDetail?.level || 0 }}</span>
-            <span class="ml-1 text-xs d-text-muted">{{ t('user.profile.level') }}</span>
-          </div>
-        </div>
-      </div>
-      <div
-        v-if="user"
-        class="relative z-20 px-4 pb-4 flex-1 min-h-0 overflow-y-auto"
-        :class="setAnimationClass('animate__fadeIn')"
-      >
-        <div class="tab-container mb-3 flex-shrink-0">
-          <n-tabs v-model:value="currentTab" type="segment" animated>
-            <n-tab v-for="tab in tabs" :key="tab.key" :name="tab.key" :tab="t(tab.label)" />
-          </n-tabs>
-        </div>
-        <!-- 歌单 2 列网格 -->
-        <div v-if="currentTab !== 'platforms'" class="grid grid-cols-2 gap-3 mb-6">
-          <button
-            v-if="isElectron && currentTab === 'created'"
-            @click="goToImportPlaylist"
-            class="import-btn flex flex-col items-center gap-2 rounded-2xl p-2"
-          >
-            <div
-              class="flex w-full items-center justify-center rounded-xl text-3xl import-btn-icon"
-              style="aspect-ratio: 1"
-            >
-              <i class="icon iconfont ri-add-line" />
-            </div>
-            <div class="text-xs font-medium d-text-secondary truncate w-full text-center">
-              {{ t('comp.playlist.import.button') }}
-            </div>
-          </button>
-          <div
-            v-for="(item, index) in currentList"
-            :key="index"
-            @click="handleItemClick(item)"
-            class="list-item-card flex flex-col gap-2 rounded-2xl p-2"
-          >
-            <n-image
-              :src="getImgUrl(getCoverUrl(item), '200y200')"
-              class="w-full overflow-hidden rounded-xl"
-              style="aspect-ratio: 1"
-              lazy
-              preview-disabled
-            />
-            <div class="min-w-0">
-              <div class="truncate text-sm font-medium d-text-primary">
-                {{ item.name }}
-              </div>
-              <div class="mt-0.5 truncate text-xs d-text-secondary">
-                {{ getItemDescription(item) }}
-              </div>
-            </div>
-          </div>
-        </div>
-        <!-- 平台账号 Tab -->
-        <platform-accounts v-if="currentTab === 'platforms'" />
-        <!-- 听歌排行区 -->
-        <div class="mt-2">
-          <div class="mb-3 flex-shrink-0 text-lg font-bold d-text-primary">
-            {{ t('user.ranking.title') }}
-          </div>
-          <div>
-            <div
-              v-for="(item, index) in recordList"
-              :key="item.id"
-              class="record-item group flex items-center gap-3 rounded-xl p-2"
-            >
-              <div
-                class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold d-text-muted"
-              >
-                {{ index + 1 }}
-              </div>
-              <n-image
-                :src="getImgUrl(item.picUrl || item.al?.picUrl, '40y40')"
-                class="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg"
-                lazy
-                preview-disabled
+    <div ref="scrollRef" class="user-scroll" @scroll.passive="onScroll">
+      <!-- Sticky morphing hero card -->
+        <div v-if="user" class="hero-card" :class="{ compact: isCompact }">
+          <div class="hero-bg" />
+          <!-- Profile row: avatar + name + signature -->
+          <div class="hero-top">
+            <div class="avatar-wrap">
+              <img
+                class="avatar-img"
+                :src="getImgUrl(user.avatarUrl, '72y72')"
+                alt=""
               />
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-medium d-text-primary">
-                  {{ item.name }}
-                </div>
-                <div class="truncate text-xs d-text-secondary">
-                  {{ getArtistNames(item) }}
-                </div>
+              <div v-if="currentLoginType" class="login-badge">
+                {{ t('login.title.' + currentLoginType) }}
               </div>
-              <button
-                @click.stop="toggleFavorite(item)"
-                class="record-action flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-lg"
-                :class="{ 'is-favorited': isFavorited(item.id) }"
-              >
-                <i :class="isFavorited(item.id) ? 'ri-heart-3-fill' : 'ri-heart-3-line'" />
-              </button>
-              <button
-                @click.stop="handlePlayRecord(item)"
-                class="record-action flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
-              >
-                <i class="ri-play-fill text-lg" />
-              </button>
             </div>
-            <div
-              v-if="!recordList || recordList.length === 0"
-              class="flex h-32 items-center justify-center d-text-muted"
+            <div class="profile-info">
+              <h1 class="profile-name">{{ user.nickname }}</h1>
+              <p class="profile-signature">{{ userDetail?.profile?.signature || '这个人很懒，什么都没有留下' }}</p>
+            </div>
+          </div>
+          <!-- Stats row: collapses on scroll -->
+          <div class="stats-row">
+            <div class="stat-item">
+              <span class="stat-value">{{ userDetail?.profile?.followeds || 0 }}</span>
+              <span class="stat-label">{{ t('user.profile.followers') }}</span>
+            </div>
+            <div class="stat-divider" />
+            <div class="stat-item clickable" @click="showFollowList">
+              <span class="stat-value">{{ userDetail?.profile?.follows || 0 }}</span>
+              <span class="stat-label">{{ t('user.profile.following') }}</span>
+            </div>
+            <div class="stat-divider" />
+            <div class="stat-item">
+              <span class="stat-value">{{ userDetail?.level || 0 }}</span>
+              <span class="stat-label">{{ t('user.profile.level') }}</span>
+            </div>
+          </div>
+        <!-- Tab bar: glow tabs, always visible, stays inside the card -->
+        <GlowTabs
+          v-model="currentTab"
+          :tabs="tabs.map(tab => ({ key: tab.key, label: t(tab.label) }))"
+          full-width
+          class="tab-bar-glow"
+        />
+        </div>
+
+        <!-- Content area -->
+        <div v-if="user" class="content-area" :class="setAnimationClass('animate__fadeIn')">
+          <!-- Playlist grid -->
+          <div v-if="currentTab !== 'platforms'" class="playlist-grid">
+            <button
+              v-if="isElectron && currentTab === 'created'"
+              class="import-card"
+              @click="goToImportPlaylist"
             >
-              {{ t('user.ranking.empty') || '暂无听歌记录' }}
+              <div class="import-icon-wrap">
+                <i class="ri-add-line" />
+              </div>
+              <span class="import-label">{{ t('comp.playlist.import.button') }}</span>
+            </button>
+            <div
+              v-for="(item, index) in currentList"
+              :key="index"
+              class="playlist-card"
+              @click="handleItemClick(item)"
+            >
+              <div class="playlist-cover-wrap">
+                <n-image
+                  :src="getImgUrl(getCoverUrl(item), '200y200')"
+                  class="playlist-cover"
+                  lazy
+                  preview-disabled
+                />
+              </div>
+              <div class="playlist-info">
+                <div class="playlist-name truncate">{{ item.name }}</div>
+                <div class="playlist-desc truncate">{{ getItemDescription(item) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Platform accounts -->
+          <PlatformAccounts v-if="currentTab === 'platforms'" />
+
+          <!-- Listen ranking -->
+          <div class="ranking-section">
+            <h2 class="section-title">{{ t('user.ranking.title') }}</h2>
+            <div class="ranking-list">
+              <div
+                v-for="(item, index) in recordList"
+                :key="item.id"
+                class="ranking-item"
+              >
+                <span class="ranking-num">{{ index + 1 }}</span>
+                <n-image
+                  :src="getImgUrl(item.picUrl || item.al?.picUrl, '40y40')"
+                  class="ranking-cover"
+                  lazy
+                  preview-disabled
+                />
+                <div class="ranking-info">
+                  <div class="ranking-song-name truncate">{{ item.name }}</div>
+                  <div class="ranking-artist truncate">{{ getArtistNames(item) }}</div>
+                </div>
+                <button
+                  class="ranking-action"
+                  :class="{ fav: isFavorited(item.id) }"
+                  @click.stop="toggleFavorite(item)"
+                >
+                  <i :class="isFavorited(item.id) ? 'ri-heart-3-fill' : 'ri-heart-3-line'" />
+                </button>
+                <button
+                  class="ranking-action"
+                  @click.stop="handlePlayRecord(item)"
+                >
+                  <i class="ri-play-fill" />
+                </button>
+              </div>
+              <div v-if="!recordList || recordList.length === 0" class="ranking-empty">
+                {{ t('user.ranking.empty') || '暂无听歌记录' }}
+              </div>
             </div>
           </div>
         </div>
-        <play-bottom />
+
+        <div class="bottom-spacer" />
+        <PlayBottom />
       </div>
+
+      <!-- Login prompt -->
       <div
         v-if="!isLoggedIn"
-        class="login-container flex h-full w-full items-center justify-center"
+        class="login-container"
         :class="setAnimationClass('animate__fadeIn')"
       >
         <login-component @login-success="handleLoginSuccess" />
@@ -195,16 +161,15 @@ import { useRouter } from 'vue-router';
 import { getUserAlbumSublist, getUserDetail, getUserPlaylist, getUserRecord } from '@/api/user';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PlayBottom from '@/components/common/PlayBottom.vue';
+import GlowTabs from '@/components/common/GlowTabs.vue';
 import PlatformAccounts from '@/components/user/PlatformAccounts.vue';
 import { usePlayerStore } from '@/store/modules/player';
 import { useUserStore } from '@/store/modules/user';
-import { getImgUrl, isElectron, isMobile, setAnimationClass } from '@/utils';
+import { getImgUrl, isElectron, setAnimationClass } from '@/utils';
 import { checkLoginStatus as checkAuthStatus } from '@/utils/auth';
 import LoginComponent from '@/views/login/index.vue';
 
-defineOptions({
-  name: 'User'
-});
+defineOptions({ name: 'User' });
 
 const { t } = useI18n();
 const userStore = useUserStore();
@@ -215,6 +180,21 @@ const infoLoading = ref(false);
 const albumLoading = ref(false);
 const mounted = ref(true);
 const message = useMessage();
+
+const scrollRef = ref<HTMLElement | null>(null);
+const isCompact = ref(false);
+let rafId = 0;
+
+const onScroll = () => {
+  if (rafId) return;
+  rafId = requestAnimationFrame(() => {
+    const el = scrollRef.value;
+    if (el) {
+      isCompact.value = el.scrollTop > 10;
+    }
+    rafId = 0;
+  });
+};
 
 const tabs = [
   { key: 'created', label: 'user.tabs.created' },
@@ -331,7 +311,6 @@ const loadData = async () => {
     const results = await Promise.all(promises);
     if (!mounted.value) return;
     userDetail.value = results[0].data;
-    // /user/record 返回 { allData: [...], weekData: [...] }，但某些 API 版本可能只返回 weekData
     const recordData = results[1].data;
     const recordListData = recordData?.allData || recordData?.weekData || [];
     recordList.value = recordListData.map((item: any) => ({
@@ -447,81 +426,474 @@ const currentLoginType = computed(() => userStore.loginType);
 
 <style lang="scss" scoped>
 .user-page {
-  @apply flex flex-col min-h-0 overflow-y-auto;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background: var(--cover-bg, var(--m-bg, var(--bg-color)));
 }
 
-.login-type {
-  @apply text-sm;
-  color: var(--accent-color);
+.user-scroll {
+width: 100%;
+height: 100%;
+overflow-y: auto;
+overflow-x: hidden;
+-webkit-overflow-scrolling: touch;
+scrollbar-width: none;
+/* 为固定悬浮卡片留出空间 */
+padding-top: calc(var(--safe-area-inset-top, 0px) + 280px);
+&::-webkit-scrollbar { display: none; }
 }
 
-.mobile {
-  .user-page {
-    padding-left: var(--page-pl);
-    padding-right: var(--page-pr);
+/* Skeleton */
+.skeleton-wrap { padding: 16px; }
+.skeleton-card { border-radius: 20px; margin-bottom: 16px; }
+.skeleton-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+  .skeleton-item { height: 200px; border-radius: 16px; }
+}
+
+/* Safe area spacer */
+.safe-top {
+  height: 0;
+  display: none;
+}
+
+/* ========================================
+   Hero Card — the morphing floating card
+   One element that transforms on scroll.
+   No new elements created.
+   ======================================== */
+.hero-card {
+position: fixed;
+top: calc(var(--safe-area-inset-top, 0px) + 52px);
+left: 16px;
+right: 16px;
+z-index: 50;
+border-radius: 22px;
+overflow: hidden;
+transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+            box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+            top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  &.compact {
+    border-radius: 18px;
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+    top: calc(var(--safe-area-inset-top, 0px) + 56px);
   }
-  .login-container {
-    @apply flex justify-center items-center h-full w-full;
-  }
 }
 
-:deep(.n-tabs-rail) {
-  @apply rounded-xl overflow-hidden !important;
-  .n-tabs-capsule {
-    @apply rounded-xl !important;
-  }
-}
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  background: var(--cover-surface, rgba(255, 255, 255, 0.55));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  opacity: 1;
+  transition: opacity 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 
-/* 导入按钮 */
-.import-btn {
-  transition: var(--d-transition-colors);
-}
-
-.import-btn:hover {
-  background: var(--d-surface-hover);
-}
-
-.import-btn-icon {
-  background: var(--d-surface-alt);
-}
-
-/* 列表项卡片 */
-.list-item-card {
-  transition: var(--d-transition-colors);
-}
-
-.list-item-card:hover {
-  background: var(--d-surface-hover);
-}
-
-/* 排行榜列表项 */
-.record-item {
-  transition: var(--d-transition-colors);
-}
-
-.record-item:hover {
-  background: var(--d-surface-hover);
-
-  .record-action {
+  .hero-card.compact & {
     opacity: 1;
   }
 }
 
-.record-action {
-  transition: var(--d-transition-colors);
-  color: var(--d-text-muted);
+/* Profile row: avatar + name + signature */
+.hero-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 20px 12px;
+  transition: padding 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              gap 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  .hero-card.compact & {
+    padding: 10px 16px 8px;
+    gap: 10px;
+  }
 }
 
-.record-action.is-favorited {
-  color: #ef4444;
+.avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.avatar-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  .hero-card.compact & {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+.login-badge {
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--accent-color, #888);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: opacity 0.2s ease,
+              transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  .hero-card.compact & {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.3);
+  }
+}
+
+.profile-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--cover-text-primary, var(--m-text-primary, var(--text-color, #2c2c2c)));
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: font-size 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  .hero-card.compact & {
+    font-size: 17px;
+    font-weight: 600;
+  }
+}
+
+.profile-signature {
+  font-size: 13px;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  margin: 4px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   opacity: 1;
+  max-height: 20px;
+  transition: opacity 0.25s ease,
+              max-height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              margin-top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  .hero-card.compact & {
+    opacity: 0;
+    max-height: 0;
+    margin-top: 0;
+  }
 }
 
-.record-action:not(.is-favorited):hover {
-  color: #f87171;
+/* Stats row — fades out and collapses */
+.stats-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 10px 20px;
+  border-top: 1px solid var(--cover-border, rgba(128, 128, 128, 0.1));
+  opacity: 1;
+  max-height: 80px;
+  overflow: hidden;
+  transition: opacity 0.25s ease,
+              max-height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              padding-top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              padding-bottom 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              border-color 0.3s ease;
+
+  .hero-card.compact & {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-color: transparent;
+  }
 }
 
-.record-play-btn:hover {
-  color: var(--accent-color);
+.stat-item {
+  flex: 1;
+  text-align: center;
+  &.clickable { cursor: pointer; }
+}
+
+.stat-value {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--cover-text-primary, var(--m-text-primary, var(--text-color, #2c2c2c)));
+}
+
+.stat-label {
+  display: block;
+  font-size: 11px;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  margin-top: 2px;
+}
+
+.stat-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--cover-border, rgba(128, 128, 128, 0.15));
+}
+
+/* Tab bar — glow tabs, stays inside the card */
+.tab-bar-glow {
+  margin: 4px 4px 8px;
+  transition: margin 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  .hero-card.compact & {
+    margin: 0 16px 6px;
+  }
+}
+
+/* Content area */
+.content-area {
+  padding: 0 16px;
+}
+
+/* Playlist grid */
+.playlist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.import-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  &:active { transform: scale(0.96); }
+}
+
+.import-icon-wrap {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: var(--cover-surface-alt, rgba(128, 128, 128, 0.08));
+  font-size: 32px;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  transition: background 0.2s ease;
+}
+
+.import-card:hover .import-icon-wrap {
+  background: var(--cover-surface-hover, rgba(128, 128, 128, 0.12));
+}
+
+.import-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
+  text-align: center;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlist-card {
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  &:active { transform: scale(0.96); }
+}
+
+.playlist-cover-wrap {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px var(--cover-shadow, rgba(0, 0, 0, 0.06));
+}
+
+.playlist-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  :deep(img) { width: 100%; height: 100%; object-fit: cover; }
+}
+
+.playlist-info {
+  margin-top: 8px;
+}
+
+.playlist-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cover-text-primary, var(--m-text-primary, var(--text-color, #2c2c2c)));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlist-desc {
+  font-size: 11px;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ranking section */
+.ranking-section {
+  margin-top: 8px;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--cover-text-primary, var(--m-text-primary, var(--text-color, #2c2c2c)));
+  margin: 0 0 12px;
+}
+
+.ranking-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.ranking-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: var(--cover-surface-hover, rgba(128, 128, 128, 0.06));
+  }
+}
+
+.ranking-num {
+  width: 24px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  flex-shrink: 0;
+}
+
+.ranking-cover {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  :deep(img) { width: 100%; height: 100%; object-fit: cover; }
+}
+
+.ranking-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ranking-song-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--cover-text-primary, var(--m-text-primary, var(--text-color, #2c2c2c)));
+}
+
+.ranking-artist {
+  font-size: 12px;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  margin-top: 2px;
+}
+
+.ranking-action {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+
+  &.fav {
+    color: #ef4444;
+  }
+
+  &:active {
+    transform: scale(0.88);
+  }
+}
+
+.ranking-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  font-size: 14px;
+}
+
+/* Login container */
+.login-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.bottom-spacer {
+  height: calc(var(--safe-area-inset-bottom, 0px) + 140px);
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--cover-surface-alt, rgba(128, 128, 128, 0.08)) 25%,
+    var(--cover-surface-hover, rgba(128, 128, 128, 0.12)) 50%,
+    var(--cover-surface-alt, rgba(128, 128, 128, 0.08)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-card,
+  .hero-top,
+  .avatar-img,
+  .profile-name,
+  .profile-signature,
+  .stats-row,
+  .tab-bar-glow {
+    transition: none;
+  }
 }
 </style>

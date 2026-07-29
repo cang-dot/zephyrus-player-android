@@ -10,10 +10,14 @@ import useIndexedDB from '@/hooks/IndexDBHook';
 import type { LocalMusicEntry } from '@/types/localMusic';
 
 // 扫描版本号，代码变更后递增可强制重新解析所有文件（解决封面/歌词提取逻辑变更后的缓存问题）
-const SCAN_VERSION = 3;
+const SCAN_VERSION = 4;
 import { removeStaleEntries } from '@/utils/localMusicUtils';
+import { isElectron } from '@/utils';
 
 const { message } = createDiscreteApi(['message']);
+
+/** 是否为移动端环境 */
+const isMobileNative = !isElectron && typeof (window as any).AndroidNative !== 'undefined';
 
 /** IndexedDB store 名称 */
 const LOCAL_MUSIC_STORE = 'local_music' as const;
@@ -108,7 +112,8 @@ export const useLocalMusicStore = defineStore(
 
     /**
      * 扫描所有已配置的文件夹
-     * 流程：IPC 扫描文件 → 增量对比 → 解析变更文件元数据 → 存入 IndexedDB → 更新列表
+     * 流程：扫描文件 → 增量对比 → 解析变更文件元数据 → 存入 IndexedDB → 更新列表
+     * 自动适配 Electron (IPC) 和移动端 (NativeBridge)
      */
     async function scanFolders(): Promise<void> {
       if (scanning.value || folderPaths.value.length === 0) {
@@ -138,38 +143,72 @@ export const useLocalMusicStore = defineStore(
         // 遍历每个文件夹进行扫描
         for (const folderPath of folderPaths.value) {
           try {
-            // 1. 调用 IPC 扫描文件夹，获取文件路径与修改时间
-            const result = await window.api.scanLocalMusicWithStats(folderPath);
+            if (isMobileNative) {
+              // ==================== 移动端扫描 ====================
+              const native = (window as any).AndroidNative;
+              const filesJson = native.scanAudioFiles(folderPath);
+              const files = JSON.parse(filesJson) as Array<{
+                uri: string; name: string; size: number; lastModified: number;
+              }>;
+              scanProgress.value += files.length;
 
-            // 检查是否返回错误
-            if ((result as any).error) {
-              console.error(`扫描文件夹失败: ${folderPath}`, (result as any).error);
-              message.error(`扫描失败: ${(result as any).error}`);
-              continue;
-            }
-
-            const { files } = result;
-            scanProgress.value += files.length;
-
-            // 2. 增量扫描：基于修改时间筛选需重新解析的文件
-            const parseTargets: string[] = [];
-            for (const file of files) {
-              const cached = cachedMap.get(file.path);
-              if (forceRescan || !cached || cached.modifiedTime !== file.modifiedTime) {
-                parseTargets.push(file.path);
+              // 增量扫描：基于修改时间筛选需重新解析的文件
+              const parseTargets: string[] = [];
+              for (const file of files) {
+                const cached = cachedMap.get(file.uri);
+                if (forceRescan || !cached || cached.modifiedTime !== file.lastModified) {
+                  parseTargets.push(file.uri);
+                }
               }
-            }
 
-            // 3. 仅解析新增或变更文件，避免对未变更文件重复解析元数据
-            if (parseTargets.length > 0) {
-              const metas = await window.api.parseLocalMusicMetadata(parseTargets);
-              for (const meta of metas) {
-                const entry: LocalMusicEntry = {
-                  ...meta,
-                  id: generateId(meta.filePath)
-                };
-                await localDB.saveData(LOCAL_MUSIC_STORE, entry);
-                cachedMap.set(entry.filePath, entry);
+              // 解析元数据（逐个调用 NativeBridge）
+              for (const uri of parseTargets) {
+                try {
+                  const metaJson = native.getAudioMetadata(uri);
+                  const meta = JSON.parse(metaJson);
+                  const entry: LocalMusicEntry = {
+                    ...meta,
+                    cover: meta.cover ?? null,
+                    lyrics: meta.lyrics ?? null,
+                    id: generateId(meta.filePath)
+                  };
+                  await localDB.saveData(LOCAL_MUSIC_STORE, entry);
+                  cachedMap.set(entry.filePath, entry);
+                } catch (e) {
+                  console.error('解析元数据失败:', uri, e);
+                }
+              }
+            } else {
+              // ==================== Electron 桌面端扫描 ====================
+              const result = await window.api.scanLocalMusicWithStats(folderPath);
+
+              if ((result as any).error) {
+                console.error(`扫描文件夹失败: ${folderPath}`, (result as any).error);
+                message.error(`扫描失败: ${(result as any).error}`);
+                continue;
+              }
+
+              const { files } = result;
+              scanProgress.value += files.length;
+
+              const parseTargets: string[] = [];
+              for (const file of files) {
+                const cached = cachedMap.get(file.path);
+                if (forceRescan || !cached || cached.modifiedTime !== file.modifiedTime) {
+                  parseTargets.push(file.path);
+                }
+              }
+
+              if (parseTargets.length > 0) {
+                const metas = await window.api.parseLocalMusicMetadata(parseTargets);
+                for (const meta of metas) {
+                  const entry: LocalMusicEntry = {
+                    ...meta,
+                    id: generateId(meta.filePath)
+                  };
+                  await localDB.saveData(LOCAL_MUSIC_STORE, entry);
+                  cachedMap.set(entry.filePath, entry);
+                }
               }
             }
           } catch (error) {
@@ -178,7 +217,7 @@ export const useLocalMusicStore = defineStore(
           }
         }
 
-        // 5. 从 IndexedDB 重新加载完整列表
+        // 从 IndexedDB 重新加载完整列表
         musicList.value = await localDB.getAllData(LOCAL_MUSIC_STORE);
       } catch (error) {
         console.error('扫描本地音乐失败:', error);
@@ -215,34 +254,33 @@ export const useLocalMusicStore = defineStore(
           return;
         }
 
-        // 构建文件存在性映射
         const existsMap: Record<string, boolean> = {};
         for (const entry of allEntries) {
           try {
-            // 使用已有的 IPC 通道检查文件是否存在
-            const exists = await window.electron.ipcRenderer.invoke(
-              'check-file-exists',
-              entry.filePath
-            );
-            existsMap[entry.filePath] = exists !== false;
+            if (isMobileNative) {
+              const result = (window as any).AndroidNative.checkFileExists(entry.filePath);
+              existsMap[entry.filePath] = result === 'true';
+            } else {
+              const exists = await window.electron.ipcRenderer.invoke(
+                'check-file-exists',
+                entry.filePath
+              );
+              existsMap[entry.filePath] = exists !== false;
+            }
           } catch {
-            // 检查失败时假设文件存在，避免误删
             existsMap[entry.filePath] = true;
           }
         }
 
-        // 使用工具函数过滤出仍然存在的条目
         const validEntries = removeStaleEntries(allEntries, existsMap);
         const removedEntries = allEntries.filter(
           (entry) => !validEntries.some((v) => v.id === entry.id)
         );
 
-        // 从 IndexedDB 中删除不存在的条目
         for (const entry of removedEntries) {
           await localDB.deleteData(LOCAL_MUSIC_STORE, entry.id);
         }
 
-        // 更新内存中的列表
         musicList.value = validEntries;
       } catch (error) {
         console.error('清理缓存失败:', error);

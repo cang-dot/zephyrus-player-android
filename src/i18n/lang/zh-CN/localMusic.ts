@@ -1,7 +1,7 @@
 export default {
   title: '本地音乐',
-  scanFolder: '扫描文件夹',
-  removeFolder: '移除文件夹',
+  scanFolder: '选择文件夹',
+  removeFolder: '管理文件夹',
   scanning: '正在扫描...',
   scanComplete: '扫描完成',
   playAll: '播放全部',
@@ -28,5 +28,7 @@ export default {
   backToList: '返回列表',
   showAll: '全部',
   filterArtist: '按歌手筛选',
-  filterAlbum: '按专辑筛选'
+  filterAlbum: '按专辑筛选',
+  folderNotSelected: '未选择文件夹',
+  scanningFiles: '正在扫描 {count} 个文件'
 };

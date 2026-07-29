@@ -21,6 +21,7 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     private NativeBridge nativeBridge;
     private static MainActivity instance;
+    public static final int REQUEST_PICK_AUDIO_FOLDER = 10001;
     // 记录上次处理的剪贴板内容，避免重复处理
     private String lastClipboardContent = "";
     // 标记是否已通过 deep link intent 处理过（避免与剪贴板重复）
@@ -91,6 +92,25 @@ public class MainActivity extends BridgeActivity {
         // 处理通过 deep link 启动时的初始 Intent
         if (handleDeepLink(getIntent())) {
             deepLinkHandled = true;
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_PICK_AUDIO_FOLDER && resultCode == RESULT_OK && data != null) {
+            Uri treeUri = data.getData();
+            if (treeUri != null) {
+                try {
+                    getContentResolver().takePersistableUriPermission(treeUri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                } catch (Exception e) {
+                    Log.w("NativeBridge", "Failed to take persistable permission", e);
+                }
+                String js = "window.__localMusicFolderPicked && window.__localMusicFolderPicked('"
+                        + treeUri.toString() + "');";
+                evaluateJavascript(js);
+            }
         }
     }
 

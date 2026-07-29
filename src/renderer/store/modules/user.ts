@@ -37,6 +37,9 @@ export const useUserStore = defineStore('user', () => {
   const playList = ref<any[]>([]);
   // 用户的专辑列表
   const albumList = ref<any[]>([]);
+  // 数据是否已加载完成
+  const playlistLoaded = ref(false);
+  const albumLoaded = ref(false);
 
   // 方法
   const setUser = (userData: UserData) => {
@@ -61,6 +64,8 @@ export const useUserStore = defineStore('user', () => {
       collectedAlbumIds.value.clear();
       playList.value = [];
       albumList.value = [];
+      playlistLoaded.value = false;
+      albumLoaded.value = false;
       clearLoginStatus();
       // 刷新
       window.location.reload();
@@ -72,6 +77,8 @@ export const useUserStore = defineStore('user', () => {
       collectedAlbumIds.value.clear();
       playList.value = [];
       albumList.value = [];
+      playlistLoaded.value = false;
+      albumLoaded.value = false;
       clearLoginStatus();
       window.location.reload();
     }
@@ -98,6 +105,8 @@ export const useUserStore = defineStore('user', () => {
     } catch (error) {
       console.error('获取歌单列表失败:', error);
       playList.value = [];
+    } finally {
+      playlistLoaded.value = true;
     }
   };
 
@@ -114,6 +123,8 @@ export const useUserStore = defineStore('user', () => {
     } catch (error) {
       console.error('获取专辑列表失败:', error);
       albumList.value = [];
+    } finally {
+      albumLoaded.value = true;
     }
   };
 
@@ -191,6 +202,8 @@ export const useUserStore = defineStore('user', () => {
     collectedAlbumIds,
     playList,
     albumList,
+    playlistLoaded,
+    albumLoaded,
     isVip,
 
     // 方法

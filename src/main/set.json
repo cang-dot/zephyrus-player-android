@@ -57,5 +57,6 @@
   "layoutMode": "classic",
   "overlayAutoCollapse": true,
   "overlayAutoCollapseDelay": 5,
-  "platformCookies": {}
+  "platformCookies": {},
+  "bottomNavLayout": "default"
 }

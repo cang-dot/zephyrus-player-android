@@ -1,40 +1,13 @@
 <template>
   <div class="mobile-search-page">
-    <!-- 搜索头部 -->
-    <div class="search-header" :class="{ 'safe-area-top': hasSafeArea }">
-      <div class="header-back" @click="goBack">
-        <i class="ri-arrow-left-s-line"></i>
-      </div>
-      <div class="search-input-wrapper">
-        <i class="ri-search-line search-icon"></i>
-        <input
-          ref="searchInputRef"
-          v-model="searchValue"
-          type="text"
-          class="search-input"
-          :placeholder="hotSearchKeyword"
-          @input="handleInput"
-          @keydown.enter="handleSearch"
-        />
-        <i v-if="searchValue" class="ri-close-circle-fill clear-icon" @click="clearSearch"></i>
-      </div>
-      <div class="search-button" @click="handleSearch">
-        {{ t('common.search') }}
-      </div>
-    </div>
-
     <!-- 搜索类型标签 -->
-    <div class="search-types">
-      <div
-        v-for="type in searchTypes"
-        :key="type.key"
-        class="type-tag"
-        :class="{ active: searchType === type.key }"
-        @click="selectType(type.key)"
-      >
-        {{ type.label }}
-      </div>
-    </div>
+    <GlowTabs
+      :model-value="String(searchType)"
+      :tabs="searchTypes.map(t => ({ key: String(t.key), label: t.label }))"
+      scrollable
+      class="search-types-glow"
+      @update:model-value="(v) => selectType(Number(v))"
+    />
 
     <!-- 搜索内容区域 -->
     <div class="search-content">
@@ -73,7 +46,7 @@
       </div>
 
       <!-- 热门搜索 -->
-      <div v-if="hotSearchList.length > 0 && !searchValue" class="search-section">
+      <div v-if="hotSearchList.length > 0 && !searchStore.searchValue" class="search-section">
         <div class="section-title">{{ t('search.hot') }}</div>
         <div class="hot-list">
           <div
@@ -96,28 +69,19 @@
 
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core';
-import { computed, inject, nextTick, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import { getHotSearch, getSearchKeyword } from '@/api/home';
 import { getSearchSuggestions } from '@/api/search';
+import GlowTabs from '@/components/common/GlowTabs.vue';
 import { SEARCH_TYPES } from '@/const/bar-const';
 import { useSearchStore } from '@/store/modules/search';
 
 const { t, locale } = useI18n();
 const router = useRouter();
 const searchStore = useSearchStore();
-
-// 注入是否有安全区域
-const hasSafeArea = inject('hasSafeArea', false);
-
-// 搜索值
-const searchValue = ref('');
-const searchInputRef = ref<HTMLInputElement | null>(null);
-
-// 热门搜索关键词占位符
-const hotSearchKeyword = ref('搜索音乐、歌手、歌单');
 
 // 搜索类型
 const searchType = ref(searchStore.searchType || 1);
@@ -143,7 +107,7 @@ const hotSearchList = ref<any[]>([]);
 const loadHotSearchKeyword = async () => {
   try {
     const { data } = await getSearchKeyword();
-    hotSearchKeyword.value = data.data.showKeyword;
+    searchStore.setPlaceholder(data.data.showKeyword);
   } catch (e) {
     console.error('加载热门搜索关键词失败:', e);
   }
@@ -170,19 +134,6 @@ const loadSearchHistory = () => {
   }
 };
 
-// 保存搜索历史
-const saveSearchHistory = (keyword: string) => {
-  if (!keyword.trim()) return;
-
-  // 移除重复项并添加到开头
-  const history = searchHistory.value.filter((item) => item !== keyword);
-  history.unshift(keyword);
-
-  // 最多保存20条
-  searchHistory.value = history.slice(0, 20);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(searchHistory.value));
-};
-
 // 清除搜索历史
 const clearHistory = () => {
   searchHistory.value = [];
@@ -198,59 +149,38 @@ const debouncedGetSuggestions = useDebounceFn(async (keyword: string) => {
   suggestions.value = await getSearchSuggestions(keyword);
 }, 300);
 
-// 处理输入
-const handleInput = () => {
-  debouncedGetSuggestions(searchValue.value);
-};
-
-// 清除搜索
-const clearSearch = () => {
-  searchValue.value = '';
-  suggestions.value = [];
-};
+// Watch search store value for suggestions
+watch(() => searchStore.searchValue, (val) => {
+  debouncedGetSuggestions(val);
+});
 
 // 选择搜索类型
 const selectType = (type: number) => {
   searchType.value = type;
-  searchStore.searchType = type;
+  searchStore.setSearchType(type);
 };
 
 // 选择建议
 const selectSuggestion = (keyword: string) => {
-  searchValue.value = keyword;
-  handleSearch();
-};
+  searchStore.setSearchValue(keyword);
+  // Save to history
+  try {
+    const history = searchHistory.value.filter((item) => item !== keyword);
+    history.unshift(keyword);
+    searchHistory.value = history.slice(0, 20);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(searchHistory.value));
+  } catch { /* ignore */ }
 
-// 执行搜索
-const handleSearch = () => {
-  const keyword = searchValue.value.trim();
-  if (!keyword) return;
-
-  // 保存搜索历史
-  saveSearchHistory(keyword);
-
-  // 跳转到搜索结果页
   router.push({
     path: '/mobile-search-result',
-    query: {
-      keyword,
-      type: searchType.value
-    }
+    query: { keyword, type: searchType.value }
   });
-};
-
-// 返回上一页
-const goBack = () => {
-  router.back();
 };
 
 onMounted(() => {
   loadHotSearchKeyword();
   loadHotSearchList();
   loadSearchHistory();
-  nextTick(() => {
-    searchInputRef.value?.focus();
-  });
 });
 </script>
 
@@ -259,81 +189,11 @@ onMounted(() => {
   @apply fixed inset-0 z-50;
   @apply flex flex-col;
   background: var(--m-bg, var(--bg-color));
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);
 }
 
-.search-header {
-  @apply flex items-center gap-3 pl-1 pr-3 py-3;
-  border-bottom: 1px solid var(--m-border, transparent);
-
-  &.safe-area-top {
-    padding-top: var(--safe-area-inset-top, 0px);
-  }
-}
-
-.header-back {
-  @apply flex items-center justify-center;
-  @apply w-8 h-8 rounded-full text-2xl;
-  color: var(--m-text-secondary, #6b6560);
-  transition: transform var(--m-duration-press, 160ms) var(--m-ease-out, ease-out);
-
-  &:active {
-    transform: scale(0.97);
-    background: var(--m-surface, rgba(0, 0, 0, 0.05));
-  }
-}
-
-.search-input-wrapper {
-  @apply flex-1 flex items-center gap-2;
-  @apply rounded-full;
-  @apply px-4 py-1;
-  background: var(--m-surface, #eae6df);
-}
-
-.search-icon {
-  @apply text-gray-400 text-lg;
-}
-
-.search-input {
-  @apply flex-1 bg-transparent border-none outline-none;
-  @apply text-base;
-  color: var(--m-text-primary, #2c2c2c);
-
-  &::placeholder {
-    color: var(--m-text-muted, #9a9590);
-  }
-}
-
-.clear-icon {
-  @apply text-lg cursor-pointer;
-  color: var(--m-text-muted, #9a9590);
-}
-
-.search-types {
-  @apply flex gap-2 px-4 py-3 overflow-x-auto;
-  border-bottom: 1px solid var(--m-border, transparent);
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-}
-
-.type-tag {
-  @apply px-4 py-1.5 rounded-full text-sm whitespace-nowrap;
-  background: var(--m-surface, #eae6df);
-  color: var(--m-text-secondary, #6b6560);
-  transition:
-    background var(--m-duration-press, 160ms) var(--m-ease-out, ease-out),
-    color var(--m-duration-press, 160ms) var(--m-ease-out, ease-out),
-    transform var(--m-duration-press, 160ms) var(--m-ease-out, ease-out);
-
-  &:active {
-    transform: scale(0.97);
-  }
-
-  &.active {
-    background: var(--accent-color);
-    color: #ffffff;
-  }
+.search-types-glow {
+  margin: 8px 16px 4px;
 }
 
 .search-content {

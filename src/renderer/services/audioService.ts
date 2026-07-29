@@ -286,12 +286,16 @@ class AudioService {
     }
   }
 
-  private async setupEQ(sound: Howl | LocalAudioPlayer) {
-    try {
-      if (!isElectron) {
-        this.bypass = true;
-        return;
-      }
+private async setupEQ(sound: Howl | LocalAudioPlayer) {
+try {
+// 移动端：跳过 EQ 滤波器，但 LocalAudioPlayer 仍需连接到音频输出
+if (!isElectron) {
+this.bypass = true;
+if (sound instanceof LocalAudioPlayer) {
+return this._setupEQLocalMobile(sound);
+}
+return;
+}
 
       // 清理现有连接
       await this.disposeEQ(true);
@@ -434,7 +438,40 @@ class AudioService {
       this.applyVolume(1);
     }
 
-  }
+}
+
+private _setupEQLocalMobile(sound: LocalAudioPlayer) {
+this.context = Howler.ctx as AudioContext;
+if (!this.context || this.context.state === 'closed') {
+Howler.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+this.context = Howler.ctx;
+Howler.masterGain = this.context.createGain();
+Howler.masterGain.connect(this.context.destination);
+}
+
+// 移动端 AudioContext 可能处于 suspended 状态，需恢复
+if (this.context.state === 'suspended') {
+this.context.resume().catch(() => {});
+}
+
+this.setupContextStateMonitoring();
+
+this.source = sound.getInputNode() as any;
+
+this.gainNode = this.context.createGain();
+this.gainNode.gain.value = 1;
+
+// 直接连接：source -> gainNode -> destination（无 EQ 滤波器）
+this.source.connect(this.gainNode);
+this.gainNode.connect(this.context.destination);
+
+const savedVolume = localStorage.getItem('volume');
+if (savedVolume) {
+this.applyVolume(parseFloat(savedVolume));
+} else {
+this.applyVolume(1);
+}
+}
 
   private applyBypassState() {
     if (!this.source || !this.gainNode || !this.context) return;

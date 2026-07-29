@@ -23,6 +23,10 @@ export class LocalAudioPlayer {
     this._url = url;
     this._ctx = (Howler.ctx || new AudioContext()) as AudioContext;
     this._inputNode = this._ctx.createGain();
+    // 移动端 AudioContext 可能处于 suspended 状态
+    if (this._ctx.state === 'suspended') {
+      this._ctx.resume().catch(() => {});
+    }
     this._loadPromise = this._load();
   }
 
@@ -53,6 +57,59 @@ export class LocalAudioPlayer {
         const response = await fetch(this._url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         arrayBuffer = await response.arrayBuffer();
+      } else if ((window as any).AndroidNative) {
+        // Mobile (Capacitor/Android): async copy to temp file, then fetch
+        // Uses Java background thread to avoid blocking JS thread
+        const contentUri = this._localUrlToPath(this._url);
+        const androidNative = (window as any).AndroidNative;
+
+        if (typeof androidNative.copyToCacheDirAsync === 'function') {
+          // Preferred: async copy via Java background thread + JS callback
+          const tempPath: string = await new Promise((resolve) => {
+            const callbackName = `__audioCopyCB_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            (window as any)[callbackName] = (path: string) => {
+              resolve(path);
+              delete (window as any)[callbackName];
+            };
+            androidNative.copyToCacheDirAsync(contentUri, callbackName);
+          });
+
+          if (!tempPath) throw new Error('文件复制失败');
+
+          try {
+            const cap = (window as any).Capacitor;
+            const fileUrl = cap?.convertFileSrc
+              ? cap.convertFileSrc(tempPath)
+              : 'file://' + tempPath;
+            const response = await fetch(fileUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            arrayBuffer = await response.arrayBuffer();
+          } finally {
+            try { androidNative.deleteTempFile(tempPath); } catch {}
+          }
+        } else if (typeof androidNative.copyToCacheDir === 'function') {
+          // Sync fallback (blocks JS thread)
+          const tempPath = androidNative.copyToCacheDir(contentUri);
+          if (!tempPath) throw new Error('文件复制失败');
+
+          try {
+            const cap = (window as any).Capacitor;
+            const fileUrl = cap?.convertFileSrc
+              ? cap.convertFileSrc(tempPath)
+              : 'file://' + tempPath;
+            const response = await fetch(fileUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            arrayBuffer = await response.arrayBuffer();
+          } finally {
+            try { androidNative.deleteTempFile(tempPath); } catch {}
+          }
+        } else {
+          // Last resort: base64 + fetch data URL
+          const base64 = androidNative.readFileBase64(contentUri);
+          if (!base64) throw new Error('文件读取失败');
+          const response = await fetch(`data:application/octet-stream;base64,${base64}`);
+          arrayBuffer = await response.arrayBuffer();
+        }
       } else {
         throw new Error('非 Electron 环境无法加载本地文件');
       }

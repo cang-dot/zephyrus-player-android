@@ -1,7 +1,7 @@
 export default {
   title: 'Local Music',
-  scanFolder: 'Scan Folder',
-  removeFolder: 'Remove Folder',
+  scanFolder: 'Select Folder',
+  removeFolder: 'Manage Folders',
   scanning: 'Scanning...',
   scanComplete: 'Scan Complete',
   playAll: 'Play All',
@@ -28,5 +28,7 @@ export default {
   backToList: 'Back',
   showAll: 'All',
   filterArtist: 'Filter by Artist',
-  filterAlbum: 'Filter by Album'
+  filterAlbum: 'Filter by Album',
+  folderNotSelected: 'No folder selected',
+  scanningFiles: 'Scanning {count} files'
 };

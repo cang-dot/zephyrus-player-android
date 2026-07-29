@@ -15,43 +15,26 @@
             </div>
 
             <!-- Search Type Tabs -->
-            <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
-              <button
-                v-for="type in searchTypeOptions"
-                :key="type.key"
-                class="d-chip"
-                :class="{ 'd-chip-active': searchType === type.key }"
-                @click="handleTypeChange(type.key)"
-              >
-                {{ type.label }}
-              </button>
-            </div>
+            <GlowTabs
+              :model-value="String(searchType)"
+              :tabs="searchTypeOptions.map(t => ({ key: String(t.key), label: t.label }))"
+              scrollable
+              class="search-types-glow"
+              @update:model-value="(v) => handleTypeChange(Number(v))"
+            />
 
             <!-- Source Filter (仅单曲搜索时显示) -->
             <div
               v-if="searchType === SEARCH_TYPE.MUSIC && searchDetail?.songs?.length"
-              class="flex items-center gap-2 flex-wrap"
+              class="source-filter-wrap"
             >
-              <span class="text-xs d-text-muted shrink-0">
-                {{ t('search.filter.source') }}
-              </span>
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <button
-                  v-for="opt in sourceFilterOptions"
-                  :key="opt.key"
-                  class="d-chip d-chip-sm"
-                  :class="{ 'd-chip-active': activeSourceFilter === opt.key }"
-                  @click="activeSourceFilter = opt.key"
-                >
-                  <span
-                    v-if="opt.key !== 'all' && opt.key !== 'pending'"
-                    class="w-1.5 h-1.5 rounded-full"
-                    :style="{ backgroundColor: opt.color }"
-                  ></span>
-                  {{ opt.label }}
-                  <span class="opacity-60">{{ opt.count }}</span>
-                </button>
-              </div>
+              <GlowTabs
+                :model-value="String(activeSourceFilter)"
+                :tabs="sourceFilterOptions.map(opt => ({ key: String(opt.key), label: `${opt.label} ${opt.count}` }))"
+                scrollable
+                class="source-filter-glow"
+                @update:model-value="(v) => activeSourceFilter = v as any"
+              />
               <!-- 探测进度 -->
               <span
                 v-if="probeProgress.total > 0 && probeProgress.done < probeProgress.total"
@@ -266,6 +249,7 @@ import { useRoute, useRouter } from 'vue-router';
 
 import { crossPlatformSearch } from '@/api/crossPlatformSearch';
 import { getSearch } from '@/api/search';
+import GlowTabs from '@/components/common/GlowTabs.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
@@ -724,6 +708,22 @@ watch(
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.search-types-glow {
+  margin: 0 0 8px;
+}
+
+.source-filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.source-filter-glow {
+  flex-shrink: 0;
 }
 
 .no-scrollbar {

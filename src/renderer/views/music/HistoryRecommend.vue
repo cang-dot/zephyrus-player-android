@@ -51,20 +51,11 @@
 
     <!-- 鏃ユ湡閫夋嫨鏍囩 -->
     <div v-if="availableDates.length > 0" class="date-tabs-wrapper">
-      <n-tabs
-        v-model:value="selectedDate"
-        type="segment"
-        animated
-        size="large"
-        @update:value="handleDateChange"
-      >
-        <n-tab
-          v-for="date in displayedDates"
-          :key="date"
-          :name="date"
-          :tab="formatDate(date)"
-        ></n-tab>
-      </n-tabs>
+      <SegmentSlider
+        :model-value="selectedDate"
+        :tabs="displayedDates.map(d => ({ key: d, label: formatDate(d) }))"
+        @update:model-value="handleDateChange"
+      />
     </div>
 
     <!-- 姝屾洸鍒楄〃鍐呭 -->
@@ -118,6 +109,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { getHistoryRecommendDates, getHistoryRecommendSongs } from '@/api/music';
+import SegmentSlider from '@/components/common/SegmentSlider.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
@@ -352,23 +344,9 @@ onMounted(() => {
   }
 }
 
-:deep(.n-tabs-rail) {
-  @apply rounded-xl overflow-hidden !important;
-  .n-tabs-capsule {
-    @apply rounded-xl !important;
-  }
-}
-
 .date-tabs-wrapper {
-  :deep(.n-tabs-rail) {
-    @apply rounded-xl overflow-hidden bg-white dark:bg-dark-300 !important;
-    .n-tabs-capsule {
-      @apply rounded-xl bg-[var(--accent-color)] dark:bg-[var(--accent-color-dark)] !important;
-    }
-    .n-tabs-tab--active {
-      @apply text-white !important;
-    }
-  }
+  @apply mb-2 overflow-x-auto;
+  &::-webkit-scrollbar { display: none; }
 }
 
 .layout-toggle {

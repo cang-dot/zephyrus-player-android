@@ -1,5 +1,37 @@
 # Zephyrus Player 更新日志
 
+## v1.1.0
+
+### ✨ 新增
+
+- **本地音乐完整支持**：扫描本地音频文件（FLAC/MP3/OGG/WAV/M4A），自动解析元数据（封面、歌词、专辑信息），Hero Card UI 设计
+- **嵌入式歌词提取**：原生 `MediaMetadataRetriever` 提取 ID3v2 USLT / FLAC LYRICS 标签，支持内嵌歌词读取
+- **异步文件加载**：`copyToCacheDirAsync` 异步复制文件到缓存目录，避免阻塞 JS 线程导致播放卡死
+- **GlowTabs 光晕滑块**：全站统一使用 `GlowTabs` 组件替代旧滑块，视觉一致性提升
+- **Hero Card 浮动卡片**：可收起/展开的浮动 Hero Card 组件，用于本地音乐等页面
+- **紧凑模式播放栏**：底栏导航紧凑模式下播放栏自动适配，带过渡动画
+- **APK 自动发布 Agent**：服务器每日自动从 GitHub Release 下载最新 APK，保留 30 天滑动窗口，自动更新文档下载链接
+- **服务器直链下载**：文档下载链接改为 `https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk`
+
+### 🐛 修复
+
+- **本地音乐播放卡死**：`copyToCacheDir` 同步 JNI 调用阻塞 JS 线程，改用 `copyToCacheDirAsync` 异步回调
+- **本地音乐无声音/无进度**：`setupEQ` 对 `LocalAudioPlayer` 提前 return 导致未连接 `AudioContext.destination`，新增 `_setupEQLocalMobile` 方法
+- **嵌入歌词不读取**：`getAudioMetadata` 硬编码 lyrics 为 NULL，实现 `extractEmbeddedLyrics` 多策略提取
+- **设置页版本号显示 v1-alpha**：`AboutTab.vue` 硬编码版本字符串，改为从 `package.json` 动态读取 `config.version`
+- **紧凑底栏对齐问题**：直接复制底栏导航的位置/高度参数到紧凑播放栏
+- **页面标题冗余**：有 Hero Card 的页面自动隐藏顶栏标题 pill
+- **AudioContext 挂起**：移动端后台切回后 AudioContext 可能被暂停，播放前调用 `resume()`
+
+### 🎨 优化
+
+- **README / AIREADME 全面重写**：基于实际项目结构重写，补全所有组件、服务、工具的文档
+- **版本号统一**：`package.json` / `build.gradle` / `AboutTab` / 文档站全部同步至 v1.1.0
+- **SCAN_VERSION 递增至 4**：强制重新扫描以应用新的歌词提取逻辑
+- **本地音乐页布局优化**：内容区域下移避免被 Hero Card 遮挡
+
+---
+
 ## v1.0.5
 
 ### ✨ 新增

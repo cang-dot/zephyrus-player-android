@@ -9,18 +9,14 @@
 
       <!-- 白色圆角卡片 -->
       <div class="login-card">
-        <!-- Tab导航 -->
-        <div class="login-tabs" :class="setAnimationClass('animate__fadeInUp')">
-          <div
-            v-for="tab in loginTabs"
-            :key="tab.key"
-            class="tab-item"
-            :class="{ active: activeMode === tab.key }"
-            @click="switchToMode(tab.key)"
-          >
-            {{ tab.label }}
-          </div>
-        </div>
+        <!-- Tab导航 — 分段滑块 -->
+        <SegmentSlider
+          :model-value="activeMode"
+          :tabs="loginTabs"
+          class="login-tabs-segment"
+          :class="setAnimationClass('animate__fadeInUp')"
+          @update:model-value="switchToMode($event as LoginMode)"
+        />
 
         <!-- 登录内容区域 -->
         <div class="login-content">
@@ -85,6 +81,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import { loginByCellphone } from '@/api/login';
+import SegmentSlider from '@/components/common/SegmentSlider.vue';
 import CookieLogin from '@/components/login/CookieLogin.vue';
 import QrLogin from '@/components/login/QrLogin.vue';
 import UidLogin from '@/components/login/UidLogin.vue';
@@ -248,25 +245,8 @@ const handleLoginError = (error: string) => {
   color: #666;
 }
 
-.login-tabs {
-  @apply flex mb-6 bg-gray-100 rounded-xl p-1;
-
-  .tab-item {
-    @apply flex-1 py-2 px-3 text-sm text-center cursor-pointer rounded-lg transition-all duration-300;
-    color: #666;
-    transform: translateY(0);
-
-    &:active {
-      transform: scale(0.97);
-    }
-
-    &.active {
-      @apply font-medium text-white;
-      background: var(--accent-color);
-      transform: none;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-    }
-  }
+.login-tabs-segment {
+  margin-bottom: 24px;
 }
 
 .login-content {

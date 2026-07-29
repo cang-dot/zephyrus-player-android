@@ -11,6 +11,18 @@
         width="w-40 max-md:w-full"
       />
     </setting-item>
+
+    <!-- 底栏布局 -->
+    <setting-item
+      title="底栏布局"
+      description="默认：底栏与播放栏同宽居中；紧凑：底栏靠右，左侧为精简播放栏"
+    >
+      <s-select
+        v-model="setData.bottomNavLayout"
+        :options="bottomNavLayoutOptions"
+        width="w-40 max-md:w-full"
+      />
+    </setting-item>
   </setting-section>
 
   <!-- 播放器样式 -->
@@ -93,5 +105,11 @@ const defaultPageOptions = computed(() => [
   { label: t('comp.localMusic'), value: '/local-music' },
   { label: t('comp.my'), value: '/user' },
   { label: t('comp.settings'), value: '/set' }
+]);
+
+// 底栏布局选项
+const bottomNavLayoutOptions = computed(() => [
+  { label: '默认', value: 'default' },
+  { label: '紧凑', value: 'compact' }
 ]);
 </script>

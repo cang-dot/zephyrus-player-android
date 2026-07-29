@@ -1,51 +1,23 @@
 <template>
   <div class="mobile-search-result">
-    <!-- 搜索结果头部 -->
-    <div class="result-header" :class="{ 'safe-area-top': hasSafeArea }">
-      <div class="header-back" @click="goBack">
-        <i class="ri-arrow-left-s-line"></i>
-      </div>
-      <div class="search-input-wrapper">
-        <i class="ri-search-line search-icon"></i>
-        <input
-          ref="headerSearchInputRef"
-          v-model="headerSearchValue"
-          type="text"
-          class="search-input"
-          @keydown.enter="handleHeaderSearch"
-        />
-        <i v-if="headerSearchValue" class="ri-close-circle-fill clear-icon" @click="clearHeaderSearch"></i>
-      </div>
-      <div class="search-button" @click="handleHeaderSearch">
-        {{ t('common.search') }}
-      </div>
-    </div>
-
     <!-- 搜索类型标签 -->
-    <div class="search-types">
-      <div
-        v-for="type in searchTypes"
-        :key="type.key"
-        class="type-tag"
-        :class="{ active: searchType === type.key }"
-        @click="selectType(type.key)"
-      >
-        {{ type.label }}
-      </div>
-    </div>
+    <GlowTabs
+      :model-value="String(searchType)"
+      :tabs="searchTypes.map(t => ({ key: String(t.key), label: t.label }))"
+      scrollable
+      class="search-types-glow"
+      @update:model-value="(v) => selectType(Number(v))"
+    />
 
     <!-- 来源筛选（仅歌曲搜索且有结果时） -->
-    <div v-if="searchType === SEARCH_TYPE.MUSIC && results.length && sourceFilterOptions.length > 1" class="source-filter">
-      <button
-        v-for="opt in sourceFilterOptions"
-        :key="opt.key"
-        class="source-chip"
-        :class="{ 'source-chip-active': activeSourceFilter === opt.key }"
-        @click="activeSourceFilter = opt.key as any"
-      >
-        {{ opt.label }}
-        <span class="opacity-60 ml-0.5">{{ opt.count }}</span>
-      </button>
+    <div v-if="searchType === SEARCH_TYPE.MUSIC && results.length && sourceFilterOptions.length > 1" class="source-filter-wrap">
+      <GlowTabs
+        :model-value="String(activeSourceFilter)"
+        :tabs="sourceFilterOptions.map(opt => ({ key: String(opt.key), label: `${opt.label} ${opt.count}` }))"
+        scrollable
+        class="source-filter-glow"
+        @update:model-value="(v) => activeSourceFilter = v as any"
+      />
     </div>
 
     <!-- 搜索结果列表 -->
@@ -147,13 +119,14 @@ class="source-badge"
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import { crossPlatformSearch } from '@/api/crossPlatformSearch';
 import { searchServerSongs, type ServerSong } from '@/api/serverSongs';
 import { getSearch } from '@/api/search';
+import GlowTabs from '@/components/common/GlowTabs.vue';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { SEARCH_TYPE, SEARCH_TYPES } from '@/const/bar-const';
@@ -175,31 +148,8 @@ const router = useRouter();
 const playerStore = usePlayerStore();
 const searchStore = useSearchStore();
 
-// 注入是否有安全区域
-const hasSafeArea = inject('hasSafeArea', false);
-
 // 搜索关键词
 const keyword = ref((route.query.keyword as string) || '');
-
-// 顶栏搜索框
-const headerSearchInputRef = ref<HTMLInputElement | null>(null);
-const headerSearchValue = ref(keyword.value);
-
-const handleHeaderSearch = () => {
-  const kw = headerSearchValue.value.trim();
-  if (!kw) return;
-  keyword.value = kw;
-  router.replace({
-    path: '/mobile-search-result',
-    query: { ...route.query, keyword: kw }
-  });
-  performSearch();
-};
-
-const clearHeaderSearch = () => {
-  headerSearchValue.value = '';
-  headerSearchInputRef.value?.focus();
-};
 
 // 歌手搜索结果
 const artistResults = ref<any[]>([]);
@@ -629,11 +579,6 @@ const handlePlay = (item: any) => {
   playerStore.addToNextPlay(item);
 };
 
-// 返回
-const goBack = () => {
-  router.back();
-};
-
 // 跳转歌手详情
 const goToArtist = (id: number) => {
   router.push({ name: 'artistDetail', params: { id } });
@@ -645,7 +590,7 @@ watch(
   (query) => {
     if (route.path === '/mobile-search-result' && query.keyword) {
       keyword.value = query.keyword as string;
-      headerSearchValue.value = keyword.value;
+      searchStore.setSearchValue(keyword.value);
       searchType.value = Number(query.type) || searchStore.searchType || 1;
       performSearch();
     }
@@ -653,6 +598,7 @@ watch(
 );
 
 onMounted(() => {
+  searchStore.setSearchValue(keyword.value);
   if (keyword.value) {
     performSearch();
   }
@@ -664,72 +610,19 @@ onMounted(() => {
   @apply fixed inset-0;
   @apply bg-light dark:bg-black;
   @apply flex flex-col;
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);
 }
 
-.result-header {
-  @apply flex items-center gap-3 px-4 py-3;
-  @apply border-b border-gray-100 dark:border-gray-800;
-
-  &.safe-area-top {
-    padding-top: var(--safe-area-inset-top, 0px);
-  }
+.search-types-glow {
+  margin: 8px 16px 4px;
 }
 
-.header-back {
-  @apply flex items-center justify-center;
-  @apply w-10 h-10 rounded-full text-xl;
-  @apply text-gray-600 dark:text-gray-300;
-  @apply active:bg-gray-100 dark:active:bg-gray-800;
+.source-filter-wrap {
+  padding: 0 16px 4px;
 }
 
-.search-input-wrapper {
-  @apply flex-1 flex items-center gap-2;
-  @apply rounded-full;
-  @apply px-4 py-1;
-  background: var(--m-surface, #eae6df);
-}
-
-.search-icon {
-  @apply text-gray-400 text-lg;
-}
-
-.search-input {
-  @apply flex-1 bg-transparent border-none outline-none;
-  @apply text-base;
-  color: var(--m-text-primary, #2c2c2c);
-
-  &::placeholder {
-    color: var(--m-text-muted, #9a9590);
-  }
-}
-
-.clear-icon {
-  @apply text-lg cursor-pointer;
-  color: var(--m-text-muted, #9a9590);
-}
-
-.search-button {
-  @apply text-sm font-medium whitespace-nowrap;
-  color: var(--accent-color, #6366f1);
-}
-
-.search-types {
-  @apply flex gap-2 px-4 py-3 overflow-x-auto;
-  @apply border-b border-gray-100 dark:border-gray-800;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-}
-
-.type-tag {
-  @apply px-4 py-1.5 rounded-full text-sm whitespace-nowrap;
-  @apply bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300;
-  @apply transition-colors duration-200;
-
-  &.active {
-    @apply bg-[var(--accent-color)] text-white;
-  }
+.source-filter-glow {
+  margin: 0;
 }
 
 .result-content {
@@ -750,20 +643,6 @@ color: var(--accent-color, #6366f1);
 i {
 font-size: 14px;
 }
-}
-
-.source-filter {
-@apply flex items-center gap-1.5 flex-wrap px-4 py-2;
-}
-
-.source-chip {
-@apply px-2.5 py-1 rounded-full text-xs font-medium transition-colors;
-@apply bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400;
-}
-
-.source-chip-active {
-@apply text-white;
-background: var(--accent-color, #6366f1);
 }
 
 .song-item-wrapper {

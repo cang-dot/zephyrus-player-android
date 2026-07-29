@@ -130,7 +130,7 @@ function closeModal() {
 const webUpdateInfo = ref<UpdateResult>({
   hasUpdate: false,
   latestVersion: '',
-  currentVersion: 'v1-alpha',
+  currentVersion: `v${config.version}`,
   releaseInfo: null
 });
 
@@ -148,7 +148,7 @@ const updateInfo = computed<UpdateResult>(() => {
   return {
     hasUpdate: hasAppUpdate.value,
     latestVersion: appUpdateState.value.availableVersion ?? '',
-    currentVersion: 'v1-alpha',
+    currentVersion: `v${config.version}`,
     releaseInfo: appUpdateState.value.availableVersion
       ? {
           tag_name: appUpdateState.value.availableVersion,

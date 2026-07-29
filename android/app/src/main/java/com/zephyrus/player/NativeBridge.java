@@ -1,13 +1,25 @@
 package com.zephyrus.player;
 
+import android.content.ContentResolver;
 import android.content.Intent;
+import android.database.Cursor;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Build;
+import android.provider.DocumentsContract;
 import android.provider.Settings;
+import android.util.Base64;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.webkit.JavascriptInterface;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 
 /**
  * WebView 与原生 Android 之间的桥接接口。
@@ -144,6 +156,585 @@ public class NativeBridge {
     @JavascriptInterface
     public void exitApp() {
         activity.finishAffinity();
+    }
+
+    // ==================== 本地音乐功能 ====================
+
+    /**
+     * 打开文件夹选择器（ACTION_OPEN_DOCUMENT_TREE）
+     * 选择结果通过 window.__localMusicFolderPicked(treeUri) 回调到 JS
+     */
+    @JavascriptInterface
+    public void pickAudioFolder() {
+        activity.runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                activity.startActivityForResult(intent, MainActivity.REQUEST_PICK_AUDIO_FOLDER);
+            } catch (Exception e) {
+                Log.e("NativeBridge", "pickAudioFolder error", e);
+                activity.evaluateJavascript(
+                    "window.__localMusicFolderPicked && window.__localMusicFolderPicked(null);"
+                );
+            }
+        });
+    }
+
+    /**
+     * 扫描文件夹下的所有音频文件（递归，最多 5 层）
+     * @param treeUriStr SAF tree URI
+     * @return JSON 数组字符串：[{ uri, name, size, lastModified }, ...]
+     */
+    @JavascriptInterface
+    public String scanAudioFiles(String treeUriStr) {
+        JSONArray result = new JSONArray();
+        try {
+            Uri treeUri = Uri.parse(treeUriStr);
+            ContentResolver resolver = activity.getContentResolver();
+            String rootDocId = DocumentsContract.getTreeDocumentId(treeUri);
+            Uri rootDocUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, rootDocId);
+            scanDirectory(resolver, treeUri, rootDocUri, result, 0);
+        } catch (Exception e) {
+            Log.e("NativeBridge", "scanAudioFiles error", e);
+        }
+        return result.toString();
+    }
+
+    private void scanDirectory(ContentResolver resolver, Uri treeUri, Uri docUri,
+                                JSONArray result, int depth) {
+        if (depth > 5) return;
+        Cursor cursor = null;
+        try {
+            Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+                    treeUri, DocumentsContract.getDocumentId(docUri));
+            cursor = resolver.query(childrenUri, new String[]{
+                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    DocumentsContract.Document.COLUMN_MIME_TYPE,
+                    DocumentsContract.Document.COLUMN_SIZE,
+                    DocumentsContract.Document.COLUMN_LAST_MODIFIED
+            }, null, null, null);
+            if (cursor == null) return;
+
+            while (cursor.moveToNext()) {
+                String docId = cursor.getString(0);
+                String name = cursor.getString(1);
+                String mime = cursor.getString(2);
+                long size = cursor.getLong(3);
+                long lastModified = cursor.getLong(4);
+                Uri fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId);
+
+                if (mime != null && mime.equals(DocumentsContract.Document.MIME_TYPE_DIR)) {
+                    scanDirectory(resolver, treeUri, fileUri, result, depth + 1);
+                } else if (isAudioFile(name, mime)) {
+                    JSONObject fileObj = new JSONObject();
+                    fileObj.put("uri", fileUri.toString());
+                    fileObj.put("name", name);
+                    fileObj.put("size", size);
+                    fileObj.put("lastModified", lastModified);
+                    result.put(fileObj);
+                }
+            }
+        } catch (Exception e) {
+            Log.e("NativeBridge", "scanDirectory error (depth=" + depth + ")", e);
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+    }
+
+    private boolean isAudioFile(String name, String mime) {
+        if (mime != null && mime.startsWith("audio/")) return true;
+        if (name != null) {
+            String lower = name.toLowerCase();
+            return lower.endsWith(".mp3") || lower.endsWith(".flac") || lower.endsWith(".wav")
+                || lower.endsWith(".ogg") || lower.endsWith(".m4a") || lower.endsWith(".aac")
+                || lower.endsWith(".opus") || lower.endsWith(".wma");
+        }
+        return false;
+    }
+
+    /**
+     * 提取音频文件元数据（使用 MediaMetadataRetriever）
+     * @param uriStr content URI
+     * @return JSON: { filePath, title, artist, album, duration, cover, lyrics, fileSize, modifiedTime, diskNumber, trackNumber, year }
+     */
+    @JavascriptInterface
+    public String getAudioMetadata(String uriStr) {
+        JSONObject result = new JSONObject();
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        try {
+            Uri uri = Uri.parse(uriStr);
+            retriever.setDataSource(activity, uri);
+
+            String title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE);
+            String artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST);
+            String album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM);
+            String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            String trackStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER);
+            String yearStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR);
+
+            byte[] coverBytes = retriever.getEmbeddedPicture();
+            String coverBase64 = null;
+            if (coverBytes != null && coverBytes.length > 0) {
+                coverBase64 = "data:image/jpeg;base64," + Base64.encodeToString(coverBytes, Base64.NO_WRAP);
+            }
+
+            String fileName = extractFileNameFromUri(uri);
+
+            result.put("filePath", uriStr);
+            result.put("title", title != null ? title : fileName);
+            result.put("artist", artist != null ? artist : "未知艺术家");
+            result.put("album", album != null ? album : "未知专辑");
+            result.put("duration", durationStr != null ? Long.parseLong(durationStr) : 0);
+            result.put("cover", coverBase64 != null ? coverBase64 : JSONObject.NULL);
+            // 尝试提取内嵌歌词
+            String lyrics = extractEmbeddedLyrics(uri);
+            result.put("lyrics", lyrics != null ? lyrics : JSONObject.NULL);
+            result.put("fileSize", 0);
+            result.put("modifiedTime", 0);
+            result.put("diskNumber", 0);
+            result.put("trackNumber", parseTrackNumber(trackStr));
+            result.put("year", yearStr != null ? tryParseInt(yearStr) : 0);
+        } catch (Exception e) {
+            Log.e("NativeBridge", "getAudioMetadata error: " + uriStr, e);
+            try {
+                result.put("filePath", uriStr);
+                result.put("title", extractFileNameFromUri(Uri.parse(uriStr)));
+                result.put("artist", "未知艺术家");
+                result.put("album", "未知专辑");
+                result.put("duration", 0);
+                result.put("cover", JSONObject.NULL);
+                result.put("lyrics", JSONObject.NULL);
+                result.put("fileSize", 0);
+                result.put("modifiedTime", 0);
+                result.put("diskNumber", 0);
+                result.put("trackNumber", 0);
+                result.put("year", 0);
+            } catch (Exception e2) {
+                Log.e("NativeBridge", "getAudioMetadata fallback error", e2);
+            }
+        } finally {
+            try { retriever.release(); } catch (Exception e) { /* ignore */ }
+        }
+        return result.toString();
+    }
+
+    /**
+     * 读取音频文件为 base64（用于播放）
+     * @param uriStr content URI
+     * @return base64 编码的文件内容
+     */
+    @JavascriptInterface
+    public String readFileBase64(String uriStr) {
+        try {
+            Uri uri = Uri.parse(uriStr);
+            InputStream is = activity.getContentResolver().openInputStream(uri);
+            if (is == null) return "";
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            byte[] buffer = new byte[16384];
+            int len;
+            while ((len = is.read(buffer)) != -1) {
+                baos.write(buffer, 0, len);
+            }
+            is.close();
+            return Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+        } catch (Exception e) {
+            Log.e("NativeBridge", "readFileBase64 error: " + uriStr, e);
+            return "";
+        }
+    }
+
+    /**
+     * 异步将 content URI 对应的文件复制到缓存目录。
+     * 复制完成后通过 JS 回调通知。
+     * @param uriStr content URI
+     * @param callback JS 回调函数名，接收 (tempPath: string)
+     */
+    @JavascriptInterface
+    public void copyToCacheDirAsync(String uriStr, String callback) {
+        new Thread(() -> {
+            String tempPath = "";
+            try {
+                Uri uri = Uri.parse(uriStr);
+                InputStream is = activity.getContentResolver().openInputStream(uri);
+                if (is == null) {
+                    activity.evaluateJavascript(callback + "('');");
+                    return;
+                }
+                File tempFile = new File(activity.getCacheDir(),
+                        "audio_" + System.currentTimeMillis() + ".tmp");
+                FileOutputStream fos = new FileOutputStream(tempFile);
+                byte[] buffer = new byte[16384];
+                int len;
+                while ((len = is.read(buffer)) != -1) {
+                    fos.write(buffer, 0, len);
+                }
+                fos.close();
+                is.close();
+                tempPath = tempFile.getAbsolutePath();
+            } catch (Exception e) {
+                Log.e("NativeBridge", "copyToCacheDirAsync error: " + uriStr, e);
+            }
+            final String path = tempPath;
+            activity.evaluateJavascript(callback + "('" + path.replace("\\", "\\\\") + "');");
+        }).start();
+    }
+
+    /**
+     * 将 content URI 对应的文件复制到缓存目录，返回临时文件绝对路径。
+     * 同步版本，仅在文件较小时使用。
+     * @param uriStr content URI
+     * @return 临时文件绝对路径，失败返回空字符串
+     */
+    @JavascriptInterface
+    public String copyToCacheDir(String uriStr) {
+        try {
+            Uri uri = Uri.parse(uriStr);
+            InputStream is = activity.getContentResolver().openInputStream(uri);
+            if (is == null) return "";
+            File tempFile = new File(activity.getCacheDir(),
+                    "audio_" + System.currentTimeMillis() + ".tmp");
+            FileOutputStream fos = new FileOutputStream(tempFile);
+            byte[] buffer = new byte[16384];
+            int len;
+            while ((len = is.read(buffer)) != -1) {
+                fos.write(buffer, 0, len);
+            }
+            fos.close();
+            is.close();
+            return tempFile.getAbsolutePath();
+        } catch (Exception e) {
+            Log.e("NativeBridge", "copyToCacheDir error: " + uriStr, e);
+            return "";
+        }
+    }
+
+    /**
+     * 删除临时文件
+     */
+    @JavascriptInterface
+    public void deleteTempFile(String path) {
+        try {
+            if (path != null && !path.isEmpty()) {
+                new File(path).delete();
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    /**
+     * 检查 content URI 对应的文件是否仍然可访问
+     */
+    @JavascriptInterface
+    public String checkFileExists(String uriStr) {
+        try {
+            Uri uri = Uri.parse(uriStr);
+            Cursor cursor = activity.getContentResolver().query(uri, null, null, null, null);
+            if (cursor != null) {
+                boolean exists = cursor.getCount() > 0;
+                cursor.close();
+                return exists ? "true" : "false";
+            }
+            return "false";
+        } catch (Exception e) {
+            return "false";
+        }
+    }
+
+    private String extractFileNameFromUri(Uri uri) {
+        String path = uri.getLastPathSegment();
+        if (path == null) return "未知标题";
+        int dotIdx = path.lastIndexOf('.');
+        if (dotIdx > 0) path = path.substring(0, dotIdx);
+        try {
+            return java.net.URLDecoder.decode(path, "UTF-8");
+        } catch (Exception e) {
+            return path;
+        }
+    }
+
+    private int parseTrackNumber(String trackStr) {
+        if (trackStr == null) return 0;
+        try {
+            String num = trackStr.split("/")[0].trim();
+            return Integer.parseInt(num);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private int tryParseInt(String str) {
+        try { return Integer.parseInt(str); } catch (Exception e) { return 0; }
+    }
+
+    /**
+     * 从音频文件中提取内嵌歌词（ID3 USLT 帧 / FLAC LYRICS 标签）
+     * @param uri content URI
+     * @return 歌词文本，失败返回 null
+     */
+    private String extractEmbeddedLyrics(Uri uri) {
+        // 方案1：MediaMetadataRetriever 尝试 WRITER 字段（某些设备将歌词存于此）
+        MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+        try {
+            mmr.setDataSource(activity, uri);
+            // 尝试 WRITER（部分厂商将歌词写入此字段）
+            String writer = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_WRITER);
+            if (writer != null && writer.contains("[") && writer.contains("]")
+                    && (writer.contains(":") || writer.contains("."))) {
+                return writer;
+            }
+            // 尝试 AUTHOR（某些编码器将歌词放在作者字段）
+            String author = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR);
+            if (author != null && author.contains("[") && author.contains("]")
+                    && (author.contains(":") || author.contains("."))) {
+                return author;
+            }
+        } catch (Exception e) {
+            // ignore
+        } finally {
+            try { mmr.release(); } catch (Exception e) { /* ignore */ }
+        }
+
+        // 方案2：直接解析文件二进制，查找 ID3v2 USLT 帧
+        try {
+            String lyrics = extractId3v2Lyrics(uri);
+            if (lyrics != null) return lyrics;
+        } catch (Exception e) {
+            Log.d("NativeBridge", "ID3v2 lyrics extraction failed", e);
+        }
+
+        // 方案3：FLAC VORBIS_COMMENT 中的 LYRICS 字段
+        try {
+            String lyrics = extractFlacLyrics(uri);
+            if (lyrics != null) return lyrics;
+        } catch (Exception e) {
+            Log.d("NativeBridge", "FLAC lyrics extraction failed", e);
+        }
+
+        return null;
+    }
+
+    /**
+     * 从 ID3v2 标签中提取 USLT（同步歌词）帧
+     */
+    private String extractId3v2Lyrics(Uri uri) {
+        try {
+            InputStream is = activity.getContentResolver().openInputStream(uri);
+            if (is == null) return null;
+
+            // 读取前 10 字节：ID3v2 头部
+            byte[] header = new byte[10];
+            int read = is.read(header);
+            if (read < 10) { is.close(); return null; }
+
+            // 检查 ID3 标识
+            if (header[0] != 'I' || header[1] != 'D' || header[2] != '3') {
+                is.close();
+                return null;
+            }
+
+            // ID3v2 版本
+            int version = header[3] & 0xFF; // 3=v2.3, 4=v2.4
+
+            // 计算标签总大小（同步安全整数）
+            int tagSize = ((header[6] & 0x7F) << 21)
+                        | ((header[7] & 0x7F) << 14)
+                        | ((header[8] & 0x7F) << 7)
+                        | (header[9] & 0x7F);
+
+            if (tagSize <= 0 || tagSize > 10 * 1024 * 1024) { is.close(); return null; }
+
+            // 读取整个标签
+            byte[] tagData = new byte[tagSize];
+            int totalRead = 0;
+            while (totalRead < tagSize) {
+                int r = is.read(tagData, totalRead, tagSize - totalRead);
+                if (r <= 0) break;
+                totalRead += r;
+            }
+            is.close();
+
+            if (totalRead < tagSize) return null;
+
+            // 遍历帧，查找 USLT
+            int pos = 0;
+            while (pos + 10 <= tagSize) {
+                String frameId;
+                int frameSize;
+
+                if (version == 4) {
+                    // ID3v2.4: 帧大小为同步安全整数
+                    frameId = new String(tagData, pos, 4, "ISO-8859-1");
+                    frameSize = ((tagData[pos + 4] & 0x7F) << 21)
+                              | ((tagData[pos + 5] & 0x7F) << 14)
+                              | ((tagData[pos + 6] & 0x7F) << 7)
+                              | (tagData[pos + 7] & 0x7F);
+                } else {
+                    // ID3v2.3: 帧大小为普通整数
+                    frameId = new String(tagData, pos, 4, "ISO-8859-1");
+                    frameSize = ((tagData[pos + 4] & 0xFF) << 24)
+                              | ((tagData[pos + 5] & 0xFF) << 16)
+                              | ((tagData[pos + 6] & 0xFF) << 8)
+                              | (tagData[pos + 7] & 0xFF);
+                }
+
+                // 帧ID全零表示到达标签末尾
+                if (frameId.charAt(0) == 0) break;
+
+                if (frameSize <= 0 || pos + 10 + frameSize > tagSize) break;
+
+                if ("USLT".equals(frameId)) {
+                    // USLT 帧格式：编码(1) 语言(3) 内容描述(0分隔) 歌词文本
+                    int frameDataStart = pos + 10;
+                    int encoding = tagData[frameDataStart] & 0xFF;
+                    // 跳过：编码(1) + 语言(3)
+                    int textStart = frameDataStart + 4;
+                    // 跳过内容描述（以 null 结尾）
+                    int descEnd = textStart;
+                    if (encoding == 0 || encoding == 3) {
+                        // ISO-8859-1 或 UTF-8：单字节 null
+                        while (descEnd < frameDataStart + frameSize && tagData[descEnd] != 0) descEnd++;
+                        descEnd++; // 跳过 null
+                    } else {
+                        // UTF-16 / UTF-16BE：双字节 null
+                        while (descEnd + 1 < frameDataStart + frameSize
+                                && !(tagData[descEnd] == 0 && tagData[descEnd + 1] == 0)) descEnd += 2;
+                        descEnd += 2; // 跳过双字节 null
+                    }
+
+                    int lyricsStart = descEnd;
+                    int lyricsLen = (frameDataStart + frameSize) - lyricsStart;
+                    if (lyricsLen <= 0) break;
+
+                    String lyrics;
+                    if (encoding == 0) {
+                        lyrics = new String(tagData, lyricsStart, lyricsLen, "ISO-8859-1");
+                    } else if (encoding == 1) {
+                        lyrics = new String(tagData, lyricsStart, lyricsLen, "UTF-16");
+                    } else if (encoding == 2) {
+                        lyrics = new String(tagData, lyricsStart, lyricsLen, "UTF-16BE");
+                    } else {
+                        lyrics = new String(tagData, lyricsStart, lyricsLen, "UTF-8");
+                    }
+
+                    // 去除 BOM 和尾部 null
+                    lyrics = lyrics.replace("\uFEFF", "").trim();
+                    if (!lyrics.isEmpty()) {
+                        return lyrics;
+                    }
+                    break;
+                }
+
+                pos += 10 + frameSize;
+            }
+        } catch (Exception e) {
+            Log.d("NativeBridge", "extractId3v2Lyrics error", e);
+        }
+        return null;
+    }
+
+    /**
+     * 从 FLAC 文件的 VORBIS_COMMENT 块中提取 LYRICS 字段
+     */
+    private String extractFlacLyrics(Uri uri) {
+        try {
+            InputStream is = activity.getContentResolver().openInputStream(uri);
+            if (is == null) return null;
+
+            // 检查 FLAC 标识
+            byte[] magic = new byte[4];
+            if (is.read(magic) < 4) { is.close(); return null; }
+            if (magic[0] != 'f' || magic[1] != 'L' || magic[2] != 'a' || magic[3] != 'C') {
+                is.close(); return null;
+            }
+
+            // 遍历 metadata blocks
+            boolean lastBlock = false;
+            while (!lastBlock) {
+                int blockHeader = is.read();
+                if (blockHeader < 0) break;
+                lastBlock = (blockHeader & 0x80) != 0;
+                int blockType = blockHeader & 0x7F;
+
+                // 读取块大小（3字节大端）
+                int blockSize = ((is.read() & 0xFF) << 16)
+                              | ((is.read() & 0xFF) << 8)
+                              | (is.read() & 0xFF);
+
+                if (blockType == 4) {
+                    // VORBIS_COMMENT block
+                    byte[] blockData = new byte[blockSize];
+                    int totalRead = 0;
+                    while (totalRead < blockSize) {
+                        int r = is.read(blockData, totalRead, blockSize - totalRead);
+                        if (r <= 0) break;
+                        totalRead += r;
+                    }
+                    is.close();
+
+                    if (totalRead < blockSize) return null;
+
+                    // 解析 VORBIS_COMMENT
+                    int pos = 0;
+                    // 厂商字符串长度（小端 4 字节）
+                    int vendorLen = (blockData[pos] & 0xFF)
+                                  | ((blockData[pos + 1] & 0xFF) << 8)
+                                  | ((blockData[pos + 2] & 0xFF) << 16)
+                                  | ((blockData[pos + 3] & 0xFF) << 24);
+                    pos += 4 + vendorLen;
+
+                    // 评论字段数量
+                    int commentCount = (blockData[pos] & 0xFF)
+                                     | ((blockData[pos + 1] & 0xFF) << 8)
+                                     | ((blockData[pos + 2] & 0xFF) << 16)
+                                     | ((blockData[pos + 3] & 0xFF) << 24);
+                    pos += 4;
+
+                    for (int i = 0; i < commentCount && pos < blockSize; i++) {
+                        int commentLen = (blockData[pos] & 0xFF)
+                                       | ((blockData[pos + 1] & 0xFF) << 8)
+                                       | ((blockData[pos + 2] & 0xFF) << 16)
+                                       | ((blockData[pos + 3] & 0xFF) << 24);
+                        pos += 4;
+
+                        String comment = new String(blockData, pos, commentLen, "UTF-8");
+                        pos += commentLen;
+
+                        // 查找 LYRICS= 或 LYRICS=
+                        int eqIdx = comment.indexOf('=');
+                        if (eqIdx > 0) {
+                            String key = comment.substring(0, eqIdx).toUpperCase();
+                            if ("LYRICS".equals(key) || "UNSYNCEDLYRICS".equals(key)
+                                    || "SYNC LYRICS".equals(key.replace(" ", ""))) {
+                                String lyrics = comment.substring(eqIdx + 1);
+                                if (!lyrics.trim().isEmpty()) return lyrics.trim();
+                            }
+                        }
+                    }
+                    return null;
+                } else {
+                    // 跳过非 VORBIS_COMMENT 块
+                    long skipped = is.skip(blockSize);
+                    if (skipped < blockSize) {
+                        // skip 可能不完整，手动跳
+                        byte[] skipBuf = new byte[Math.min(blockSize - (int)skipped, 8192)];
+                        int remaining = blockSize - (int)skipped;
+                        while (remaining > 0) {
+                            int toRead = Math.min(remaining, skipBuf.length);
+                            int r = is.read(skipBuf, 0, toRead);
+                            if (r <= 0) break;
+                            remaining -= r;
+                        }
+                    }
+                }
+            }
+            is.close();
+        } catch (Exception e) {
+            Log.d("NativeBridge", "extractFlacLyrics error", e);
+        }
+        return null;
     }
 
     // ==================== 保活相关设置 ====================

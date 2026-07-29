@@ -1,7 +1,7 @@
 <template>
   <div class="h-full w-full page-bg transition-colors duration-500">
     <n-scrollbar class="h-full">
-      <div class="w-full pb-32">
+      <div class="w-full pb-32" style="padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);">
         <!-- Loading State -->
         <div v-if="followListLoading && followList.length === 0">
           <div class="page-padding-x pt-8">
@@ -20,21 +20,6 @@
 
         <!-- Main Content -->
         <template v-else>
-          <!-- Header Section -->
-          <section class="page-padding-x pt-6 md:pt-8 pb-4">
-            <h1
-              ref="titleElRef"
-              class="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-white tracking-tight"
-            >
-              <template v-if="targetUserName">
-                {{ targetUserName + t('user.follow.userFollowsTitle') }}
-              </template>
-              <template v-else>
-                {{ t('user.follow.myFollowsTitle') }}
-              </template>
-            </h1>
-          </section>
-
           <!-- Empty State -->
           <div
             v-if="followList.length === 0"
