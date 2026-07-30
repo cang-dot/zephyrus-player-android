@@ -9,7 +9,7 @@ export const APP_UPDATE_STATUS = {
 } as const;
 
 export const APP_UPDATE_RELEASE_URL =
-  'https://github.com/cang-dot/zephyrus-player/releases/latest';
+  'https://github.com/cang-dot/zephyrus-player-android/releases/latest';
 
 export type AppUpdateStatus = (typeof APP_UPDATE_STATUS)[keyof typeof APP_UPDATE_STATUS];
 

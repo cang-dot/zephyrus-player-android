@@ -387,7 +387,7 @@ const toLogin = () => {
   windowStore.openPanel('/user', 60, t('comp.my'));
 };
 const toGithubRelease = () =>
-  window.open('https://github.com/cang-dot/zephyrus-player/releases', '_blank');
+  window.open('https://github.com/cang-dot/zephyrus-player-android/releases', '_blank');
 
 const isDark = computed({
   get: () => settingsStore.theme === 'dark',

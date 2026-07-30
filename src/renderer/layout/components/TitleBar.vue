@@ -254,7 +254,7 @@ onUnmounted(() => {
 // ==================== 窗口操作 ====================
 const openDownloadPage = () => {
   if (!isElectron) {
-    window.open('https://github.com/cang-dot/zephyrus-player/releases', '_blank');
+    window.open('https://github.com/cang-dot/zephyrus-player-android/releases', '_blank');
   }
 };
 

@@ -335,7 +335,7 @@ watchEffect(() => {
 const restartApp = () => window.electron.ipcRenderer.send('restart');
 const toLogin = () => router.push('/user');
 const toGithubRelease = () => {
-  window.open('https://github.com/cang-dot/zephyrus-player/releases', '_blank');
+  window.open('https://github.com/cang-dot/zephyrus-player-android/releases', '_blank');
 };
 
 const isDark = computed({

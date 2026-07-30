@@ -1,5 +1,20 @@
 # Zephyrus Player 更新日志
 
+## v1.1.2
+
+### 🐛 修复
+
+- **移动端更新检查指向错误仓库**：`update.ts` 中 `getLatestReleaseInfo` 请求的是桌面版仓库 `zephyrus-player`，改为优先请求 Android 仓库 `zephyrus-player-android`
+- **APK 下载链接指向错误仓库**：`MobileUpdateModal.vue` 下载链接从 GitHub 桌面版仓库改为服务器直链 `https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk`
+- **全站 GitHub Releases 链接统一**：`SearchBar`、`FloatingSearchBar`、`TitleBar`、`InstallAppModal`、`appUpdate.ts` 中所有 releases 链接统一指向 `zephyrus-player-android` 仓库
+
+### 🎨 优化
+
+- **移除冗余代理节点逻辑**：移动端更新弹窗不再依赖第三方 GitHub 代理服务，直接使用服务器直链下载
+- **版本号统一更新至 v1.1.2**
+
+---
+
 ## v1.1.1
 
 ### 🐛 修复

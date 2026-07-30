@@ -90,7 +90,7 @@ import { marked } from 'marked';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { checkUpdate, getProxyNodes, UpdateResult } from '@/utils/update';
+import { checkUpdate, type UpdateResult } from '@/utils/update';
 
 import config from '../../../../package.json';
 
@@ -169,28 +169,24 @@ const checkForUpdates = async () => {
 const handleUpdate = async () => {
   const version = updateInfo.value.latestVersion;
 
-  // Android APK 下载地址
-  const downloadUrl = `https://github.com/cang-dot/zephyrus-player/releases/download/v${version}/ZephyrusPlayer-${version}.apk`;
+  // 优先使用服务器直链下载
+  const serverDownloadUrl = 'https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk';
 
   try {
-    // 获取代理节点
-    const proxyHosts = await getProxyNodes();
-    const proxyDownloadUrl = `${proxyHosts[0]}/${downloadUrl}`;
-
     // 清除"稍后提醒"记录（用户选择更新后，下次应该正常提醒）
     localStorage.removeItem(REMIND_LATER_KEY);
 
-    // 使用系统浏览器打开下载链接
-    window.open(proxyDownloadUrl, '_blank');
+    // 使用系统浏览器打开服务器下载链接
+    window.open(serverDownloadUrl, '_blank');
 
     // 关闭弹窗
     closeModal();
   } catch (error) {
     console.error('打开下载链接失败:', error);
-    // 回退到直接打开 GitHub Releases
+    // 回退到 GitHub Releases
     const releaseUrl =
       updateInfo.value.releaseInfo?.html_url ||
-      'https://github.com/cang-dot/zephyrus-player/releases/latest';
+      'https://github.com/cang-dot/zephyrus-player-android/releases/latest';
     window.open(releaseUrl, '_blank');
     closeModal();
   }

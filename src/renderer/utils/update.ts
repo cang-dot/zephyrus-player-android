@@ -131,11 +131,11 @@ export const getLatestReleaseInfo = async (): Promise<GithubReleaseInfo | null> 
     const headers = {};
     // 构建 API URL 列表
     const apiUrls = [
-      // 原始地址
-      'https://api.github.com/repos/cang-dot/zephyrus-player/releases/latest',
+      // Android 仓库
+      'https://api.github.com/repos/cang-dot/zephyrus-player-android/releases/latest',
 
-      // 使用代理节点
-      'http://music.alger.fun/package.json'
+      // 桌面版仓库（备用）
+      'https://api.github.com/repos/cang-dot/zephyrus-player/releases/latest'
     ];
 
     if (token) {
@@ -149,20 +149,8 @@ export const getLatestReleaseInfo = async (): Promise<GithubReleaseInfo | null> 
           timeout: REQUEST_TIMEOUT
         });
 
-        if (url.includes('package.json')) {
-          // 如果是 package.json，获取对应的 CHANGELOG
-          const changelogUrl = url.replace('package.json', 'CHANGELOG.md');
-          const changelogResponse = await axios.get(changelogUrl, {
-            timeout: REQUEST_TIMEOUT
-          });
-
-          return {
-            tag_name: response.data.version,
-            body: changelogResponse.data,
-            html_url: 'https://github.com/cang-dot/zephyrus-player/releases/latest',
-            assets: []
-          } as unknown as GithubReleaseInfo;
-        }
+        // 所有 URL 都返回 GitHub Release JSON 格式
+        return response.data;
         return response.data;
       } catch (err) {
         console.warn(`尝试访问 ${url} 失败:`, err);

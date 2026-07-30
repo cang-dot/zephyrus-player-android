@@ -31,7 +31,7 @@
           <a
             class="text-[var(--accent-color)]"
             target="_blank"
-            href="https://github.com/cang-dot/zephyrus-player/releases"
+            href="https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk"
             >GitHub</a
           >
           {{ t('comp.installApp.downloadProblemLinkText') }}
@@ -76,7 +76,7 @@ onMounted(async () => {
 });
 
 const handleInstall = async (): Promise<void> => {
-  window.open('https://github.com/cang-dot/zephyrus-player/releases', '_blank');
+  window.open('https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk', '_blank');
 };
 </script>
 
