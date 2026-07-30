@@ -8,7 +8,7 @@
 
 **西风播放器** — 沉浸式音乐播放器 · Android
 
-[![Version](https://img.shields.io/badge/version-v1.1.0-blue)](https://github.com/cang-dot/zephyrus-player-android/releases)
+[![Version](https://img.shields.io/badge/version-v1.1.1-blue)](https://github.com/cang-dot/zephyrus-player-android/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Vue](https://img.shields.io/badge/Vue_3.5-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript_5.9-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)

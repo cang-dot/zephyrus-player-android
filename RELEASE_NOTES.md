@@ -1,5 +1,18 @@
 # Zephyrus Player 更新日志
 
+## v1.1.1
+
+### 🐛 修复
+
+- **SegmentSlider 未使用变量**：移除 `v-for` 中未使用的 `index` 变量，消除 ESLint 警告
+- **local-music/index.vue 多重 BOM**：文件开头存在多个 UTF-8 BOM 标记导致潜在解析问题，清理为单个 BOM
+
+### 🎨 优化
+
+- **版本号统一更新至 v1.1.1**：`package.json` / `build.gradle` / README / 文档站全部同步
+
+---
+
 ## v1.1.0
 
 ### ✨ 新增

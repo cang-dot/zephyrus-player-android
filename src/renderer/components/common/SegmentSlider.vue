@@ -7,7 +7,7 @@
     />
     <!-- Tab buttons -->
     <button
-      v-for="(tab, index) in tabs"
+      v-for="tab in tabs"
       :key="tab.key"
       ref="itemRefsArr"
       class="segment-item"

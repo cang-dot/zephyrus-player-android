@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿<template>
   <div class="local-music-page">
     <!-- ==================== 移动端（Capacitor） ==================== -->
     <div v-if="isMobileNative" ref="scrollRef" class="lm-scroll" @scroll.passive="onScroll">
