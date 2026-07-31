@@ -29,15 +29,18 @@ export interface GlowTabItem {
   icon?: string;
 }
 
-withDefaults(defineProps<{
-  tabs: GlowTabItem[];
-  modelValue: string | number;
-  fullWidth?: boolean;
-  scrollable?: boolean;
-}>(), {
-  fullWidth: false,
-  scrollable: false,
-});
+withDefaults(
+  defineProps<{
+    tabs: GlowTabItem[];
+    modelValue: string | number;
+    fullWidth?: boolean;
+    scrollable?: boolean;
+  }>(),
+  {
+    fullWidth: false,
+    scrollable: false
+  }
+);
 
 defineEmits<{
   'update:modelValue': [value: string | number];
@@ -98,12 +101,13 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: padding 0.45s $spring,
-              min-width 0.45s $spring,
-              transform 0.3s $spring;
+  transition:
+    padding 240ms $spring,
+    min-width 240ms $spring,
+    transform 220ms $spring;
 
   &:active {
-    transform: scale(0.88);
+    transform: scale(0.97);
   }
 
   &.active {
@@ -118,9 +122,15 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   border-radius: 9999px;
   opacity: 0;
   transform: scale(0.6);
-  background: radial-gradient(circle, rgba(var(--accent-color-rgb, 136, 136, 136), 0.22) 0%, rgba(var(--accent-color-rgb, 136, 136, 136), 0.08) 50%, transparent 100%);
-  transition: opacity 0.4s $smooth,
-              transform 0.5s $spring;
+  background: radial-gradient(
+    circle,
+    rgba(var(--accent-color-rgb, 136, 136, 136), 0.22) 0%,
+    rgba(var(--accent-color-rgb, 136, 136, 136), 0.08) 50%,
+    transparent 100%
+  );
+  transition:
+    opacity 180ms $smooth,
+    transform 240ms $spring;
   pointer-events: none;
 }
 
@@ -140,8 +150,9 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
 .glow-tab-icon {
   font-size: 16px;
   color: var(--cover-text-muted, rgba(128, 128, 128, 0.5));
-  transition: color 0.35s $smooth,
-              transform 0.45s $spring;
+  transition:
+    color 180ms $smooth,
+    transform 220ms $spring;
 }
 
 .glow-tab.active .glow-tab-icon {
@@ -159,9 +170,10 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   font-weight: 500;
   color: var(--cover-text-muted, rgba(128, 128, 128, 0.5));
   white-space: nowrap;
-  letter-spacing: 0.01em;
-  transition: color 0.35s $smooth,
-              font-weight 0.35s $smooth;
+  letter-spacing: 0;
+  transition:
+    color 180ms $smooth,
+    font-weight 180ms $smooth;
 }
 
 .glow-tab.active .glow-tab-label {

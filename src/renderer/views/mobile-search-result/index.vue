@@ -1,22 +1,30 @@
 <template>
   <div class="mobile-search-result">
     <!-- 搜索类型标签 -->
-    <GlowTabs
+    <glow-tabs
       :model-value="String(searchType)"
-      :tabs="searchTypes.map(t => ({ key: String(t.key), label: t.label }))"
+      :tabs="searchTypes.map((t) => ({ key: String(t.key), label: t.label }))"
       scrollable
       class="search-types-glow"
       @update:model-value="(v) => selectType(Number(v))"
     />
 
     <!-- 来源筛选（仅歌曲搜索且有结果时） -->
-    <div v-if="searchType === SEARCH_TYPE.MUSIC && results.length && sourceFilterOptions.length > 1" class="source-filter-wrap">
-      <GlowTabs
+    <div
+      v-if="searchType === SEARCH_TYPE.MUSIC && results.length && sourceFilterOptions.length > 1"
+      class="source-filter-wrap"
+    >
+      <glow-tabs
         :model-value="String(activeSourceFilter)"
-        :tabs="sourceFilterOptions.map(opt => ({ key: String(opt.key), label: `${opt.label} ${opt.count}` }))"
+        :tabs="
+          sourceFilterOptions.map((opt) => ({
+            key: String(opt.key),
+            label: `${opt.label} ${opt.count}`
+          }))
+        "
         scrollable
         class="source-filter-glow"
-        @update:model-value="(v) => activeSourceFilter = v as any"
+        @update:model-value="(v) => (activeSourceFilter = v as any)"
       />
     </div>
 
@@ -37,26 +45,18 @@
       <!-- 搜索结果 -->
       <div v-if="results.length || artistResults.length" class="result-list">
         <!-- 歌曲搜索 -->
-<template v-if="searchType === SEARCH_TYPE.MUSIC">
-<div
-v-for="item in filteredResults"
-:key="item.id"
-class="song-item-wrapper"
->
-<span
-v-if="getSourceLabel(item.id)"
-class="source-badge"
-:style="getSourceBadgeStyle(item.id)"
->
-{{ getSourceLabel(item.id) }}
-</span>
-<song-item
-:item="item"
-:is-next="true"
-@play="handlePlay"
-/>
-</div>
-</template>
+        <template v-if="searchType === SEARCH_TYPE.MUSIC">
+          <div v-for="item in filteredResults" :key="item.id" class="song-item-wrapper">
+            <span
+              v-if="getSourceLabel(item.id)"
+              class="source-badge"
+              :style="getSourceBadgeStyle(item.id)"
+            >
+              {{ getSourceLabel(item.id) }}
+            </span>
+            <song-item :item="item" :is-next="true" @play="handlePlay" />
+          </div>
+        </template>
 
         <!-- 歌手搜索 -->
         <template v-if="searchType === SEARCH_TYPE.ARTIST">
@@ -124,8 +124,8 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import { crossPlatformSearch } from '@/api/crossPlatformSearch';
-import { searchServerSongs, type ServerSong } from '@/api/serverSongs';
 import { getSearch } from '@/api/search';
+import { searchServerSongs, type ServerSong } from '@/api/serverSongs';
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
@@ -219,9 +219,7 @@ const filteredResults = computed(() => {
   sourceLabelVersion.value;
   let list = results.value;
   if (activeSourceFilter.value !== 'all') {
-    list = list.filter(
-      (song) => getCachedLabel(String(song.id)) === activeSourceFilter.value
-    );
+    list = list.filter((song) => getCachedLabel(String(song.id)) === activeSourceFilter.value);
   }
   return list;
 });
@@ -268,7 +266,7 @@ const performSearch = async (isLoadMore = false) => {
         results.value = [...results.value, ...songs];
       } else {
         results.value = songs;
-      classifySongs(songs);
+        classifySongs(songs);
       }
 
       hasMore.value = songs.length === ITEMS_PER_PAGE;
@@ -576,7 +574,8 @@ const handleScroll = (e: Event) => {
 
 // 播放音乐
 const handlePlay = (item: any) => {
-  playerStore.addToNextPlay(item);
+  playerStore.setPlayList(filteredResults.value);
+  playerStore.setPlay(item);
 };
 
 // 跳转歌手详情
@@ -636,21 +635,21 @@ onMounted(() => {
 }
 
 .cross-search-loading {
-@apply flex items-center justify-center gap-2 py-3;
-@apply text-xs;
-color: var(--accent-color, #6366f1);
+  @apply flex items-center justify-center gap-2 py-3;
+  @apply text-xs;
+  color: var(--accent-color, #6366f1);
 
-i {
-font-size: 14px;
-}
+  i {
+    font-size: 14px;
+  }
 }
 
 .song-item-wrapper {
-@apply relative;
+  @apply relative;
 }
 
 .source-badge {
-@apply absolute right-2 top-2 z-10 px-1.5 py-0.5 rounded text-[10px] font-medium pointer-events-none;
+  @apply absolute right-12 top-2 z-10 px-1.5 py-0.5 rounded text-[10px] font-medium pointer-events-none;
 }
 
 .result-list {

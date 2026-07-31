@@ -54,21 +54,47 @@
           </div>
         </template>
         <div class="suggestions-box">
-          <n-scrollbar style="max-height: 260px">
+          <n-scrollbar style="max-height: 320px">
+            <!-- 加载中 -->
             <div v-if="suggestionsLoading" class="suggest-loading">
               <n-spin size="small" />
             </div>
-            <div
-              v-for="(s, i) in suggestions"
-              :key="i"
-              class="suggest-row"
-              :class="{ 'suggest-row--hi': i === highlightedIndex }"
-              @mousedown.prevent="selectSuggestion(s)"
-              @mouseenter="highlightedIndex = i"
-            >
-              <i class="ri-search-line suggest-icon" />
-              <span>{{ s }}</span>
-            </div>
+
+            <!-- 搜索历史（搜索框为空时） -->
+            <template v-if="isShowingHistory">
+              <div class="suggest-section-header">
+                <span class="suggest-section-title">{{ t('search.title.searchHistory') }}</span>
+                <span class="suggest-section-clear" @mousedown.prevent="clearSearchHistory">
+                  {{ t('search.button.clear') }}
+                </span>
+              </div>
+              <div
+                v-for="(item, i) in searchHistory"
+                :key="'h' + i"
+                class="suggest-row"
+                :class="{ 'suggest-row--hi': i === highlightedIndex }"
+                @mousedown.prevent="selectSuggestion(item)"
+                @mouseenter="highlightedIndex = i"
+              >
+                <i class="ri-time-line suggest-icon suggest-icon--history" />
+                <span>{{ item }}</span>
+              </div>
+            </template>
+
+            <!-- 搜索建议（有内容时） -->
+            <template v-else>
+              <div
+                v-for="(s, i) in suggestions"
+                :key="'s' + i"
+                class="suggest-row"
+                :class="{ 'suggest-row--hi': i === highlightedIndex }"
+                @mousedown.prevent="selectSuggestion(s)"
+                @mouseenter="highlightedIndex = i"
+              >
+                <i class="ri-search-line suggest-icon" />
+                <span>{{ s }}</span>
+              </div>
+            </template>
           </n-scrollbar>
         </div>
       </n-popover>
@@ -209,7 +235,13 @@ const inputRef = ref<HTMLInputElement | null>(null);
 
 const handleFocus = () => {
   inputFocused.value = true;
-  if (searchValue.value && suggestions.value.length) showSuggestions.value = true;
+  if (searchValue.value.trim()) {
+    showSuggestions.value = true;
+    debouncedSuggest(searchValue.value);
+  } else {
+    loadSearchHistory();
+    showSuggestions.value = searchHistory.value.length > 0;
+  }
 };
 const handleBlur = () => {
   inputFocused.value = false;
@@ -225,7 +257,7 @@ const searchValue = ref('');
 watch(
   () => searchStore.searchValue,
   (v) => {
-    if (v) searchValue.value = v;
+    searchValue.value = v || '';
   },
   { immediate: true }
 );
@@ -236,6 +268,8 @@ const search = () => {
     searchValue.value = hotSearchValue.value;
     return;
   }
+  // 保存到搜索历史
+  saveSearchHistory(val);
   const q = { keyword: val, type: searchStore.searchType };
   if (router.currentRoute.value.path === '/search-result') {
     searchStore.searchValue = val;
@@ -261,6 +295,38 @@ const searchTypeOptions = computed(() => {
     .map((type) => ({ label: t(type.label), key: type.key }));
 });
 
+// 搜索历史
+const searchHistory = ref<string[]>([]);
+const HISTORY_KEY = 'searchbar_history';
+
+const loadSearchHistory = () => {
+  try {
+    const history = localStorage.getItem(HISTORY_KEY);
+    searchHistory.value = history ? JSON.parse(history) : [];
+  } catch {
+    searchHistory.value = [];
+  }
+};
+
+const saveSearchHistory = (keyword: string) => {
+  if (!keyword.trim()) return;
+  const history = searchHistory.value.filter((item) => item !== keyword);
+  history.unshift(keyword);
+  searchHistory.value = history.slice(0, 15);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(searchHistory.value));
+};
+
+const clearSearchHistory = () => {
+  searchHistory.value = [];
+  localStorage.removeItem(HISTORY_KEY);
+  showSuggestions.value = false;
+};
+
+// 判断当前是否显示历史
+const isShowingHistory = computed(() => {
+  return !searchValue.value.trim() && searchHistory.value.length > 0 && showSuggestions.value;
+});
+
 const suggestions = ref<string[]>([]);
 const showSuggestions = ref(false);
 const suggestionsLoading = ref(false);
@@ -269,13 +335,15 @@ const highlightedIndex = ref(-1);
 const debouncedSuggest = useDebounceFn(async (kw: string) => {
   if (!kw.trim()) {
     suggestions.value = [];
-    showSuggestions.value = false;
+    loadSearchHistory();
+    showSuggestions.value = inputFocused.value && searchHistory.value.length > 0;
     return;
   }
   suggestionsLoading.value = true;
+  showSuggestions.value = inputFocused.value;
   suggestions.value = await getSearchSuggestions(kw);
   suggestionsLoading.value = false;
-  showSuggestions.value = suggestions.value.length > 0;
+  showSuggestions.value = inputFocused.value && suggestions.value.length > 0;
   highlightedIndex.value = -1;
 }, 300);
 
@@ -288,7 +356,9 @@ const selectSuggestion = (s: string) => {
 };
 
 const handleKeydown = (e: KeyboardEvent) => {
-  const len = suggestions.value.length;
+  // 当前显示的列表（历史或建议）
+  const currentList = isShowingHistory.value ? searchHistory.value : suggestions.value;
+  const len = currentList.length;
   if (!showSuggestions.value || !len) {
     if (e.key === 'Enter') search();
     return;
@@ -303,9 +373,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
   if (e.key === 'Enter') {
     e.preventDefault();
-    highlightedIndex.value >= 0
-      ? selectSuggestion(suggestions.value[highlightedIndex.value])
-      : search();
+    highlightedIndex.value >= 0 ? selectSuggestion(currentList[highlightedIndex.value]) : search();
   }
   if (e.key === 'Escape') {
     showSuggestions.value = false;
@@ -734,6 +802,37 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   padding: 12px;
+}
+
+/* 搜索历史区域 */
+.suggest-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 6px;
+}
+
+.suggest-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.suggest-section-clear {
+  font-size: 11px;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.suggest-section-clear:hover {
+  color: #ef4444;
+}
+
+.suggest-icon--history {
+  color: #9ca3af;
 }
 
 /* 导航页面标题 */

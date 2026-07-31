@@ -5,7 +5,7 @@
  * 用户可勾选"以后不再提示"，后续操作直接执行。
  */
 
-import { useCheckbox,useDialog } from 'naive-ui';
+import { useDialog } from 'naive-ui';
 import { h, ref } from 'vue';
 
 const STORAGE_KEY = 'playlistReplaceConfirmDisabled';
@@ -58,19 +58,34 @@ export function usePlaylistConfirm() {
       content: () => {
         // 使用 h() 渲染包含 checkbox 的内容
         return [
-          h('div', { style: { marginBottom: '12px' } }, '该操作将会使播放列表被替换为当前歌单，是否继续？'),
-          h('label', {
-            style: { display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: '#999', fontSize: '13px' }
-          }, [
-            h('input', {
-              type: 'checkbox',
-              checked: skipChecked.value,
-              onChange: (e: Event) => {
-                skipChecked.value = (e.target as HTMLInputElement).checked;
+          h(
+            'div',
+            { style: { marginBottom: '12px' } },
+            '该操作将会使播放列表被替换为当前歌单，是否继续？'
+          ),
+          h(
+            'label',
+            {
+              style: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                color: '#999',
+                fontSize: '13px'
               }
-            }),
-            '以后不再提示'
-          ])
+            },
+            [
+              h('input', {
+                type: 'checkbox',
+                checked: skipChecked.value,
+                onChange: (e: Event) => {
+                  skipChecked.value = (e.target as HTMLInputElement).checked;
+                }
+              }),
+              '以后不再提示'
+            ]
+          )
         ];
       },
       positiveText: '继续',

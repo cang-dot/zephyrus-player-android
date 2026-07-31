@@ -85,23 +85,10 @@
               <song-item
                 class="flex-1 !bg-transparent hover:!bg-transparent"
                 :item="item"
+                :can-remove="currentTab === 'local'"
                 @play="handlePlay"
+                @remove-song="handleDelMusic(item)"
               />
-              <template v-if="!isMobile">
-                <div
-                  class="px-4 text-xs text-gray-400 dark:text-gray-600 font-medium min-w-[60px] text-right"
-                  v-show="currentTab === 'local'"
-                >
-                  {{ t('history.playCount', { count: item.count }) }}
-                </div>
-                <div
-                  class="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-all opacity-0 group-hover:opacity-100"
-                  v-show="currentTab === 'local'"
-                  @click="handleDelMusic(item)"
-                >
-                  <i class="ri-close-line text-lg"></i>
-                </div>
-              </template>
             </div>
           </template>
 
@@ -185,14 +172,10 @@
                 <song-item
                   class="flex-1 !bg-transparent hover:!bg-transparent"
                   :item="mapDjProgramToSong(item)"
+                  :can-remove="true"
                   @play="handlePlayPodcast(item)"
+                  @remove-song="handleDelPodcast(item)"
                 />
-                <div
-                  class="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-all opacity-0 group-hover:opacity-100"
-                  @click="handleDelPodcast(item)"
-                >
-                  <i class="ri-close-line text-lg"></i>
-                </div>
               </div>
             </div>
 
@@ -266,7 +249,6 @@ import AlbumItem from '@/components/common/AlbumItem.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PlaylistItem from '@/components/common/PlaylistItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
-import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { usePlayerStore } from '@/store/modules/player';
 import { usePlayHistoryStore } from '@/store/modules/playHistory';
 import { useUserStore } from '@/store/modules/user';
@@ -295,7 +277,6 @@ const loading = ref(false);
 const noMore = ref(false);
 const displayList = ref<any[]>([]);
 const playerStore = usePlayerStore();
-const { confirmPlaylistReplace } = usePlaylistConfirm();
 const hasLoaded = ref(false);
 const currentCategory = ref<'songs' | 'playlists' | 'albums' | 'podcasts'>('songs');
 const currentTab = ref<'local' | 'cloud'>('local');
@@ -636,11 +617,9 @@ const handleScroll = (e: any) => {
   }
 };
 
-// 播放全部
-const handlePlay = () => {
-  confirmPlaylistReplace(() => {
-    playerStore.setPlayList(displayList.value);
-  });
+const handlePlay = (song: SongResult) => {
+  playerStore.setPlayList(displayList.value);
+  playerStore.setPlay(song);
 };
 
 // 处理 tab 切换

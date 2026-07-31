@@ -1,4 +1,11 @@
 export default {
+  platform: {
+    netease: 'NetEase',
+    qq: 'QQ음악',
+    kugou: 'Kugou',
+    kuwo: 'Kuwo Music',
+    migu: 'Migu Music'
+  },
   title: {
     qr: 'QR코드 로그인',
     phone: '휴대폰 번호 로그인',

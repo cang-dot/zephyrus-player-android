@@ -51,9 +51,9 @@
 
     <!-- 鏃ユ湡閫夋嫨鏍囩 -->
     <div v-if="availableDates.length > 0" class="date-tabs-wrapper">
-      <SegmentSlider
+      <segment-slider
         :model-value="selectedDate"
-        :tabs="displayedDates.map(d => ({ key: d, label: formatDate(d) }))"
+        :tabs="displayedDates.map((d) => ({ key: d, label: formatDate(d) }))"
         @update:model-value="handleDateChange"
       />
     </div>
@@ -109,8 +109,8 @@ import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { getHistoryRecommendDates, getHistoryRecommendSongs } from '@/api/music';
-import SegmentSlider from '@/components/common/SegmentSlider.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
+import SegmentSlider from '@/components/common/SegmentSlider.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { usePlayerStore } from '@/store';
@@ -212,9 +212,10 @@ const fetchSongsByDate = async (date: string) => {
 };
 
 // 处理日期变化
-const handleDateChange = async (date: string) => {
-  selectedDate.value = date;
-  await fetchSongsByDate(date);
+const handleDateChange = async (date: string | number) => {
+  const normalizedDate = String(date);
+  selectedDate.value = normalizedDate;
+  await fetchSongsByDate(normalizedDate);
 };
 
 // 切换布局
@@ -246,9 +247,10 @@ const addToPlaylist = () => {
 };
 
 // 鎾斁鍗曢歌曲
-const handlePlay = () => {
+const handlePlay = (song: SongResult) => {
   if (songs.value.length === 0) return;
   playerStore.setPlayList(songs.value.map(formatSong));
+  playerStore.setPlay(song);
 };
 
 // 鎾斁鍏ㄩ儴
@@ -346,7 +348,9 @@ onMounted(() => {
 
 .date-tabs-wrapper {
   @apply mb-2 overflow-x-auto;
-  &::-webkit-scrollbar { display: none; }
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .layout-toggle {

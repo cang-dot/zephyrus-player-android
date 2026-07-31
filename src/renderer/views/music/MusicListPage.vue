@@ -44,7 +44,9 @@
                       class="meta-avatar"
                       alt=""
                     />
-                    <span class="meta-name" @click="navigateToArtist(listInfo.artist.id)">{{ listInfo.artist.name }}</span>
+                    <span class="meta-name" @click="navigateToArtist(listInfo.artist.id)">{{
+                      listInfo.artist.name
+                    }}</span>
                   </div>
                   <div v-else-if="!isAlbum && listInfo?.creator" class="meta-creator">
                     <img
@@ -56,7 +58,11 @@
                   </div>
                   <span class="meta-count">{{ t('common.songCount', { count: total }) }}</span>
                 </div>
-                <div v-if="listInfo?.description" class="hero-desc" @click.stop="showDescriptionPopover = !showDescriptionPopover">
+                <div
+                  v-if="listInfo?.description"
+                  class="hero-desc"
+                  @click.stop="showDescriptionPopover = !showDescriptionPopover"
+                >
                   {{ listInfo.description }}
                 </div>
               </div>
@@ -69,8 +75,22 @@
                 <span class="play-all-label">{{ t('comp.musicList.playAll') }}</span>
               </button>
 
-              <button v-if="canCollect" class="collect-btn" :class="{ collected: isCollected }" @click="toggleCollect">
+              <button
+                v-if="canCollect"
+                class="collect-btn"
+                :class="{ collected: isCollected }"
+                @click="toggleCollect"
+              >
                 <i :class="isCollected ? 'ri-heart-fill' : 'ri-heart-line'" />
+              </button>
+
+              <button
+                v-if="currentPlayingIndex >= 0"
+                class="icon-btn"
+                :title="t('comp.musicList.locateCurrent', '定位当前播放')"
+                @click="scrollToCurrentSong"
+              >
+                <i class="ri-focus-3-line" />
               </button>
 
               <!-- 额外控制：选择/搜索/排序等，收缩态隐藏 -->
@@ -80,14 +100,26 @@
                 </button>
 
                 <div v-if="isSelecting" class="batch-actions">
-                  <n-checkbox :checked="isAllSelected" :indeterminate="isIndeterminate" @update:checked="handleSelectAll">
+                  <n-checkbox
+                    :checked="isAllSelected"
+                    :indeterminate="isIndeterminate"
+                    @update:checked="handleSelectAll"
+                  >
                     {{ t('common.selectAll') }}
                   </n-checkbox>
-                  <button class="batch-btn" :disabled="selectedSongs.length === 0 || isDownloading" @click="handleBatchDownload">
+                  <button
+                    class="batch-btn"
+                    :disabled="selectedSongs.length === 0 || isDownloading"
+                    @click="handleBatchDownload"
+                  >
                     <i class="ri-download-line" />
                     {{ t('favorite.download', { count: selectedSongs.length }) }}
                   </button>
-                  <button class="batch-btn" :disabled="selectedSongs.length === 0" @click="handleAddToPlaylist">
+                  <button
+                    class="batch-btn"
+                    :disabled="selectedSongs.length === 0"
+                    @click="handleAddToPlaylist"
+                  >
                     <i class="ri-play-list-add-line" />
                     {{ t('comp.musicList.addToPlaylist') }}
                   </button>
@@ -109,10 +141,6 @@
                   </n-input>
                 </div>
 
-                <button v-if="currentPlayingIndex >= 0" class="icon-btn" :title="t('comp.musicList.locateCurrent', '定位当前播放')" @click="scrollToCurrentSong">
-                  <i class="ri-focus-3-line" />
-                </button>
-
                 <button v-if="!isMobile" class="icon-btn" @click="toggleLayout">
                   <i :class="isCompactLayout ? 'ri-list-check-2' : 'ri-grid-line'" />
                 </button>
@@ -130,7 +158,11 @@
         <!-- 专辑介绍弹窗 -->
         <Teleport to="body">
           <Transition name="popover-fade">
-            <div v-if="showDescriptionPopover" class="description-popover-overlay" @click.stop="showDescriptionPopover = false"></div>
+            <div
+              v-if="showDescriptionPopover"
+              class="description-popover-overlay"
+              @click.stop="showDescriptionPopover = false"
+            ></div>
           </Transition>
           <Transition name="popover-slide">
             <div v-if="showDescriptionPopover" class="description-popover-card" @click.stop>
@@ -153,7 +185,11 @@
               :key="item.id"
               class="song-item-wrap"
               :class="{ 'animate-item': index < initialAnimateCount }"
-              :style="index < initialAnimateCount ? { animationDelay: calculateAnimationDelay(index, 0.03) } : undefined"
+              :style="
+                index < initialAnimateCount
+                  ? { animationDelay: calculateAnimationDelay(index, 0.03) }
+                  : undefined
+              "
             >
               <song-item
                 :index="index"
@@ -174,7 +210,15 @@
               <n-spin :size="18" />
               <span>{{ t('common.loading') }}</span>
             </div>
-            <div v-else-if="!hasMore && renderLimit >= allFilteredSongs.length && filteredSongs.length > 0 && !searchKeyword" class="list-end">
+            <div
+              v-else-if="
+                !hasMore &&
+                renderLimit >= allFilteredSongs.length &&
+                filteredSongs.length > 0 &&
+                !searchKeyword
+              "
+              class="list-end"
+            >
               {{ t('common.noMore') }}
             </div>
           </div>
@@ -587,7 +631,7 @@ const handleRemoveSong = async (songId: number) => {
 
 // 滞回阈值：进入和退出用不同阈值，防止高度变化→滚动位移→状态翻转的反馈循环
 const COMPACT_ENTER = 80; // 滚动超过 80px 才收缩
-const COMPACT_EXIT = 10;  // 回滚到 10px 以内才展开
+const COMPACT_EXIT = 10; // 回滚到 10px 以内才展开
 // transition 期间锁定状态，防止动画过程中反复触发
 let compactLocked = false;
 
@@ -597,7 +641,9 @@ const setCompact = (val: boolean) => {
   isCompact.value = val;
   compactLocked = true;
   // 等过渡动画完成后再解锁
-  setTimeout(() => { compactLocked = false; }, 450);
+  setTimeout(() => {
+    compactLocked = false;
+  }, 450);
 };
 
 // 根据滚动位置计算需要渲染多少项，快速滚动也不会出现空白
@@ -923,17 +969,52 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   padding: 24px 20px;
   margin: 0 16px;
 }
-.skeleton-cover { width: 160px; height: 160px; border-radius: 16px; }
-.skeleton-info { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 280px; }
-.skeleton-title { height: 24px; width: 70%; border-radius: 8px; }
-.skeleton-badge { height: 18px; width: 80px; border-radius: 9999px; }
-.skeleton-meta { height: 14px; width: 50%; border-radius: 6px; }
+.skeleton-cover {
+  width: 160px;
+  height: 160px;
+  border-radius: 16px;
+}
+.skeleton-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 280px;
+}
+.skeleton-title {
+  height: 24px;
+  width: 70%;
+  border-radius: 8px;
+}
+.skeleton-badge {
+  height: 18px;
+  width: 80px;
+  border-radius: 9999px;
+}
+.skeleton-meta {
+  height: 14px;
+  width: 50%;
+  border-radius: 6px;
+}
 .skeleton-shimmer {
-  background: linear-gradient(90deg, rgba(128,128,128,0.08) 25%, rgba(128,128,128,0.16) 50%, rgba(128,128,128,0.08) 75%);
+  background: linear-gradient(
+    90deg,
+    rgba(128, 128, 128, 0.08) 25%,
+    rgba(128, 128, 128, 0.16) 50%,
+    rgba(128, 128, 128, 0.08) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
 
 /* ============================================================
    Hero Zone — 单一形变容器
@@ -960,11 +1041,12 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   padding: 20px 16px 14px;
   max-height: 500px;
 
-  transition: border-radius 0.4s $spring,
-              box-shadow 0.4s ease,
-              padding 0.4s $spring,
-              gap 0.4s $spring,
-              max-height 0.4s $spring;
+  transition:
+    border-radius 0.4s $spring,
+    box-shadow 0.4s ease,
+    padding 0.4s $spring,
+    gap 0.4s $spring,
+    max-height 0.4s $spring;
 
   /* 收缩态：横向单行 */
   &.compact {
@@ -995,10 +1077,11 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   border-radius: 16px;
   object-fit: cover;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-  transition: width 0.4s $spring,
-              height 0.4s $spring,
-              border-radius 0.4s $spring,
-              box-shadow 0.4s ease;
+  transition:
+    width 0.4s $spring,
+    height 0.4s $spring,
+    border-radius 0.4s $spring,
+    box-shadow 0.4s ease;
 
   .hero-zone.compact & {
     width: 40px;
@@ -1028,7 +1111,9 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: font-size 0.4s $spring, font-weight 0.4s;
+  transition:
+    font-size 0.4s $spring,
+    font-weight 0.4s;
 
   .hero-zone.compact & {
     font-size: 15px;
@@ -1042,9 +1127,10 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   max-height: 120px;
   overflow: hidden;
   margin-top: 8px;
-  transition: opacity 0.25s ease,
-              max-height 0.35s $spring,
-              margin-top 0.35s $spring;
+  transition:
+    opacity 0.25s ease,
+    max-height 0.35s $spring,
+    margin-top 0.35s $spring;
 
   .hero-zone.compact & {
     opacity: 0;
@@ -1054,7 +1140,9 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 }
 
-.hero-badge-row { /* no extra margin needed */ }
+.hero-badge-row {
+  /* no extra margin needed */
+}
 .hero-badge {
   display: inline-flex;
   align-items: center;
@@ -1077,10 +1165,27 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   gap: 8px;
   margin-top: 8px;
 }
-.meta-creator { display: flex; align-items: center; gap: 6px; }
-.meta-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
-.meta-name { font-size: 12px; font-weight: 600; color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560)); cursor: pointer; }
-.meta-count { font-size: 12px; color: var(--cover-text-muted, var(--m-text-muted, #9a9590)); }
+.meta-creator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.meta-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.meta-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
+  cursor: pointer;
+}
+.meta-count {
+  font-size: 12px;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+}
 
 .hero-desc {
   font-size: 12px;
@@ -1116,8 +1221,9 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   opacity: 1;
   max-width: 600px;
   overflow: hidden;
-  transition: opacity 0.25s ease,
-              max-width 0.35s $spring;
+  transition:
+    opacity 0.25s ease,
+    max-width 0.35s $spring;
 
   .hero-zone.compact & {
     opacity: 0;
@@ -1128,105 +1234,267 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
 /* 播放全部按钮：收缩时缩小 */
 .play-all-btn {
-  display: flex; align-items: center; gap: 4px;
-  padding: 8px 16px; border-radius: 9999px; border: none;
-  background: var(--accent-color, #888); color: #fff;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  border: none;
+  background: var(--accent-color, #888);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
   box-shadow: 0 2px 12px rgba(var(--accent-color-rgb, 136, 136, 136), 0.25);
-  white-space: nowrap; flex-shrink: 0;
-  transition: padding 0.3s $spring, font-size 0.3s $spring;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition:
+    padding 0.3s $spring,
+    font-size 0.3s $spring;
 
-  i { font-size: 16px; transition: font-size 0.3s $spring; }
-
-  .hero-zone.compact & {
-    padding: 6px 12px; font-size: 12px;
-    i { font-size: 14px; }
+  i {
+    font-size: 16px;
+    transition: font-size 0.3s $spring;
   }
 
-  &:active { transform: scale(0.94); }
+  .hero-zone.compact & {
+    padding: 6px 12px;
+    font-size: 12px;
+    i {
+      font-size: 14px;
+    }
+  }
+
+  &:active {
+    transform: scale(0.94);
+  }
 }
 
 /* 收藏按钮：收缩时缩小 */
 .collect-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px; border-radius: 50%; border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
   background: rgba(128, 128, 128, 0.1);
   color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
-  font-size: 18px; cursor: pointer; flex-shrink: 0;
-  transition: width 0.3s $spring, height 0.3s $spring, font-size 0.3s $spring;
+  font-size: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    width 0.3s $spring,
+    height 0.3s $spring,
+    font-size 0.3s $spring;
 
   .hero-zone.compact & {
-    width: 32px; height: 32px; font-size: 16px;
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
   }
 
-  &.collected { color: #ef4444; }
-  &:active { transform: scale(0.88); }
+  &.collected {
+    color: #ef4444;
+  }
+  &:active {
+    transform: scale(0.88);
+  }
 }
 
 .icon-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px; border-radius: 50%; border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
   background: rgba(128, 128, 128, 0.1);
   color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
-  font-size: 18px; cursor: pointer; flex-shrink: 0;
+  font-size: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
   transition: all 0.2s $spring;
-  &:active { transform: scale(0.88); }
+  &:active {
+    transform: scale(0.88);
+  }
 }
 
-.batch-actions { display: flex; align-items: center; gap: 8px; }
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .batch-btn {
-  display: flex; align-items: center; gap: 4px;
-  padding: 6px 12px; border-radius: 9999px; border: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  border: none;
   background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.1);
   color: var(--accent-color, #888);
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
   transition: all 0.2s ease;
-  &:disabled { opacity: 0.4; cursor: not-allowed; }
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 }
-.cancel-btn { border: none; background: transparent; color: var(--cover-text-muted, var(--m-text-muted, #9a9590)); font-size: 12px; cursor: pointer; }
+.cancel-btn {
+  border: none;
+  background: transparent;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  font-size: 12px;
+  cursor: pointer;
+}
 
-.list-search-wrap { width: 180px; }
-.list-search-input { border: none !important; background: rgba(128, 128, 128, 0.1) !important; }
+.list-search-wrap {
+  width: 180px;
+}
+.list-search-input {
+  border: none !important;
+  background: rgba(128, 128, 128, 0.1) !important;
+}
 
 /* ===== Song list ===== */
-.song-list-section { padding: 0 16px; margin-top: 4px; }
-.song-list-container { padding-bottom: 20px; }
-.song-item-wrap { margin-bottom: 6px; }
+.song-list-section {
+  padding: 0 16px;
+  margin-top: 4px;
+}
+.song-list-container {
+  padding-bottom: 20px;
+}
+.song-item-wrap {
+  margin-bottom: 6px;
+}
 
 .empty-state {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 80px 20px; gap: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  gap: 12px;
   color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
-  i { font-size: 48px; opacity: 0.2; }
-  p { font-size: 14px; }
+  i {
+    font-size: 48px;
+    opacity: 0.2;
+  }
+  p {
+    font-size: 14px;
+  }
 }
 
-.list-loading { display: flex; align-items: center; justify-content: center; padding: 24px 0; gap: 8px; color: var(--cover-text-muted, var(--m-text-muted, #9a9590)); font-size: 14px; }
-.list-end { padding: 24px 0; text-align: center; font-size: 14px; color: var(--cover-text-muted, var(--m-text-muted, #9a9590)); }
+.list-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
+  gap: 8px;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  font-size: 14px;
+}
+.list-end {
+  padding: 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+}
 
-.animate-item { animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
-@keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.animate-item {
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
-.song-highlight { animation: highlightPulse 2s ease-out; }
-@keyframes highlightPulse { 0%, 30% { background-color: rgba(var(--accent-color-rgb), 0.15); border-radius: 12px; } 100% { background-color: transparent; } }
+.song-highlight {
+  animation: highlightPulse 2s ease-out;
+}
+@keyframes highlightPulse {
+  0%,
+  30% {
+    background-color: rgba(var(--accent-color-rgb), 0.15);
+    border-radius: 12px;
+  }
+  100% {
+    background-color: transparent;
+  }
+}
 
 /* ===== Description popover ===== */
-.description-popover-overlay { position: fixed; inset: 0; z-index: 9998; background: rgba(0, 0, 0, 0.4); }
-.description-popover-card {
-  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  padding: 20px; background: var(--cover-bg, #fff); border-radius: 20px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2); max-width: 400px; width: 90vw; max-height: 70vh; overflow-y: auto; z-index: 9999;
+.description-popover-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.4);
 }
-.popover-fade-enter-active, .popover-fade-leave-active { transition: opacity 0.2s ease; }
-.popover-fade-enter-from, .popover-fade-leave-to { opacity: 0; }
-.popover-slide-enter-active { transition: all 0.25s $spring; }
-.popover-slide-leave-active { transition: all 0.2s ease; }
-.popover-slide-enter-from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
-.popover-slide-leave-to { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
-.description-popover-title { font-size: 16px; font-weight: 700; color: var(--cover-text-primary, #1a1a1a); margin-bottom: 12px; }
-.description-popover-text { font-size: 14px; line-height: 1.6; color: var(--cover-text-muted, #666); white-space: pre-wrap; word-break: break-word; }
+.description-popover-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 20px;
+  background: var(--cover-bg, #fff);
+  border-radius: 20px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2);
+  max-width: 400px;
+  width: 90vw;
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 9999;
+}
+.popover-fade-enter-active,
+.popover-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.popover-fade-enter-from,
+.popover-fade-leave-to {
+  opacity: 0;
+}
+.popover-slide-enter-active {
+  transition: all 0.25s $spring;
+}
+.popover-slide-leave-active {
+  transition: all 0.2s ease;
+}
+.popover-slide-enter-from {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.92);
+}
+.popover-slide-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.92);
+}
+.description-popover-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cover-text-primary, #1a1a1a);
+  margin-bottom: 12px;
+}
+.description-popover-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--cover-text-muted, #666);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-item { animation: none; }
+  .animate-item {
+    animation: none;
+  }
 }
 </style>

@@ -214,51 +214,18 @@
                     <div
                       v-for="(item, index) in recordList"
                       :key="item.id"
-                      class="flex items-center gap-3 px-2.5 py-2 rounded-2xl cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800/50 group transition-colors duration-200"
+                      class="record-row flex items-center gap-2 rounded-2xl"
                     >
                       <span
                         class="w-6 text-xs text-neutral-400 dark:text-neutral-500 font-mono text-right shrink-0"
                         >{{ index + 1 }}</span
                       >
-                      <div
-                        class="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-neutral-200 dark:bg-neutral-700 shadow-sm"
-                      >
-                        <img
-                          :src="getImgUrl(item.picUrl, '100y100')"
-                          :alt="item.name"
-                          class="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      </div>
-                      <div class="flex-1 min-w-0">
-                        <p
-                          class="text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate"
-                        >
-                          {{ item.name }}
-                        </p>
-                        <p class="text-xs text-neutral-400 dark:text-neutral-500 truncate">
-                          {{ getArtistNames(item) }}
-                        </p>
-                      </div>
-                      <div
-                        class="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                      >
-                        <button
-                          class="w-7 h-7 flex items-center justify-center rounded-full text-base transition-all duration-200"
-                          :class="
-                            isFavorited(item.id)
-                              ? 'ri-heart-fill text-red-500'
-                              : 'ri-heart-line text-neutral-400 hover:text-red-500 hover:bg-red-500/10'
-                          "
-                          @click="toggleFavorite(item.id)"
-                        />
-                        <button
-                          class="w-7 h-7 rounded-full flex items-center justify-center bg-neutral-200 dark:bg-neutral-700 hover:bg-[var(--accent-color)] hover:text-white transition-all duration-200"
-                          @click="handlePlayRecord(item)"
-                        >
-                          <i class="ri-play-fill text-sm ml-0.5" />
-                        </button>
-                      </div>
+                      <song-item
+                        class="record-song-item"
+                        :item="item"
+                        mini
+                        @play="handlePlayRecord"
+                      />
                     </div>
                   </div>
                 </div>
@@ -317,6 +284,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { getUserDetail, getUserPlaylist, getUserRecord } from '@/api/user';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PlayBottom from '@/components/common/PlayBottom.vue';
+import SongItem from '@/components/common/SongItem.vue';
 import { usePlayerStore } from '@/store/modules/player';
 import type { IUserDetail } from '@/types/user';
 import { formatNumber, getImgUrl, isElectron } from '@/utils';
@@ -434,22 +402,6 @@ const handlePlayRecord = (item: any) => {
   }
 };
 
-const isFavorited = (id: number) => playerStore.favoriteList.some((s: any) => s.id === id);
-
-const toggleFavorite = (id: number) => {
-  if (isFavorited(id)) {
-    playerStore.removeFromFavorite(id);
-  } else {
-    playerStore.addToFavorite(id);
-  }
-};
-
-const getArtistNames = (item: any) => {
-  if (item.ar) return item.ar.map((a: any) => a.name).join(' / ');
-  if (item.artists) return item.artists.map((a: any) => a.name).join(' / ');
-  return '';
-};
-
 const showFollowList = () => {
   if (!userDetail.value) return;
   router.push({
@@ -477,6 +429,15 @@ const isArtist = (profile: any) => {
 
 <style lang="scss" scoped>
 .record-row {
-  transition: background-color 0.2s ease;
+  transition: background-color 160ms ease;
+
+  &:hover {
+    background: var(--d-surface-hover);
+  }
+}
+
+.record-song-item {
+  min-width: 0;
+  flex: 1;
 }
 </style>

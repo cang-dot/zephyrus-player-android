@@ -19,7 +19,7 @@
       </div>
     </template>
 
-    <!-- 鍥剧墖鎻掓Ы -->
+    <!-- 图片插槽 -->
     <template #image>
       <n-image
         v-if="item.picUrl"
@@ -33,7 +33,7 @@
       />
     </template>
 
-    <!-- 鍐呭鎻掓Ы -->
+    <!-- 内容插槽 -->
     <template #content>
       <div class="song-item-content">
         <div class="song-item-content-title">
@@ -60,24 +60,12 @@
       </div>
     </template>
 
-    <!-- 鎿嶄綔鎻掓Ы -->
+    <!-- 操作插槽 -->
     <template #operating>
       <div class="song-item-operating">
-        <div v-if="favorite" class="song-item-operating-like">
-          <i
-            class="iconfont icon-likefill"
-            :class="{ 'like-active': isFavorite }"
-            @click.stop="onToggleFavorite"
-          ></i>
-        </div>
-        <div
-          class="song-item-operating-play bg-gray-300 dark:bg-gray-800 animate__animated"
-          :class="{ 'bg-[var(--accent-color)]': isPlaying, animate__flipInY: playLoading }"
-          @click="onPlayMusic"
-        >
-          <i v-if="isPlaying && play" class="iconfont icon-stop"></i>
-          <i v-else class="iconfont icon-playfill"></i>
-        </div>
+        <button class="song-item-operating-menu" type="button" @click.stop="onMenuClick">
+          <i class="ri-more-2-fill"></i>
+        </button>
       </div>
     </template>
   </base-song-item>
@@ -87,15 +75,12 @@
 import { NCheckbox, NEllipsis, NImage } from 'naive-ui';
 import { computed, ref } from 'vue';
 
-import { usePlayerStore } from '@/store';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 
 import BaseSongItem from './BaseSongItem.vue';
 
-const playerStore = usePlayerStore();
-
-const props = withDefaults(
+withDefaults(
   defineProps<{
     item: SongResult;
     favorite?: boolean;
@@ -115,151 +100,91 @@ const props = withDefaults(
   }
 );
 
-const emit = defineEmits(['play', 'select', 'remove-song']);
+defineEmits(['play', 'select', 'remove-song']);
 const baseItem = ref<InstanceType<typeof BaseSongItem>>();
 
-// 浠庡熀纭€缁勪欢鑾峰彇鍝嶅簲寮忕姸鎬
-const play = computed(() => playerStore.isPlay);
 const isPlaying = computed(() => baseItem.value?.isPlaying || false);
-const playLoading = computed(() => baseItem.value?.playLoading || false);
-const isFavorite = computed(() => baseItem.value?.isFavorite || false);
 const artists = computed(() => baseItem.value?.artists || []);
 
-// 鍖呰鏂规硶锛岄伩鍏嶇洿鎺ヨ闂彲鑳戒负undefined的ref
 const onToggleSelect = () => {
   baseItem.value?.toggleSelect();
-  emit('select', props.item.id, !props.selected);
 };
 const onImageLoad = (event: Event) => baseItem.value?.imageLoad(event);
 const onArtistClick = (id: number) => baseItem.value?.handleArtistClick(id);
-const onToggleFavorite = (event: Event) => {
-  baseItem.value?.toggleFavorite(event);
-};
-const onPlayMusic = () => {
-  baseItem.value?.playMusicEvent(props.item);
-  emit('play', props.item);
-};
+const onMenuClick = (event: MouseEvent) => baseItem.value?.openItemMenu(event);
 </script>
 
 <style lang="scss" scoped>
 .mini-song-item {
-  padding: 0.5rem; /* p-2 */
-  border-radius: 0.75rem; /* rounded-xl */
-
-  &:hover {
-    background-color: rgb(249 250 251); /* bg-gray-50 */
-  }
+  padding: 8px;
+  border-radius: var(--d-radius-md);
 
   .song-item-img {
-    width: 2.5rem; /* w-10 */
-    height: 2.5rem; /* h-10 */
-    margin-right: 0.5rem; /* mr-2 */
-    border-radius: 0.75rem; /* rounded-xl */
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-right: 8px;
+    border-radius: var(--d-radius-md);
   }
 
   .song-item-content {
     flex: 1;
 
     &-title {
-      font-size: 0.875rem; /* text-sm */
-      line-height: 1.25rem;
-      color: rgb(17 24 39); /* text-gray-900 */
+      color: var(--d-text-primary);
+      font-size: var(--d-text-sm);
     }
 
     &-name {
-      font-size: 0.75rem; /* text-xs */
-      line-height: 1rem;
-      color: rgb(107 114 128); /* text-gray-500 */
+      color: var(--d-text-secondary);
+      font-size: var(--d-text-xs);
     }
   }
 
   .song-item-operating {
     display: flex;
     align-items: center;
-    border-radius: 9999px; /* rounded-full */
-    margin-left: 1rem; /* ml-4 */
-    padding-left: 0.5rem; /* pl-2 */
-    border-width: 1px;
-    border-color: rgb(229 231 235); /* border-gray-200 */
-    background-color: #fff; /* bg-light fallback */
+    margin-left: 12px;
 
-    .iconfont {
-      font-size: 1rem; /* text-base */
-    }
-
-    &-like {
-      margin-right: 0.25rem; /* mr-1 */
-      margin-left: 0.25rem; /* ml-1 */
+    &-menu {
       cursor: pointer;
-
-      .icon-likefill {
-        font-size: 1rem;
-        transition-property: color;
-        transition-duration: 0.15s;
-        color: rgb(107 114 128); /* text-gray-500 */
-
-        &:hover {
-          color: rgb(239 68 68); /* hover:text-red-500 */
-        }
-      }
-
-      .like-active {
-        color: rgb(239 68 68) !important; /* text-red-500 */
-      }
-    }
-
-    &-play {
-      cursor: pointer;
-      border-radius: 9999px; /* rounded-full */
-      width: 2rem; /* w-8 */
-      height: 2rem; /* h-8 */
+      border: 0;
+      border-radius: 9999px;
+      background: transparent;
+      color: var(--d-text-secondary);
       display: flex;
       justify-content: center;
       align-items: center;
-      transition-property: all;
-      transition-duration: 0.15s;
-      border-width: 1px;
-      border-color: rgb(229 231 235); /* border-gray-200 */
-      color: rgb(17 24 39); /* text-gray-900 */
+      width: 32px;
+      height: 32px;
+      transition:
+        background-color 150ms ease,
+        transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 
-      &:hover,
-      &.bg-\[var\(--accent-color\)\] {
-        background-color: var(--accent-color, rgb(34 197 94));
-        border-color: var(--accent-color, rgb(34 197 94));
-        color: white;
+      &:active {
+        transform: scale(0.96);
+      }
+
+      i {
+        font-size: 1.25rem;
+        color: currentColor;
+        transition: color 150ms ease;
+      }
+
+      &:hover {
+        background: var(--d-surface-active);
+        color: var(--accent-color);
       }
     }
   }
 }
 
-/* dark mode */
-.dark .mini-song-item {
-  &:hover {
-    background-color: rgb(31 41 55); /* dark:bg-gray-800 */
+@media (prefers-reduced-motion: reduce) {
+  .mini-song-item .song-item-operating-menu {
+    transition: background-color 120ms ease;
   }
 
-  .song-item-content {
-    &-title {
-      color: white;
-    }
-
-    &-name {
-      color: rgb(156 163 175); /* dark:text-gray-400 */
-    }
-  }
-
-  .song-item-operating {
-    border-color: rgb(55 65 81); /* dark:border-gray-700 */
-    background-color: black; /* dark:bg-black */
-
-    &-like .icon-likefill {
-      color: rgb(156 163 175); /* dark:text-gray-400 */
-    }
-
-    &-play {
-      border-color: rgb(55 65 81); /* dark:border-gray-700 */
-      color: white; /* dark:text-white */
-    }
+  .mini-song-item .song-item-operating-menu:active {
+    transform: none;
   }
 }
 </style>

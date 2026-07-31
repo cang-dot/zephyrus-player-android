@@ -16,11 +16,7 @@
             </p>
           </div>
           <div class="hero-actions">
-            <button
-              class="action-btn"
-              :disabled="localMusicStore.scanning"
-              @click="handleScan"
-            >
+            <button class="action-btn" :disabled="localMusicStore.scanning" @click="handleScan">
               <i class="ri-refresh-line" :class="{ 'animate-spin': localMusicStore.scanning }" />
             </button>
             <button class="action-btn" @click="handleAddFolder">
@@ -35,10 +31,10 @@
             </button>
           </div>
         </div>
-        <GlowTabs
+        <glow-tabs
           v-if="localMusicStore.musicList.length > 0"
           v-model="activeTab"
-          :tabs="tabs.map(tab => ({ key: tab.key, label: tab.label }))"
+          :tabs="tabs.map((tab) => ({ key: tab.key, label: tab.label }))"
           full-width
           class="tab-bar-glow"
         />
@@ -51,7 +47,10 @@
       </div>
 
       <!-- Empty state -->
-      <div v-if="!localMusicStore.scanning && localMusicStore.musicList.length === 0" class="empty-state">
+      <div
+        v-if="!localMusicStore.scanning && localMusicStore.musicList.length === 0"
+        class="empty-state"
+      >
         <i class="ri-folder-music-fill empty-icon" />
         <p class="empty-text">{{ t('localMusic.emptyState') }}</p>
         <button class="empty-action" @click="handleAddFolder">
@@ -69,7 +68,7 @@
             <p>{{ t('localMusic.search') }}</p>
           </div>
           <div v-else class="song-list">
-            <SongItem
+            <song-item
               v-for="(item, index) in displayedSongResults"
               :key="item.id"
               :item="item"
@@ -169,14 +168,18 @@
           class="action-bar sticky top-0 z-20 page-padding-x py-3 md:py-4 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-b border-neutral-100 dark:border-neutral-800/50"
         >
           <div class="flex items-center justify-between gap-4 flex-wrap">
-            <div class="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-900 rounded-full p-1">
+            <div
+              class="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-900 rounded-full p-1"
+            >
               <button
                 v-for="tab in tabs"
                 :key="tab.key"
                 class="tab-btn px-4 py-1.5 rounded-full text-sm font-medium transition-all"
-                :class="activeTab === tab.key
-                  ? 'bg-[var(--accent-color)] text-white shadow-md'
-                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'"
+                :class="
+                  activeTab === tab.key
+                    ? 'bg-[var(--accent-color)] text-white shadow-md'
+                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+                "
                 @click="activeTab = tab.key"
               >
                 {{ tab.label }}
@@ -284,10 +287,7 @@
             </button>
           </div>
 
-          <div
-            v-else-if="displayedList.length === 0"
-            class="empty-state py-20 text-center"
-          >
+          <div v-else-if="displayedList.length === 0" class="empty-state py-20 text-center">
             <i class="ri-search-line text-5xl mb-4 text-neutral-200 dark:text-neutral-800" />
             <p class="text-neutral-400">{{ t('localMusic.search') }}</p>
           </div>
@@ -339,7 +339,9 @@
           </div>
 
           <div v-else-if="activeTab === 'artists'" class="artist-grid">
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div
+              class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+            >
               <button
                 v-for="artist in artistList"
                 :key="artist.name"
@@ -364,14 +366,18 @@
           </div>
 
           <div v-else-if="activeTab === 'albums'" class="album-grid">
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div
+              class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+            >
               <button
                 v-for="album in albumList"
                 :key="album.name"
                 class="album-card group flex flex-col gap-3 p-3 rounded-2xl hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-all"
                 @click="enterDetailView('album', album.name)"
               >
-                <div class="album-cover relative aspect-square rounded-xl overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+                <div
+                  class="album-cover relative aspect-square rounded-xl overflow-hidden bg-neutral-100 dark:bg-neutral-800"
+                >
                   <img
                     v-if="album.cover"
                     :src="album.cover"
@@ -401,10 +407,7 @@
     </n-scrollbar>
 
     <!-- Non-Electron, Non-Mobile fallback -->
-    <div
-      v-else
-      class="flex h-full flex-col items-center justify-center px-8 text-center"
-    >
+    <div v-else class="flex h-full flex-col items-center justify-center px-8 text-center">
       <div
         class="mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-[var(--accent-color)]/10"
       >
@@ -426,7 +429,9 @@
           >
             <div class="flex items-center gap-3 min-w-0 flex-1">
               <i class="ri-folder-line text-lg text-[var(--accent-color)] flex-shrink-0" />
-              <span class="text-sm text-neutral-700 dark:text-neutral-300 truncate">{{ folder }}</span>
+              <span class="text-sm text-neutral-700 dark:text-neutral-300 truncate">{{
+                folder
+              }}</span>
             </div>
             <button
               class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:text-red-500 hover:bg-red-500/10 transition-all flex-shrink-0 ml-2"
@@ -457,7 +462,7 @@
 
 <script setup lang="ts">
 import { createDiscreteApi } from 'naive-ui';
-import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import GlowTabs from '@/components/common/GlowTabs.vue';
@@ -465,11 +470,11 @@ import SongItem from '@/components/common/SongItem.vue';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { useLocalMusicStore } from '@/store/modules/localMusic';
 import { usePlayerStore } from '@/store/modules/player';
-import type { SongResult } from '@/types/music';
 import type { LocalMusicEntry } from '@/types/localMusic';
+import type { SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
-import { filterByKeyword, sortMusicList, toSongResult } from '@/utils/localMusicUtils';
 import type { SortKey } from '@/utils/localMusicUtils';
+import { filterByKeyword, sortMusicList, toSongResult } from '@/utils/localMusicUtils';
 
 // ==================== Stores ====================
 const { t } = useI18n();
@@ -549,24 +554,31 @@ const artistList = computed<{ name: string; count: number }[]>(() => {
     .sort((a, b) => b.count - a.count);
 });
 
-const albumList = computed<{ name: string; artist: string; cover: string | null; count: number }[]>(() => {
-  const map = new Map<string, { artist: string; cover: string | null; count: number }>();
-  const keyword = searchKeyword.value.trim().toLowerCase();
-  for (const entry of localMusicStore.musicList) {
-    if (keyword && !entry.album.toLowerCase().includes(keyword) && !entry.artist.toLowerCase().includes(keyword)) continue;
-    const name = entry.album || t('localMusic.unknownAlbum');
-    const existing = map.get(name);
-    if (existing) {
-      existing.count++;
-      if (!existing.cover && entry.cover) existing.cover = entry.cover;
-    } else {
-      map.set(name, { artist: entry.artist, cover: entry.cover, count: 1 });
+const albumList = computed<{ name: string; artist: string; cover: string | null; count: number }[]>(
+  () => {
+    const map = new Map<string, { artist: string; cover: string | null; count: number }>();
+    const keyword = searchKeyword.value.trim().toLowerCase();
+    for (const entry of localMusicStore.musicList) {
+      if (
+        keyword &&
+        !entry.album.toLowerCase().includes(keyword) &&
+        !entry.artist.toLowerCase().includes(keyword)
+      )
+        continue;
+      const name = entry.album || t('localMusic.unknownAlbum');
+      const existing = map.get(name);
+      if (existing) {
+        existing.count++;
+        if (!existing.cover && entry.cover) existing.cover = entry.cover;
+      } else {
+        map.set(name, { artist: entry.artist, cover: entry.cover, count: 1 });
+      }
     }
+    return Array.from(map.entries())
+      .map(([name, info]) => ({ name, ...info }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
   }
-  return Array.from(map.entries())
-    .map(([name, info]) => ({ name, ...info }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
-});
+);
 
 // ==================== Mobile scroll handler ====================
 const onScroll = () => {
@@ -578,7 +590,9 @@ const onScroll = () => {
     if (val === isCompact.value || compactLocked) return;
     isCompact.value = val;
     compactLocked = true;
-    setTimeout(() => { compactLocked = false; }, 400);
+    setTimeout(() => {
+      compactLocked = false;
+    }, 400);
   };
   if (scrollTop > COMPACT_ENTER) setCompact(true);
   else if (scrollTop < COMPACT_EXIT) setCompact(false);
@@ -670,10 +684,9 @@ async function handleScan(): Promise<void> {
   }
 }
 
-async function handlePlaySong(_song: SongResult): Promise<void> {
-  confirmPlaylistReplace(() => {
-    playerStore.setPlayList(displayedSongResults.value);
-  });
+async function handlePlaySong(song: SongResult): Promise<void> {
+  playerStore.setPlayList(displayedSongResults.value);
+  await playerStore.setPlay(song);
 }
 
 async function handlePlayAll(): Promise<void> {
@@ -683,7 +696,10 @@ async function handlePlayAll(): Promise<void> {
       const firstSong = displayedSongResults.value[0];
       const entry = displayedList.value[0];
       if (isElectron) {
-        const exists = await window.electron.ipcRenderer.invoke('check-file-exists', entry.filePath);
+        const exists = await window.electron.ipcRenderer.invoke(
+          'check-file-exists',
+          entry.filePath
+        );
         if (!exists) {
           message.error(t('localMusic.fileNotFound'));
           return;
@@ -729,7 +745,11 @@ onBeforeUnmount(() => {
 });
 
 // Watch for mobile folder picker callback to trigger scan
-watch(() => (window as any).__localMusicFolderPicked, () => {}, { immediate: false });
+watch(
+  () => (window as any).__localMusicFolderPicked,
+  () => {},
+  { immediate: false }
+);
 </script>
 
 <style lang="scss" scoped>
@@ -747,7 +767,9 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Hero Card — sticky morphing floating card */
@@ -759,9 +781,10 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   z-index: 50;
   border-radius: 22px;
   overflow: hidden;
-  transition: border-radius 0.4s $spring,
-              box-shadow 0.4s $spring,
-              top 0.4s $spring;
+  transition:
+    border-radius 0.4s $spring,
+    box-shadow 0.4s $spring,
+    top 0.4s $spring;
 
   &.compact {
     border-radius: 18px;
@@ -786,7 +809,9 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   align-items: center;
   gap: 16px;
   padding: 20px 20px 12px;
-  transition: padding 0.4s $spring, gap 0.4s $spring;
+  transition:
+    padding 0.4s $spring,
+    gap 0.4s $spring;
 
   .hero-card.compact & {
     padding: 10px 16px 8px;
@@ -865,7 +890,9 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   justify-content: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.2s ease, transform 0.2s $spring;
+  transition:
+    background 0.2s ease,
+    transform 0.2s $spring;
 
   &:active {
     transform: scale(0.88);
@@ -937,7 +964,9 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.2s $spring;
 
-  &:active { transform: scale(0.95); }
+  &:active {
+    transform: scale(0.95);
+  }
 }
 
 /* Content area */
@@ -954,8 +983,13 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   gap: 12px;
   color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
 
-  i { font-size: 40px; opacity: 0.3; }
-  p { font-size: 14px; }
+  i {
+    font-size: 40px;
+    opacity: 0.3;
+  }
+  p {
+    font-size: 14px;
+  }
 }
 
 /* Song list */
@@ -984,7 +1018,9 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   -webkit-tap-highlight-color: transparent;
   transition: background 0.2s ease;
 
-  &:active { background: var(--cover-surface-alt, rgba(128, 128, 128, 0.06)); }
+  &:active {
+    background: var(--cover-surface-alt, rgba(128, 128, 128, 0.06));
+  }
 }
 
 .artist-avatar {
@@ -997,9 +1033,11 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   font-size: 24px;
   font-weight: 700;
   color: var(--accent-color, #888);
-  background: linear-gradient(135deg,
+  background: linear-gradient(
+    135deg,
     rgba(var(--accent-color-rgb, 136, 136, 136), 0.2),
-    rgba(var(--accent-color-rgb, 136, 136, 136), 0.05));
+    rgba(var(--accent-color-rgb, 136, 136, 136), 0.05)
+  );
 }
 
 .artist-name {
@@ -1037,7 +1075,9 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   -webkit-tap-highlight-color: transparent;
   transition: background 0.2s ease;
 
-  &:active { background: var(--cover-surface-alt, rgba(128, 128, 128, 0.06)); }
+  &:active {
+    background: var(--cover-surface-alt, rgba(128, 128, 128, 0.06));
+  }
 }
 
 .album-cover {
@@ -1115,7 +1155,9 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

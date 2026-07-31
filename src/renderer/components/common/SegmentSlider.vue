@@ -1,10 +1,7 @@
 <template>
   <div ref="containerRef" class="segment-slider">
     <!-- Sliding indicator -->
-    <div
-      class="segment-indicator"
-      :style="indicatorStyle"
-    />
+    <div class="segment-indicator" :style="indicatorStyle" />
     <!-- Tab buttons -->
     <button
       v-for="tab in tabs"
@@ -27,10 +24,13 @@ export interface SegmentTabItem {
   label: string;
 }
 
-const props = withDefaults(defineProps<{
-  tabs: SegmentTabItem[];
-  modelValue: string | number;
-}>(), {});
+const props = withDefaults(
+  defineProps<{
+    tabs: SegmentTabItem[];
+    modelValue: string | number;
+  }>(),
+  {}
+);
 
 defineEmits<{
   'update:modelValue': [value: string | number];
@@ -40,12 +40,12 @@ const containerRef = ref<HTMLElement | null>(null);
 const itemRefsArr = ref<HTMLElement[]>([]);
 
 const activeIndex = computed(() =>
-  props.tabs.findIndex(t => String(t.key) === String(props.modelValue))
+  props.tabs.findIndex((t) => String(t.key) === String(props.modelValue))
 );
 
 const indicatorStyle = ref<Record<string, string | number>>({
   transform: 'translateX(0px) scaleX(0)',
-  opacity: 0,
+  opacity: 0
 });
 
 const updateIndicator = () => {
@@ -64,7 +64,7 @@ const updateIndicator = () => {
 
     indicatorStyle.value = {
       transform: `translateX(${translateX}px) scaleX(${segmentWidth})`,
-      opacity: 1,
+      opacity: 1
     };
   });
 };
@@ -80,8 +80,15 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize);
 });
 
-watch(() => props.modelValue, () => updateIndicator());
-watch(() => props.tabs, () => updateIndicator(), { deep: true });
+watch(
+  () => props.modelValue,
+  () => updateIndicator()
+);
+watch(
+  () => props.tabs,
+  () => updateIndicator(),
+  { deep: true }
+);
 </script>
 
 <style lang="scss" scoped>
@@ -106,8 +113,9 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   border-radius: 9999px;
   background: var(--cover-surface-active, rgba(128, 128, 128, 0.15));
   transform-origin: left center;
-  transition: transform 0.5s $spring,
-              opacity 0.3s ease;
+  transition:
+    transform 260ms $spring,
+    opacity 180ms ease;
   pointer-events: none;
   z-index: 0;
 
@@ -156,10 +164,10 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.3s $spring;
+  transition: transform 220ms $spring;
 
   &:active {
-    transform: scale(0.92);
+    transform: scale(0.97);
   }
 }
 
@@ -168,9 +176,10 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   font-weight: 500;
   color: var(--cover-text-muted, rgba(128, 128, 128, 0.5));
   white-space: nowrap;
-  letter-spacing: 0.01em;
-  transition: color 0.35s $smooth,
-              font-weight 0.35s $smooth;
+  letter-spacing: 0;
+  transition:
+    color 180ms $smooth,
+    font-weight 180ms $smooth;
 }
 
 .segment-item.active .segment-label {

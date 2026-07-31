@@ -115,20 +115,33 @@ const api = {
     });
   },
 
+  // 平台扫码登录（QQ/酷狗）
+  platformQrCreate: (platform: string) => ipcRenderer.invoke('platform-qr-create', platform),
+  platformQrPoll: (platform: string, key: string) =>
+    ipcRenderer.invoke('platform-qr-poll', platform, key),
+
   // 插件商店
   plugin: {
     getRegistry: () => ipcRenderer.invoke('plugin:get-registry'),
     getInstalled: () => ipcRenderer.invoke('plugin:get-installed'),
     install: (item) => ipcRenderer.invoke('plugin:install', item),
     uninstall: (pluginId) => ipcRenderer.invoke('plugin:uninstall', pluginId),
-    toggleEnabled: (pluginId, enabled) => ipcRenderer.invoke('plugin:toggle-enabled', pluginId, enabled),
+    toggleEnabled: (pluginId, enabled) =>
+      ipcRenderer.invoke('plugin:toggle-enabled', pluginId, enabled),
     importFile: (type) => ipcRenderer.invoke('plugin:import-file', type),
     refreshRegistry: () => ipcRenderer.invoke('plugin:refresh-registry'),
     testMirrors: () => ipcRenderer.invoke('plugin:test-mirrors'),
-    onInstallProgress: (callback: (data: { pluginId: string; status: string; percent?: number }) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: { pluginId: string; status: string; percent?: number }) => callback(data);
+    onInstallProgress: (
+      callback: (data: { pluginId: string; status: string; percent?: number }) => void
+    ) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        data: { pluginId: string; status: string; percent?: number }
+      ) => callback(data);
       ipcRenderer.on('plugin:install-progress', handler);
-      return () => { ipcRenderer.removeListener('plugin:install-progress', handler); };
+      return () => {
+        ipcRenderer.removeListener('plugin:install-progress', handler);
+      };
     }
   }
 };

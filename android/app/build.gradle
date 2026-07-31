@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+def releaseStoreFilePath = project.findProperty('ZEPHYRUS_STORE_FILE') ?: System.getenv('ZEPHYRUS_STORE_FILE') ?: 'zephyrus-release.jks'
+def releaseStoreFile = file(releaseStoreFilePath)
+def releaseStorePassword = project.findProperty('ZEPHYRUS_STORE_PASSWORD') ?: System.getenv('ZEPHYRUS_STORE_PASSWORD')
+def releaseKeyAlias = project.findProperty('ZEPHYRUS_KEY_ALIAS') ?: System.getenv('ZEPHYRUS_KEY_ALIAS')
+def releaseKeyPassword = project.findProperty('ZEPHYRUS_KEY_PASSWORD') ?: System.getenv('ZEPHYRUS_KEY_PASSWORD')
+def releaseSigningReady = releaseStoreFile.exists() && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
 android {
     namespace = "com.zephyrus.player"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +23,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:!*.gz'
         }
     }
+    if (releaseSigningReady) {
+        signingConfigs {
+            release {
+                storeFile releaseStoreFile
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (releaseSigningReady) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

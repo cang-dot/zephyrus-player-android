@@ -13,6 +13,7 @@ import { initializeLocalMusicScanner } from './modules/localMusicScanner';
 import { initializeLoginWindow } from './modules/loginWindow';
 import { initLxMusicHttp } from './modules/lxMusicHttp';
 import { initializeOtherApi } from './modules/otherApi';
+import { initializePlatformLogin } from './modules/platformLogin';
 import { initializePluginManager } from './modules/pluginManager';
 import { initializeRemoteControl } from './modules/remoteControl';
 import { initializeShortcuts } from './modules/shortcuts';
@@ -59,6 +60,8 @@ function initialize(configStore: any) {
   initializeFonts();
   // 初始化登录窗口
   initializeLoginWindow();
+  // 初始化平台扫码登录
+  initializePlatformLogin();
   // 初始化本地音乐扫描模块
   initializeLocalMusicScanner();
   // 初始化插件管理器

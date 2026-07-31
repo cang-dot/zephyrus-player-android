@@ -43,12 +43,15 @@
         <template #default="{ item }">
           <div class="music-play-list-content">
             <div class="flex items-center justify-between">
-              <song-item :key="item.id" class="flex-1" :item="item" mini></song-item>
-              <div class="delete-btn" @click.stop="handleDeleteSong(item)">
-                <i
-                  class="iconfont ri-delete-bin-line text-gray-400 hover:text-red-500 transition-colors"
-                ></i>
-              </div>
+              <song-item
+                :key="item.id"
+                class="flex-1"
+                :item="item"
+                mini
+                :can-remove="true"
+                @play="playerStore.setPlay"
+                @remove-song="handleDeleteSong(item)"
+              />
             </div>
           </div>
         </template>
@@ -254,18 +257,7 @@ const handleDeleteSong = (song: SongResult) => {
 }
 
 .music-play-list-content {
-  @apply pr-2 hover:bg-light-100 dark:hover:bg-dark-100;
-  &:hover {
-    .delete-btn {
-      @apply visible;
-    }
-  }
-  .delete-btn {
-    @apply pr-2 cursor-pointer invisible;
-    .iconfont {
-      @apply text-lg;
-    }
-  }
+  @apply hover:bg-light-100 dark:hover:bg-dark-100;
 }
 
 // 移动端适配
@@ -300,9 +292,6 @@ const handleDeleteSong = (song: SongResult) => {
     &-content {
       height: calc(80vh - 60px);
       @apply px-4;
-      .delete-btn {
-        @apply visible;
-      }
     }
   }
 }

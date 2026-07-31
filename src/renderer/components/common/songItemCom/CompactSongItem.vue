@@ -12,7 +12,7 @@
     class="compact-song-item"
     ref="baseItem"
   >
-    <!-- 绱㈠紩鎻掓Ы -->
+    <!-- 索引插槽 -->
     <template #index>
       <div
         v-if="index !== undefined"
@@ -30,7 +30,7 @@
       </div>
     </template>
 
-    <!-- 鍐呭鎻掓Ы -->
+    <!-- 内容插槽 -->
     <template #content>
       <div class="song-item-content-compact">
         <div class="song-item-content-compact-wrapper">
@@ -65,39 +65,12 @@
       </div>
     </template>
 
-    <!-- 鎿嶄綔鎻掓Ы -->
+    <!-- 操作插槽 -->
     <template #operating>
       <div class="song-item-operating-compact">
-        <div
-          v-if="favorite"
-          class="song-item-operating-like"
-          :class="{ 'opacity-0': !isHovering && !isFavorite }"
-        >
-          <i
-            class="iconfont icon-likefill"
-            :class="{ 'like-active': isFavorite }"
-            @click.stop="onToggleFavorite"
-          ></i>
-        </div>
-        <div
-          class="song-item-operating-play animate__animated"
-          :class="{
-            'is-playing': isPlaying,
-            animate__flipInY: playLoading,
-            'opacity-0': !isHovering && !isPlaying
-          }"
-          @click="onPlayMusic"
-        >
-          <i v-if="isPlaying && play" class="iconfont icon-stop"></i>
-          <i v-else class="iconfont icon-playfill"></i>
-        </div>
-        <div
-          class="song-item-operating-menu"
-          @click.stop="onMenuClick"
-          :class="{ 'opacity-0': !isHovering && !isPlaying }"
-        >
-          <i class="iconfont ri-more-fill"></i>
-        </div>
+        <button class="song-item-operating-menu" type="button" @click.stop="onMenuClick">
+          <i class="ri-more-2-fill"></i>
+        </button>
       </div>
     </template>
   </base-song-item>
@@ -107,14 +80,11 @@
 import { NCheckbox, NEllipsis } from 'naive-ui';
 import { computed, ref } from 'vue';
 
-import { usePlayerStore } from '@/store';
 import type { SongResult } from '@/types/music';
 
 import BaseSongItem from './BaseSongItem.vue';
 
-const playerStore = usePlayerStore();
-
-const props = withDefaults(
+withDefaults(
   defineProps<{
     item: SongResult;
     favorite?: boolean;
@@ -134,33 +104,19 @@ const props = withDefaults(
   }
 );
 
-const emit = defineEmits(['play', 'select', 'remove-song']);
+defineEmits(['play', 'select', 'remove-song']);
 const baseItem = ref<InstanceType<typeof BaseSongItem>>();
 
-// 浠庡熀纭€缁勪欢鑾峰彇鍝嶅簲寮忕姸鎬
-const play = computed(() => playerStore.isPlay);
 const isPlaying = computed(() => baseItem.value?.isPlaying || false);
-const playLoading = computed(() => baseItem.value?.playLoading || false);
-const isFavorite = computed(() => baseItem.value?.isFavorite || false);
-const isHovering = computed(() => baseItem.value?.isHovering || false);
 const artists = computed(() => baseItem.value?.artists || []);
 
-// 鍖呰鏂规硶锛岄伩鍏嶇洿鎺ヨ闂彲鑳戒负undefined的ref
 const onToggleSelect = () => {
   baseItem.value?.toggleSelect();
 };
 const onArtistClick = (id: number) => baseItem.value?.handleArtistClick(id);
-const onToggleFavorite = (event: Event) => {
-  baseItem.value?.toggleFavorite(event);
-  // 鍙€夛細emit 收藏事件
-};
-const onPlayMusic = () => {
-  baseItem.value?.playMusicEvent(props.item);
-  emit('play', props.item);
-};
-const onMenuClick = (event: MouseEvent) => baseItem.value?.handleMenuClick(event);
+const onMenuClick = (event: MouseEvent) => baseItem.value?.openItemMenu(event);
 
-// 从useSongItem.ts导入格式化时长和获取时长方法
+// 格式化时长和获取时长方法
 const getDuration = (item: SongResult): number => {
   if (item.duration) return item.duration;
   if (typeof item.dt === 'number') return item.dt;
@@ -180,14 +136,6 @@ const formatDuration = (ms: number): string => {
 .compact-song-item {
   @apply rounded-[var(--d-radius-lg)] p-2 h-12 mb-1;
   border-bottom: 1px solid var(--d-border-light);
-
-  &:hover {
-    background: var(--d-surface-hover);
-
-    .opacity-0 {
-      opacity: 1;
-    }
-  }
 
   .song-item-index {
     @apply w-8 text-center text-sm;
@@ -227,69 +175,47 @@ const formatDuration = (ms: number): string => {
   }
 
   .song-item-operating-compact {
-    @apply border-none bg-transparent gap-3 flex items-center justify-end min-w-[160px];
+    @apply border-none bg-transparent flex items-center justify-end min-w-[40px];
 
-    .song-item-operating-like,
-    .song-item-operating-play,
     .song-item-operating-menu {
-      @apply transition-opacity duration-200;
-    }
+      @apply cursor-pointer flex items-center justify-center w-8 h-8 rounded-full;
+      border: 0;
+      background: transparent;
+      color: var(--d-text-secondary);
+      transition:
+        color 150ms ease,
+        background-color 150ms ease,
+        transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 
-    .song-item-operating-play {
-      @apply w-7 h-7 flex items-center justify-center cursor-pointer rounded-full;
-      border: 1px solid var(--d-border);
-      background: var(--d-surface);
-      color: var(--d-text-primary);
+      i {
+        @apply text-xl;
+      }
 
       &:hover {
-        background-color: var(--accent-color);
-        border-color: var(--accent-color);
-        color: white;
-      }
+        background: var(--d-surface-hover);
+        color: var(--accent-color);
 
-      &.is-playing {
-        background-color: var(--accent-color);
-        border-color: var(--accent-color);
-        color: white;
-      }
-
-      .iconfont {
-        @apply text-base;
-      }
-    }
-
-    .song-item-operating-like {
-      @apply mr-1 ml-0 cursor-pointer;
-
-      .iconfont {
-        @apply text-base transition;
-        color: var(--d-text-secondary);
-
-        &:hover {
-          @apply text-red-500;
-        }
-      }
-      .like-active {
-        @apply text-red-500;
-      }
-    }
-
-    .song-item-operating-menu {
-      @apply cursor-pointer flex items-center justify-center px-2;
-
-      .iconfont {
-        @apply text-xl transition;
-        color: var(--d-text-secondary);
-
-        &:hover {
+        i {
           color: var(--accent-color);
         }
       }
-    }
 
-    .opacity-0 {
-      opacity: 0;
+      &:active {
+        transform: scale(0.96);
+      }
     }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compact-song-item .song-item-operating-menu {
+    transition:
+      color 120ms ease,
+      background-color 120ms ease;
+  }
+
+  .compact-song-item .song-item-operating-menu:active {
+    transform: none;
   }
 }
 

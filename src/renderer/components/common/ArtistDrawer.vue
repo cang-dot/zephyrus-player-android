@@ -99,6 +99,7 @@ import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { usePlayerStore, useSettingsStore } from '@/store';
 import { IArtist } from '@/types/artist';
+import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 
 import PlayBottom from './PlayBottom.vue';
@@ -157,7 +158,8 @@ const loadArtistInfo = async (id: number) => {
     if (info.data?.data?.artist) {
       artistInfo.value = info.data.data.artist;
     }
-    // 重置分页并加载初始数据    resetPagination();
+    // 重置分页并加载初始数据
+    resetPagination();
     await Promise.all([loadSongs(), loadAlbums()]);
   } catch (error) {
     console.error('鍔犺浇姝屾墜淇℃伅澶辫触:', error);
@@ -267,13 +269,15 @@ const formatPublishTime = (time: number) => {
   return useDateFormat(time, 'YYYY-MM-DD').value;
 };
 
-const handlePlay = () => {
-  playerStore.setPlayList(
-    songs.value.map((item) => ({
-      ...item,
-      picUrl: item.al.picUrl
-    }))
-  );
+const handlePlay = (song: SongResult) => {
+  const playlist = songs.value.map((item) => ({
+    ...item,
+    picUrl: item.al?.picUrl || item.picUrl
+  }));
+  const selectedSong = playlist.find((item) => item.id === song.id) || song;
+
+  playerStore.setPlayList(playlist);
+  playerStore.setPlay(selectedSong);
 };
 
 // 暴露方法给父组件

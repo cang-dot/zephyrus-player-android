@@ -9,25 +9,31 @@
       </div>
     </template>
     <template v-else>
-    <div ref="scrollRef" class="user-scroll" @scroll.passive="onScroll">
-      <!-- Sticky morphing hero card -->
+      <div ref="scrollRef" class="user-scroll" @scroll.passive="onScroll">
+        <!-- Sticky morphing hero card -->
         <div v-if="user" class="hero-card" :class="{ compact: isCompact }">
           <div class="hero-bg" />
           <!-- Profile row: avatar + name + signature -->
           <div class="hero-top">
             <div class="avatar-wrap">
               <img
+                v-if="user.avatarUrl"
                 class="avatar-img"
                 :src="getImgUrl(user.avatarUrl, '72y72')"
                 alt=""
               />
+              <div v-else class="avatar-placeholder">
+                <i class="ri-user-3-line" />
+              </div>
               <div v-if="currentLoginType" class="login-badge">
                 {{ t('login.title.' + currentLoginType) }}
               </div>
             </div>
             <div class="profile-info">
               <h1 class="profile-name">{{ user.nickname }}</h1>
-              <p class="profile-signature">{{ userDetail?.profile?.signature || '这个人很懒，什么都没有留下' }}</p>
+              <p class="profile-signature">
+                {{ userDetail?.profile?.signature || '这个人很懒，什么都没有留下' }}
+              </p>
             </div>
           </div>
           <!-- Stats row: collapses on scroll -->
@@ -47,13 +53,14 @@
               <span class="stat-label">{{ t('user.profile.level') }}</span>
             </div>
           </div>
-        <!-- Tab bar: glow tabs, always visible, stays inside the card -->
-        <GlowTabs
-          v-model="currentTab"
-          :tabs="tabs.map(tab => ({ key: tab.key, label: t(tab.label) }))"
-          full-width
-          class="tab-bar-glow"
-        />
+          <account-switcher :collapsed="isCompact" />
+          <!-- Tab bar: glow tabs, always visible, stays inside the card -->
+          <glow-tabs
+            v-model="currentTab"
+            :tabs="tabs.map((tab) => ({ key: tab.key, label: t(tab.label) }))"
+            full-width
+            class="tab-bar-glow"
+          />
         </div>
 
         <!-- Content area -->
@@ -92,43 +99,17 @@
           </div>
 
           <!-- Platform accounts -->
-          <PlatformAccounts v-if="currentTab === 'platforms'" />
+          <platform-accounts v-if="currentTab === 'platforms'" />
 
           <!-- Listen ranking -->
-          <div class="ranking-section">
+          <div v-if="currentTab !== 'platforms'" class="ranking-section">
             <h2 class="section-title">{{ t('user.ranking.title') }}</h2>
             <div class="ranking-list">
-              <div
-                v-for="(item, index) in recordList"
-                :key="item.id"
-                class="ranking-item"
-              >
+              <div v-for="(item, index) in displayRecordList" :key="item.id" class="ranking-item">
                 <span class="ranking-num">{{ index + 1 }}</span>
-                <n-image
-                  :src="getImgUrl(item.picUrl || item.al?.picUrl, '40y40')"
-                  class="ranking-cover"
-                  lazy
-                  preview-disabled
-                />
-                <div class="ranking-info">
-                  <div class="ranking-song-name truncate">{{ item.name }}</div>
-                  <div class="ranking-artist truncate">{{ getArtistNames(item) }}</div>
-                </div>
-                <button
-                  class="ranking-action"
-                  :class="{ fav: isFavorited(item.id) }"
-                  @click.stop="toggleFavorite(item)"
-                >
-                  <i :class="isFavorited(item.id) ? 'ri-heart-3-fill' : 'ri-heart-3-line'" />
-                </button>
-                <button
-                  class="ranking-action"
-                  @click.stop="handlePlayRecord(item)"
-                >
-                  <i class="ri-play-fill" />
-                </button>
+                <song-item class="ranking-song-item" :item="item" mini @play="handlePlayRecord" />
               </div>
-              <div v-if="!recordList || recordList.length === 0" class="ranking-empty">
+              <div v-if="!displayRecordList.length" class="ranking-empty">
                 {{ t('user.ranking.empty') || '暂无听歌记录' }}
               </div>
             </div>
@@ -136,15 +117,11 @@
         </div>
 
         <div class="bottom-spacer" />
-        <PlayBottom />
+        <play-bottom />
       </div>
 
       <!-- Login prompt -->
-      <div
-        v-if="!isLoggedIn"
-        class="login-container"
-        :class="setAnimationClass('animate__fadeIn')"
-      >
+      <div v-if="!isLoggedIn" class="login-container" :class="setAnimationClass('animate__fadeIn')">
         <login-component @login-success="handleLoginSuccess" />
       </div>
     </template>
@@ -159,10 +136,13 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import { getUserAlbumSublist, getUserDetail, getUserPlaylist, getUserRecord } from '@/api/user';
+import GlowTabs from '@/components/common/GlowTabs.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PlayBottom from '@/components/common/PlayBottom.vue';
-import GlowTabs from '@/components/common/GlowTabs.vue';
+import SongItem from '@/components/common/SongItem.vue';
+import AccountSwitcher from '@/components/user/AccountSwitcher.vue';
 import PlatformAccounts from '@/components/user/PlatformAccounts.vue';
+import { type PlatformAccount, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { useUserStore } from '@/store/modules/user';
 import { getImgUrl, isElectron, setAnimationClass } from '@/utils';
@@ -173,6 +153,7 @@ defineOptions({ name: 'User' });
 
 const { t } = useI18n();
 const userStore = useUserStore();
+const accountStore = usePlatformAccountsStore();
 const playerStore = usePlayerStore();
 const router = useRouter();
 const { userDetail, recordList } = storeToRefs(userStore);
@@ -204,21 +185,43 @@ const tabs = [
 ];
 const currentTab = ref('created');
 
-const user = computed(() => userStore.user);
+const { accounts, activeAccountId, activeAccount, activeAccountCache } = storeToRefs(accountStore);
+const activePlatform = computed(() => activeAccount.value?.platform || 'netease');
+const user = computed(() => {
+  if (activeAccount.value) {
+    return {
+      userId: Number(activeAccount.value.userId) || activeAccount.value.userId,
+      nickname: activeAccount.value.nickname,
+      avatarUrl: activeAccount.value.avatarUrl,
+      vipType: activeAccount.value.vip ? 11 : 0
+    };
+  }
+  return userStore.user;
+});
+
+const cachedPlaylists = computed(() => (activeAccountCache.value?.playlists || []) as any[]);
+const cachedFavorites = computed(() => (activeAccountCache.value?.favorites || []) as any[]);
+const cachedAlbums = computed(() => (activeAccountCache.value?.albums || []) as any[]);
+const displayRecordList = computed(() => {
+  if (activePlatform.value === 'netease') return recordList.value;
+  return (activeAccountCache.value?.history || []) as any[];
+});
 
 const createdPlaylists = computed(() => {
   if (!user.value) return [];
+  if (activePlatform.value !== 'netease') return cachedPlaylists.value;
   return userStore.playList.filter((item) => item.creator?.userId === user.value!.userId);
 });
 
 const favoritePlaylists = computed(() => {
   if (!user.value) return [];
+  if (activePlatform.value !== 'netease') return cachedFavorites.value;
   return userStore.playList.filter((item) => item.creator?.userId !== user.value!.userId);
 });
 
 const currentList = computed(() => {
   if (currentTab.value === 'album') {
-    return userStore.albumList;
+    return activePlatform.value === 'netease' ? userStore.albumList : cachedAlbums.value;
   }
   return currentTab.value === 'created' ? createdPlaylists.value : favoritePlaylists.value;
 });
@@ -249,29 +252,27 @@ const goToImportPlaylist = () => {
   router.push('/playlist/import');
 };
 
-const isFavorited = (songId: number) => {
-  return playerStore.favoriteList.some((item: any) => item.id === songId);
-};
-
-const toggleFavorite = async (item: any) => {
-  const songId = parseInt(item.id);
-  if (playerStore.favoriteList.some((s: any) => s.id === songId)) {
-    await playerStore.removeFromFavorite(songId);
-  } else {
-    await playerStore.addToFavorite(songId);
-  }
-};
-
-const getArtistNames = (item: any) => {
-  if (item.ar) return item.ar.map((a: any) => a.name).join(', ');
-  if (item.artists) return item.artists.map((a: any) => a.name).join(', ');
-  return '';
-};
-
 const handlePlayRecord = (item: any) => {
-  const tracks = recordList.value || [];
+  const tracks = displayRecordList.value || [];
   playerStore.setPlayList(tracks);
   playerStore.setPlay(item);
+};
+
+const handleAccountChange = async (account: PlatformAccount) => {
+  userDetail.value = null;
+  recordList.value = [];
+
+  if (account.platform === 'netease') {
+    userStore.setUser({
+      userId: Number(account.userId) || 0,
+      nickname: account.nickname,
+      avatarUrl: account.avatarUrl,
+      vipType: account.vip ? 11 : 0
+    });
+    userStore.setLoginType(account.loginMethod);
+  }
+
+  await loadData();
 };
 
 onBeforeUnmount(() => {
@@ -279,7 +280,7 @@ onBeforeUnmount(() => {
 });
 
 const checkLoginStatus = () => {
-  if (userStore.user && userStore.loginType) {
+  if (accounts.value.length > 0 || (userStore.user && userStore.loginType)) {
     return true;
   }
   const loginInfo = checkAuthStatus();
@@ -304,9 +305,17 @@ const loadData = async () => {
       console.warn('用户数据不存在，尝试重新获取');
       return;
     }
-    const promises = [getUserDetail(user.value.userId), getUserRecord(user.value.userId)];
+
+    if (activePlatform.value !== 'netease') {
+      userDetail.value = null;
+      recordList.value = displayRecordList.value;
+      return;
+    }
+
+    const neteaseUserId = Number(user.value.userId);
+    const promises = [getUserDetail(neteaseUserId), getUserRecord(neteaseUserId)];
     if (userStore.playList.length === 0) {
-      promises.push(getUserPlaylist(user.value.userId));
+      promises.push(getUserPlaylist(neteaseUserId));
     }
     const results = await Promise.all(promises);
     if (!mounted.value) return;
@@ -354,6 +363,15 @@ const loadAlbumList = async () => {
 };
 
 watch(
+  () => activeAccountId.value,
+  (accountId, previousAccountId) => {
+    if (!accountId || accountId === previousAccountId) return;
+    const account = activeAccount.value;
+    if (account) handleAccountChange(account);
+  }
+);
+
+watch(
   () => router.currentRoute.value.path,
   (newPath) => {
     if (newPath === '/user') {
@@ -375,7 +393,7 @@ watch(
 );
 
 watch(currentTab, async (newTab) => {
-  if (newTab === 'album') {
+  if (newTab === 'album' && activePlatform.value === 'netease') {
     await userStore.initializeCollectedAlbums();
     if (userStore.albumList.length === 0) {
       loadAlbumList();
@@ -420,8 +438,8 @@ const handleLoginSuccess = () => {
   loadData();
 };
 
-const isLoggedIn = computed(() => userStore.user);
-const currentLoginType = computed(() => userStore.loginType);
+const isLoggedIn = computed(() => accounts.value.length > 0 || userStore.user);
+const currentLoginType = computed(() => activeAccount.value?.loginMethod || userStore.loginType);
 </script>
 
 <style lang="scss" scoped>
@@ -434,23 +452,35 @@ const currentLoginType = computed(() => userStore.loginType);
 }
 
 .user-scroll {
-width: 100%;
-height: 100%;
-overflow-y: auto;
-overflow-x: hidden;
--webkit-overflow-scrolling: touch;
-scrollbar-width: none;
-/* 为固定悬浮卡片留出空间 */
-padding-top: calc(var(--safe-area-inset-top, 0px) + 280px);
-&::-webkit-scrollbar { display: none; }
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* 为固定悬浮卡片留出空间 */
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 336px);
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Skeleton */
-.skeleton-wrap { padding: 16px; }
-.skeleton-card { border-radius: 20px; margin-bottom: 16px; }
+.skeleton-wrap {
+  padding: 16px;
+}
+.skeleton-card {
+  border-radius: 20px;
+  margin-bottom: 16px;
+}
 .skeleton-grid {
-  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
-  .skeleton-item { height: 200px; border-radius: 16px; }
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  .skeleton-item {
+    height: 200px;
+    border-radius: 16px;
+  }
 }
 
 /* Safe area spacer */
@@ -465,16 +495,17 @@ padding-top: calc(var(--safe-area-inset-top, 0px) + 280px);
    No new elements created.
    ======================================== */
 .hero-card {
-position: fixed;
-top: calc(var(--safe-area-inset-top, 0px) + 52px);
-left: 16px;
-right: 16px;
-z-index: 50;
-border-radius: 22px;
-overflow: hidden;
-transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-            box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-            top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: fixed;
+  top: calc(var(--safe-area-inset-top, 0px) + 52px);
+  left: 16px;
+  right: 16px;
+  z-index: 50;
+  border-radius: 22px;
+  overflow: hidden;
+  transition:
+    border-radius 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    top 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   &.compact {
     border-radius: 18px;
@@ -490,7 +521,7 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   opacity: 1;
-  transition: opacity 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   .hero-card.compact & {
     opacity: 1;
@@ -504,8 +535,9 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
   align-items: center;
   gap: 16px;
   padding: 20px 20px 12px;
-  transition: padding 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-              gap 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    padding 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    gap 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   .hero-card.compact & {
     padding: 10px 16px 8px;
@@ -523,12 +555,34 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
   height: 64px;
   border-radius: 50%;
   object-fit: cover;
-  transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-              height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    width 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    height 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   .hero-card.compact & {
     width: 36px;
     height: 36px;
+  }
+}
+
+.avatar-placeholder {
+  display: flex;
+  width: 64px;
+  height: 64px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--cover-surface-alt, var(--d-surface-alt));
+  color: var(--accent-color);
+  font-size: 24px;
+  transition:
+    width 220ms cubic-bezier(0.23, 1, 0.32, 1),
+    height 220ms cubic-bezier(0.23, 1, 0.32, 1);
+
+  .hero-card.compact & {
+    width: 36px;
+    height: 36px;
+    font-size: 17px;
   }
 }
 
@@ -545,8 +599,9 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
   background: var(--accent-color, #888);
   color: #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  transition: opacity 0.2s ease,
-              transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    opacity 160ms ease,
+    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   .hero-card.compact & {
     opacity: 0;
@@ -562,13 +617,13 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
 .profile-name {
   font-size: 24px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--cover-text-primary, var(--m-text-primary, var(--text-color, #2c2c2c)));
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: font-size 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: font-size 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   .hero-card.compact & {
     font-size: 17px;
@@ -585,9 +640,10 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
   white-space: nowrap;
   opacity: 1;
   max-height: 20px;
-  transition: opacity 0.25s ease,
-              max-height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-              margin-top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    opacity 160ms ease,
+    max-height 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    margin-top 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   .hero-card.compact & {
     opacity: 0;
@@ -607,11 +663,12 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
   opacity: 1;
   max-height: 80px;
   overflow: hidden;
-  transition: opacity 0.25s ease,
-              max-height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-              padding-top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-              padding-bottom 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-              border-color 0.3s ease;
+  transition:
+    opacity 160ms ease,
+    max-height 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    padding-top 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    padding-bottom 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color 180ms ease;
 
   .hero-card.compact & {
     opacity: 0;
@@ -625,7 +682,9 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
 .stat-item {
   flex: 1;
   text-align: center;
-  &.clickable { cursor: pointer; }
+  &.clickable {
+    cursor: pointer;
+  }
 }
 
 .stat-value {
@@ -651,7 +710,7 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
 /* Tab bar — glow tabs, stays inside the card */
 .tab-bar-glow {
   margin: 4px 4px 8px;
-  transition: margin 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: margin 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   .hero-card.compact & {
     margin: 0 16px 6px;
@@ -680,8 +739,10 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
   background: transparent;
   cursor: pointer;
   padding: 0;
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-  &:active { transform: scale(0.96); }
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  &:active {
+    transform: scale(0.96);
+  }
 }
 
 .import-icon-wrap {
@@ -694,7 +755,7 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
   background: var(--cover-surface-alt, rgba(128, 128, 128, 0.08));
   font-size: 32px;
   color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
-  transition: background 0.2s ease;
+  transition: background 160ms ease;
 }
 
 .import-card:hover .import-icon-wrap {
@@ -714,8 +775,10 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
 
 .playlist-card {
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-  &:active { transform: scale(0.96); }
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  &:active {
+    transform: scale(0.96);
+  }
 }
 
 .playlist-cover-wrap {
@@ -730,7 +793,11 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
   width: 100%;
   height: 100%;
   object-fit: cover;
-  :deep(img) { width: 100%; height: 100%; object-fit: cover; }
+  :deep(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 }
 
 .playlist-info {
@@ -763,7 +830,7 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
 .section-title {
   font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--cover-text-primary, var(--m-text-primary, var(--text-color, #2c2c2c)));
   margin: 0 0 12px;
 }
@@ -779,12 +846,17 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
   gap: 12px;
   padding: 8px;
   border-radius: 14px;
-  cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 160ms ease;
 
   &:hover {
     background: var(--cover-surface-hover, rgba(128, 128, 128, 0.06));
   }
+}
+
+.ranking-song-item {
+  min-width: 0;
+  flex: 1;
+  padding: 4px;
 }
 
 .ranking-num {
@@ -794,56 +866,6 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
   font-weight: 700;
   color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
   flex-shrink: 0;
-}
-
-.ranking-cover {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  overflow: hidden;
-  flex-shrink: 0;
-  :deep(img) { width: 100%; height: 100%; object-fit: cover; }
-}
-
-.ranking-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.ranking-song-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--cover-text-primary, var(--m-text-primary, var(--text-color, #2c2c2c)));
-}
-
-.ranking-artist {
-  font-size: 12px;
-  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
-  margin-top: 2px;
-}
-
-.ranking-action {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: transparent;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
-  cursor: pointer;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-
-  &.fav {
-    color: #ef4444;
-  }
-
-  &:active {
-    transform: scale(0.88);
-  }
 }
 
 .ranking-empty {
@@ -881,8 +903,12 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -892,7 +918,8 @@ transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
   .profile-name,
   .profile-signature,
   .stats-row,
-  .tab-bar-glow {
+  .tab-bar-glow,
+  .avatar-placeholder {
     transition: none;
   }
 }

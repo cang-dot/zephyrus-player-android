@@ -58,7 +58,9 @@ interface API {
     install: (_item: PluginStoreItem) => Promise<InstalledPlugin>;
     uninstall: (_pluginId: string) => Promise<boolean>;
     toggleEnabled: (_pluginId: string, _enabled: boolean) => Promise<boolean>;
-    importFile: (_type: string) => Promise<{ name: string; content: string; filePath: string } | null>;
+    importFile: (
+      _type: string
+    ) => Promise<{ name: string; content: string; filePath: string } | null>;
     refreshRegistry: () => Promise<PluginStoreItem[]>;
     testMirrors: () => Promise<
       { name: string; url: string; ok: boolean; latencyMs: number; speed: number; error?: string }[]
@@ -89,11 +91,36 @@ interface API {
       error?: string;
     }[]
   >;
-  getPlatformCookie: (platform: string) => Promise<{ cookie: string; expiresAt: number; updatedAt: number } | null>;
+  getPlatformCookie: (
+    platform: string
+  ) => Promise<{ cookie: string; expiresAt: number; updatedAt: number } | null>;
   setPlatformCookie: (platform: string, cookie: string) => Promise<boolean>;
   getPlatformLoginStatus: () => Promise<Record<string, boolean>>;
   openPlatformLogin: (platform: string) => Promise<boolean>;
   onPlatformLoginCookie: (callback: (platform: string, cookie: string) => void) => void;
+
+  /** 平台扫码登录 */
+  platformQrCreate: (platform: string) => Promise<{
+    platform: string;
+    qrUrl: string;
+    key: string;
+    expiredAt: number;
+    error?: string;
+  }>;
+  platformQrPoll: (
+    platform: string,
+    key: string
+  ) => Promise<{
+    platform: string;
+    code: 'waiting' | 'scanned' | 'success' | 'expired' | 'error';
+    message: string;
+    cookie?: string;
+    userInfo?: {
+      nickname?: string;
+      avatarUrl?: string;
+      userId?: string;
+    };
+  }>;
 }
 
 // 自定义IPC渲染进程通信接口

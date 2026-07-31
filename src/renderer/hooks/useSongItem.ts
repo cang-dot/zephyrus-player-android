@@ -1,5 +1,5 @@
 import { useMessage } from 'naive-ui';
-import { computed, ref } from 'vue';
+import { computed, onScopeDispose, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { usePlayerStore, useRecommendStore } from '@/store';
@@ -25,7 +25,21 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
   const showDropdown = ref(false);
   const dropdownX = ref(0);
   const dropdownY = ref(0);
-  const isHovering = ref(false);
+  const isActive = ref(false);
+  let activateTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  const activate = () => {
+    isActive.value = true;
+    if (activateTimeout) clearTimeout(activateTimeout);
+    activateTimeout = setTimeout(() => {
+      isActive.value = false;
+      activateTimeout = null;
+    }, 3000);
+  };
+
+  onScopeDispose(() => {
+    if (activateTimeout) clearTimeout(activateTimeout);
+  });
 
   // 计算属性
   const play = computed(() => playerStore.isPlay);
@@ -77,8 +91,8 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
   };
 
   // 切换收藏状态
-  const toggleFavorite = async (e: Event) => {
-    e && e.stopPropagation();
+  const toggleFavorite = async (e?: Event) => {
+    e?.stopPropagation();
     const numericId =
       typeof props.item.id === 'string' ? parseInt(props.item.id, 10) : props.item.id;
 
@@ -165,6 +179,7 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
   // 处理右键菜单
   const handleContextMenu = (e: MouseEvent) => {
     e.preventDefault();
+    activate();
     showDropdown.value = true;
     dropdownX.value = e.clientX;
     dropdownY.value = e.clientY;
@@ -173,6 +188,7 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
   // 处理菜单点击
   const handleMenuClick = (e: MouseEvent) => {
     e.preventDefault();
+    activate();
     showDropdown.value = true;
     dropdownX.value = e.clientX;
     dropdownY.value = e.clientY;
@@ -188,15 +204,6 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
     navigate(`/music-list/${id}?type=album`);
   };
 
-  // 鼠标悬停处理
-  const handleMouseEnter = () => {
-    isHovering.value = true;
-  };
-
-  const handleMouseLeave = () => {
-    isHovering.value = false;
-  };
-
   return {
     t,
     play,
@@ -209,7 +216,7 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
     showDropdown,
     dropdownX,
     dropdownY,
-    isHovering,
+    isActive,
     playerStore,
     message,
     getImgUrl,
@@ -224,8 +231,7 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
     handleMenuClick,
     handleArtistClick,
     handleAlbumClick,
-    handleMouseEnter,
-    handleMouseLeave,
+    activate,
     downloadMusic,
     downloadLyric
   };

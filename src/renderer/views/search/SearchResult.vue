@@ -15,9 +15,9 @@
             </div>
 
             <!-- Search Type Tabs -->
-            <GlowTabs
+            <glow-tabs
               :model-value="String(searchType)"
-              :tabs="searchTypeOptions.map(t => ({ key: String(t.key), label: t.label }))"
+              :tabs="searchTypeOptions.map((t) => ({ key: String(t.key), label: t.label }))"
               scrollable
               class="search-types-glow"
               @update:model-value="(v) => handleTypeChange(Number(v))"
@@ -28,12 +28,17 @@
               v-if="searchType === SEARCH_TYPE.MUSIC && searchDetail?.songs?.length"
               class="source-filter-wrap"
             >
-              <GlowTabs
+              <glow-tabs
                 :model-value="String(activeSourceFilter)"
-                :tabs="sourceFilterOptions.map(opt => ({ key: String(opt.key), label: `${opt.label} ${opt.count}` }))"
+                :tabs="
+                  sourceFilterOptions.map((opt) => ({
+                    key: String(opt.key),
+                    label: `${opt.label} ${opt.count}`
+                  }))
+                "
                 scrollable
                 class="source-filter-glow"
-                @update:model-value="(v) => activeSourceFilter = v as any"
+                @update:model-value="(v) => (activeSourceFilter = v as any)"
               />
               <!-- 探测进度 -->
               <span
@@ -141,7 +146,7 @@
                   <!-- 来源标签 -->
                   <span
                     v-if="getSourceLabel(item.id)"
-                    class="absolute right-2 top-2 z-10 px-1.5 py-0.5 rounded text-[10px] font-medium pointer-events-none"
+                    class="absolute right-12 top-2 z-10 px-1.5 py-0.5 rounded text-[10px] font-medium pointer-events-none"
                     :style="getSourceBadgeStyle(item.id)"
                   >
                     {{ getSourceLabel(item.id) }}
@@ -654,7 +659,11 @@ const triggerCrossPlatformSearch = async (keyword: string, neteaseSongs: any[]) 
 };
 
 const handlePlay = (item: any) => {
-  playerStore.addToNextPlay(item);
+  const songs = (searchDetail.value?.songs || []).map(formatSong);
+  const selectedSong = songs.find((song) => song.id === item.id) || item;
+
+  playerStore.setPlayList(songs.length ? songs : [item]);
+  playerStore.setPlay(selectedSong);
 };
 
 const handlePlayAll = () => {

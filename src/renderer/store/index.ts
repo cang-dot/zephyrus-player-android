@@ -22,6 +22,7 @@ export * from './modules/lyric';
 export * from './modules/menu';
 export * from './modules/music';
 export * from './modules/navTitle';
+export * from './modules/platformAccounts';
 export * from './modules/player';
 export * from './modules/playerCore';
 export * from './modules/playHistory';

@@ -1,4 +1,11 @@
 export default {
+  platform: {
+    netease: '網易雲',
+    qq: 'QQ音樂',
+    kugou: '酷狗',
+    kuwo: '酷我',
+    migu: '咪咕'
+  },
   title: {
     qr: '掃碼登入',
     phone: '手機號登入',

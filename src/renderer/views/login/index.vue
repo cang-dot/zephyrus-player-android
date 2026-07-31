@@ -1,321 +1,339 @@
 <template>
   <div class="login-page">
-    <div class="login-fullscreen" :class="setAnimationClass('animate__fadeIn')">
-      <!-- Logo + 标语 -->
-      <div class="login-header">
+    <div class="login-shell">
+      <header class="login-header">
         <h1 class="login-logo">Zephyrus</h1>
         <p class="login-tagline">{{ t('comp.homeHero.discoverMusic') }}</p>
-      </div>
+      </header>
 
-      <!-- 白色圆角卡片 -->
-      <div class="login-card">
-        <!-- Tab导航 — 分段滑块 -->
-        <SegmentSlider
-          :model-value="activeMode"
-          :tabs="loginTabs"
-          class="login-tabs-segment"
-          :class="setAnimationClass('animate__fadeInUp')"
-          @update:model-value="switchToMode($event as LoginMode)"
+      <section class="login-card">
+        <div class="platform-context">
+          <span class="platform-context-logo">
+            <platform-logo :platform="activePlatform" :size="28" />
+          </span>
+          <div>
+            <strong>{{ t(`login.platform.${activePlatform}`) }}</strong>
+            <small>{{ t(`login.title.${activeMethod}`) }}</small>
+          </div>
+        </div>
+
+        <glow-tabs
+          :model-value="activePlatform"
+          :tabs="platformTabs"
+          scrollable
+          class="login-platform-tabs"
+          @update:model-value="switchPlatform($event as Platform)"
         />
 
-        <!-- 登录内容区域 -->
+        <segment-slider
+          :model-value="activeMethod"
+          :tabs="methodTabs"
+          class="login-method-slider"
+          @update:model-value="switchMethod($event as LoginMethod)"
+        />
+
         <div class="login-content">
-          <transition
-            name="login-content"
-            mode="out-in"
-            enter-active-class="animate__animated animate__fadeIn"
-            leave-active-class="animate__animated animate__fadeOut"
-          >
-            <div v-if="activeMode === LoginMode.QR && !isTransitioning" key="qr" class="login-form">
-              <qr-login @login-success="handleLoginSuccess" @login-error="handleLoginError" />
+          <Transition name="login-content" mode="out-in">
+            <div :key="`${activePlatform}-${activeMethod}`" class="login-form">
+              <qr-login
+                v-if="activePlatform === 'netease' && activeMethod === 'qr'"
+                @login-success="handleNeteaseLoginSuccess"
+                @login-error="handleLoginError"
+              />
+
+              <uid-login
+                v-else-if="activePlatform === 'netease' && activeMethod === 'uid'"
+                @login-success="handleNeteaseLoginSuccess"
+                @login-error="handleLoginError"
+              />
+
+              <platform-qr-login
+                v-else-if="qrPlatform && activeMethod === 'qr'"
+                :platform="qrPlatform"
+                :platform-name="t(`login.platform.${activePlatform}`)"
+                @login-success="handlePlatformLoginSuccess"
+                @login-error="handleLoginError"
+              />
+
+              <platform-cookie-login
+                v-else
+                :platform="activePlatform"
+                :platform-name="t(`login.platform.${activePlatform}`)"
+                @login-success="handleCookieLoginSuccess"
+                @login-error="handleLoginError"
+              />
             </div>
-            <div
-              v-else-if="activeMode === LoginMode.PHONE && !isTransitioning"
-              key="phone"
-              class="login-form"
-            >
-              <div class="login-title">{{ t('login.title.phone') }}</div>
-              <div class="phone-page">
-                <input
-                  v-model="phone"
-                  class="phone-input"
-                  type="text"
-                  :placeholder="t('login.placeholder.phone')"
-                />
-                <input
-                  v-model="password"
-                  class="phone-input"
-                  type="password"
-                  :placeholder="t('login.placeholder.password')"
-                />
-              </div>
-              <div class="text">{{ t('login.phoneTip') }}</div>
-              <n-button class="btn-login" @click="loginPhone()">{{
-                t('login.button.login')
-              }}</n-button>
-            </div>
-            <div
-              v-else-if="activeMode === LoginMode.UID && !isTransitioning"
-              key="uid"
-              class="login-form"
-            >
-              <uid-login @login-success="handleLoginSuccess" @login-error="handleLoginError" />
-            </div>
-            <div
-              v-else-if="activeMode === LoginMode.COOKIE && !isTransitioning"
-              key="token"
-              class="login-form"
-            >
-              <cookie-login @login-success="handleLoginSuccess" @login-error="handleLoginError" />
-            </div>
-          </transition>
+          </Transition>
         </div>
-      </div>
+      </section>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { useMessage } from 'naive-ui';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
-import { loginByCellphone } from '@/api/login';
+import GlowTabs from '@/components/common/GlowTabs.vue';
+import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import SegmentSlider from '@/components/common/SegmentSlider.vue';
-import CookieLogin from '@/components/login/CookieLogin.vue';
+import PlatformCookieLogin from '@/components/login/PlatformCookieLogin.vue';
+import PlatformQrLogin from '@/components/login/PlatformQrLogin.vue';
 import QrLogin from '@/components/login/QrLogin.vue';
 import UidLogin from '@/components/login/UidLogin.vue';
+import {
+  MUSIC_PLATFORMS,
+  type MusicPlatform,
+  type PlatformLoginMethod,
+  usePlatformAccountsStore
+} from '@/store/modules/platformAccounts';
 import { useUserStore } from '@/store/modules/user';
-import { setAnimationClass } from '@/utils';
 
-defineOptions({
-  name: 'Login'
-});
+defineOptions({ name: 'Login' });
 
-// 登录模式枚举
-enum LoginMode {
-  QR = 'qr',
-  PHONE = 'phone',
-  UID = 'uid',
-  COOKIE = 'cookie'
-}
+type Platform = MusicPlatform;
+type LoginMethod = PlatformLoginMethod;
 
 const { t } = useI18n();
-const message = useMessage();
+const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
+const accountStore = usePlatformAccountsStore();
 
-// 当前激活的登录模式
-const activeMode = ref<LoginMode>(LoginMode.QR);
-// 用于控制内容切换动画
-const isTransitioning = ref(false);
+const routePlatform = computed(() => {
+  const platform = String(route.query.platform || '');
+  return MUSIC_PLATFORMS.includes(platform as Platform) ? (platform as Platform) : 'netease';
+});
 
-// 登录选项配置
-const loginTabs = computed(() => [
-  { key: LoginMode.QR, label: t('login.title.qr') },
-  { key: LoginMode.COOKIE, label: t('login.title.cookie') },
-  { key: LoginMode.UID, label: t('login.title.uid') }
-]);
+const activePlatform = ref<Platform>(routePlatform.value);
+const activeMethod = ref<LoginMethod>('qr');
 
-// 手机号登录
-const phone = ref('');
-const password = ref('');
-const loginPhone = async () => {
-  try {
-    if (!phone.value.trim()) {
-      message.error(t('login.message.phoneRequired'));
-      return;
-    }
-    if (!password.value.trim()) {
-      message.error(t('login.message.passwordRequired'));
-      return;
-    }
+const platformTabs = computed(() =>
+  MUSIC_PLATFORMS.map((platform) => ({
+    key: platform,
+    label: t(`login.platform.${platform}`)
+  }))
+);
 
-    const { data } = await loginByCellphone(phone.value, password.value);
-    if (data.code === 200) {
-      message.success(t('login.message.loginSuccess'));
-      userStore.setUser(data.profile);
-      localStorage.setItem('token', data.cookie);
-      setTimeout(() => {
-        router.push('/user');
-      }, 1000);
-    } else {
-      message.error(t('login.message.phoneLoginFailed'));
-    }
-  } catch (error) {
-    message.error(t('login.message.phoneLoginFailed'));
-    console.error(t('login.message.loginFailed') + ':', error);
+const availableMethods = computed<LoginMethod[]>(() => {
+  if (activePlatform.value === 'netease') return ['qr', 'cookie', 'uid'];
+  if (activePlatform.value === 'qq' || activePlatform.value === 'kugou') {
+    return ['qr', 'cookie'];
+  }
+  return ['cookie'];
+});
+
+const methodTabs = computed(() =>
+  availableMethods.value.map((method) => ({
+    key: method,
+    label: t(`login.title.${method}`)
+  }))
+);
+
+const qrPlatform = computed<'qq' | 'kugou' | null>(() =>
+  activePlatform.value === 'qq' || activePlatform.value === 'kugou' ? activePlatform.value : null
+);
+
+const switchPlatform = (platform: Platform) => {
+  if (!MUSIC_PLATFORMS.includes(platform)) return;
+  activePlatform.value = platform;
+  activeMethod.value =
+    platform === 'netease' || platform === 'qq' || platform === 'kugou' ? 'qr' : 'cookie';
+};
+
+const switchMethod = (method: LoginMethod) => {
+  if (availableMethods.value.includes(method)) {
+    activeMethod.value = method;
   }
 };
 
-// 切换登录模式（带动画效果）
-const switchToMode = (mode: LoginMode) => {
-  if (mode === activeMode.value) return;
+watch(routePlatform, (platform) => switchPlatform(platform));
 
-  isTransitioning.value = true;
-  setTimeout(() => {
-    activeMode.value = mode;
-    setTimeout(() => {
-      isTransitioning.value = false;
-    }, 50);
-  }, 150);
+const finishLogin = () => {
+  window.setTimeout(() => router.push('/user'), 260);
 };
 
-// 通用登录成功处理
-const handleLoginSuccess = (userProfile: any, loginType: string) => {
-  // 更新 userStore（这会同时更新 store 状态和 localStorage 中的用户数据）
+const saveAccount = (
+  platform: Platform,
+  userInfo: Record<string, any>,
+  cookie: string,
+  loginMethod: LoginMethod
+) => {
+  return accountStore.addOrUpdateAccount({
+    platform,
+    userId: userInfo.userId || userInfo.uid || userInfo.id || '',
+    nickname: userInfo.nickname || userInfo.nickName || '',
+    avatarUrl: userInfo.avatarUrl || userInfo.avatar || userInfo.headIcon || '',
+    vip: Boolean(userInfo.vipType || userInfo.isVip || userInfo.vip),
+    vipLabel: userInfo.vipLabel || userInfo.vipName,
+    cookie,
+    loginMethod
+  });
+};
+
+const handleNeteaseLoginSuccess = (userProfile: any, loginType: string) => {
+  const normalizedLoginType: LoginMethod = loginType === 'uid' ? 'uid' : 'qr';
+  const cookie = normalizedLoginType === 'uid' ? '' : localStorage.getItem('token') || '';
+
   userStore.setUser(userProfile);
-
-  // 设置登录类型到 userStore 和 localStorage
   userStore.setLoginType(loginType as any);
-
-  // 设置其他相关状态
-  const token = loginType !== 'uid' ? localStorage.getItem('token') : undefined;
-
-  if (token) {
-    localStorage.setItem('token', token);
-  }
-
-  if (loginType === 'uid') {
+  if (normalizedLoginType === 'uid') {
     localStorage.setItem('uidLogin', 'true');
   }
-
-  setTimeout(() => {
-    router.push('/user');
-  }, 1000);
+  saveAccount('netease', userProfile, cookie, normalizedLoginType);
+  finishLogin();
 };
 
-// 通用登录错误处理
+const handleCookieLoginSuccess = (userInfo: any, cookie: string) => {
+  if (activePlatform.value === 'netease') {
+    userStore.setUser(userInfo);
+    userStore.setLoginType('cookie');
+  }
+  saveAccount(activePlatform.value, userInfo || {}, cookie, 'cookie');
+  finishLogin();
+};
+
+const handlePlatformLoginSuccess = (userInfo: any, cookie: string) => {
+  saveAccount(activePlatform.value, userInfo || {}, cookie, 'qr');
+  finishLogin();
+};
+
 const handleLoginError = (error: string) => {
-  console.error(t('login.message.loginFailed') + ':', error);
+  console.error(`${t('login.message.loginFailed')}:`, error);
 };
 </script>
 
 <style lang="scss" scoped>
 .login-page {
-  @apply flex flex-col items-center justify-center h-full w-full;
-  background: #0a0a0a;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--cover-bg, var(--m-bg, var(--bg-color)));
+  color: var(--cover-text-primary, var(--d-text-primary));
 }
 
-.login-fullscreen {
-  @apply flex flex-col items-center justify-center w-full h-full px-6;
-  background: linear-gradient(160deg, #1a1a2e 0%, #0a0a0a 50%, #16213e 100%);
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 60px);
-  padding-bottom: calc(var(--safe-area-inset-bottom, 0px) + 40px);
-  animation-duration: 0.8s;
+.login-shell {
+  display: flex;
+  width: min(100%, 460px);
+  min-height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  margin: 0 auto;
+  padding: calc(var(--safe-area-inset-top, 0px) + 72px) 18px
+    calc(var(--safe-area-inset-bottom, 0px) + 32px);
 }
 
 .login-header {
-  @apply flex flex-col items-center mb-8;
-  animation-duration: 0.6s;
-  animation-delay: 0.1s;
+  margin-bottom: 20px;
+  text-align: center;
 }
 
 .login-logo {
+  margin: 0;
+  color: var(--cover-text-primary, var(--d-text-primary));
   font-family: var(--m-font-serif, 'Cormorant Garamond', serif);
-  font-size: 42px;
+  font-size: 40px;
   font-weight: 700;
-  letter-spacing: 0.05em;
-  color: #fff;
-  text-shadow: 0 2px 20px rgba(255, 255, 255, 0.15);
+  letter-spacing: 0;
 }
 
 .login-tagline {
-  @apply mt-2 text-sm;
-  color: rgba(255, 255, 255, 0.5);
-  letter-spacing: 0.1em;
+  margin: 4px 0 0;
+  color: var(--cover-text-muted, var(--d-text-muted));
+  font-size: 13px;
+  letter-spacing: 0;
 }
 
 .login-card {
-  @apply w-full max-w-sm rounded-3xl p-6;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-  animation-duration: 0.6s;
-  animation-delay: 0.2s;
+  width: 100%;
+  padding: 18px;
+  border: 1px solid var(--cover-border, var(--d-border-light));
+  border-radius: var(--d-radius-2xl);
+  background: var(--cover-surface, var(--d-surface));
+  box-shadow: 0 18px 56px var(--cover-shadow, rgba(0, 0, 0, 0.14));
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
 }
 
-.login-title {
-  @apply text-2xl font-bold mb-6;
-  color: #1a1a1a;
+.platform-context {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+
+  > div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+  }
+
+  strong {
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  small {
+    margin-top: 1px;
+    color: var(--cover-text-muted, var(--d-text-muted));
+    font-size: 11px;
+  }
 }
 
-.text {
-  @apply mt-4 text-xs;
-  color: #666;
+.platform-context-logo {
+  display: flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.1);
+  color: var(--accent-color);
 }
 
-.login-tabs-segment {
-  margin-bottom: 24px;
+.login-platform-tabs {
+  display: flex;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.login-method-slider {
+  margin-bottom: 20px;
 }
 
 .login-content {
-  @apply flex items-center justify-center;
-  min-height: 280px;
+  display: flex;
+  min-height: 282px;
+  align-items: center;
+  justify-content: center;
 }
 
 .login-form {
-  animation-duration: 0.5s;
   width: 100%;
-  max-width: 300px;
+  max-width: 320px;
 }
 
-.phone-page {
-  @apply rounded-2xl overflow-hidden;
-  background: #f5f5f5;
-  width: 100%;
-  margin: 0 auto;
-}
-
-.phone-input {
-  height: 44px;
-  @apply w-full px-4 outline-none;
-  color: #1a1a1a;
-  background: transparent;
-  border-bottom: 1px solid #e0e0e0;
-  transition: border-color 0.3s ease;
-
-  &:focus {
-    border-color: var(--accent-color);
-  }
-
-  &::placeholder {
-    color: #999;
-  }
-}
-
-.btn-login {
-  width: 100%;
-  height: 44px;
-  @apply mt-8 rounded-xl;
-  color: #fff;
-  background: var(--accent-color);
-  transition:
-    transform 0.2s ease,
-    brightness 0.2s ease;
-
-  &:active {
-    transform: scale(0.97);
-  }
-
-  &:hover {
-    brightness: 0.9;
-  }
-}
-
-/* 登录内容切换动画 */
 .login-content-enter-active,
 .login-content-leave-active {
-  animation-duration: 0.3s;
+  transition:
+    opacity 170ms ease,
+    transform 210ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .login-content-enter-from {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(8px);
 }
 
 .login-content-leave-to {
   opacity: 0;
-  transform: translateY(-20px);
+  transform: translateY(-6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-content-enter-active,
+  .login-content-leave-active {
+    transition-duration: 0ms;
+  }
 }
 </style>

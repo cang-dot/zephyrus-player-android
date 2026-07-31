@@ -56,7 +56,7 @@
             </template>
           </n-ellipsis>
         </div>
-        <div v-if="item.al?.name" class="song-item-content-album" @click.stop="onAlbumClick">
+        <div v-if="item.al?.name" class="song-item-content-album">
           <n-ellipsis class="text-ellipsis" line-clamp="1">{{ item.al.name }}</n-ellipsis>
         </div>
       </div>
@@ -65,49 +65,24 @@
     <!-- 鎿嶄綔鎻掓Ы -->
     <template #operating>
       <div class="song-item-operating">
-        <div v-if="favorite" class="song-item-operating-like">
-          <i
-            class="iconfont icon-likefill"
-            :class="{ 'like-active': isFavorite }"
-            @click.stop="onToggleFavorite"
-          ></i>
-        </div>
-        <n-tooltip v-if="isNext" trigger="hover" :z-index="9999999" :delay="400">
-          <template #trigger>
-            <div class="song-item-operating-next" @click.stop="onPlayNext">
-              <i class="iconfont ri-skip-forward-fill"></i>
-            </div>
-          </template>
-          {{ t('songItem.menu.playNext') }}
-        </n-tooltip>
-        <div
-          class="song-item-operating-play animate__animated"
-          :class="{ 'is-playing': isPlaying, animate__flipInY: playLoading }"
-          @click="onPlayMusic"
-        >
-          <i v-if="isPlaying && play" class="iconfont icon-stop"></i>
-          <i v-else class="iconfont icon-playfill"></i>
-        </div>
+        <button class="song-item-operating-menu" type="button" @click.stop="onMenuClick">
+          <i class="ri-more-2-fill"></i>
+        </button>
       </div>
     </template>
   </base-song-item>
 </template>
 
 <script lang="ts" setup>
-import { NCheckbox, NEllipsis, NImage, NTooltip } from 'naive-ui';
+import { NCheckbox, NEllipsis, NImage } from 'naive-ui';
 import { computed, ref } from 'vue';
-import { useI18n } from 'vue-i18n';
 
-import { usePlayerStore } from '@/store';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 
 import BaseSongItem from './BaseSongItem.vue';
 
-const { t } = useI18n();
-const playerStore = usePlayerStore();
-
-const props = withDefaults(
+withDefaults(
   defineProps<{
     item: SongResult;
     favorite?: boolean;
@@ -127,14 +102,11 @@ const props = withDefaults(
   }
 );
 
-const emit = defineEmits(['play', 'select', 'remove-song']);
+defineEmits(['play', 'select', 'remove-song']);
 const baseItem = ref<InstanceType<typeof BaseSongItem>>();
 
 // 从playerStore和baseItem鑾峰彇鍝嶅簲寮忕姸鎬
-const play = computed(() => playerStore.isPlay);
 const isPlaying = computed(() => baseItem.value?.isPlaying || false);
-const playLoading = computed(() => baseItem.value?.playLoading || false);
-const isFavorite = computed(() => baseItem.value?.isFavorite || false);
 const artists = computed(() => baseItem.value?.artists || []);
 
 // 鍖呰鏂规硶锛岄伩鍏嶇洿鎺ヨ闂彲鑳戒负undefined的ref
@@ -143,29 +115,11 @@ const onToggleSelect = () => {
 };
 const onImageLoad = (event: Event) => baseItem.value?.imageLoad(event);
 const onArtistClick = (id: number) => baseItem.value?.handleArtistClick(id);
-const onAlbumClick = () => {
-  if (props.item.al?.id) {
-    baseItem.value?.handleAlbumClick(props.item.al.id);
-  }
-};
-const onToggleFavorite = (event: Event) => {
-  baseItem.value?.toggleFavorite(event);
-};
-const onPlayMusic = () => {
-  baseItem.value?.playMusicEvent(props.item);
-  emit('play', props.item);
-};
-const onPlayNext = () => {
-  baseItem.value?.handlePlayNext();
-};
+const onMenuClick = (event: MouseEvent) => baseItem.value?.openItemMenu(event);
 </script>
 
 <style lang="scss" scoped>
 .standard-song-item {
-  &:hover {
-    background: var(--d-surface-hover);
-  }
-
   .song-item-img {
     @apply w-12 h-12 mr-4;
     border-radius: var(--d-radius-lg);
@@ -187,75 +141,58 @@ const onPlayNext = () => {
     &-album {
       font-size: var(--d-text-xs);
       color: var(--d-text-muted);
-      @apply mt-0.5 cursor-pointer;
-
-      &:hover {
-        color: var(--accent-color);
-      }
+      @apply mt-0.5;
     }
   }
 
   .song-item-operating {
-    @apply flex items-center rounded-full ml-4;
-    border: 1px solid var(--d-border);
-    background: var(--d-surface);
+    @apply flex items-center ml-4;
+    background: transparent;
+    border: none;
 
-    .iconfont {
-      @apply text-xl;
-    }
-
-    .icon-likefill {
-      @apply text-xl transition;
+    &-menu {
+      @apply cursor-pointer flex items-center justify-center w-8 h-8 rounded-full;
+      border: 0;
+      background: transparent;
       color: var(--d-text-secondary);
+      transition:
+        color 150ms ease,
+        background-color 150ms ease,
+        transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+
+      i {
+        @apply text-xl;
+      }
 
       &:hover {
-        @apply text-red-500;
-      }
-    }
+        background: var(--d-surface-hover);
+        color: var(--accent-color);
 
-    &-like {
-      @apply mr-2 cursor-pointer ml-4 transition-all;
-    }
-
-    &-next {
-      @apply mr-2 cursor-pointer transition-all;
-
-      .iconfont {
-        @apply text-xl transition;
-        color: var(--d-text-secondary);
-
-        &:hover {
+        i {
           color: var(--accent-color);
         }
       }
-    }
 
-    .like-active {
-      @apply text-red-500;
-    }
-
-    &-play {
-      @apply cursor-pointer rounded-full w-10 h-10 flex justify-center items-center transition;
-      border: 1px solid var(--d-border);
-      color: var(--d-text-primary);
-      background: var(--d-surface);
-
-      &:hover {
-        background-color: var(--accent-color);
-        border-color: var(--accent-color);
-        color: white;
-      }
-
-      &.is-playing {
-        background-color: var(--accent-color);
-        border-color: var(--accent-color);
-        color: white;
+      &:active {
+        transform: scale(0.96);
       }
     }
   }
 
   .song-item-select {
     @apply mr-3 cursor-pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .standard-song-item .song-item-operating-menu {
+    transition:
+      color 120ms ease,
+      background-color 120ms ease;
+  }
+
+  .standard-song-item .song-item-operating-menu:active {
+    transform: none;
   }
 }
 </style>

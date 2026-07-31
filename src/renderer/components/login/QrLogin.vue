@@ -192,11 +192,13 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .qr-login {
-  animation-duration: 0.5s;
+  width: 100%;
+  animation-duration: 220ms;
 }
 
 .login-title {
-  @apply text-2xl font-bold mb-6 text-white;
+  @apply text-2xl font-bold mb-6;
+  color: var(--cover-text-primary, var(--d-text-primary));
 }
 
 .qr-container {
@@ -215,7 +217,8 @@ onUnmounted(() => {
   @apply flex flex-col items-center justify-center h-full;
 
   .loading-text {
-    @apply mt-4 text-white text-sm;
+    @apply mt-4 text-sm;
+    color: var(--cover-text-muted, var(--d-text-muted));
   }
 }
 
@@ -230,8 +233,11 @@ onUnmounted(() => {
 }
 
 .qr-img {
-  @apply w-full h-full rounded-2xl transition-all duration-300;
+  @apply w-full h-full rounded-2xl;
   object-fit: cover;
+  transition:
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .expired-overlay {
@@ -261,7 +267,9 @@ onUnmounted(() => {
 }
 
 .text {
-  @apply mt-4 text-white text-xs transition-colors duration-300;
+  @apply mt-4 text-xs;
+  color: var(--cover-text-muted, var(--d-text-muted));
+  transition: color 180ms ease;
 
   &.expired {
     @apply text-orange-400;
@@ -276,7 +284,27 @@ onUnmounted(() => {
   @apply mt-3;
 
   .manual-refresh {
-    @apply text-gray-300 hover:text-white text-xs;
+    @apply text-xs;
+    color: var(--cover-text-muted, var(--d-text-muted));
+    transition:
+      color 180ms ease,
+      opacity 180ms ease;
+
+    &:hover {
+      color: var(--cover-text-primary, var(--d-text-primary));
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-login {
+    animation-duration: 0ms;
+  }
+
+  .qr-img,
+  .text,
+  .manual-refresh {
+    transition-duration: 0ms;
   }
 }
 </style>

@@ -1,485 +1,446 @@
 <template>
-  <div class="platform-accounts">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="pa-title text-sm font-bold flex items-center gap-2">
-        <i class="ri-global-line text-lg" style="color: var(--accent-color)"></i>
-        {{ t('settings.playback.platforms.title') }}
-      </h3>
-      <button v-if="anyLoggedIn" @click="refreshStatus" class="pa-refresh text-xs">
-        <i class="ri-refresh-line"></i>
-      </button>
-    </div>
-
-    <p class="pa-desc text-xs mb-3">
-      {{ t('settings.playback.platforms.desc') }}
-    </p>
-
-    <!-- 平台列表 -->
-    <div class="space-y-2">
-      <div
-        v-for="platform in platformList"
-        :key="platform.key"
-        class="pa-card flex items-center p-2.5"
-        :class="{ 'is-logged-in': platform.loginStatus }"
-      >
-        <div
-          class="flex items-center justify-center w-8 h-8 rounded-full mr-2.5 shrink-0"
-          :style="{ backgroundColor: platform.color + '20', color: platform.color }"
-        >
-          <i :class="platform.icon" class="text-base"></i>
-        </div>
-
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2">
-            <span class="pa-name font-medium text-sm truncate">{{ platform.name }}</span>
-            <span
-              v-if="platform.loginStatus"
-              class="pa-badge pa-badge-success text-[10px] px-1.5 py-0.5 rounded-full shrink-0"
-            >
-              {{ t('settings.playback.platforms.loggedIn') }}
-            </span>
-            <span
-              v-else-if="platform.requiresLogin"
-              class="pa-badge pa-badge-default text-[10px] px-1.5 py-0.5 rounded-full shrink-0"
-            >
-              {{ t('settings.playback.platforms.notLoggedIn') }}
-            </span>
-            <span
-              v-else
-              class="pa-badge pa-badge-info text-[10px] px-1.5 py-0.5 rounded-full shrink-0"
-            >
-              {{ t('settings.playback.platforms.noLoginRequired') }}
-            </span>
-          </div>
-          <p class="pa-card-desc text-[10px] mt-0.5 truncate">
-            {{ platform.desc }}
-          </p>
-        </div>
-
-        <!-- 操作按钮 -->
-        <div class="flex items-center gap-1.5 ml-2 shrink-0">
-          <button
-            v-if="platform.requiresLogin"
-            @click="loginPlatform(platform.key)"
-            :disabled="platform.loggingIn"
-            class="pa-login-btn px-2.5 py-1 text-xs font-medium flex items-center gap-1"
-            :class="{ 'is-active': platform.loginStatus }"
-          >
-            <i v-if="platform.loggingIn" class="ri-loader-4-line animate-spin"></i>
-            <i
-              v-else
-              :class="platform.loginStatus ? 'ri-refresh-line' : 'ri-login-circle-line'"
-            ></i>
-            {{
-              platform.loggingIn
-                ? t('settings.playback.platforms.loggingIn')
-                : platform.loginStatus
-                  ? t('settings.playback.platforms.relogin')
-                  : t('settings.playback.platforms.login')
-            }}
-          </button>
-          <button
-            v-if="platform.loginStatus && platform.requiresLogin"
-            @click="logoutPlatform(platform.key)"
-            class="pa-logout-btn px-2 py-1 text-xs"
-          >
-            <i class="ri-logout-circle-line"></i>
-          </button>
-        </div>
+  <section class="platform-accounts">
+    <header class="accounts-header">
+      <div>
+        <h2>{{ t('settings.playback.platforms.title') }}</h2>
+        <p>{{ t('settings.playback.platforms.desc') }}</p>
       </div>
-    </div>
-
-    <!-- 手动输入 Cookie（可折叠） -->
-    <div class="mt-3">
-      <button
-        @click="showManualInput = !showManualInput"
-        class="pa-toggle text-xs flex items-center gap-1"
-      >
-        <i :class="showManualInput ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'"></i>
-        {{ t('settings.playback.platforms.manualCookie') }}
+      <button type="button" class="header-add" @click="openLogin()">
+        <i class="ri-add-line" />
+        <span>{{ t('settings.playback.platforms.login') }}</span>
       </button>
+    </header>
 
-      <Transition name="expand">
-        <div v-if="showManualInput" class="mt-2 space-y-2">
-          <select v-model="manualCookiePlatform" class="pa-select w-full px-3 py-1.5 text-xs">
-            <option value="qq">QQ 音乐</option>
-            <option value="migu">咪咕音乐</option>
-            <option value="joox">JOOX</option>
-          </select>
-          <textarea
-            v-model="manualCookieValue"
-            :placeholder="t('settings.playback.platforms.cookiePlaceholder')"
-            rows="2"
-            class="pa-textarea w-full px-3 py-1.5 text-xs font-mono resize-none"
-          ></textarea>
-          <button
-            @click="saveManualCookie"
-            :disabled="!manualCookieValue.trim()"
-            class="pa-save-btn px-3 py-1.5 text-white text-xs font-medium flex items-center gap-1"
-          >
-            <i class="ri-save-line"></i>
-            {{ t('settings.playback.platforms.saveCookie') }}
+    <div class="platform-groups">
+      <section v-for="platform in platformConfigs" :key="platform.key" class="platform-group">
+        <header class="platform-header">
+          <span class="platform-icon">
+            <platform-logo :platform="platform.key" :size="23" />
+          </span>
+          <span class="platform-copy">
+            <strong>{{ platform.name }}</strong>
+            <small>{{ platform.description }}</small>
+          </span>
+          <button type="button" class="platform-login" @click="openLogin(platform.key)">
+            <i class="ri-add-line" />
+            <span>{{ t('settings.playback.platforms.login') }}</span>
           </button>
-        </div>
-      </Transition>
+        </header>
+
+        <TransitionGroup name="account-row" tag="div" class="platform-account-list">
+          <div
+            v-for="account in accountsForPlatform(platform.key)"
+            :key="account.accountId"
+            class="platform-account"
+            :class="{ active: account.accountId === accountStore.activeAccountId }"
+            role="button"
+            tabindex="0"
+            @click="switchAccount(account)"
+            @keydown.enter="switchAccount(account)"
+            @keydown.space.prevent="switchAccount(account)"
+          >
+            <span class="platform-account-avatar">
+              <img v-if="account.avatarUrl" :src="account.avatarUrl" alt="" />
+              <platform-logo v-else :platform="account.platform" :size="24" />
+            </span>
+
+            <span class="platform-account-copy">
+              <span class="account-name-line">
+                <strong>{{ account.nickname }}</strong>
+                <span v-if="account.vip" class="vip-badge">
+                  {{ account.vipLabel || 'VIP' }}
+                </span>
+              </span>
+              <small>{{ methodLabel(account.loginMethod) }}</small>
+            </span>
+
+            <i
+              v-if="account.accountId === accountStore.activeAccountId"
+              class="ri-check-line active-check"
+            />
+            <button
+              type="button"
+              class="account-remove"
+              @click.stop="confirmRemoveAccount(account)"
+            >
+              <i class="ri-delete-bin-line" />
+            </button>
+          </div>
+
+          <button
+            v-if="!accountsForPlatform(platform.key).length"
+            :key="`${platform.key}-empty`"
+            type="button"
+            class="platform-empty"
+            @click="openLogin(platform.key)"
+          >
+            <i class="ri-login-circle-line" />
+            <span>{{ t('settings.playback.platforms.notLoggedIn') }}</span>
+            <i class="ri-arrow-right-s-line" />
+          </button>
+        </TransitionGroup>
+      </section>
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { useMessage } from 'naive-ui';
-import { computed, onMounted, ref } from 'vue';
+import { useDialog, useMessage } from 'naive-ui';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 
-interface PlatformAccount {
-  key: string;
-  name: string;
-  icon: string;
-  color: string;
-  desc: string;
-  requiresLogin: boolean;
-  loginStatus: boolean;
-  loggingIn: boolean;
-}
+import PlatformLogo from '@/components/common/PlatformLogo.vue';
+import {
+  MUSIC_PLATFORMS,
+  type MusicPlatform,
+  type PlatformAccount,
+  type PlatformLoginMethod,
+  usePlatformAccountsStore
+} from '@/store/modules/platformAccounts';
 
 const { t } = useI18n();
+const router = useRouter();
+const dialog = useDialog();
 const message = useMessage();
+const accountStore = usePlatformAccountsStore();
 
-const platformList = ref<PlatformAccount[]>([
-  {
-    key: 'qq',
-    name: 'QQ 音乐',
-    icon: 'ri-qq-fill',
-    color: '#1296db',
-    desc: t('settings.playback.platforms.qq.desc'),
-    requiresLogin: true,
-    loginStatus: false,
-    loggingIn: false
-  },
-  {
-    key: 'migu',
-    name: '咪咕音乐',
-    icon: 'ri-music-fill',
-    color: '#ff6b35',
-    desc: t('settings.playback.platforms.migu.desc'),
-    requiresLogin: true,
-    loginStatus: false,
-    loggingIn: false
-  },
-  {
-    key: 'joox',
-    name: 'JOOX',
-    icon: 'ri-global-line',
-    color: '#42b883',
-    desc: t('settings.playback.platforms.joox.desc'),
-    requiresLogin: true,
-    loginStatus: false,
-    loggingIn: false
-  },
-  {
-    key: 'kugou',
-    name: '酷狗音乐',
-    icon: 'ri-music-2-fill',
-    color: '#2196f3',
-    desc: t('settings.playback.platforms.kugou.desc'),
-    requiresLogin: false,
-    loginStatus: true,
-    loggingIn: false
-  },
-  {
-    key: 'kuwo',
-    name: '酷我音乐',
-    icon: 'ri-radio-fill',
-    color: '#ff9800',
-    desc: t('settings.playback.platforms.kuwo.desc'),
-    requiresLogin: false,
-    loginStatus: true,
-    loggingIn: false
-  }
-]);
-
-const showManualInput = ref(false);
-const manualCookiePlatform = ref('qq');
-const manualCookieValue = ref('');
-
-const anyLoggedIn = computed(() =>
-  platformList.value.some((p) => p.requiresLogin && p.loginStatus)
+const platformConfigs = computed(() =>
+  MUSIC_PLATFORMS.map((platform) => ({
+    key: platform,
+    name: t(`login.platform.${platform}`),
+    description:
+      platform === 'netease'
+        ? t('login.tokenTip')
+        : t(`settings.playback.platforms.${platform}.desc`)
+  }))
 );
 
-// 刷新平台登录状态
-const refreshStatus = async () => {
-try {
-if (window.api?.getPlatformLoginStatus) {
-const status = await window.api.getPlatformLoginStatus();
-platformList.value.forEach((p) => {
-if (p.requiresLogin) {
-p.loginStatus = Boolean(status[p.key]);
-}
-});
-} else {
-// 移动端 fallback：从 localStorage 读取
-platformList.value.forEach((p) => {
-if (p.requiresLogin) {
-const cookie = localStorage.getItem(`platform-cookie-${p.key}`);
-p.loginStatus = Boolean(cookie);
-}
-});
-}
-} catch (error) {
-console.error('获取平台登录状态失败:', error);
-}
+const accountsForPlatform = (platform: MusicPlatform) => accountStore.accountsForPlatform(platform);
+
+const methodLabel = (method: PlatformLoginMethod) => t(`login.title.${method}`);
+
+const openLogin = (platform?: MusicPlatform) => {
+  router.push({
+    path: '/login',
+    query: platform ? { platform } : undefined
+  });
 };
 
-// 登录平台
-const loginPlatform = async (platformKey: string) => {
-const platform = platformList.value.find((p) => p.key === platformKey);
-if (!platform) return;
-
-if (!window.api?.openPlatformLogin) {
-// 移动端：跳转手动输入 Cookie
-manualCookiePlatform.value = platformKey;
-showManualInput.value = true;
-return;
-}
-
-platform.loggingIn = true;
-try {
-const result = await window.api.openPlatformLogin(platformKey);
-if (!result) {
-message.warning(t('settings.playback.platforms.loginWindowFailed'));
-}
-} catch (error: any) {
-message.error(`${t('common.error')}：${error.message}`);
-} finally {
-platform.loggingIn = false;
-}
-};
-
-// 退出登录
-const logoutPlatform = async (platformKey: string) => {
-try {
-if (window.api?.setPlatformCookie) {
-await window.api.setPlatformCookie(platformKey, '');
-} else {
-localStorage.removeItem(`platform-cookie-${platformKey}`);
-}
-const platform = platformList.value.find((p) => p.key === platformKey);
-if (platform) {
-platform.loginStatus = false;
-}
-message.success(t('settings.playback.platforms.logoutSuccess'));
-} catch (error: any) {
-message.error(`${t('common.error')}：${error.message}`);
-}
-};
-
-// 保存手动输入的 Cookie
-const saveManualCookie = async () => {
-const platform = manualCookiePlatform.value;
-const cookie = manualCookieValue.value.trim();
-if (!cookie) return;
-
-try {
-if (window.api?.setPlatformCookie) {
-await window.api.setPlatformCookie(platform, cookie);
-} else {
-// 移动端 fallback：存入 localStorage
-localStorage.setItem(`platform-cookie-${platform}`, cookie);
-}
-const p = platformList.value.find((item) => item.key === platform);
-if (p) {
-p.loginStatus = true;
-}
-message.success(t('settings.playback.platforms.cookieSaved'));
-manualCookieValue.value = '';
-showManualInput.value = false;
-} catch (error: any) {
-message.error(`${t('common.error')}：${error.message}`);
-}
-};
-
-// 监听平台登录 Cookie 到达
-window.api?.onPlatformLoginCookie?.((platform: string, _cookie: string) => {
-  const p = platformList.value.find((item) => item.key === platform);
-  if (p) {
-    p.loginStatus = true;
-    p.loggingIn = false;
+const switchAccount = (account: PlatformAccount) => {
+  if (accountStore.setActiveAccount(account.accountId)) {
+    message.success(account.nickname);
   }
-  message.success(t('settings.playback.platforms.loginSuccess', { platform: p?.name || platform }));
-});
+};
 
-onMounted(() => {
-  refreshStatus();
-});
+const removeAccount = (account: PlatformAccount) => {
+  if (!accountStore.removeAccount(account.accountId)) return;
+  message.success(t('settings.playback.platforms.logoutSuccess'));
+};
+
+const confirmRemoveAccount = (account: PlatformAccount) => {
+  dialog.warning({
+    title: t('common.delete'),
+    content: `${t('common.delete')} “${account.nickname}”?`,
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: () => removeAccount(account)
+  });
+};
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .platform-accounts {
-  --pa-success-bg: rgba(34, 197, 94, 0.1);
-  --pa-success-border: rgba(34, 197, 94, 0.2);
-  --pa-success-color: #16a34a;
-  --pa-info-bg: rgba(59, 130, 246, 0.1);
-  --pa-info-color: #2563eb;
+  color: var(--cover-text-primary, var(--d-text-primary));
 }
 
-.pa-title {
-  color: var(--d-text-primary);
+.accounts-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+
+  h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  p {
+    max-width: 540px;
+    margin: 4px 0 0;
+    color: var(--cover-text-muted, var(--d-text-muted));
+    font-size: 12px;
+    line-height: 1.55;
+  }
 }
 
-.pa-refresh {
-  color: var(--d-text-muted);
-  transition: var(--d-transition-colors);
-  cursor: pointer;
-  background: none;
-  border: none;
-}
-
-.pa-refresh:hover {
-  color: var(--accent-color);
-}
-
-.pa-desc {
-  color: var(--d-text-secondary);
-}
-
-.pa-card {
-  border-radius: var(--d-radius-lg);
-  border: 1px solid var(--d-border-light);
-  background: var(--d-surface-alt);
-  transition: var(--d-transition-colors);
-}
-
-.pa-card.is-logged-in {
-  background: var(--pa-success-bg);
-  border-color: var(--pa-success-border);
-}
-
-.pa-name {
-  color: var(--d-text-primary);
-}
-
-.pa-card-desc {
-  color: var(--d-text-secondary);
-}
-
-.pa-badge {
-  font-weight: var(--d-font-medium);
-}
-
-.pa-badge-success {
-  background: var(--pa-success-bg);
-  color: var(--pa-success-color);
-}
-
-.pa-badge-default {
-  background: var(--d-surface-active);
-  color: var(--d-text-secondary);
-}
-
-.pa-badge-info {
-  background: var(--pa-info-bg);
-  color: var(--pa-info-color);
-}
-
-.pa-login-btn {
-  border-radius: var(--d-radius-sm);
-  border: none;
-  cursor: pointer;
+.header-add,
+.platform-login {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 9999px;
   background: var(--accent-color);
   color: #fff;
-  transition: var(--d-transition-colors);
-}
-
-.pa-login-btn:hover {
-  filter: brightness(1.1);
-}
-
-.pa-login-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pa-login-btn.is-active {
-  background: var(--d-surface-active);
-  color: var(--d-text-secondary);
-}
-
-.pa-login-btn.is-active:hover {
-  background: var(--d-border-strong);
-}
-
-.pa-logout-btn {
-  color: #ef4444;
-  background: none;
-  border: none;
-  border-radius: var(--d-radius-sm);
   cursor: pointer;
-  transition: var(--d-transition-colors);
+  transition:
+    filter 160ms ease,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+
+  &:hover {
+    filter: brightness(1.06);
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
 }
 
-.pa-logout-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
+.header-add {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
-.pa-toggle {
-  color: var(--d-text-muted);
-  transition: var(--d-transition-colors);
-  cursor: pointer;
-  background: none;
-  border: none;
+.platform-groups {
+  display: grid;
+  gap: 12px;
 }
 
-.pa-toggle:hover {
+.platform-group {
+  overflow: hidden;
+  border: 1px solid var(--cover-border, var(--d-border-light));
+  border-radius: var(--d-radius-lg);
+  background: var(--cover-surface-alt, var(--d-surface-alt));
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.platform-header {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+}
+
+.platform-icon {
+  display: flex;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.1);
   color: var(--accent-color);
 }
 
-.pa-select,
-.pa-textarea {
-  border: 1px solid var(--d-border);
-  background: var(--d-surface-alt);
-  color: var(--d-text-primary);
-  border-radius: var(--d-radius-lg);
-  outline: none;
-  transition: border-color var(--d-duration-fast) var(--d-ease-out);
+.platform-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+
+  strong {
+    font-size: 14px;
+    font-weight: 650;
+  }
+
+  small {
+    margin-top: 2px;
+    overflow: hidden;
+    color: var(--cover-text-muted, var(--d-text-muted));
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
-.pa-select:focus,
-.pa-textarea:focus {
-  border-color: var(--accent-color);
+.platform-login {
+  height: 30px;
+  padding: 0 11px;
+  background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.12);
+  color: var(--accent-color);
+  font-size: 11px;
+  font-weight: 600;
 }
 
-.pa-save-btn {
-  border-radius: var(--d-radius-lg);
-  background: var(--accent-color);
-  border: none;
+.platform-account-list {
+  display: grid;
+  gap: 1px;
+  padding: 0 6px 6px;
+}
+
+.platform-account,
+.platform-empty {
+  display: flex;
+  width: 100%;
+  min-height: 54px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--d-radius-md);
+  background: transparent;
+  color: inherit;
   cursor: pointer;
-  transition: var(--d-transition-colors);
+  text-align: left;
+  transition:
+    background-color 160ms ease,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+
+  &:hover,
+  &.active {
+    background: var(--cover-surface-hover, var(--d-surface-hover));
+  }
+
+  &:active {
+    transform: scale(0.995);
+  }
 }
 
-.pa-save-btn:hover {
-  filter: brightness(1.1);
+.platform-account.active {
+  box-shadow: inset 3px 0 0 var(--accent-color);
 }
 
-.pa-save-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.expand-enter-active,
-.expand-leave-active {
-  transition: all var(--d-duration-normal) var(--d-ease-out);
+.platform-account-avatar {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
+  border-radius: 50%;
+  background: var(--cover-surface-active, var(--d-surface-active));
+  color: var(--accent-color);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 }
 
-.expand-enter-from,
-.expand-leave-to {
+.platform-account-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+
+  small {
+    margin-top: 2px;
+    color: var(--cover-text-muted, var(--d-text-muted));
+    font-size: 10px;
+  }
+}
+
+.account-name-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+
+  strong {
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.vip-badge {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.12);
+  color: var(--accent-color);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.active-check {
+  color: var(--accent-color);
+  font-size: 17px;
+}
+
+.account-remove {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--cover-text-muted, var(--d-text-muted));
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+
+  &:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+  }
+
+  &:active {
+    transform: scale(0.94);
+  }
+}
+
+.platform-empty {
+  min-height: 46px;
+  color: var(--cover-text-muted, var(--d-text-muted));
+  font-size: 12px;
+
+  span {
+    flex: 1;
+  }
+}
+
+.account-row-enter-active,
+.account-row-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.account-row-enter-from,
+.account-row-leave-to {
   opacity: 0;
-  max-height: 0;
+  transform: translateY(6px);
 }
 
-.expand-enter-to,
-.expand-leave-from {
-  opacity: 1;
-  max-height: 300px;
+@media (prefers-reduced-motion: reduce) {
+  .header-add,
+  .platform-login,
+  .platform-group,
+  .platform-account,
+  .platform-empty,
+  .account-remove,
+  .account-row-enter-active,
+  .account-row-leave-active {
+    transition-duration: 0ms;
+  }
+
+  .header-add:active,
+  .platform-login:active,
+  .platform-account:active,
+  .platform-empty:active,
+  .account-remove:active {
+    transform: none;
+  }
 }
 </style>

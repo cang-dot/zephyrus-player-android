@@ -57,21 +57,46 @@
           </div>
         </template>
         <div class="fsb-suggestions">
-          <n-scrollbar style="max-height: 260px">
+          <n-scrollbar style="max-height: 320px">
             <div v-if="suggestionsLoading" class="fsb-suggest-loading">
               <n-spin size="small" />
             </div>
-            <div
-              v-for="(s, i) in suggestions"
-              :key="i"
-              class="fsb-suggest-row"
-              :class="{ 'fsb-suggest-row--hi': i === highlightedIndex }"
-              @mousedown.prevent="selectSuggestion(s)"
-              @mouseenter="highlightedIndex = i"
-            >
-              <i class="ri-search-line fsb-suggest-icon" />
-              <span>{{ s }}</span>
-            </div>
+
+            <!-- 搜索历史（搜索框为空时） -->
+            <template v-if="isShowingHistory">
+              <div class="fsb-suggest-section-header">
+                <span class="fsb-suggest-section-title">{{ t('search.title.searchHistory') }}</span>
+                <span class="fsb-suggest-section-clear" @mousedown.prevent="clearSearchHistory">
+                  {{ t('search.button.clear') }}
+                </span>
+              </div>
+              <div
+                v-for="(item, i) in searchHistory"
+                :key="'h' + i"
+                class="fsb-suggest-row"
+                :class="{ 'fsb-suggest-row--hi': i === highlightedIndex }"
+                @mousedown.prevent="selectSuggestion(item)"
+                @mouseenter="highlightedIndex = i"
+              >
+                <i class="ri-time-line fsb-suggest-icon fsb-suggest-icon--history" />
+                <span>{{ item }}</span>
+              </div>
+            </template>
+
+            <!-- 搜索建议（有内容时） -->
+            <template v-else>
+              <div
+                v-for="(s, i) in suggestions"
+                :key="'s' + i"
+                class="fsb-suggest-row"
+                :class="{ 'fsb-suggest-row--hi': i === highlightedIndex }"
+                @mousedown.prevent="selectSuggestion(s)"
+                @mouseenter="highlightedIndex = i"
+              >
+                <i class="ri-search-line fsb-suggest-icon" />
+                <span>{{ s }}</span>
+              </div>
+            </template>
           </n-scrollbar>
         </div>
       </n-popover>
@@ -143,7 +168,6 @@ import { getSearchKeyword } from '@/api/home';
 import { getUserDetail } from '@/api/login';
 import { getSearchSuggestions } from '@/api/search';
 import { SEARCH_TYPES, USER_SET_OPTIONS } from '@/const/bar-const';
-import { useNavTitleStore } from '@/store/modules/navTitle';
 import { useSearchStore } from '@/store/modules/search';
 import { useSettingsStore } from '@/store/modules/settings';
 import { useUserStore } from '@/store/modules/user';
@@ -257,7 +281,7 @@ const searchValue = ref('');
 watch(
   () => searchStore.searchValue,
   (v) => {
-    if (v) searchValue.value = v;
+    searchValue.value = v || '';
   },
   { immediate: true }
 );
@@ -268,6 +292,8 @@ const search = () => {
     searchValue.value = hotSearchValue.value;
     return;
   }
+  // 保存到搜索历史
+  saveSearchHistory(val);
   const q = { keyword: val, type: searchStore.searchType };
   searchStore.searchValue = val;
   router.push({ path: '/search-result', query: q });
@@ -298,16 +324,49 @@ const showSuggestions = ref(false);
 const suggestionsLoading = ref(false);
 const highlightedIndex = ref(-1);
 
+// 搜索历史
+const searchHistory = ref<string[]>([]);
+const HISTORY_KEY = 'searchbar_history';
+
+const loadSearchHistory = () => {
+  try {
+    const history = localStorage.getItem(HISTORY_KEY);
+    searchHistory.value = history ? JSON.parse(history) : [];
+  } catch {
+    searchHistory.value = [];
+  }
+};
+
+const saveSearchHistory = (keyword: string) => {
+  if (!keyword.trim()) return;
+  const history = searchHistory.value.filter((item) => item !== keyword);
+  history.unshift(keyword);
+  searchHistory.value = history.slice(0, 15);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(searchHistory.value));
+};
+
+const clearSearchHistory = () => {
+  searchHistory.value = [];
+  localStorage.removeItem(HISTORY_KEY);
+  showSuggestions.value = false;
+};
+
+const isShowingHistory = computed(() => {
+  return !searchValue.value.trim() && searchHistory.value.length > 0 && showSuggestions.value;
+});
+
 const debouncedSuggest = useDebounceFn(async (kw: string) => {
   if (!kw.trim()) {
     suggestions.value = [];
-    showSuggestions.value = false;
+    loadSearchHistory();
+    showSuggestions.value = inputFocused.value && searchHistory.value.length > 0;
     return;
   }
   suggestionsLoading.value = true;
+  showSuggestions.value = inputFocused.value;
   suggestions.value = await getSearchSuggestions(kw);
   suggestionsLoading.value = false;
-  showSuggestions.value = suggestions.value.length > 0;
+  showSuggestions.value = inputFocused.value && suggestions.value.length > 0;
   highlightedIndex.value = -1;
 }, 300);
 
@@ -320,7 +379,8 @@ const selectSuggestion = (s: string) => {
 };
 
 const handleKeydown = (e: KeyboardEvent) => {
-  const len = suggestions.value.length;
+  const currentList = isShowingHistory.value ? searchHistory.value : suggestions.value;
+  const len = currentList.length;
   if (!showSuggestions.value || !len) {
     if (e.key === 'Enter') search();
     return;
@@ -335,9 +395,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
   if (e.key === 'Enter') {
     e.preventDefault();
-    highlightedIndex.value >= 0
-      ? selectSuggestion(suggestions.value[highlightedIndex.value])
-      : search();
+    highlightedIndex.value >= 0 ? selectSuggestion(currentList[highlightedIndex.value]) : search();
   }
   if (e.key === 'Escape') showSuggestions.value = false;
 };
@@ -345,7 +403,13 @@ const handleKeydown = (e: KeyboardEvent) => {
 const handleFocus = () => {
   inputFocused.value = true;
   cancelCollapseTimer();
-  if (searchValue.value && suggestions.value.length) showSuggestions.value = true;
+  if (searchValue.value.trim()) {
+    showSuggestions.value = true;
+    debouncedSuggest(searchValue.value);
+  } else {
+    loadSearchHistory();
+    showSuggestions.value = searchHistory.value.length > 0;
+  }
 };
 
 const handleBlur = () => {
@@ -362,7 +426,9 @@ const loadHotSearch = async () => {
     const { data } = await getSearchKeyword();
     hotSearchKeyword.value = data.data.showKeyword;
     hotSearchValue.value = data.data.realkeyword;
-  } catch {}
+  } catch {
+    return;
+  }
 };
 
 const loadPage = async () => {
@@ -372,7 +438,9 @@ const loadPage = async () => {
     userStore.user =
       data.profile || userStore.user || JSON.parse(localStorage.getItem('user') || '{}');
     localStorage.setItem('user', JSON.stringify(userStore.user));
-  } catch {}
+  } catch {
+    return;
+  }
 };
 
 watchEffect(() => {
@@ -424,7 +492,9 @@ const checkForUpdates = async () => {
   try {
     const r = await checkUpdate(config.version);
     if (r) updateInfo.value = r;
-  } catch {}
+  } catch {
+    return;
+  }
 };
 
 onMounted(() => {
@@ -792,5 +862,36 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   padding: 12px;
+}
+
+/* 搜索历史区域 */
+.fsb-suggest-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 6px;
+}
+
+.fsb-suggest-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fsb-suggest-section-clear {
+  font-size: 11px;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.fsb-suggest-section-clear:hover {
+  color: #ef4444;
+}
+
+.fsb-suggest-icon--history {
+  color: #9ca3af;
 }
 </style>

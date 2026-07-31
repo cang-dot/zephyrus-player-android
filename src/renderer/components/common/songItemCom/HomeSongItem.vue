@@ -1,17 +1,22 @@
 <template>
-  <div
-    class="home-song-card group flex cursor-pointer items-center gap-3 md:gap-4 rounded-xl md:rounded-2xl p-2 md:p-2.5 transition-all duration-300 hover:bg-light-200 dark:hover:bg-dark-200"
-    @click="onPlayMusic"
-    @contextmenu.prevent="onMenuClick"
+  <base-song-item
+    ref="baseItem"
+    class="home-song-card"
+    :item="item"
+    :selectable="selectable"
+    :selected="selected"
+    :can-remove="canRemove"
+    :is-next="isNext"
+    :index="index"
+    @play="(...args) => $emit('play', ...args)"
+    @select="(...args) => $emit('select', ...args)"
+    @remove-song="(...args) => $emit('remove-song', ...args)"
   >
-    <!-- Album Cover -->
-    <div
-      class="cover relative h-14 w-14 md:h-16 md:w-16 flex-shrink-0 overflow-hidden rounded-lg md:rounded-xl bg-neutral-100 dark:bg-neutral-800 shadow-sm"
-    >
+    <template #image>
       <n-image
         v-if="item.picUrl"
         :src="getImgUrl(item.picUrl, '200y200')"
-        class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+        class="home-song-cover"
         preview-disabled
         :img-props="{
           crossorigin: 'anonymous',
@@ -19,76 +24,42 @@
           alt: item.name
         }"
       />
-      <div
-        class="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-      >
-        <i class="iconfont icon-playfill text-lg md:text-xl text-white drop-shadow-lg"></i>
+    </template>
+
+    <template #content>
+      <div class="song-info">
+        <n-ellipsis class="song-name" :class="{ 'is-playing': isPlaying }">
+          {{ item.name }}
+        </n-ellipsis>
+        <n-ellipsis class="artist-name">
+          <template v-for="(artist, artistIndex) in artists" :key="artist.id || artistIndex">
+            <span class="artist-link" @click.stop="onArtistClick(artist.id)">
+              {{ artist.name }}
+            </span>
+            <span v-if="artistIndex < artists.length - 1"> / </span>
+          </template>
+        </n-ellipsis>
       </div>
-    </div>
+    </template>
 
-    <!-- Song Info -->
-    <div class="song-info flex flex-col overflow-hidden flex-1 min-w-0">
-      <n-ellipsis
-        class="song-name text-sm md:text-base font-semibold text-neutral-800 dark:text-neutral-100 transition-colors duration-200 group-hover:text-[var(--accent-color)] dark:group-hover:text-white"
-        :class="{ 'text-[var(--accent-color)]': isPlaying }"
-      >
-        {{ item.name }}
-      </n-ellipsis>
-      <n-ellipsis
-        class="artist-name text-xs md:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5"
-      >
-        <template v-for="(artist, index) in artists" :key="index">
-          <span
-            class="cursor-pointer hover:text-[var(--accent-color)]"
-            @click.stop="onArtistClick(artist.id)"
-          >
-            {{ artist.name }}
-          </span>
-          <span v-if="index < artists.length - 1"> / </span>
-        </template>
-      </n-ellipsis>
-    </div>
-
-    <!-- More Button -->
-    <button
-      class="more-btn flex h-8 w-8 items-center justify-center rounded-full opacity-0 transition-all duration-300 group-hover:bg-white dark:group-hover:bg-neutral-800 group-hover:opacity-100 hover:scale-110 active:scale-95"
-      @click.stop="onMenuClick"
-    >
-      <i class="ri-more-fill text-sm text-neutral-600 dark:text-neutral-300"></i>
-    </button>
-
-    <!-- Dropdown Menu -->
-    <song-item-dropdown
-      v-if="isElectron"
-      :item="item"
-      :show="showDropdown"
-      :x="dropdownX"
-      :y="dropdownY"
-      :is-favorite="isFavorite"
-      :is-dislike="isDislike"
-      :can-remove="canRemove"
-      @update:show="showDropdown = $event"
-      @play="onPlayMusic"
-      @play-next="handlePlayNext"
-      @download="downloadMusic"
-      @download-lyric="downloadLyric(item)"
-      @toggle-favorite="toggleFavorite"
-      @toggle-dislike="toggleDislike"
-      @remove="$emit('remove-song', $event)"
-    />
-  </div>
+    <template #operating>
+      <button class="more-btn" type="button" @click.stop="onMenuClick">
+        <i class="ri-more-2-fill" />
+      </button>
+    </template>
+  </base-song-item>
 </template>
 
 <script lang="ts" setup>
 import { NEllipsis, NImage } from 'naive-ui';
+import { computed, ref } from 'vue';
 
-import { useSongItem } from '@/hooks/useSongItem';
 import type { SongResult } from '@/types/music';
-import { getImgUrl, isElectron } from '@/utils';
+import { getImgUrl } from '@/utils';
 
-import SongItemDropdown from './SongItemDropdown.vue';
+import BaseSongItem from './BaseSongItem.vue';
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     item: SongResult;
     favorite?: boolean;
@@ -108,38 +79,128 @@ const props = withDefaults(
   }
 );
 
-const emit = defineEmits(['play', 'select', 'remove-song']);
+defineEmits(['play', 'select', 'remove-song']);
 
-// 浣跨敤鍏叡閫昏緫
-const {
-  isPlaying,
-  isFavorite,
-  isDislike,
-  artists,
-  showDropdown,
-  dropdownX,
-  dropdownY,
-  playMusicEvent,
-  toggleFavorite,
-  toggleDislike,
-  handlePlayNext,
-  handleMenuClick,
-  handleArtistClick,
-  downloadMusic,
-  downloadLyric
-} = useSongItem(props);
+const baseItem = ref<InstanceType<typeof BaseSongItem>>();
+const isPlaying = computed(() => baseItem.value?.isPlaying || false);
+const artists = computed(() => baseItem.value?.artists || []);
 
-const onPlayMusic = () => {
-  playMusicEvent(props.item);
-  emit('play', props.item);
-};
-
-const onArtistClick = (id: number) => handleArtistClick(id);
-const onMenuClick = (event: MouseEvent) => handleMenuClick(event);
+const onArtistClick = (id: number) => baseItem.value?.handleArtistClick(id);
+const onMenuClick = (event: MouseEvent) => baseItem.value?.openItemMenu(event);
 </script>
 
 <style lang="scss" scoped>
 .home-song-card {
-  // 样式已在模板中通过 Tailwind 类定义
+  gap: 12px;
+  min-height: 68px;
+  padding: 8px 10px;
+  border-radius: var(--d-radius-lg);
+  transition:
+    background-color 180ms ease,
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+
+  &:active {
+    transform: scale(0.99);
+  }
+}
+
+.home-song-cover {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: var(--d-radius-lg);
+  background: var(--d-surface-hover);
+
+  :deep(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .home-song-card.is-active & :deep(img) {
+    transform: scale(1.035);
+  }
+}
+
+.song-info {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.song-name {
+  color: var(--d-text-primary);
+  font-size: var(--d-text-base);
+  font-weight: 600;
+  transition: color 150ms ease;
+
+  &.is-playing {
+    color: var(--accent-color);
+  }
+}
+
+.artist-name {
+  margin-top: 2px;
+  color: var(--d-text-secondary);
+  font-size: var(--d-text-xs);
+}
+
+.artist-link {
+  cursor: pointer;
+  transition: color 150ms ease;
+
+  &:hover {
+    color: var(--accent-color);
+  }
+}
+
+.more-btn {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--d-text-secondary);
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+
+  i {
+    font-size: 20px;
+  }
+
+  &:hover {
+    background: var(--d-surface-hover);
+    color: var(--accent-color);
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-song-card,
+  .home-song-cover :deep(img),
+  .song-name,
+  .artist-link,
+  .more-btn {
+    transition-duration: 0ms;
+  }
+
+  .home-song-card:active,
+  .more-btn:active {
+    transform: none;
+  }
 }
 </style>

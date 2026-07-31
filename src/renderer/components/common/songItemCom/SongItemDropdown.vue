@@ -46,10 +46,22 @@ const emits = defineEmits([
   'add-to-playlist',
   'toggle-favorite',
   'toggle-dislike',
+  'goto-artist',
+  'goto-album',
   'remove'
 ]);
 
 const openPlaylistDrawer = inject<(songOrId: number | SongResult) => void>('openPlaylistDrawer');
+const firstArtist = computed(() => {
+  const song = props.item as SongResult & { artists?: Array<{ id: number; name: string }> };
+  return (song.ar || song.artists || song.song?.artists)?.[0];
+});
+const album = computed(() => {
+  const song = props.item as SongResult & {
+    album?: { id?: number; name?: string };
+  };
+  return song.al || song.album || song.song?.album;
+});
 
 // 渲染歌曲预览
 const renderSongPreview = () => {
@@ -148,6 +160,22 @@ const dropdownOptions = computed<MenuOption[]>(() => {
     },
     {
       type: 'divider',
+      key: 'd_artist'
+    },
+    {
+      label: firstArtist.value?.name || '未知艺术家',
+      key: 'gotoArtist',
+      icon: () => h('i', { class: 'iconfont ri-user-line' }),
+      disabled: !firstArtist.value?.id
+    },
+    {
+      label: album.value?.name || '未知专辑',
+      key: 'gotoAlbum',
+      icon: () => h('i', { class: 'iconfont ri-disc-line' }),
+      disabled: !album.value?.id
+    },
+    {
+      type: 'divider',
       key: 'd1'
     },
     {
@@ -236,6 +264,18 @@ const handleSelect = (key: string | number) => {
     case 'bindLocalLyric':
       emits('bind-local-lyric');
       break;
+    case 'gotoArtist': {
+      if (firstArtist.value?.id) {
+        emits('goto-artist', firstArtist.value.id);
+      }
+      break;
+    }
+    case 'gotoAlbum': {
+      if (album.value?.id) {
+        emits('goto-album', album.value.id);
+      }
+      break;
+    }
     case 'dislike':
       emits('toggle-dislike');
       break;
