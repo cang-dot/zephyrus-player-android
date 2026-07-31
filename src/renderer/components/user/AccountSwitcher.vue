@@ -58,9 +58,7 @@ const accountStore = usePlatformAccountsStore();
 const PLATFORM_NAMES: Record<MusicPlatform, string> = {
   netease: '网易云',
   qq: 'QQ 音乐',
-  kugou: '酷狗音乐',
-  kuwo: '酷我音乐',
-  migu: '咪咕音乐'
+  kugou: '酷狗音乐'
 };
 
 const platformName = (platform: MusicPlatform) => PLATFORM_NAMES[platform];

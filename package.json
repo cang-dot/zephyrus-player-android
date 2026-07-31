@@ -16,6 +16,8 @@
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
     "dev:web": "vite dev",
+    "dev:gateway": "node server-platform-login.js",
+    "test:gateway": "node scripts/test-platform-gateway.mjs",
     "build:plugins": "node scripts/build-plugins.mjs --in-place",
     "build": "electron-vite build",
     "postinstall": "electron-builder install-app-deps",

@@ -297,8 +297,8 @@ function mergeCookieParts(...cookieSources: string[]): string {
 
 const KUGOU_WEB_SALT = 'NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt';
 const KUGOU_SRC_APPID = 2919;
-const KUGOU_APPID = 1005;
-const KUGOU_CLIENTVER = 20489;
+const KUGOU_APPID = 3116;
+const KUGOU_CLIENTVER = 11436;
 
 // 持久化设备身份
 const kugouMid = generateKugouMid();

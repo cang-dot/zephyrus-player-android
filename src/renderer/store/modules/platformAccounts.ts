@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
-export const MUSIC_PLATFORMS = ['netease', 'qq', 'kugou', 'kuwo', 'migu'] as const;
+export const MUSIC_PLATFORMS = ['netease', 'qq', 'kugou'] as const;
+const DEPRECATED_LOGIN_PLATFORMS = ['kuwo', 'migu'] as const;
 
 export type MusicPlatform = (typeof MUSIC_PLATFORMS)[number];
 export type PlatformLoginMethod = 'qr' | 'cookie' | 'uid';
@@ -44,9 +45,7 @@ export interface PlatformAccountCache {
 const PLATFORM_NAMES: Record<MusicPlatform, string> = {
   netease: '网易云',
   qq: 'QQ 音乐',
-  kugou: '酷狗音乐',
-  kuwo: '酷我音乐',
-  migu: '咪咕音乐'
+  kugou: '酷狗音乐'
 };
 
 function parseStoredJson<T>(key: string, fallback: T): T {
@@ -232,14 +231,29 @@ export const usePlatformAccountsStore = defineStore(
       accountCache.value[accountId]?.[kind] || [];
 
     const migrateLegacyAccounts = () => {
+      accounts.value = accounts.value.filter((account) =>
+        MUSIC_PLATFORMS.includes(account.platform)
+      );
+      const accountIds = new Set(accounts.value.map((account) => account.accountId));
+      accountCache.value = Object.fromEntries(
+        Object.entries(accountCache.value).filter(([accountId]) => accountIds.has(accountId))
+      );
+      for (const platform of DEPRECATED_LOGIN_PLATFORMS) {
+        localStorage.removeItem(`platform-cookie-${platform}`);
+        localStorage.removeItem(`platform-user-${platform}`);
+      }
+
       if (accounts.value.length) {
         const storedActiveAccountId = localStorage.getItem('active-music-account');
+        const activeAccountStillExists = accounts.value.some(
+          (account) => account.accountId === activeAccountId.value
+        );
         if (
           storedActiveAccountId &&
           accounts.value.some((account) => account.accountId === storedActiveAccountId)
         ) {
           activeAccountId.value = storedActiveAccountId;
-        } else if (!activeAccountId.value) {
+        } else if (!activeAccountStillExists) {
           activeAccountId.value = accounts.value[0].accountId;
         }
         return;
@@ -276,6 +290,10 @@ export const usePlatformAccountsStore = defineStore(
           cookie,
           loginMethod: 'cookie'
         });
+      }
+
+      if (!accounts.value.length) {
+        activeAccountId.value = null;
       }
     };
 

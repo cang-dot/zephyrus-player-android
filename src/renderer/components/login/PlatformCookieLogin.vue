@@ -70,10 +70,6 @@ const placeholderText = computed(() => {
       return '粘贴 QQ 音乐 Cookie，例如：uin=12345; qm_keyst=abc;';
     case 'kugou':
       return '粘贴酷狗音乐 Cookie，例如：userid=123; token=abc;';
-    case 'kuwo':
-      return '粘贴酷我音乐 Cookie';
-    case 'migu':
-      return '粘贴咪咕音乐 Cookie';
     default:
       return '请输入 Cookie';
   }
@@ -87,14 +83,22 @@ const tipText = computed(() => {
       return '需要 uin 和 qm_keyst Cookie 才能解锁高品质音源';
     case 'kugou':
       return '需要 userid 和 token Cookie 才能使用账号功能';
-    case 'kuwo':
-      return 'Cookie 仅保存在本机，用于请求酷我账号数据';
-    case 'migu':
-      return 'Cookie 仅保存在本机，用于请求咪咕账号数据';
     default:
       return '';
   }
 });
+
+const parseCookie = (cookie: string) => {
+  const entries: Record<string, string> = {};
+  for (const part of cookie.split(';')) {
+    const separatorIndex = part.indexOf('=');
+    if (separatorIndex <= 0) continue;
+    const key = part.slice(0, separatorIndex).trim();
+    const value = part.slice(separatorIndex + 1).trim();
+    if (key && value) entries[key] = value;
+  }
+  return entries;
+};
 
 const handleLogin = async () => {
   if (!cookieValue.value.trim()) {
@@ -126,18 +130,23 @@ const handleLogin = async () => {
         emit('loginError', errorMsg);
       }
     } else {
+      const cookieEntries = parseCookie(cookie);
+      if (
+        props.platform === 'qq' &&
+        (!cookieEntries.uin ||
+          !(cookieEntries.qm_keyst || cookieEntries.qqmusic_key || cookieEntries.p_skey))
+      ) {
+        throw new Error('QQ 音乐 Cookie 缺少 uin 和登录密钥');
+      }
+      if (props.platform === 'kugou' && (!cookieEntries.userid || !cookieEntries.token)) {
+        throw new Error('酷狗音乐 Cookie 缺少 userid 或 token');
+      }
       if (window.api?.setPlatformCookie) {
         await window.api.setPlatformCookie(props.platform, cookie);
       }
       localStorage.setItem(`platform-cookie-${props.platform}`, cookie);
 
       message.success(`${props.platformName} Cookie 保存成功`);
-      const cookieEntries = Object.fromEntries(
-        cookie
-          .split(';')
-          .map((entry) => entry.trim().split('='))
-          .filter(([key, value]) => key && value)
-      );
       emit(
         'loginSuccess',
         {
@@ -159,7 +168,7 @@ const handleLogin = async () => {
     const errorMsg =
       props.platform === 'netease'
         ? t('login.message.tokenInvalid')
-        : `${props.platformName} Cookie 无效`;
+        : error?.message || `${props.platformName} Cookie 无效`;
     message.error(errorMsg);
     emit('loginError', errorMsg);
     console.error(`${props.platformName} Cookie 登录失败:`, error);

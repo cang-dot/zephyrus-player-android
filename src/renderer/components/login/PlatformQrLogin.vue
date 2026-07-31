@@ -81,6 +81,8 @@ const qrUrl = ref('');
 const qrKey = ref('');
 const qrStatus = ref<QrStatus>('loading');
 const isRefreshing = ref(false);
+const errorText = ref('');
+const consecutivePollFailures = ref(0);
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
 let pollingStopped = false;
 
@@ -99,7 +101,7 @@ const statusText = computed(() => {
     case 'confirmed':
       return t('login.message.qrConfirmed');
     case 'error':
-      return t('login.message.loginFailed');
+      return errorText.value || t('login.message.loginFailed');
     default:
       return '';
   }
@@ -124,6 +126,7 @@ const pollOnce = async () => {
 
   try {
     const result = await pollPlatformQr(props.platform, qrKey.value);
+    consecutivePollFailures.value = 0;
     switch (result.code) {
       case 'waiting':
         qrStatus.value = 'active';
@@ -147,6 +150,7 @@ const pollOnce = async () => {
         emit('loginSuccess', result.userInfo || {}, result.cookie || '');
         break;
       case 'error':
+        errorText.value = result.message || t('login.message.loginFailed');
         qrStatus.value = 'error';
         clearPollTimer();
         message.error(result.message || t('login.message.loginFailed'));
@@ -155,7 +159,15 @@ const pollOnce = async () => {
     }
   } catch (error: any) {
     console.error(`${props.platformName} 轮询失败:`, error);
-    schedulePoll();
+    consecutivePollFailures.value += 1;
+    if (consecutivePollFailures.value >= 3) {
+      errorText.value = error?.message || t('login.message.qrCheckFailed');
+      qrStatus.value = 'error';
+      clearPollTimer();
+      emit('loginError', errorText.value);
+      return;
+    }
+    schedulePoll(2000);
   }
 };
 
@@ -175,6 +187,8 @@ const loadQr = async () => {
   qrStatus.value = 'loading';
   qrUrl.value = '';
   qrKey.value = '';
+  errorText.value = '';
+  consecutivePollFailures.value = 0;
   pollingStopped = false;
   clearPollTimer();
 
@@ -190,6 +204,7 @@ const loadQr = async () => {
     schedulePoll(1000);
   } catch (error: any) {
     const errorMessage = error?.message || t('login.message.qrCheckFailed');
+    errorText.value = errorMessage;
     qrStatus.value = 'error';
     message.error(errorMessage);
     emit('loginError', errorMessage);

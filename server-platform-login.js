@@ -17,6 +17,7 @@
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
+const cors = require('cors');
 
 const router = express.Router();
 
@@ -71,7 +72,7 @@ function mergeCookieParts(...cookieSources) {
 const qqSessionStore = new Map();
 
 // 定期清理过期会话（每 5 分钟）
-setInterval(
+const sessionCleanupTimer = setInterval(
   () => {
     const now = Date.now();
     for (const [key, val] of qqSessionStore) {
@@ -82,6 +83,17 @@ setInterval(
   },
   5 * 60 * 1000
 );
+sessionCleanupTimer.unref?.();
+
+router.get('/health', (_req, res) => {
+  res.json({
+    code: 200,
+    data: {
+      service: 'zephyrus-music-gateway',
+      platforms: ['qq', 'kugou']
+    }
+  });
+});
 
 // ==================== QQ 音乐扫码登录 ====================
 
@@ -287,8 +299,8 @@ router.get('/qq/qr/poll', async (req, res) => {
 
 const KUGOU_WEB_SALT = 'NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt';
 const KUGOU_SRC_APPID = 2919;
-const KUGOU_APPID = 1005;
-const KUGOU_CLIENTVER = 20489;
+const KUGOU_APPID = 3116;
+const KUGOU_CLIENTVER = 11436;
 
 let kugouMid = generateMid();
 let kugouDfid = generateDfid();
@@ -677,3 +689,24 @@ router.get('/qr-display', (req, res) => {
 });
 
 module.exports = router;
+
+function createPlatformGatewayApp() {
+  const app = express();
+  app.disable('x-powered-by');
+  app.use(cors());
+  app.use('/platform', router);
+  app.use((_req, res) => {
+    res.status(404).json({ code: 404, msg: 'Gateway route not found' });
+  });
+  return app;
+}
+
+module.exports.createPlatformGatewayApp = createPlatformGatewayApp;
+
+if (require.main === module) {
+  const port = Number(process.env.PORT || process.env.ZEPHYRUS_GATEWAY_PORT || 3050);
+  const host = process.env.HOST || '127.0.0.1';
+  createPlatformGatewayApp().listen(port, host, () => {
+    console.log(`[music-gateway] listening on http://${host}:${port}`);
+  });
+}

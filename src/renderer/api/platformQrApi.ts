@@ -10,8 +10,9 @@
  * - 酷狗新 API (login-user.kugou.com) 需要 Web 签名，服务器端统一处理
  */
 
+import axios, { type AxiosError } from 'axios';
+
 import { isElectron } from '@/utils';
-import request from '@/utils/request';
 
 // ==================== 类型定义 ====================
 
@@ -39,24 +40,56 @@ export interface QrPollResult {
 
 // ==================== 服务器中转 API ====================
 
+const DEFAULT_GATEWAY_URL = 'https://mucang.xyz/zephyrus/api';
+const gatewayBaseURL = (import.meta.env.VITE_MUSIC_GATEWAY || DEFAULT_GATEWAY_URL).replace(
+  /\/+$/,
+  ''
+);
+
+const gatewayRequest = axios.create({
+  baseURL: gatewayBaseURL,
+  timeout: 15000
+});
+
+function gatewayError(error: unknown, action: string): Error {
+  const axiosError = error as AxiosError<{ msg?: string }>;
+  const status = axiosError.response?.status;
+  const serverMessage = axiosError.response?.data?.msg;
+
+  if (status === 404) {
+    return new Error(`扫码网关路由不存在，请检查 VITE_MUSIC_GATEWAY：${gatewayBaseURL}`);
+  }
+  if (serverMessage) {
+    return new Error(serverMessage);
+  }
+  if (axiosError.code === 'ECONNABORTED') {
+    return new Error(`${action}超时，请检查扫码网关连接`);
+  }
+  return new Error(axiosError.message || `${action}失败`);
+}
+
 /**
  * 通过服务器中转 API 创建二维码
  * 路由：GET /platform/{platform}/qr/create
  */
 async function createQrViaServer(platform: LoginPlatform): Promise<QrCreateResult> {
-  const response = await request.get(`/platform/${platform}/qr/create`, {
-    params: { noCache: 1 }
-  });
-  const json = response.data;
-  if (json.code !== 200 || !json.data) {
-    throw new Error(json.msg || `${platform} 二维码创建失败`);
+  try {
+    const response = await gatewayRequest.get(`/platform/${platform}/qr/create`, {
+      params: { noCache: Date.now() }
+    });
+    const json = response.data;
+    if (json.code !== 200 || !json.data) {
+      throw new Error(json.msg || `${platform} 二维码创建失败`);
+    }
+    return {
+      platform,
+      qrUrl: json.data.qrUrl,
+      key: json.data.key,
+      expiredAt: json.data.expiredAt
+    };
+  } catch (error) {
+    throw gatewayError(error, `${platform} 二维码创建`);
   }
-  return {
-    platform,
-    qrUrl: json.data.qrUrl,
-    key: json.data.key,
-    expiredAt: json.data.expiredAt
-  };
 }
 
 /**
@@ -64,21 +97,25 @@ async function createQrViaServer(platform: LoginPlatform): Promise<QrCreateResul
  * 路由：GET /platform/{platform}/qr/poll?key=xxx
  */
 async function pollQrViaServer(platform: LoginPlatform, key: string): Promise<QrPollResult> {
-  const response = await request.get(`/platform/${platform}/qr/poll`, {
-    params: { key, noCache: 1 }
-  });
-  const json = response.data;
-  if (json.code !== 200 || !json.data) {
-    return { platform, code: 'error', message: json.msg || '轮询状态失败' };
+  try {
+    const response = await gatewayRequest.get(`/platform/${platform}/qr/poll`, {
+      params: { key, noCache: Date.now() }
+    });
+    const json = response.data;
+    if (json.code !== 200 || !json.data) {
+      return { platform, code: 'error', message: json.msg || '轮询状态失败' };
+    }
+    const data = json.data;
+    return {
+      platform,
+      code: data.status,
+      message: data.message,
+      cookie: data.cookie,
+      userInfo: data.userInfo
+    };
+  } catch (error) {
+    throw gatewayError(error, `${platform} 登录状态轮询`);
   }
-  const data = json.data;
-  return {
-    platform,
-    code: data.status,
-    message: data.message,
-    cookie: data.cookie,
-    userInfo: data.userInfo
-  };
 }
 
 // ==================== 统一入口 ====================

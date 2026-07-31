@@ -118,10 +118,7 @@ const platformTabs = computed(() =>
 
 const availableMethods = computed<LoginMethod[]>(() => {
   if (activePlatform.value === 'netease') return ['qr', 'cookie', 'uid'];
-  if (activePlatform.value === 'qq' || activePlatform.value === 'kugou') {
-    return ['qr', 'cookie'];
-  }
-  return ['cookie'];
+  return ['qr', 'cookie'];
 });
 
 const methodTabs = computed(() =>
@@ -138,8 +135,7 @@ const qrPlatform = computed<'qq' | 'kugou' | null>(() =>
 const switchPlatform = (platform: Platform) => {
   if (!MUSIC_PLATFORMS.includes(platform)) return;
   activePlatform.value = platform;
-  activeMethod.value =
-    platform === 'netease' || platform === 'qq' || platform === 'kugou' ? 'qr' : 'cookie';
+  activeMethod.value = 'qr';
 };
 
 const switchMethod = (method: LoginMethod) => {
@@ -148,7 +144,10 @@ const switchMethod = (method: LoginMethod) => {
   }
 };
 
-watch(routePlatform, (platform) => switchPlatform(platform));
+watch(
+  () => route.query.platform,
+  () => switchPlatform(routePlatform.value)
+);
 
 const finishLogin = () => {
   window.setTimeout(() => router.push('/user'), 260);

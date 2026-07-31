@@ -73,6 +73,15 @@ $pw = $env:ZEPHYRUS_SSH_PASSWORD
 - `GET /platform/kugou/qr/poll?key=xxx` — 轮询酷狗扫码状态
 - `GET /platform/qr-display?platform=qq|kugou` — 动态二维码展示页面（供其他设备扫码）
 
+前端必须通过独立环境变量访问扫码网关，不能复用网易云 API 的 Axios 实例：
+
+```env
+VITE_MUSIC_GATEWAY=https://mucang.xyz/zephyrus/api
+```
+
+本地调试可运行 `npm run dev:gateway`，默认监听 `http://127.0.0.1:3050`；使用
+`npm run test:gateway` 可在线验证健康检查、QQ/酷狗二维码创建及首次轮询。
+
 ---
 
 ## 三、本地构建与部署
@@ -164,7 +173,7 @@ const handlePlatformLoginSuccess = (_userInfo: any, _cookie: string) => {
 **问题：**
 
 - Cookie 直接显示在卡片上导致溢出屏幕
-- 不支持网易云、QQ、酷狗、JOOX 四家统一管理
+- 不支持网易云、QQ、酷狗三家统一管理
 - 需要切换展示账号的地方
 
 **涉及文件：**
@@ -184,7 +193,7 @@ const handlePlatformLoginSuccess = (_userInfo: any, _cookie: string) => {
 
 **重写方案：**
 
-1. **四家平台：** 网易云、QQ、酷狗、JOOX（移除咪咕和酷我）
+1. **三家平台：** 网易云、QQ、酷狗（移除咪咕和酷我登录）
 
 2. **每个平台卡片显示：**
    - 平台 Logo + 名称
@@ -198,11 +207,9 @@ const handlePlatformLoginSuccess = (_userInfo: any, _cookie: string) => {
 
 4. **QQ/酷狗卡片：** 从 `localStorage` 读取 `platform-cookie-qq` / `platform-cookie-kugou` 判断登录状态；从 `localStorage` 读取 `platform-user-qq` / `platform-user-kugou` 读取用户昵称
 
-5. **JOOX 卡片：** 从 `localStorage` 读取 `platform-cookie-joox`；支持手动 Cookie 输入（内嵌展开式，不是底部独立区域）
+5. **UI 风格：** 使用项目现有的 CSS 变量体系（`--d-text-primary`、`--d-surface-alt`、`--accent-color` 等），与「我的页」hero-card 风格一致
 
-6. **UI 风格：** 使用项目现有的 CSS 变量体系（`--d-text-primary`、`--d-surface-alt`、`--accent-color` 等），与「我的页」hero-card 风格一致
-
-7. **移除：** 底部手动 Cookie 折叠区域（改到各平台卡片内部）
+6. **移除：** 底部手动 Cookie 折叠区域（改到各平台卡片内部）
 
 ---
 

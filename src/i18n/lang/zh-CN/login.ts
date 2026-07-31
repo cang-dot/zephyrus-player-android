@@ -2,9 +2,7 @@ export default {
   platform: {
     netease: '网易云',
     qq: 'QQ音乐',
-    kugou: '酷狗',
-    kuwo: '酷我',
-    migu: '咪咕'
+    kugou: '酷狗'
   },
   title: {
     qr: '扫码登录',
