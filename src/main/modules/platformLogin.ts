@@ -58,8 +58,14 @@ export enum QrStatus {
  * QQ 音乐二维码登录配置
  */
 const QQ_APPID = '716027609';
-const QQ_DAID = '384';
-const QQ_REDIRECT = 'https://y.qq.com/portal';
+const QQ_DAID = '383';
+const QQ_PT_3RD_AID = '100497308';
+const QQ_REDIRECT = 'https://graph.qq.com/oauth2.0/login_jump';
+const QQ_MUSIC_REDIRECT =
+  'https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/';
+const QQ_JS_VER = '20102616';
+const QQ_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const QQ_SESSION_TTL = 2 * 60 * 1000;
 
 interface QqQrSession {
@@ -68,6 +74,31 @@ interface QqQrSession {
 }
 
 const qqQrSessions = new Map<string, QqQrSession>();
+
+export function parsePtuiCallback(payload: string): {
+  code: number;
+  redirectUrl: string;
+  message: string;
+} | null {
+  const callbackMatch = String(payload || '').match(/ptuiCB\s*\(([\s\S]*?)\)\s*;?/);
+  if (!callbackMatch) return null;
+
+  const args: string[] = [];
+  const argumentPattern = /'((?:\\.|[^'\\])*)'/g;
+  let argumentMatch: RegExpExecArray | null;
+  while ((argumentMatch = argumentPattern.exec(callbackMatch[1]))) {
+    args.push(argumentMatch[1].replace(/\\(['\\])/g, '$1'));
+  }
+
+  const code = Number.parseInt(args[0], 10);
+  if (!Number.isFinite(code) || args.length < 3) return null;
+
+  return {
+    code,
+    redirectUrl: args[2] || '',
+    message: args[4] || args[3] || ''
+  };
+}
 
 /**
  * hash33 算法 — 用于计算 ptqrtoken
@@ -82,16 +113,30 @@ function hash33(s: string): number {
 }
 
 /**
+ * OAuth 授权请求的 ui 参数需要一个随机 UUID（等价于 QQ 音乐 Web 端每次生成的 GUID）
+ */
+function randomUuid(): string {
+  if (typeof (crypto as any).randomUUID === 'function') {
+    return (crypto as any).randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
  * 创建 QQ 音乐登录二维码
  * 返回二维码图片 URL（base64）和 qrsig
  */
 async function createQQQrCode(): Promise<QrCreateResult> {
   const t = Math.random().toString(36).substring(2, 10);
-  const url = `https://ssl.ptlogin2.qq.com/ptqrshow?appid=${QQ_APPID}&e=2&l=M&s=3&d=72&v=4&t=${t}&daid=${QQ_DAID}&pt_3rd_aid=0`;
+  const url = `https://ssl.ptlogin2.qq.com/ptqrshow?appid=${QQ_APPID}&e=2&l=M&s=3&d=72&v=4&t=${t}&daid=${QQ_DAID}&pt_3rd_aid=${QQ_PT_3RD_AID}`;
 
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      'User-Agent': QQ_USER_AGENT
     }
   });
 
@@ -147,13 +192,13 @@ async function pollQQQrStatus(qrsig: string): Promise<QrPollResult> {
   const url =
     `https://ssl.ptlogin2.qq.com/ptqrlogin?u1=${encodeURIComponent(QQ_REDIRECT)}` +
     `&ptqrtoken=${ptqrtoken}&ptredirect=0&h=1&t=1&g=1&from_ui=1&ptlang=2052` +
-    `&action=0-0-${time}&js_ver=10275&js_type=1&login_sig=${loginSig}` +
-    `&pt_uistyle=40&aid=${QQ_APPID}&daid=${QQ_DAID}&pt_3rd_aid=0`;
+    `&action=0-0-${time}&js_ver=${QQ_JS_VER}&js_type=1&login_sig=${loginSig}&has_onekey=1` +
+    `&pt_uistyle=40&aid=${QQ_APPID}&daid=${QQ_DAID}&pt_3rd_aid=${QQ_PT_3RD_AID}`;
 
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      Referer: 'https://y.qq.com/',
+      'User-Agent': QQ_USER_AGENT,
+      Referer: 'https://xui.ptlogin2.qq.com/',
       Cookie: sessionCookie
     }
   });
@@ -170,20 +215,16 @@ async function pollQQQrStatus(qrsig: string): Promise<QrPollResult> {
     });
   }
 
-  // 解析 ptuiCB('code', 'status', 'redirectUrl', '0', 'message', '');
-  const match = text.match(
-    /ptuiCB\('(\d+)',\s*'[^']*',\s*'([^']*)',\s*'[^']*',\s*'([^']*)',\s*'[^']*'\)/
-  );
-  if (!match) {
+  const callback = parsePtuiCallback(text);
+  if (!callback) {
     return {
       platform: 'qq',
       code: QrStatus.Error,
-      message: 'QQ 登录状态解析失败'
+      message: 'QQ 登录状态解析失败，请刷新二维码重试'
     };
   }
 
-  const [, codeStr, redirectUrl] = match;
-  const code = parseInt(codeStr, 10);
+  const { code, redirectUrl } = callback;
 
   // 66 = 等待扫码
   if (code === 66) {
@@ -204,7 +245,7 @@ async function pollQQQrStatus(qrsig: string): Promise<QrPollResult> {
   }
 
   // 65 = 二维码过期
-  if (code === 65) {
+  if (code === 65 || code === 68) {
     qqQrSessions.delete(qrsig);
     return {
       platform: 'qq',
@@ -216,38 +257,19 @@ async function pollQQQrStatus(qrsig: string): Promise<QrPollResult> {
   // 0 = 登录成功
   if (code === 0 && redirectUrl) {
     try {
-      // 跟随重定向获取 Cookie
-      const cookieResponse = await fetch(redirectUrl, {
-        redirect: 'manual',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          Referer: 'https://y.qq.com/',
-          Cookie: mergedSessionCookie
-        }
-      });
-
-      const setCookies = cookieResponse.headers.raw()['set-cookie'] || [];
-      const resultCookie = mergeCookieParts(
-        mergedSessionCookie,
-        setCookiesFromHeader(setCookies).join('; ')
-      );
-      const uin = resultCookie.match(/(?:^|;\s*)uin=([^;]+)/)?.[1] || '';
+      const loginResult = await completeQQLogin(redirectUrl, mergedSessionCookie);
 
       qqQrSessions.delete(qrsig);
 
       // 保存 Cookie
-      setPlatformCookie('qq', resultCookie);
+      setPlatformCookie('qq', loginResult.cookie);
 
       return {
         platform: 'qq',
         code: QrStatus.Success,
         message: 'QQ 音乐登录成功',
-        cookie: resultCookie,
-        userInfo: {
-          userId: uin,
-          nickname: 'QQ音乐用户',
-          avatarUrl: ''
-        }
+        cookie: loginResult.cookie,
+        userInfo: loginResult.userInfo
       };
     } catch (error: any) {
       return {
@@ -289,6 +311,305 @@ function mergeCookieParts(...cookieSources: string[]): string {
   }
 
   return Array.from(cookies.values()).join('; ');
+}
+
+function cookieMap(cookie: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const part of cookiePartsFromString(cookie)) {
+    const separatorIndex = part.indexOf('=');
+    if (separatorIndex > 0) {
+      result[part.slice(0, separatorIndex)] = part.slice(separatorIndex + 1);
+    }
+  }
+  return result;
+}
+
+function firstOwnValue(value: unknown, keys: string[]): string {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  const entries = Object.entries(value as Record<string, unknown>);
+  for (const key of keys) {
+    const match = entries.find(([candidate]) => candidate.toLowerCase() === key.toLowerCase());
+    if (!match || match[1] === null || match[1] === undefined) continue;
+    if (typeof match[1] === 'string' || typeof match[1] === 'number') {
+      const text = String(match[1]).trim();
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
+function firstDeepValue(value: unknown, keys: string[], depth = 0): string {
+  if (depth > 5 || value === null || value === undefined) return '';
+  const ownValue = firstOwnValue(value, keys);
+  if (ownValue) return ownValue;
+  if (typeof value !== 'object') return '';
+  for (const child of Array.isArray(value) ? value : Object.values(value)) {
+    const result = firstDeepValue(child, keys, depth + 1);
+    if (result) return result;
+  }
+  return '';
+}
+
+function qqGtk(cookie: string): number {
+  const values = cookieMap(cookie);
+  const key =
+    values.qqmusic_key || values.p_skey || values.skey || values.p_lskey || values.lskey || '';
+  let hash = 5381;
+  let decodedKey = key;
+  try {
+    decodedKey = decodeURIComponent(key);
+  } catch {
+    // 使用原始 Cookie 值继续计算。
+  }
+  for (const character of decodedKey) {
+    hash += (hash << 5) + character.charCodeAt(0);
+  }
+  return hash & 0x7fffffff;
+}
+
+function normalizeQQUserId(value: unknown): string {
+  return String(value || '')
+    .trim()
+    .replace(/^o(?=\d)/i, '');
+}
+
+function extractQQOAuthCode(location: string, body: string): string {
+  const values = [location, body];
+  for (const value of values) {
+    let text = String(value || '').replace(/&amp;/gi, '&').replace(/\\u0026/gi, '&');
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const queryMatch = text.match(/[?&#](?:code|auth_code)=([^&#"'\\\s]+)/i);
+      if (queryMatch?.[1]) return decodeURIComponent(queryMatch[1]);
+      const bodyMatch = text.match(/(?:["']|\\)?(?:code|auth_code)(?:["']|\\)?\s*[:=]\s*(?:["']|\\)?([^&"'\\\s,}]+)/i);
+      if (bodyMatch?.[1]) return decodeURIComponent(bodyMatch[1]);
+      try {
+        const decoded = decodeURIComponent(text);
+        if (decoded === text) break;
+        text = decoded;
+      } catch {
+        break;
+      }
+    }
+  }
+  return '';
+}
+
+interface QQLoginCompletion {
+  cookie: string;
+  userInfo: {
+    userId: string;
+    nickname: string;
+    avatarUrl: string;
+  };
+}
+
+function createQQLoginFromCookie(cookie: string, loginData: any = {}): QQLoginCompletion | null {
+  const values = cookieMap(cookie);
+  const userId = normalizeQQUserId(
+    firstDeepValue(loginData, ['musicid', 'uin', 'user_id', 'userid']) ||
+      values.uin ||
+      values.p_uin ||
+      values.ptui_loginuin
+  );
+  const musicKey =
+    firstDeepValue(loginData, ['musickey', 'music_key', 'qm_keyst', 'qqmusic_key']) ||
+    values.qm_keyst ||
+    values.qqmusic_key ||
+    values.p_skey ||
+    values.skey;
+
+  if (!userId || !musicKey) return null;
+
+  let resultCookie = cookie;
+  if (!values.uin) {
+    resultCookie = mergeCookieParts(resultCookie, `uin=${userId}`);
+  }
+  if (!values.qm_keyst && !values.qqmusic_key && !values.p_skey && !values.skey) {
+    resultCookie = mergeCookieParts(resultCookie, `qm_keyst=${musicKey}`);
+  }
+
+  const avatarUin = userId.replace(/^o/i, '');
+  return {
+    cookie: resultCookie,
+    userInfo: {
+      userId,
+      nickname:
+        firstDeepValue(loginData, ['nickname', 'nickName', 'nick', 'username']) || 'QQ音乐用户',
+      avatarUrl: /^\d+$/.test(avatarUin) ? `https://q1.qlogo.cn/g?b=qq&nk=${avatarUin}&s=100` : ''
+    }
+  };
+}
+
+async function completeQQLogin(
+  redirectUrl: string,
+  sessionCookie: string
+): Promise<QQLoginCompletion> {
+  let redirect: URL;
+  try {
+    redirect = new URL(redirectUrl);
+  } catch {
+    throw new Error('QQ 登录回调地址无效，请重新扫码');
+  }
+  if (redirect.protocol !== 'https:' || redirect.hostname !== 'ssl.ptlogin2.graph.qq.com') {
+    throw new Error('QQ 登录回调地址不受信任，请重新扫码');
+  }
+
+  // 从 ptqrlogin 回调地址中解析 uin 与 ptsigx，再显式重建 check_sig 请求，
+  // 与当前 QQ 音乐 Web 端实际使用的参数保持一致（参照 QQMusicApi-nodejs 架构）。
+  const uinMatch = redirectUrl.match(/[?&]uin=([^&]+)/i);
+  const ptsigxMatch = redirectUrl.match(/[?&]ptsigx=([^&]+)/i);
+  if (!uinMatch?.[1] || !ptsigxMatch?.[1]) {
+    throw new Error('QQ 登录回调缺少 uin/ptsigx 参数，请重新扫码');
+  }
+  const checkSigUrl =
+    'https://ssl.ptlogin2.graph.qq.com/check_sig' +
+    `?uin=${encodeURIComponent(uinMatch[1])}` +
+    '&pttype=1&service=ptqrlogin&nodirect=0' +
+    `&ptsigx=${encodeURIComponent(ptsigxMatch[1])}` +
+    `&s_url=${encodeURIComponent('https://graph.qq.com/oauth2.0/login_jump')}` +
+    '&ptlang=2052&ptredirect=100' +
+    `&aid=${QQ_APPID}&daid=${QQ_DAID}` +
+    '&j_later=0&low_login_hour=0&regmaster=0&pt_login_type=3&pt_aid=0&pt_aaid=16&pt_light=0' +
+    `&pt_3rd_aid=${QQ_PT_3RD_AID}`;
+
+  const checkSigResponse = await fetch(checkSigUrl, {
+    redirect: 'manual',
+    headers: {
+      Accept:
+        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+      'User-Agent': QQ_USER_AGENT,
+      Referer: 'https://xui.ptlogin2.qq.com/',
+      Cookie: sessionCookie
+    }
+  });
+  if (checkSigResponse.status >= 400) {
+    throw new Error(`QQ check_sig 请求被拒绝 (${checkSigResponse.status})`);
+  }
+  const checkSigSetCookie = setCookiesFromHeader(checkSigResponse.headers.raw()['set-cookie'] || []).join(
+    '; '
+  );
+  let graphCookie = mergeCookieParts(
+    sessionCookie,
+    checkSigSetCookie
+  );
+
+  // check_sig 必须返回 p_skey，否则后续 OAuth 授权必然失败。
+  const checkSigCookies = cookieMap(graphCookie);
+  const pSkey =
+    checkSigCookies.p_skey ||
+    checkSigCookies.pskey ||
+    checkSigCookies['p-skey'] ||
+    checkSigCookies.skey ||
+    checkSigCookies.ptsigx;
+  if (!pSkey) {
+    const bodyPreview = String(checkSigResponse.text ? await checkSigResponse.text() : '')
+      .replace(/\s+/g, ' ')
+      .slice(0, 200);
+    throw new Error(
+      `QQ check_sig 未获取到 p_skey (status=${checkSigResponse.status}, ` +
+        `set-cookie=${checkSigSetCookie || '<empty>'}, body=${bodyPreview || '<empty>'})，请重新扫码`
+    );
+  }
+
+  const authorizeBody = new URLSearchParams({
+    response_type: 'code',
+    client_id: '100497308',
+    redirect_uri: QQ_MUSIC_REDIRECT,
+    scope: 'get_user_info,get_app_friends',
+    state: 'state',
+    switch: '',
+    from_ptlogin: '1',
+    src: '1',
+    update_auth: '1',
+    openapi: '1010_1030',
+    g_tk: String(qqGtk(graphCookie)),
+    auth_time: String(Date.now()),
+    ui: randomUuid()
+  }).toString();
+  const authorizeResponse = await fetch('https://graph.qq.com/oauth2.0/authorize', {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': QQ_USER_AGENT,
+      Referer: 'https://xui.ptlogin2.qq.com/',
+      Cookie: graphCookie
+    },
+    body: authorizeBody
+  });
+  if (authorizeResponse.status >= 400) {
+    throw new Error(`QQ OAuth 授权请求失败 (${authorizeResponse.status})`);
+  }
+  graphCookie = mergeCookieParts(
+    graphCookie,
+    setCookiesFromHeader(authorizeResponse.headers.raw()['set-cookie'] || []).join('; ')
+  );
+
+  const location = authorizeResponse.headers.get('location') || '';
+  const authorizeBodyText = await authorizeResponse.text();
+  const oauthCode = extractQQOAuthCode(location, authorizeBodyText);
+  if (!oauthCode) {
+    const fallbackLogin = createQQLoginFromCookie(graphCookie);
+    if (fallbackLogin) return fallbackLogin;
+    const bodyPreview = String(authorizeBodyText)
+      .replace(/\s+/g, ' ')
+      .slice(0, 200);
+    throw new Error(
+      `QQ OAuth 授权码获取失败 (status=${authorizeResponse.status}, ` +
+        `location=${location.slice(0, 200) || '<empty>'}, body=${bodyPreview || '<empty>'})，请重新扫码`
+    );
+  }
+
+  const musicResponse = await fetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': QQ_USER_AGENT,
+      Referer: 'https://y.qq.com/',
+      Cookie: graphCookie
+    },
+    body: JSON.stringify({
+      comm: { g_tk: 5381, platform: 'yqq', ct: 24, cv: 0 },
+      req: {
+        module: 'QQConnectLogin.LoginServer',
+        method: 'QQLogin',
+        param: { code: decodeURIComponent(oauthCode) }
+      }
+    })
+  });
+  if (musicResponse.status >= 400) {
+    throw new Error(`QQ 音乐登录请求失败 (${musicResponse.status})`);
+  }
+  const musicText = await musicResponse.text();
+  let loginData: any = {};
+  try {
+    loginData = JSON.parse(musicText);
+  } catch {
+    throw new Error('QQ 音乐登录响应解析失败，请重新扫码');
+  }
+
+  let resultCookie = mergeCookieParts(
+    graphCookie,
+    setCookiesFromHeader(musicResponse.headers.raw()['set-cookie'] || []).join('; ')
+  );
+  const musicKey = firstDeepValue(loginData, ['musickey', 'music_key', 'qm_keyst', 'qqmusic_key']);
+  const musicUin = firstDeepValue(loginData, ['musicid', 'uin', 'user_id', 'userid']);
+  const existingCookies = cookieMap(resultCookie);
+  if (musicKey && !existingCookies.qm_keyst && !existingCookies.qqmusic_key) {
+    resultCookie = mergeCookieParts(resultCookie, `qm_keyst=${musicKey}`);
+  }
+  const normalizedUin = normalizeQQUserId(
+    musicUin || existingCookies.uin || existingCookies.ptui_loginuin
+  );
+  if (normalizedUin && !existingCookies.uin) {
+    resultCookie = mergeCookieParts(resultCookie, `uin=${normalizedUin}`);
+  }
+  const completedLogin = createQQLoginFromCookie(resultCookie, loginData);
+  if (!completedLogin) {
+    throw new Error('QQ 音乐登录密钥获取失败，请重新扫码');
+  }
+  return completedLogin;
 }
 
 // ==================== 酷狗音乐扫码登录（新 API + Web 签名） ====================
@@ -478,7 +799,10 @@ async function pollKugouQrStatus(key: string): Promise<QrPollResult> {
   if (status === 4) {
     const userid = String(json.data.userid || '');
     const token = json.data.token || '';
-    const cookieStr = `userid=${userid}; token=${token};`;
+    const cookieStr = mergeCookieParts(
+      `userid=${userid}; token=${token};`,
+      `dfid=${json.data.dfid || kugouDfid}; KUGOU_API_MID=${json.data.mid || kugouMid}; KUGOU_API_PLATFORM=lite;`
+    );
 
     // 保存 Cookie
     setPlatformCookie('kugou', cookieStr);
@@ -490,8 +814,20 @@ async function pollKugouQrStatus(key: string): Promise<QrPollResult> {
       cookie: cookieStr,
       userInfo: {
         userId: userid,
-        nickname: json.data.nickname || '酷狗用户',
-        avatarUrl: json.data.head_icon || ''
+        nickname:
+          json.data.nickname ||
+          json.data.nick_name ||
+          json.data.username ||
+          json.data.user_name ||
+          '酷狗用户',
+        avatarUrl:
+          json.data.head_icon ||
+          json.data.headurl ||
+          json.data.head_url ||
+          json.data.avatar ||
+          json.data.avatar_url ||
+          json.data.pic ||
+          ''
       }
     };
   }

@@ -6,7 +6,15 @@
         :key="account.accountId"
         type="button"
         class="account-pill"
-        :class="{ active: account.accountId === accountStore.activeAccountId }"
+        :data-account-id="account.accountId"
+        :class="{
+          active: account.accountId === accountStore.activeAccountId,
+          'is-dragging': draggingAccountId === account.accountId
+        }"
+        @pointerdown="startAccountPress($event, account)"
+        @pointermove="moveAccount($event, account)"
+        @pointerup="finishAccountPress"
+        @pointercancel="finishAccountPress"
         @click="selectAccount(account)"
       >
         <span class="account-avatar">
@@ -30,6 +38,7 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
@@ -54,6 +63,74 @@ const emit = defineEmits<{
 
 const router = useRouter();
 const accountStore = usePlatformAccountsStore();
+const draggingAccountId = ref<string | null>(null);
+let pressTimer: ReturnType<typeof setTimeout> | null = null;
+let pressStartX = 0;
+let pressStartY = 0;
+let didDrag = false;
+let touchMoveBlocker: ((e: TouchEvent) => void) | null = null;
+
+const clearPressTimer = () => {
+  if (pressTimer) clearTimeout(pressTimer);
+  pressTimer = null;
+};
+
+const startAccountPress = (event: PointerEvent, account: PlatformAccount) => {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  pressStartX = event.clientX;
+  pressStartY = event.clientY;
+  didDrag = false;
+  clearPressTimer();
+  if (!touchMoveBlocker) {
+    touchMoveBlocker = (e: TouchEvent) => {
+      // 长按拖拽开始后阻止横向滚动接管手势，否则 pointercancel 会让卡片立刻回位。
+      if (draggingAccountId.value) e.preventDefault();
+    };
+    document.addEventListener('touchmove', touchMoveBlocker, { passive: false });
+  }
+  pressTimer = setTimeout(() => {
+    draggingAccountId.value = account.accountId;
+    didDrag = true;
+    (event.currentTarget as HTMLElement)?.setPointerCapture?.(event.pointerId);
+  }, 420);
+};
+
+const moveAccount = (event: PointerEvent, account: PlatformAccount) => {
+  if (draggingAccountId.value !== account.accountId) {
+    if (Math.hypot(event.clientX - pressStartX, event.clientY - pressStartY) > 10) {
+      clearPressTimer();
+    }
+    return;
+  }
+
+  event.preventDefault();
+  const target = document
+    .elementFromPoint(event.clientX, event.clientY)
+    ?.closest<HTMLElement>('.account-pill[data-account-id]');
+  const targetId = target?.dataset.accountId;
+  if (!targetId || targetId === account.accountId) return;
+
+  const fromIndex = accountStore.accounts.findIndex((item) => item.accountId === account.accountId);
+  const toIndex = accountStore.accounts.findIndex((item) => item.accountId === targetId);
+  accountStore.moveAccount(fromIndex, toIndex);
+};
+
+const finishAccountPress = () => {
+  clearPressTimer();
+  draggingAccountId.value = null;
+  if (touchMoveBlocker) {
+    document.removeEventListener('touchmove', touchMoveBlocker);
+    touchMoveBlocker = null;
+  }
+};
+
+onBeforeUnmount(() => {
+  clearPressTimer();
+  if (touchMoveBlocker) {
+    document.removeEventListener('touchmove', touchMoveBlocker);
+    touchMoveBlocker = null;
+  }
+});
 
 const PLATFORM_NAMES: Record<MusicPlatform, string> = {
   netease: '网易云',
@@ -64,6 +141,10 @@ const PLATFORM_NAMES: Record<MusicPlatform, string> = {
 const platformName = (platform: MusicPlatform) => PLATFORM_NAMES[platform];
 
 const selectAccount = (account: PlatformAccount) => {
+  if (didDrag) {
+    didDrag = false;
+    return;
+  }
   if (accountStore.setActiveAccount(account.accountId)) {
     emit('change', account);
   }
@@ -120,6 +201,7 @@ const openLogin = () => router.push('/login');
   background: var(--cover-surface-alt, rgba(128, 128, 128, 0.06));
   color: var(--cover-text-primary, var(--d-text-primary));
   cursor: pointer;
+  touch-action: pan-x;
   transition:
     border-color 160ms ease,
     background-color 160ms ease,
@@ -134,6 +216,15 @@ const openLogin = () => router.push('/login');
 
   &:active {
     transform: scale(0.98);
+  }
+
+  &.is-dragging {
+    z-index: 2;
+    cursor: grabbing;
+    opacity: 0.78;
+    transform: scale(1.04) rotate(1deg);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+    touch-action: none;
   }
 }
 

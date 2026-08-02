@@ -8,9 +8,14 @@
 import { defineStore } from 'pinia';
 import { computed,ref } from 'vue';
 
-import { type ClimaxSegment,loadClimaxForSong } from '@/api/climax';
+import {
+  type ClimaxSegment,
+  loadClimaxForSong,
+  normalizeClimaxSegments
+} from '@/api/climax';
 import { type CommunityLyric,loadCommunityLyricForSong } from '@/api/communityLyric';
 import { type KeywordMark,loadKeywordsForSong } from '@/api/keywords';
+import { isLocalSong } from '@/hooks/useLocalMusic';
 import {
   getClimaxCache,
   getCommunityLyricCache,
@@ -24,10 +29,6 @@ export const useCommunityDataStore = defineStore('communityData', () => {
   // ==================== State ====================
   const currentSongId = ref<string>('');
 
-  // 判断 songId 是否为本地歌曲（本地歌曲 ID 是字符串路径哈希，非数字）
-  function isLocalSongId(songId: string): boolean {
-    return !/^\d+$/.test(songId);
-  }
   // Climax
   const climaxSegments = ref<ClimaxSegment[]>([]);
   const climaxContributor = ref<string | null>(null);
@@ -63,9 +64,10 @@ export const useCommunityDataStore = defineStore('communityData', () => {
 
     await loadClimax(songId);
 
+    if (songId.startsWith('server:')) return;
+
     if (climaxSegments.value.length > 0) {
       await loadKeywords(songId);
-    } else {
     }
 
     await loadCommunityLyric(songId);
@@ -78,11 +80,38 @@ export const useCommunityDataStore = defineStore('communityData', () => {
   async function loadClimax(songId: string) {
     loadingClimax.value = true;
     try {
+      if (songId.startsWith('server:')) {
+        const { usePlayerStore } = await import('./player');
+        const playerStore = usePlayerStore();
+        const currentSong = playerStore.playMusic;
+        const platformId = currentSong?.platformId || songId.slice('server:'.length);
+        let songDuration = currentSong?.dt || currentSong?.duration;
+        let serverSegments = currentSong?.climaxSegments;
+
+        // 云端歌曲的高潮时段只取 songs.json 里标注的 climax，
+        // 歌曲对象里已经带上了归一化后的标注时段。
+        if (!serverSegments?.length) {
+          const [{ getServerSongDetail }] = await Promise.all([import('@/api/serverSongs')]);
+          const detail = await getServerSongDetail(platformId);
+          serverSegments = detail.climax;
+          songDuration = detail.duration;
+        }
+
+        climaxSegments.value = normalizeClimaxSegments(serverSegments, songDuration);
+        climaxContributor.value = climaxSegments.value.length ? 'Zephyrus 云端' : null;
+        return;
+      }
+
       // 本地歌曲：从本地永久存储加载，不走服务器
-      if (isLocalSongId(songId)) {
+      const { usePlayerStore } = await import('./player');
+      const song = usePlayerStore().playMusic;
+      if (String(song?.id || '') === songId && isLocalSong(song)) {
         const localData = await getLocalClimax(songId);
         if (localData) {
-          climaxSegments.value = localData.segments;
+          climaxSegments.value = normalizeClimaxSegments(
+            localData.segments,
+            song?.dt || song?.duration
+          );
           climaxContributor.value = localData.contributor;
         } else {
           climaxSegments.value = [];

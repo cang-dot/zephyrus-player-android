@@ -9,7 +9,7 @@
     <div class="top-mask" />
 
     <!-- Scrollable Content -->
-    <div ref="scrollContainer" class="home-scroll" @click.stop @touchstart.passive="onBlankTouchStart">
+    <div ref="scrollContainer" class="home-scroll" @click.stop @pointerdown="onBlankPointerDown">
       <div class="topbar-spacer" />
 
       <!-- Card Carousel -->
@@ -24,7 +24,7 @@
               'dragging': drag.active && drag.itemId === item.type && drag.source === 'card',
               'edit-mode': isEditMode,
             }"
-            @touchstart.passive="onItemTouchStart($event, item.type, 'card')"
+            @pointerdown="onItemPointerDown($event, item.type, 'card')"
             @click="onItemClick(item.type)"
           >
             <div class="card-inner">
@@ -196,7 +196,7 @@
             'edit-mode': isEditMode,
           }"
           :style="blockStyle(item)"
-          @touchstart.passive="onItemTouchStart($event, item.type, 'grid')"
+          @pointerdown="onItemPointerDown($event, item.type, 'grid')"
           @click="onItemClick(item.type)"
         >
           <div class="block-bg" :style="{ background: meta[item.type].gradient }" />
@@ -204,7 +204,7 @@
           <div v-if="isEditMode" class="block-remove" @click.stop="removeItem(item.type, 'grid')">
             <i class="ri-close-circle-fill" />
           </div>
-          <div v-if="isEditMode" class="resize-handle" @touchstart.stop.prevent="onResizeStart($event, item)">
+          <div v-if="isEditMode" class="resize-handle" @pointerdown.stop.prevent="onResizeStart($event, item)">
             <i class="ri-drag-move-2-fill" />
           </div>
 
@@ -326,7 +326,7 @@
               v-for="blockType in availableBlocks" :key="blockType"
               class="add-sheet-item"
               :data-add-id="blockType"
-              @touchstart.passive="onAddItemTouchStart($event, blockType)"
+              @pointerdown="onAddItemPointerDown($event, blockType)"
               @click="addItem(blockType)"
             >
               <div class="add-sheet-thumb" :style="{ background: meta[blockType].gradient }">
@@ -797,15 +797,18 @@ const drag = reactive({
 let pressTimer: number | undefined;
 let touchStartX = 0;
 let touchStartY = 0;
-let docMoveHandler: ((e: TouchEvent) => void) | null = null;
-let docEndHandler: ((e: TouchEvent) => void) | null = null;
+let activePointerId: number | null = null;
+let activePointerTarget: HTMLElement | null = null;
+let docMoveHandler: ((e: PointerEvent) => void) | null = null;
+let docEndHandler: ((e: PointerEvent) => void) | null = null;
+let touchMoveBlocker: ((e: TouchEvent) => void) | null = null;
 
 // 抖动过滤：累计位移记录，只有持续定向移动才取消长按
 let jitterSamples: { x: number; y: number; t: number }[] = [];
 const JITTER_WINDOW = 5;          // 取最近5个采样点
 const JITTER_THRESHOLD = 24;       // 累计位移超过此值才算"真的在移动"
 
-const onBlankTouchStart = (e: TouchEvent) => {
+const onBlankPointerDown = (e: PointerEvent) => {
   // 如果触摸到了卡片或区块项，不处理空白触发
   const target = e.target as HTMLElement;
   if (target.closest('.card-item') || target.closest('.block-item') || target.closest('.add-sheet-item')) {
@@ -815,10 +818,9 @@ const onBlankTouchStart = (e: TouchEvent) => {
   // 已在编辑模式 — 点击空白退出（由 onBackgroundClick 处理）
   if (isEditMode.value) return;
 
-  const touch = e.touches[0];
-  touchStartX = touch.clientX;
-  touchStartY = touch.clientY;
-  jitterSamples = [{ x: touch.clientX, y: touch.clientY, t: Date.now() }];
+  touchStartX = e.clientX;
+  touchStartY = e.clientY;
+  jitterSamples = [{ x: e.clientX, y: e.clientY, t: Date.now() }];
 
   // 长按空白区域进入手动编辑模式
   pressTimer = window.setTimeout(() => {
@@ -830,13 +832,12 @@ const onBlankTouchStart = (e: TouchEvent) => {
   }, 600);
 
   // 监听移动和结束
-  docMoveHandler = (ev: TouchEvent) => {
-    const t = ev.touches[0];
-    const dx = t.clientX - touchStartX;
-    const dy = t.clientY - touchStartY;
+  docMoveHandler = (ev: PointerEvent) => {
+    const dx = ev.clientX - touchStartX;
+    const dy = ev.clientY - touchStartY;
 
     // 抖动过滤：采样并计算最近窗口内的累计位移
-    jitterSamples.push({ x: t.clientX, y: t.clientY, t: Date.now() });
+    jitterSamples.push({ x: ev.clientX, y: ev.clientY, t: Date.now() });
     if (jitterSamples.length > JITTER_WINDOW + 1) {
       jitterSamples.shift();
     }
@@ -859,22 +860,24 @@ const onBlankTouchStart = (e: TouchEvent) => {
     pressTimer = undefined;
     detachDocListeners();
   };
-  document.addEventListener('touchmove', docMoveHandler, { passive: true });
-  document.addEventListener('touchend', docEndHandler, { passive: true });
-  document.addEventListener('touchcancel', docEndHandler, { passive: true });
+  document.addEventListener('pointermove', docMoveHandler);
+  document.addEventListener('pointerup', docEndHandler);
+  document.addEventListener('pointercancel', docEndHandler);
 };
 
-const onItemTouchStart = (e: TouchEvent, itemType: BlockType, source: Zone) => {
-  const touch = e.touches[0];
-  touchStartX = touch.clientX;
-  touchStartY = touch.clientY;
-  drag.startTouchX = touch.clientX;
-  drag.startTouchY = touch.clientY;
+const onItemPointerDown = (e: PointerEvent, itemType: BlockType, source: Zone) => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  activePointerId = e.pointerId;
+  activePointerTarget = e.currentTarget as HTMLElement;
+  touchStartX = e.clientX;
+  touchStartY = e.clientY;
+  drag.startTouchX = e.clientX;
+  drag.startTouchY = e.clientY;
   drag.itemId = itemType;
   drag.source = source;
   drag.targetZone = source;
   drag.hasMoved = false;
-  jitterSamples = [{ x: touch.clientX, y: touch.clientY, t: Date.now() }];
+  jitterSamples = [{ x: e.clientX, y: e.clientY, t: Date.now() }];
 
   const cardSection = document.querySelector('.card-section');
   if (cardSection) {
@@ -889,35 +892,45 @@ const onItemTouchStart = (e: TouchEvent, itemType: BlockType, source: Zone) => {
   if (isEditMode.value) {
     startDrag();
     attachDocListeners();
+    activePointerTarget?.setPointerCapture?.(e.pointerId);
     return;
   }
 
+  // 立即监听移动，手指/鼠标滑动时取消长按；真正拖动仍需等待长按计时结束。
+  attachDocListeners();
   pressTimer = window.setTimeout(() => {
     editModeType.value = 'drag';
     startDrag();
-    attachDocListeners();
+    activePointerTarget?.setPointerCapture?.(e.pointerId);
     if (navigator.vibrate) navigator.vibrate(30);
   }, 600);
 };
 
 const attachDocListeners = () => {
-  docMoveHandler = (ev: TouchEvent) => onDocTouchMove(ev);
-  docEndHandler = (ev: TouchEvent) => onDocTouchEnd(ev);
-  document.addEventListener('touchmove', docMoveHandler, { passive: false });
-  document.addEventListener('touchend', docEndHandler, { passive: false });
-  document.addEventListener('touchcancel', docEndHandler, { passive: false });
+  docMoveHandler = (ev: PointerEvent) => onDocPointerMove(ev);
+  docEndHandler = () => onDocPointerEnd();
+  touchMoveBlocker = (ev: TouchEvent) => {
+    // pointer 事件下 preventDefault 无法阻止滚动，必须在 touchmove 上拦截，
+    // 否则浏览器会接管手势触发 pointercancel，导致“拖起来立刻回到原位”。
+    if (drag.active) ev.preventDefault();
+  };
+  document.addEventListener('pointermove', docMoveHandler);
+  document.addEventListener('pointerup', docEndHandler);
+  document.addEventListener('pointercancel', docEndHandler);
+  document.addEventListener('touchmove', touchMoveBlocker, { passive: false });
 };
 
 const detachDocListeners = () => {
-  if (docMoveHandler) { document.removeEventListener('touchmove', docMoveHandler); docMoveHandler = null; }
-  if (docEndHandler) { document.removeEventListener('touchend', docEndHandler); document.removeEventListener('touchcancel', docEndHandler); docEndHandler = null; }
+  if (docMoveHandler) { document.removeEventListener('pointermove', docMoveHandler); docMoveHandler = null; }
+  if (docEndHandler) { document.removeEventListener('pointerup', docEndHandler); document.removeEventListener('pointercancel', docEndHandler); docEndHandler = null; }
+  if (touchMoveBlocker) { document.removeEventListener('touchmove', touchMoveBlocker); touchMoveBlocker = null; }
 };
 
-const onDocTouchMove = (e: TouchEvent) => {
-  const touch = e.touches[0];
+const onDocPointerMove = (e: PointerEvent) => {
+  if (activePointerId !== null && e.pointerId !== activePointerId) return;
 
   // 抖动过滤：采样并计算最近窗口内的累计位移
-  jitterSamples.push({ x: touch.clientX, y: touch.clientY, t: Date.now() });
+  jitterSamples.push({ x: e.clientX, y: e.clientY, t: Date.now() });
   if (jitterSamples.length > JITTER_WINDOW + 1) {
     jitterSamples.shift();
   }
@@ -945,8 +958,8 @@ const onDocTouchMove = (e: TouchEvent) => {
 
   e.preventDefault();
 
-  drag.deltaX = touch.clientX - drag.startTouchX;
-  drag.deltaY = touch.clientY - drag.startTouchY;
+  drag.deltaX = e.clientX - drag.startTouchX;
+  drag.deltaY = e.clientY - drag.startTouchY;
   drag.hasMoved = true;
 
   const selector = drag.source === 'card' ? `[data-card-id="${drag.itemId}"]` : `[data-block-id="${drag.itemId}"]`;
@@ -956,7 +969,7 @@ const onDocTouchMove = (e: TouchEvent) => {
     el.style.boxShadow = '0 20px 60px rgba(0, 0, 0, 0.35)';
   }
 
-  const fingerY = touch.clientY;
+  const fingerY = e.clientY;
   const isCardZone = fingerY < drag.cardSectionBottom + 80;
 
   if (drag.source === 'grid' && isCardZone) {
@@ -994,11 +1007,11 @@ const onDocTouchMove = (e: TouchEvent) => {
     drag.targetZone = drag.source;
   }
 
-  const elementUnder = document.elementFromPoint(touch.clientX, touch.clientY);
-  if (!elementUnder) return;
-
   if (drag.source === 'card' && drag.targetZone === 'card') {
-    const targetCard = elementUnder.closest('.card-item:not(.dragging)') as HTMLElement | null;
+    const targetCard = document
+      .elementsFromPoint(e.clientX, e.clientY)
+      .map((element) => element.closest('.card-item:not(.dragging)') as HTMLElement | null)
+      .find((element): element is HTMLElement => Boolean(element));
     if (targetCard) {
       const targetId = targetCard.getAttribute('data-card-id');
       if (targetId && targetId !== drag.itemId) {
@@ -1011,7 +1024,10 @@ const onDocTouchMove = (e: TouchEvent) => {
       }
     }
   } else if (drag.source === 'grid' && drag.targetZone === 'grid') {
-    const targetBlock = elementUnder.closest('.block-item:not(.dragging):not(.add-block)') as HTMLElement | null;
+    const targetBlock = document
+      .elementsFromPoint(e.clientX, e.clientY)
+      .map((element) => element.closest('.block-item:not(.dragging):not(.add-block)') as HTMLElement | null)
+      .find((element): element is HTMLElement => Boolean(element));
     if (targetBlock) {
       const targetId = targetBlock.getAttribute('data-block-id');
       if (targetId && targetId !== drag.itemId) {
@@ -1052,12 +1068,14 @@ const moveInArray = (arr: { value: LayoutItem[] }, fromId: string, toId: string)
   }
 };
 
-const onDocTouchEnd = () => {
+const onDocPointerEnd = () => {
   clearTimeout(pressTimer);
   pressTimer = undefined;
 
   if (!drag.active) {
     detachDocListeners();
+    activePointerId = null;
+    activePointerTarget = null;
     if (editModeType.value === 'drag' && !drag.hasMoved) {
       editModeType.value = 'manual';
     }
@@ -1126,6 +1144,8 @@ const onDocTouchEnd = () => {
   detachDocListeners();
 
   drag.active = false;
+  activePointerId = null;
+  activePointerTarget = null;
   drag.itemId = '';
   drag.deltaX = 0;
   drag.deltaY = 0;
@@ -1156,25 +1176,24 @@ const startDrag = () => {
 // ==================== Resize Handle ====================
 
 let resizeData: { item: LayoutItem; startW: number; startH: number; startX: number; startY: number; } | null = null;
-let resizeMoveHandler: ((e: TouchEvent) => void) | null = null;
-let resizeEndHandler: ((e: TouchEvent) => void) | null = null;
+let resizeMoveHandler: ((e: PointerEvent) => void) | null = null;
+let resizeEndHandler: (() => void) | null = null;
 
-const onResizeStart = (e: TouchEvent, item: LayoutItem) => {
-  const touch = e.touches[0];
-  resizeData = { item, startW: item.w, startH: item.h, startX: touch.clientX, startY: touch.clientY };
+const onResizeStart = (e: PointerEvent, item: LayoutItem) => {
+  resizeData = { item, startW: item.w, startH: item.h, startX: e.clientX, startY: e.clientY };
+  (e.currentTarget as HTMLElement)?.setPointerCapture?.(e.pointerId);
 
-  resizeMoveHandler = (ev: TouchEvent) => {
+  resizeMoveHandler = (ev: PointerEvent) => {
     if (!resizeData) return;
     ev.preventDefault();
-    const t = ev.touches[0];
     const grid = blockGridRef.value;
     if (!grid) return;
     const size = blockSize({ type: 'x' as any, w: 1, h: 1 } as LayoutItem);
     const colWidth = size.unitW + GAP;
     const rowHeight = size.unitH + GAP;
 
-    const dx = t.clientX - resizeData.startX;
-    const dy = t.clientY - resizeData.startY;
+    const dx = ev.clientX - resizeData.startX;
+    const dy = ev.clientY - resizeData.startY;
 
     const newW = Math.max(1, Math.min(4, Math.round(resizeData.startW + dx / colWidth)));
     const newH = Math.max(1, Math.min(2, Math.round(resizeData.startH + dy / rowHeight)));
@@ -1192,19 +1211,20 @@ const onResizeStart = (e: TouchEvent, item: LayoutItem) => {
 
   resizeEndHandler = () => {
     resizeData = null;
-    if (resizeMoveHandler) { document.removeEventListener('touchmove', resizeMoveHandler); resizeMoveHandler = null; }
-    if (resizeEndHandler) { document.removeEventListener('touchend', resizeEndHandler); document.removeEventListener('touchcancel', resizeEndHandler); resizeEndHandler = null; }
+    if (resizeMoveHandler) { document.removeEventListener('pointermove', resizeMoveHandler); resizeMoveHandler = null; }
+    if (resizeEndHandler) { document.removeEventListener('pointerup', resizeEndHandler); document.removeEventListener('pointercancel', resizeEndHandler); resizeEndHandler = null; }
   };
 
-  document.addEventListener('touchmove', resizeMoveHandler, { passive: false });
-  document.addEventListener('touchend', resizeEndHandler, { passive: false });
-  document.addEventListener('touchcancel', resizeEndHandler, { passive: false });
+  document.addEventListener('pointermove', resizeMoveHandler);
+  document.addEventListener('pointerup', resizeEndHandler);
+  document.addEventListener('pointercancel', resizeEndHandler);
 };
 
 // ==================== Add Sheet Drag ====================
 
-const onAddItemTouchStart = (e: TouchEvent, blockType: BlockType) => {
-  const touch = e.touches[0];
+const onAddItemPointerDown = (e: PointerEvent, blockType: BlockType) => {
+  const startX = e.clientX;
+  const startY = e.clientY;
   pressTimer = window.setTimeout(() => {
     showAddSheet.value = false;
     const newItem: LayoutItem = { type: blockType, w: 2, h: 2 };
@@ -1214,16 +1234,17 @@ const onAddItemTouchStart = (e: TouchEvent, blockType: BlockType) => {
     drag.itemId = blockType;
     drag.source = 'grid';
     drag.targetZone = 'grid';
-    drag.startTouchX = touch.clientX;
-    drag.startTouchY = touch.clientY;
+    drag.startTouchX = startX;
+    drag.startTouchY = startY;
+    activePointerId = e.pointerId;
     drag.hasMoved = false;
     editModeType.value = 'drag';
 
     requestAnimationFrame(() => {
       startDrag();
-      attachDocListeners();
     });
   }, 400);
+  attachDocListeners();
 };
 
 // ==================== Edit Mode: Back gesture ====================
@@ -1272,8 +1293,8 @@ onBeforeUnmount(() => {
   clearTimeout(pressTimer);
   detachDocListeners();
   window.removeEventListener('popstate', onPopState);
-  if (resizeMoveHandler) document.removeEventListener('touchmove', resizeMoveHandler);
-  if (resizeEndHandler) { document.removeEventListener('touchend', resizeEndHandler); document.removeEventListener('touchcancel', resizeEndHandler); }
+  if (resizeMoveHandler) document.removeEventListener('pointermove', resizeMoveHandler);
+  if (resizeEndHandler) { document.removeEventListener('pointerup', resizeEndHandler); document.removeEventListener('pointercancel', resizeEndHandler); }
 });
 </script>
 
@@ -1320,9 +1341,10 @@ onBeforeUnmount(() => {
   border-radius: 24px; overflow: hidden; position: relative;
   aspect-ratio: 16 / 11; margin-right: 12px; cursor: pointer;
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
-  transition: transform 0.3s var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  touch-action: manipulation;
+  transition: transform var(--m-duration-press, 90ms) var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   &:active:not(.edit-mode):not(.dragging) { transform: scale(0.98); }
-  &.edit-mode { animation: jiggle 0.4s ease-in-out infinite; }
+  &.edit-mode { animation: jiggle 0.4s ease-in-out infinite; touch-action: none; }
   &.dragging {
     opacity: 0.95; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
     animation: none !important; transition: none !important;
@@ -1437,11 +1459,12 @@ onBeforeUnmount(() => {
 .block-item {
   position: relative; border-radius: 24px; overflow: hidden; cursor: pointer;
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
-  transition: transform 0.3s var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  touch-action: manipulation;
+  transition: transform var(--m-duration-press, 90ms) var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 
   .block-glow { position: absolute; inset: -20px; border-radius: 50%; filter: blur(30px); opacity: 0.2; z-index: 0; pointer-events: none; }
   &:active:not(.edit-mode):not(.dragging) { transform: scale(0.96); }
-  &.edit-mode { animation: jiggle 0.4s ease-in-out infinite; }
+  &.edit-mode { animation: jiggle 0.4s ease-in-out infinite; touch-action: none; }
   &.edit-mode:nth-child(even) { animation-delay: 0.2s; }
   &.dragging {
     opacity: 0.95; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);

@@ -17,9 +17,23 @@
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
-const cors = require('cors');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const router = express.Router();
+
+function platformCors(req, res, next) {
+  const origin = req.headers.origin;
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Platform-Cookie, Cache-Control');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Vary', 'Origin');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+}
+
+router.use(platformCors);
 
 // ==================== 工具函数 ====================
 
@@ -40,6 +54,14 @@ function generateDfid() {
   return result;
 }
 
+function randomUuidFallback() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 function cookiePartsFromString(cookie) {
   return String(cookie || '')
     .split(';')
@@ -48,7 +70,8 @@ function cookiePartsFromString(cookie) {
 }
 
 function setCookiesFromHeader(cookies) {
-  return (cookies || []).map((cookie) => cookie.split(';')[0]);
+  const values = Array.isArray(cookies) ? cookies : cookies ? [cookies] : [];
+  return values.map((cookie) => cookie.split(';')[0]);
 }
 
 function mergeCookieParts(...cookieSources) {
@@ -66,23 +89,190 @@ function mergeCookieParts(...cookieSources) {
   return Array.from(cookies.values()).join('; ');
 }
 
+function cookieMap(cookie) {
+  const result = {};
+  for (const part of cookiePartsFromString(cookie)) {
+    const separatorIndex = part.indexOf('=');
+    if (separatorIndex > 0) {
+      result[part.slice(0, separatorIndex)] = part.slice(separatorIndex + 1);
+    }
+  }
+  return result;
+}
+
+function firstOwnValue(value, keys) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  const entries = Object.entries(value);
+  for (const key of keys) {
+    const match = entries.find(([candidate]) => candidate.toLowerCase() === key.toLowerCase());
+    if (!match) continue;
+    const candidate = match[1];
+    if (candidate === null || candidate === undefined) continue;
+    if (
+      typeof candidate === 'string' ||
+      typeof candidate === 'number' ||
+      typeof candidate === 'boolean'
+    ) {
+      const text = String(candidate).trim();
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
+function firstDeepValue(value, keys, depth = 0) {
+  if (depth > 5 || value === null || value === undefined) return '';
+  const ownValue = firstOwnValue(value, keys);
+  if (ownValue) return ownValue;
+  if (typeof value !== 'object') return '';
+
+  for (const child of Array.isArray(value) ? value : Object.values(value)) {
+    const result = firstDeepValue(child, keys, depth + 1);
+    if (result) return result;
+  }
+  return '';
+}
+
+function normalizeImageUrl(value, placeholderSize = '400') {
+  if (!value) return '';
+  let url = String(value)
+    .trim()
+    .replace(/\{size\}/gi, placeholderSize);
+  if (url.startsWith('//')) url = `https:${url}`;
+  if (url.startsWith('http://')) url = `https://${url.slice(7)}`;
+  return url;
+}
+
+function parsePtuiCallback(payload) {
+  const callbackMatch = String(payload || '').match(/ptuiCB\s*\(([\s\S]*?)\)\s*;?/);
+  if (!callbackMatch) return null;
+
+  const args = [];
+  const argumentPattern = /'((?:\\.|[^'\\])*)'/g;
+  let argumentMatch;
+  while ((argumentMatch = argumentPattern.exec(callbackMatch[1]))) {
+    args.push(argumentMatch[1].replace(/\\(['\\])/g, '$1'));
+  }
+
+  const code = Number.parseInt(args[0], 10);
+  if (!Number.isFinite(code) || args.length < 3) return null;
+
+  return {
+    code,
+    redirectUrl: args[2] || '',
+    message: args[4] || args[3] || ''
+  };
+}
+
 // ==================== QQ 会话存储（qrsig -> cookies） ====================
 
-// 存储创建二维码时的完整 Cookie，轮询时需要带上
+const QQ_SESSION_TTL = 5 * 60 * 1000;
+const QQ_SESSION_DIR =
+  process.env.ZEPHYRUS_QQ_SESSION_DIR || path.join(os.tmpdir(), 'zephyrus-qq-sessions');
 const qqSessionStore = new Map();
 
-// 定期清理过期会话（每 5 分钟）
-const sessionCleanupTimer = setInterval(
-  () => {
-    const now = Date.now();
-    for (const [key, val] of qqSessionStore) {
-      if (now - val.createdAt > 5 * 60 * 1000) {
-        qqSessionStore.delete(key);
+function qqSessionFile(qrsig) {
+  const fileKey = crypto.createHash('sha256').update(String(qrsig)).digest('hex');
+  return path.join(QQ_SESSION_DIR, `${fileKey}.json`);
+}
+
+function normalizeQqSession(session) {
+  if (!session || typeof session !== 'object') return null;
+  const cookie = String(session.cookie || '').trim();
+  const createdAt = Number(session.createdAt);
+  const updatedAt = Number(session.updatedAt || createdAt);
+  if (!cookie || !Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) return null;
+  if (Date.now() - createdAt > QQ_SESSION_TTL) return null;
+  return { cookie, createdAt, updatedAt };
+}
+
+function readQqSession(qrsig) {
+  const key = String(qrsig || '').trim();
+  if (!key) return null;
+
+  let diskSession = null;
+  const filePath = qqSessionFile(key);
+  try {
+    diskSession = normalizeQqSession(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+  } catch {
+    diskSession = null;
+  }
+
+  const memorySession = normalizeQqSession(qqSessionStore.get(key));
+  const session =
+    diskSession && memorySession
+      ? diskSession.updatedAt >= memorySession.updatedAt
+        ? diskSession
+        : memorySession
+      : diskSession || memorySession;
+
+  if (!session) {
+    qqSessionStore.delete(key);
+    try {
+      fs.rmSync(filePath, { force: true });
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  qqSessionStore.set(key, session);
+  return session;
+}
+
+function saveQqSession(qrsig, session) {
+  const key = String(qrsig || '').trim();
+  const normalized = normalizeQqSession({
+    ...session,
+    updatedAt: Date.now()
+  });
+  if (!key || !normalized) {
+    throw new Error('QQ 登录会话无效，请刷新二维码重试');
+  }
+
+  qqSessionStore.set(key, normalized);
+  try {
+    fs.mkdirSync(QQ_SESSION_DIR, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(qqSessionFile(key), JSON.stringify(normalized), {
+      encoding: 'utf8',
+      mode: 0o600
+    });
+  } catch (error) {
+    qqSessionStore.delete(key);
+    throw new Error(`QQ 登录会话存储失败: ${error.message}`);
+  }
+}
+
+function deleteQqSession(qrsig) {
+  const key = String(qrsig || '').trim();
+  if (!key) return;
+  qqSessionStore.delete(key);
+  try {
+    fs.rmSync(qqSessionFile(key), { force: true });
+  } catch {
+    return;
+  }
+}
+
+function cleanupQqSessions() {
+  for (const key of qqSessionStore.keys()) readQqSession(key);
+  try {
+    for (const fileName of fs.readdirSync(QQ_SESSION_DIR)) {
+      if (!fileName.endsWith('.json')) continue;
+      const filePath = path.join(QQ_SESSION_DIR, fileName);
+      try {
+        const session = normalizeQqSession(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+        if (!session) fs.rmSync(filePath, { force: true });
+      } catch {
+        fs.rmSync(filePath, { force: true });
       }
     }
-  },
-  5 * 60 * 1000
-);
+  } catch {
+    return;
+  }
+}
+
+const sessionCleanupTimer = setInterval(cleanupQqSessions, 5 * 60 * 1000);
 sessionCleanupTimer.unref?.();
 
 router.get('/health', (_req, res) => {
@@ -90,7 +280,7 @@ router.get('/health', (_req, res) => {
     code: 200,
     data: {
       service: 'zephyrus-music-gateway',
-      platforms: ['qq', 'kugou']
+      platforms: ['qq', 'kugou', 'spotify']
     }
   });
 });
@@ -98,8 +288,78 @@ router.get('/health', (_req, res) => {
 // ==================== QQ 音乐扫码登录 ====================
 
 const QQ_APPID = '716027609';
-const QQ_DAID = '384';
-const QQ_REDIRECT = 'https://y.qq.com/portal';
+const QQ_DAID = '383';
+const QQ_PT_3RD_AID = '100497308';
+const QQ_REDIRECT = 'https://graph.qq.com/oauth2.0/login_jump';
+const QQ_MUSIC_REDIRECT =
+  'https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/';
+const QQ_JS_VER = '20102616';
+const QQ_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+let spotifyAccessToken = '';
+let spotifyAccessTokenExpiresAt = 0;
+
+async function getSpotifyAccessToken() {
+  const configuredToken = process.env.SPOTIFY_ACCESS_TOKEN || '';
+  if (configuredToken) return configuredToken;
+
+  const clientId = process.env.SPOTIFY_CLIENT_ID || '';
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET || '';
+  if (!clientId || !clientSecret) {
+    throw new Error('Spotify 搜索需要配置 SPOTIFY_CLIENT_ID 和 SPOTIFY_CLIENT_SECRET');
+  }
+  if (spotifyAccessToken && spotifyAccessTokenExpiresAt > Date.now() + 30_000) {
+    return spotifyAccessToken;
+  }
+
+  const tokenResponse = await axios.post(
+    'https://accounts.spotify.com/api/token',
+    'grant_type=client_credentials',
+    {
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      timeout: 12000
+    }
+  );
+  if (!tokenResponse.data?.access_token) throw new Error('Spotify access token 获取失败');
+  spotifyAccessToken = tokenResponse.data.access_token;
+  spotifyAccessTokenExpiresAt = Date.now() + Number(tokenResponse.data.expires_in || 3600) * 1000;
+  return spotifyAccessToken;
+}
+
+// GET /platform/spotify/search?keyword=xxx&limit=20
+router.get('/spotify/search', async (req, res) => {
+  const keyword = String(req.query.keyword || req.query.q || '').trim();
+  const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+  if (!keyword) return res.json({ code: 200, data: { tracks: [] } });
+
+  try {
+    const accessToken = await getSpotifyAccessToken();
+    const response = await axios.get('https://api.spotify.com/v1/search', {
+      params: { type: 'track', limit, q: keyword },
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: 12000
+    });
+    const tracks = (response.data?.tracks?.items || []).map((track) => ({
+      id: String(track.id),
+      name: track.name || '',
+      artists: (track.artists || []).map((artist) => artist.name || '').filter(Boolean),
+      album: track.album?.name || '',
+      duration: Number(track.duration_ms) || 0,
+      picUrl: track.album?.images?.[0]?.url || '',
+      externalUrl:
+        track.external_urls?.spotify || `https://open.spotify.com/track/${track.id}`
+    }));
+    return res.json({ code: 200, data: { tracks } });
+  } catch (error) {
+    const status = error.response?.status || 502;
+    console.error('[platformLogin] Spotify search error:', error.message);
+    return res.status(status).json({ code: status, msg: error.message || 'Spotify 搜索失败' });
+  }
+});
 
 function hash33(s) {
   let h = 0;
@@ -109,17 +369,269 @@ function hash33(s) {
   return h & 0x7fffffff;
 }
 
+function qqGtk(cookie) {
+  const values = cookieMap(cookie);
+  const key =
+    values.qqmusic_key || values.p_skey || values.skey || values.p_lskey || values.lskey || '';
+  let hash = 5381;
+  for (const character of decodeURIComponent(key)) {
+    hash += (hash << 5) + character.charCodeAt(0);
+  }
+  return hash & 0x7fffffff;
+}
+
+function normalizeQQUserId(value) {
+  const text = String(value || '')
+    .trim()
+    .replace(/^o(?=\d)/i, '');
+  return text;
+}
+
+function extractQQOAuthCode(response) {
+  const values = [
+    response?.headers?.location,
+    response?.data?.location,
+    response?.data?.redirect_uri,
+    response?.data?.redirectUrl,
+    response?.data
+  ];
+
+  for (const value of values) {
+    if (!value) continue;
+    let text = (typeof value === 'string' ? value : JSON.stringify(value))
+      .replace(/&amp;/gi, '&')
+      .replace(/\\u0026/gi, '&');
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const queryMatch = text.match(/[?&#](?:code|auth_code)=([^&#"'\\\s]+)/i);
+      if (queryMatch?.[1]) return decodeURIComponent(queryMatch[1]);
+      const bodyMatch = text.match(/(?:["']|\\)?(?:code|auth_code)(?:["']|\\)?\s*[:=]\s*(?:["']|\\)?([^&"'\\\s,}]+)/i);
+      if (bodyMatch?.[1]) return decodeURIComponent(bodyMatch[1]);
+      try {
+        const decoded = decodeURIComponent(text);
+        if (decoded === text) break;
+        text = decoded;
+      } catch {
+        break;
+      }
+    }
+  }
+  return '';
+}
+
+function createQQLoginFromCookie(cookie, loginData = {}) {
+  const values = cookieMap(cookie);
+  const userId = normalizeQQUserId(
+    firstDeepValue(loginData, ['musicid', 'uin', 'user_id', 'userid']) ||
+      values.uin ||
+      values.p_uin ||
+      values.ptui_loginuin
+  );
+  const musicKey =
+    firstDeepValue(loginData, ['musickey', 'music_key', 'qm_keyst', 'qqmusic_key']) ||
+    values.qm_keyst ||
+    values.qqmusic_key ||
+    values.p_skey ||
+    values.skey;
+
+  if (!userId || !musicKey) return null;
+
+  let resultCookie = cookie;
+  if (!values.uin) {
+    resultCookie = mergeCookieParts(resultCookie, `uin=${userId}`);
+  }
+  if (!values.qm_keyst && !values.qqmusic_key && !values.p_skey && !values.skey) {
+    resultCookie = mergeCookieParts(resultCookie, `qm_keyst=${musicKey}`);
+  }
+
+  const avatarUin = userId.replace(/^o/i, '');
+  return {
+    cookie: resultCookie,
+    userInfo: {
+      userId,
+      nickname:
+        firstDeepValue(loginData, ['nickname', 'nickName', 'nick', 'username']) || 'QQ音乐用户',
+      avatarUrl: /^\d+$/.test(avatarUin) ? `https://q1.qlogo.cn/g?b=qq&nk=${avatarUin}&s=100` : ''
+    }
+  };
+}
+
+async function completeQQLogin(redirectUrl, sessionCookie) {
+  let redirect;
+  try {
+    redirect = new URL(redirectUrl);
+  } catch {
+    throw new Error('QQ 登录回调地址无效，请重新扫码');
+  }
+  if (redirect.protocol !== 'https:' || redirect.hostname !== 'ssl.ptlogin2.graph.qq.com') {
+    throw new Error('QQ 登录回调地址不受信任，请重新扫码');
+  }
+
+  // 从 ptqrlogin 回调地址中解析 uin 与 ptsigx，再显式重建 check_sig 请求，
+  // 与当前 QQ 音乐 Web 端实际使用的参数保持一致（参照 QQMusicApi-nodejs 架构）。
+  const uinMatch = redirectUrl.match(/[?&]uin=([^&]+)/i);
+  const ptsigxMatch = redirectUrl.match(/[?&]ptsigx=([^&]+)/i);
+  if (!uinMatch?.[1] || !ptsigxMatch?.[1]) {
+    throw new Error(`QQ 登录回调缺少 uin/ptsigx 参数，请重新扫码`);
+  }
+  const checkSigUrl =
+    'https://ssl.ptlogin2.graph.qq.com/check_sig' +
+    `?uin=${encodeURIComponent(uinMatch[1])}` +
+    '&pttype=1&service=ptqrlogin&nodirect=0' +
+    `&ptsigx=${encodeURIComponent(ptsigxMatch[1])}` +
+    `&s_url=${encodeURIComponent('https://graph.qq.com/oauth2.0/login_jump')}` +
+    '&ptlang=2052&ptredirect=100' +
+    `&aid=${QQ_APPID}&daid=${QQ_DAID}` +
+    '&j_later=0&low_login_hour=0&regmaster=0&pt_login_type=3&pt_aid=0&pt_aaid=16&pt_light=0' +
+    `&pt_3rd_aid=${QQ_PT_3RD_AID}`;
+
+  const checkSigResponse = await axios.get(checkSigUrl, {
+    headers: {
+      Accept:
+        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+      'User-Agent': QQ_USER_AGENT,
+      Referer: 'https://xui.ptlogin2.qq.com/',
+      Cookie: sessionCookie
+    },
+    maxRedirects: 0,
+    validateStatus: () => true
+  });
+  if (checkSigResponse.status >= 400) {
+    throw new Error(`QQ check_sig 请求被拒绝 (${checkSigResponse.status})`);
+  }
+
+  const checkSigSetCookie = setCookiesFromHeader(checkSigResponse.headers['set-cookie']).join('; ');
+  let graphCookie = mergeCookieParts(
+    sessionCookie,
+    checkSigSetCookie
+  );
+
+  // check_sig 必须返回 p_skey，否则后续 OAuth 授权必然失败。
+  const checkSigCookies = cookieMap(graphCookie);
+  const pSkey =
+    checkSigCookies.p_skey ||
+    checkSigCookies.pskey ||
+    checkSigCookies['p-skey'] ||
+    checkSigCookies.skey ||
+    checkSigCookies.ptsigx;
+  if (!pSkey) {
+    const bodyPreview = String(checkSigResponse.data || '')
+      .replace(/\s+/g, ' ')
+      .slice(0, 200);
+    throw new Error(
+      `QQ check_sig 未获取到 p_skey (status=${checkSigResponse.status}, ` +
+        `set-cookie=${checkSigSetCookie || '<empty>'}, body=${bodyPreview || '<empty>'})，请重新扫码`
+    );
+  }
+
+  const authorizeBody = new URLSearchParams({
+    response_type: 'code',
+    client_id: '100497308',
+    redirect_uri: QQ_MUSIC_REDIRECT,
+    scope: 'get_user_info,get_app_friends',
+    state: 'state',
+    switch: '',
+    from_ptlogin: '1',
+    src: '1',
+    update_auth: '1',
+    openapi: '1010_1030',
+    g_tk: String(qqGtk(graphCookie)),
+    auth_time: String(Date.now()),
+    ui: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : randomUuidFallback()
+  }).toString();
+
+  const authorizeResponse = await axios.post(
+    'https://graph.qq.com/oauth2.0/authorize',
+    authorizeBody,
+    {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': QQ_USER_AGENT,
+        Referer: 'https://xui.ptlogin2.qq.com/',
+        Cookie: graphCookie
+      },
+      maxRedirects: 0,
+      validateStatus: () => true
+    }
+  );
+
+  graphCookie = mergeCookieParts(
+    graphCookie,
+    setCookiesFromHeader(authorizeResponse.headers['set-cookie']).join('; ')
+  );
+  const oauthCode = extractQQOAuthCode(authorizeResponse);
+  if (!oauthCode) {
+    const fallbackLogin = createQQLoginFromCookie(graphCookie);
+    if (fallbackLogin) return fallbackLogin;
+    const location = String(authorizeResponse.headers?.location || '');
+    const bodyPreview = String(authorizeResponse.data || '')
+      .replace(/\s+/g, ' ')
+      .slice(0, 200);
+    throw new Error(
+      `QQ OAuth 授权码获取失败 (status=${authorizeResponse.status}, ` +
+        `location=${location.slice(0, 200) || '<empty>'}, body=${bodyPreview || '<empty>'})，请重新扫码`
+    );
+  }
+
+  const musicResponse = await axios.post(
+    'https://u.y.qq.com/cgi-bin/musicu.fcg',
+    JSON.stringify({
+      comm: { g_tk: 5381, platform: 'yqq', ct: 24, cv: 0 },
+      req: {
+        module: 'QQConnectLogin.LoginServer',
+        method: 'QQLogin',
+        param: { code: decodeURIComponent(oauthCode) }
+      }
+    }),
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': QQ_USER_AGENT,
+        Referer: 'https://y.qq.com/',
+        Cookie: graphCookie
+      },
+      validateStatus: () => true
+    }
+  );
+
+  if (musicResponse.status < 200 || musicResponse.status >= 300) {
+    throw new Error(`QQ 音乐授权接口请求失败 (${musicResponse.status})`);
+  }
+
+  const loginData = musicResponse.data;
+  let resultCookie = mergeCookieParts(
+    graphCookie,
+    setCookiesFromHeader(musicResponse.headers['set-cookie']).join('; ')
+  );
+  const musicKey = firstDeepValue(loginData, ['musickey', 'music_key', 'qm_keyst', 'qqmusic_key']);
+  const musicUin = firstDeepValue(loginData, ['musicid', 'uin', 'user_id', 'userid']);
+  if (musicKey && !cookieMap(resultCookie).qm_keyst && !cookieMap(resultCookie).qqmusic_key) {
+    resultCookie = mergeCookieParts(resultCookie, `qm_keyst=${musicKey}`);
+  }
+  const normalizedUin = normalizeQQUserId(
+    musicUin || cookieMap(resultCookie).uin || cookieMap(resultCookie).ptui_loginuin
+  );
+  if (normalizedUin && !cookieMap(resultCookie).uin) {
+    resultCookie = mergeCookieParts(resultCookie, `uin=${normalizedUin}`);
+  }
+
+  const completedLogin = createQQLoginFromCookie(resultCookie, loginData);
+  if (!completedLogin) {
+    throw new Error('QQ 音乐登录密钥获取失败，请重新扫码');
+  }
+  return completedLogin;
+}
+
 // GET /platform/qq/qr/create
 router.get('/qq/qr/create', async (req, res) => {
   try {
     const t = Math.random().toString(36).substring(2, 10);
-    const url = `https://ssl.ptlogin2.qq.com/ptqrshow?appid=${QQ_APPID}&e=2&l=M&s=3&d=72&v=4&t=${t}&daid=${QQ_DAID}&pt_3rd_aid=0`;
+    const url = `https://ssl.ptlogin2.qq.com/ptqrshow?appid=${QQ_APPID}&e=2&l=M&s=3&d=72&v=4&t=${t}&daid=${QQ_DAID}&pt_3rd_aid=${QQ_PT_3RD_AID}`;
 
     const response = await axios.get(url, {
       responseType: 'arraybuffer',
       headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': QQ_USER_AGENT,
         Referer: 'https://y.qq.com/'
       },
       maxRedirects: 0,
@@ -140,8 +652,7 @@ router.get('/qq/qr/create', async (req, res) => {
       return res.json({ code: 500, msg: 'QQ 二维码创建失败: 未获取到 qrsig' });
     }
 
-    // 存储 Cookie 供轮询使用
-    qqSessionStore.set(qrsig, {
+    saveQqSession(qrsig, {
       cookie: setCookiesFromHeader(setCookies).join('; '),
       createdAt: Date.now()
     });
@@ -170,23 +681,27 @@ router.get('/qq/qr/poll', async (req, res) => {
       return res.json({ code: 400, msg: '缺少 key (qrsig) 参数' });
     }
 
-    // 从会话存储中获取 Cookie
-    const session = qqSessionStore.get(qrsig);
-    const cookieStr = session ? session.cookie : `qrsig=${qrsig}`;
+    const session = readQqSession(qrsig);
+    if (!session) {
+      return res.json({
+        code: 200,
+        data: { status: 'expired', message: '登录会话已失效，请刷新二维码重试' }
+      });
+    }
+    const cookieStr = session.cookie;
 
     const ptqrtoken = hash33(qrsig);
     const time = Date.now();
     const url =
       `https://ssl.ptlogin2.qq.com/ptqrlogin?u1=${encodeURIComponent(QQ_REDIRECT)}` +
       `&ptqrtoken=${ptqrtoken}&ptredirect=0&h=1&t=1&g=1&from_ui=1&ptlang=2052` +
-      `&action=0-0-${time}&js_ver=10275&js_type=1&login_sig=` +
-      `&pt_uistyle=40&aid=${QQ_APPID}&daid=${QQ_DAID}&pt_3rd_aid=0`;
+      `&action=0-0-${time}&js_ver=${QQ_JS_VER}&js_type=1&login_sig=&has_onekey=1` +
+      `&pt_uistyle=40&aid=${QQ_APPID}&daid=${QQ_DAID}&pt_3rd_aid=${QQ_PT_3RD_AID}`;
 
     const response = await axios.get(url, {
       headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Referer: 'https://y.qq.com/',
+        'User-Agent': QQ_USER_AGENT,
+        Referer: 'https://xui.ptlogin2.qq.com/',
         Cookie: cookieStr
       },
       maxRedirects: 0,
@@ -203,33 +718,26 @@ router.get('/qq/qr/poll', async (req, res) => {
 
     const responseCookie = setCookiesFromHeader(response.headers['set-cookie']).join('; ');
     const mergedSessionCookie = mergeCookieParts(cookieStr, responseCookie);
-    if (session) {
-      qqSessionStore.set(qrsig, {
-        cookie: mergedSessionCookie,
-        createdAt: session.createdAt
-      });
-    }
+    saveQqSession(qrsig, {
+      cookie: mergedSessionCookie,
+      createdAt: session.createdAt
+    });
 
     const text = typeof response.data === 'string' ? response.data : String(response.data);
 
-    // 更灵活的正则：ptuiCB('code', 'status', 'redirectUrl', 'something', 'message', 'something')
-    const match = text.match(
-      /ptuiCB\('(\d+)',\s*'[^']*',\s*'([^']*)',\s*'[^']*',\s*'([^']*)',\s*'[^']*'\)/
-    );
-    if (!match) {
+    const callback = parsePtuiCallback(text);
+    if (!callback) {
       return res.json({
         code: 500,
-        msg: `QQ 登录状态解析失败: ${text.substring(0, 100)}`,
+        msg: 'QQ 登录状态解析失败，请刷新二维码重试',
         data: { status: 'error' }
       });
     }
 
-    const [, codeStr, redirectUrl] = match;
-    const code = parseInt(codeStr, 10);
+    const { code, redirectUrl, message: messageText } = callback;
 
-    // 66 = 等待扫码, 67 = 已扫码等待确认, 65 = 过期, 0 = 登录成功
-    // 其他码（如 23013）可能是安全验证，统一当作 waiting 处理
-    if (code === 66 || code > 1000) {
+    // 66 = 等待扫码, 67 = 已扫码等待确认, 65/68 = 过期, 0 = 登录成功
+    if (code === 66) {
       return res.json({ code: 200, data: { status: 'waiting', message: '等待扫码' } });
     }
     if (code === 67) {
@@ -238,49 +746,29 @@ router.get('/qq/qr/poll', async (req, res) => {
         data: { status: 'scanned', message: '已扫码，请在手机上确认登录' }
       });
     }
-    if (code === 65) {
-      // 清理会话
-      qqSessionStore.delete(qrsig);
+    if (code === 65 || code === 68) {
+      deleteQqSession(qrsig);
       return res.json({ code: 200, data: { status: 'expired', message: '二维码已过期' } });
     }
 
     // 0 = 登录成功
     if (code === 0 && redirectUrl) {
       try {
-        const cookieResponse = await axios.get(redirectUrl, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            Referer: 'https://y.qq.com/',
-            Cookie: mergedSessionCookie
-          },
-          maxRedirects: 0,
-          validateStatus: () => true
-        });
+        const loginResult = await completeQQLogin(redirectUrl, mergedSessionCookie);
 
-        const setCookies = cookieResponse.headers['set-cookie'] || [];
-        const resultCookieStr = mergeCookieParts(
-          mergedSessionCookie,
-          setCookiesFromHeader(setCookies).join('; ')
-        );
-        const uin = resultCookieStr.match(/(?:^|;\s*)uin=([^;]+)/)?.[1] || '';
-
-        // 清理会话
-        qqSessionStore.delete(qrsig);
+        deleteQqSession(qrsig);
 
         return res.json({
           code: 200,
           data: {
             status: 'success',
             message: 'QQ 音乐登录成功',
-            cookie: resultCookieStr,
-            userInfo: {
-              userId: uin,
-              nickname: 'QQ音乐用户'
-            }
+            cookie: loginResult.cookie,
+            userInfo: loginResult.userInfo
           }
         });
       } catch (error) {
+        deleteQqSession(qrsig);
         return res.json({
           code: 500,
           data: { status: 'error', message: `获取 Cookie 失败: ${error.message}` }
@@ -288,7 +776,14 @@ router.get('/qq/qr/poll', async (req, res) => {
       }
     }
 
-    return res.json({ code: 500, data: { status: 'error', message: `未知状态: ${code}` } });
+    deleteQqSession(qrsig);
+    return res.json({
+      code: 200,
+      data: {
+        status: 'error',
+        message: messageText || `QQ 登录失败 (${code})`
+      }
+    });
   } catch (error) {
     console.error('[platformLogin] QQ QR poll error:', error.message);
     res.json({ code: 500, msg: `QQ 轮询失败: ${error.message}` });
@@ -298,9 +793,13 @@ router.get('/qq/qr/poll', async (req, res) => {
 // ==================== 酷狗音乐扫码登录（新 API，带 Web 签名） ====================
 
 const KUGOU_WEB_SALT = 'NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt';
+const KUGOU_ANDROID_SALT = 'LnT6xpN3khm36zse0QzvmgTZ3waWdRSA';
 const KUGOU_SRC_APPID = 2919;
 const KUGOU_APPID = 3116;
 const KUGOU_CLIENTVER = 11436;
+const KUGOU_USER_AGENT = 'Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi';
+const KUGOU_LITE_PUBLIC_KEY =
+  '-----BEGIN PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDECi0Np2UR87scwrvTr72L6oO01rBbbBPriSDFPxr3Z5syug0O24QyQO8bg27+0+4kBzTBTBOZ/WWU0WryL1JSXRTXLgFVxtzIY41Pe7lPOgsfTCn5kZcvKhYKJesKnnJDNr5/abvTGf+rHG3YRwsCHcQ08/q6ifSioBszvb3QiwIDAQAB\n-----END PUBLIC KEY-----';
 
 let kugouMid = generateMid();
 let kugouDfid = generateDfid();
@@ -316,6 +815,407 @@ function kugouWebSign(params) {
     paramsStr += `${key}=${val}`;
   }
   return md5(`${KUGOU_WEB_SALT}${paramsStr}${KUGOU_WEB_SALT}`);
+}
+
+function kugouAndroidSign(params, body) {
+  const paramsStr = Object.keys(params)
+    .sort()
+    .map((key) => {
+      let value = params[key];
+      if (value === null || value === undefined) value = '';
+      if (value === true) value = '1';
+      if (value === false) value = '0';
+      return `${key}=${typeof value === 'object' ? JSON.stringify(value) : value}`;
+    })
+    .join('');
+  return md5(`${KUGOU_ANDROID_SALT}${paramsStr}${body}${KUGOU_ANDROID_SALT}`);
+}
+
+function getKugouContext(cookie) {
+  const values = cookieMap(cookie);
+  return {
+    values,
+    userid: String(values.userid || '').trim(),
+    token: String(values.token || '').trim(),
+    dfid: String(values.dfid || kugouDfid).trim() || kugouDfid,
+    mid: String(values.KUGOU_API_MID || values.mid || kugouMid).trim() || kugouMid
+  };
+}
+
+async function requestKugouApi(
+  cookie,
+  path,
+  body,
+  extraParams = {},
+  extraHeaders = {},
+  clienttime
+) {
+  const context = getKugouContext(cookie);
+  const requestTime = clienttime || Math.floor(Date.now() / 1000);
+  const params = {
+    dfid: context.dfid,
+    mid: context.mid,
+    uuid: '-',
+    appid: KUGOU_APPID,
+    clientver: KUGOU_CLIENTVER,
+    clienttime: requestTime,
+    token: context.token,
+    userid: context.userid,
+    ...extraParams
+  };
+  const bodyText = body ? JSON.stringify(body) : '';
+  params.signature = kugouAndroidSign(params, bodyText);
+
+  return axios.post(`https://gateway.kugou.com${path}`, bodyText, {
+    params,
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': KUGOU_USER_AGENT,
+      dfid: context.dfid,
+      clienttime: String(requestTime),
+      mid: context.mid,
+      Cookie: [
+        `dfid=${context.dfid}`,
+        `KUGOU_API_MID=${context.mid}`,
+        context.token ? `token=${context.token}` : '',
+        context.userid ? `userid=${context.userid}` : ''
+      ]
+        .filter(Boolean)
+        .join('; '),
+      ...extraHeaders
+    },
+    timeout: 15000,
+    validateStatus: () => true
+  });
+}
+
+function collectKugouPlaylistItems(value, result = [], depth = 0) {
+  if (depth > 6 || value === null || value === undefined) return result;
+  if (Array.isArray(value)) {
+    for (const item of value) collectKugouPlaylistItems(item, result, depth + 1);
+    return result;
+  }
+  if (typeof value !== 'object') return result;
+
+  const id = firstOwnValue(value, [
+    'global_collection_id',
+    'globalCollectionId',
+    'listid',
+    'list_id',
+    'specialid',
+    'special_id'
+  ]);
+  const name = firstOwnValue(value, ['listname', 'list_name', 'specialname', 'title', 'name']);
+  if (id && name) {
+    result.push(value);
+    return result;
+  }
+
+  for (const child of Object.values(value)) {
+    collectKugouPlaylistItems(child, result, depth + 1);
+  }
+  return result;
+}
+
+function normalizeKugouPlaylists(payload, userid = '') {
+  const seen = new Set();
+  const playlists = [];
+  const favorites = [];
+  const rawItems = collectKugouPlaylistItems(payload);
+
+  for (const item of rawItems) {
+    const id = firstOwnValue(item, [
+      'global_collection_id',
+      'globalCollectionId',
+      'listid',
+      'list_id',
+      'specialid',
+      'special_id',
+      'id'
+    ]);
+    const name = firstOwnValue(item, ['listname', 'list_name', 'specialname', 'title', 'name']);
+    if (!id || !name || seen.has(id)) continue;
+    seen.add(id);
+
+    const ownerId = firstOwnValue(item, [
+      'userid',
+      'user_id',
+      'create_userid',
+      'list_create_userid',
+      'creator_userid'
+    ]);
+    const collectType = firstOwnValue(item, ['collect_type', 'collectType']);
+    const isFavorite =
+      Boolean(firstOwnValue(item, ['is_collect', 'is_collected', 'isFavorite'])) ||
+      collectType === '1' ||
+      (ownerId && userid && ownerId !== String(userid));
+    const coverImgUrl = normalizeImageUrl(
+      firstOwnValue(item, ['pic', 'picurl', 'pic_url', 'imgurl', 'cover', 'cover_url', 'image'])
+    );
+    const normalized = {
+      id,
+      name,
+      description: firstOwnValue(item, ['intro', 'description', 'desc']),
+      coverImgUrl,
+      picUrl: coverImgUrl,
+      trackCount: Number(firstOwnValue(item, ['count', 'filecount', 'song_count', 'total'])) || 0,
+      playCount: Number(firstOwnValue(item, ['playcount', 'play_count'])) || 0,
+      creator: {
+        userId: ownerId || String(userid || ''),
+        nickname:
+          firstOwnValue(item, ['username', 'user_name', 'nickname', 'nick_name']) || '酷狗用户'
+      },
+      platform: 'kugou',
+      platformId: id,
+      globalCollectionId: firstOwnValue(item, ['global_collection_id', 'globalCollectionId']) || id,
+      listId: firstOwnValue(item, ['listid', 'list_id']) || id
+    };
+
+    if (isFavorite) favorites.push(normalized);
+    else playlists.push(normalized);
+  }
+
+  return { playlists, favorites };
+}
+
+function rawOwnValue(value, keys) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const entries = Object.entries(value);
+  for (const key of keys) {
+    const match = entries.find(([candidate]) => candidate.toLowerCase() === key.toLowerCase());
+    if (match) return match[1];
+  }
+  return undefined;
+}
+
+function collectKugouSongItems(value, result = [], depth = 0) {
+  if (depth > 7 || value === null || value === undefined) return result;
+  if (Array.isArray(value)) {
+    for (const item of value) collectKugouSongItems(item, result, depth + 1);
+    return result;
+  }
+  if (typeof value !== 'object') return result;
+
+  const songId = firstOwnValue(value, [
+    'hash',
+    'file_hash',
+    'filehash',
+    'mixsongid',
+    'mix_song_id',
+    'audio_id',
+    'audioid'
+  ]);
+  const songName = firstOwnValue(value, ['songname', 'song_name', 'filename', 'file_name', 'name']);
+  if (songId && songName) {
+    result.push(value);
+    return result;
+  }
+
+  for (const child of Object.values(value)) {
+    collectKugouSongItems(child, result, depth + 1);
+  }
+  return result;
+}
+
+function parseKugouSongLabel(value, splitArtistTitle = true) {
+  const label = String(value || '')
+    .trim()
+    .replace(/\.(?:mp3|flac|wav|m4a|aac|ogg|ape)$/i, '')
+    .trim();
+  if (!splitArtistTitle) return { name: label, artistNames: [] };
+
+  const parts = label.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+  if (!parts) return { name: label, artistNames: [] };
+
+  const artistNames = parts[1]
+    .split(/[,，、/&|]/)
+    .map((artist) => artist.trim())
+    .filter(Boolean);
+  return {
+    name: parts[2].trim(),
+    artistNames
+  };
+}
+
+function normalizeKugouSongs(payload, listInfo = {}) {
+  const seen = new Set();
+  const songs = [];
+  const rawItems = collectKugouSongItems(payload);
+
+  for (const item of rawItems) {
+    const platformId = firstOwnValue(item, [
+      'hash',
+      'file_hash',
+      'filehash',
+      'mixsongid',
+      'mix_song_id',
+      'audio_id',
+      'audioid'
+    ]);
+    const explicitSongName = firstOwnValue(item, ['songname', 'song_name']);
+    const filename = firstOwnValue(item, ['filename', 'file_name', 'name']);
+    const rawName = explicitSongName || filename;
+    if (!platformId || !rawName || seen.has(platformId)) continue;
+    seen.add(platformId);
+
+    const rawArtist = rawOwnValue(item, [
+      'singername',
+      'singer_name',
+      'singer',
+      'artist',
+      'artists',
+      'authors'
+    ]);
+    const artistNames = Array.isArray(rawArtist)
+      ? rawArtist
+          .map((artist) =>
+            typeof artist === 'string'
+              ? artist
+              : firstOwnValue(artist, ['name', 'singername', 'singer_name', 'artist'])
+          )
+          .filter(Boolean)
+      : String(rawArtist || '')
+          .split(/[,，、/&|]/)
+          .map((artist) => artist.trim())
+          .filter(Boolean);
+    const fallbackArtist = firstDeepValue(item, [
+      'singername',
+      'singer_name',
+      'singer',
+      'artist',
+      'author'
+    ]);
+    if (!artistNames.length && fallbackArtist) artistNames.push(fallbackArtist);
+
+    const parsedLabel = parseKugouSongLabel(rawName, !explicitSongName || artistNames.length === 0);
+    const name = parsedLabel.name;
+    if (!artistNames.length && parsedLabel.artistNames.length) {
+      artistNames.push(...parsedLabel.artistNames);
+    }
+
+    const albumName = firstOwnValue(item, ['album_name', 'albumname', 'album', 'album_title']);
+    const coverImgUrl = normalizeImageUrl(
+      firstOwnValue(item, [
+        'album_img',
+        'album_img_500',
+        'album_image',
+        'img',
+        'pic',
+        'picurl',
+        'pic_url',
+        'cover',
+        'cover_url'
+      ]) || firstDeepValue(item, ['album_img', 'album_img_500', 'album_image'])
+    );
+    const rawDuration = Number(
+      firstOwnValue(item, ['timelen', 'time_len', 'duration', 'interval', 'dt'])
+    );
+    const duration = rawDuration > 0 && rawDuration < 1000 ? rawDuration * 1000 : rawDuration;
+    const albumId = firstOwnValue(item, ['album_audio_id', 'album_id', 'albumid']) || '0';
+    const artists = (artistNames.length ? artistNames : ['未知歌手']).map((artist, index) => ({
+      id: index,
+      name: artist
+    }));
+    const album = {
+      id: albumId,
+      name: albumName || '未知专辑',
+      picUrl: coverImgUrl
+    };
+
+    songs.push({
+      id: `kugou:${platformId}`,
+      name,
+      picUrl: coverImgUrl,
+      ar: artists,
+      artists,
+      al: album,
+      album,
+      count: 0,
+      dt: duration || 0,
+      duration: duration || 0,
+      platform: 'kugou',
+      platformId: String(platformId),
+      source: 'kugou',
+      playlistId: listInfo.id || listInfo.listId || ''
+    });
+  }
+
+  return songs;
+}
+
+function rawKugouRsaEncrypt(value) {
+  const key = crypto.createPublicKey(KUGOU_LITE_PUBLIC_KEY);
+  const keySize = Math.ceil(key.asymmetricKeyDetails.modulusLength / 8);
+  const input = Buffer.alloc(keySize);
+  const source = Buffer.from(value, 'utf8');
+  if (source.length > keySize) throw new Error('酷狗用户信息请求参数过长');
+  source.copy(input);
+  return crypto
+    .publicEncrypt({ key, padding: crypto.constants.RSA_NO_PADDING }, input)
+    .toString('hex');
+}
+
+async function requestKugouUserInfo(cookie) {
+  const context = getKugouContext(cookie);
+  if (!context.userid || !context.token) return null;
+  const visitTime = Math.floor(Date.now() / 1000);
+  const p = rawKugouRsaEncrypt(JSON.stringify({ clienttime: visitTime, token: context.token }));
+  const response = await requestKugouApi(
+    cookie,
+    '/v3/get_my_info',
+    {
+      visit_time: visitTime,
+      userid: context.userid,
+      usertype: 1,
+      p
+    },
+    { plat: 1 },
+    { 'x-router': 'usercenter.kugou.com' },
+    visitTime
+  );
+  if (response.status < 200 || response.status >= 300) return null;
+  return response.data;
+}
+
+function normalizeKugouUserInfo(payload, cookie, fallback = {}) {
+  const context = getKugouContext(cookie);
+  const userId =
+    firstDeepValue(payload, ['userid', 'user_id', 'uid', 'id']) ||
+    context.userid ||
+    fallback.userId ||
+    '';
+  const nickname =
+    firstDeepValue(payload, [
+      'nickname',
+      'nick_name',
+      'nickName',
+      'username',
+      'user_name',
+      'name'
+    ]) ||
+    fallback.nickname ||
+    '酷狗用户';
+  const avatarUrl = normalizeImageUrl(
+    firstDeepValue(payload, [
+      'head_icon',
+      'headicon',
+      'headIcon',
+      'headurl',
+      'head_url',
+      'avatar',
+      'avatar_url',
+      'user_img',
+      'userimg',
+      'pic'
+    ]) || fallback.avatarUrl
+  );
+  const vipType = firstDeepValue(payload, ['vip_type', 'vipType', 'is_vip', 'isVip']);
+  return {
+    userId: String(userId),
+    nickname,
+    avatarUrl,
+    vip: Boolean(Number(vipType) || vipType === 'true' || vipType === true)
+  };
 }
 
 function buildKugouDefaultParams() {
@@ -435,7 +1335,14 @@ router.get('/kugou/qr/poll', async (req, res) => {
     if (status === 4) {
       const userid = String(data.userid || '');
       const token = data.token || '';
-      const cookieStr = `userid=${userid}; token=${token};`;
+      const cookieStr = mergeCookieParts(
+        `userid=${userid}; token=${token};`,
+        `dfid=${data.dfid || kugouDfid}; KUGOU_API_MID=${data.mid || kugouMid}; KUGOU_API_PLATFORM=lite;`
+      );
+      const userInfo = normalizeKugouUserInfo(data, cookieStr, {
+        userId: userid,
+        nickname: '酷狗用户'
+      });
 
       return res.json({
         code: 200,
@@ -443,11 +1350,7 @@ router.get('/kugou/qr/poll', async (req, res) => {
           status: 'success',
           message: '酷狗音乐登录成功',
           cookie: cookieStr,
-          userInfo: {
-            userId: userid,
-            nickname: data.nickname || '酷狗用户',
-            avatarUrl: data.head_icon || ''
-          }
+          userInfo
         }
       });
     }
@@ -456,6 +1359,161 @@ router.get('/kugou/qr/poll', async (req, res) => {
   } catch (error) {
     console.error('[platformLogin] Kugou QR poll error:', error.message);
     res.json({ code: 500, msg: `酷狗轮询失败: ${error.message}` });
+  }
+});
+
+function getPlatformCookieFromRequest(req) {
+  const value = req.headers['x-platform-cookie'];
+  return Array.isArray(value) ? value[0] || '' : String(value || '').trim();
+}
+
+// GET /platform/qq/account/data
+router.get('/qq/account/data', (req, res) => {
+  const cookie = getPlatformCookieFromRequest(req);
+  const values = cookieMap(cookie);
+  const userId = normalizeQQUserId(values.uin || values.p_uin || values.ptui_loginuin || '');
+  const key = values.qm_keyst || values.qqmusic_key || values.p_skey || '';
+  if (!userId || !key) {
+    return res.status(401).json({ code: 401, msg: 'QQ 音乐登录已失效，请重新扫码' });
+  }
+
+  const avatarUin = userId.replace(/^o/i, '');
+  return res.json({
+    code: 200,
+    data: {
+      userInfo: {
+        userId,
+        nickname: values.nickname || values.nick || 'QQ音乐用户',
+        avatarUrl: /^\d+$/.test(avatarUin)
+          ? `https://q1.qlogo.cn/g?b=qq&nk=${avatarUin}&s=100`
+          : '',
+        vip: false
+      },
+      playlists: [],
+      favorites: [],
+      albums: [],
+      history: []
+    }
+  });
+});
+
+// GET /platform/kugou/account/data
+router.get('/kugou/account/data', async (req, res) => {
+  const cookie = getPlatformCookieFromRequest(req);
+  const context = getKugouContext(cookie);
+  if (!context.userid || !context.token) {
+    return res.status(401).json({ code: 401, msg: '酷狗登录已失效，请重新扫码' });
+  }
+
+  try {
+    const [playlistResult, profileResult] = await Promise.allSettled([
+      requestKugouApi(
+        cookie,
+        '/v7/get_all_list',
+        {
+          token: context.token,
+          userid: context.userid,
+          total_ver: 979,
+          type: 2,
+          page: 1,
+          pagesize: 100
+        },
+        { plat: 1 },
+        { 'x-router': 'cloudlist.service.kugou.com' }
+      ),
+      requestKugouUserInfo(cookie)
+    ]);
+
+    if (playlistResult.status === 'rejected') {
+      throw playlistResult.reason;
+    }
+    const playlistResponse = playlistResult.value;
+    const playlistPayload = playlistResponse.data;
+    const apiStatus = Number(playlistPayload?.status);
+    if (playlistResponse.status < 200 || playlistResponse.status >= 300 || apiStatus !== 1) {
+      const errorCode = playlistPayload?.error_code || playlistPayload?.errorCode || 'unknown';
+      return res.status(401).json({
+        code: 401,
+        msg: `酷狗账号数据获取失败 (${errorCode})，请重新登录`
+      });
+    }
+
+    const normalizedLists = normalizeKugouPlaylists(playlistPayload, context.userid);
+    const profilePayload = profileResult.status === 'fulfilled' ? profileResult.value : null;
+    const userInfo = normalizeKugouUserInfo(profilePayload, cookie, {
+      userId: context.userid,
+      nickname: '酷狗用户'
+    });
+
+    return res.json({
+      code: 200,
+      data: {
+        userInfo,
+        playlists: normalizedLists.playlists,
+        favorites: normalizedLists.favorites,
+        albums: [],
+        history: []
+      }
+    });
+  } catch (error) {
+    console.error('[platformLogin] Kugou account data error:', error.message);
+    return res.status(502).json({ code: 502, msg: '酷狗账号数据服务暂时不可用，请稍后重试' });
+  }
+});
+
+// GET /platform/kugou/playlist/tracks?id=xxx
+router.get('/kugou/playlist/tracks', async (req, res) => {
+  const cookie = getPlatformCookieFromRequest(req);
+  const context = getKugouContext(cookie);
+  const listId = String(req.query.id || req.query.listId || '').trim();
+  if (!context.userid || !context.token) {
+    return res.status(401).json({ code: 401, msg: '酷狗登录已失效，请重新扫码' });
+  }
+  if (!listId) {
+    return res.status(400).json({ code: 400, msg: '缺少酷狗歌单 ID' });
+  }
+
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize) || 100));
+  try {
+    const response = await requestKugouApi(
+      cookie,
+      '/v4/get_list_all_file',
+      {
+        listid: listId,
+        userid: context.userid,
+        area_code: 1,
+        show_relate_goods: 0,
+        pagesize: pageSize,
+        allplatform: 1,
+        show_cover: 1,
+        type: 0,
+        token: context.token,
+        page
+      },
+      {},
+      { 'x-router': 'cloudlist.service.kugou.com' }
+    );
+    const payload = response.data;
+    const apiStatus = Number(payload?.status);
+    if (response.status < 200 || response.status >= 300 || (apiStatus !== 1 && apiStatus !== 200)) {
+      const errorCode = payload?.error_code || payload?.errorCode || 'unknown';
+      return res.status(502).json({ code: 502, msg: `酷狗歌单加载失败 (${errorCode})` });
+    }
+
+    const songs = normalizeKugouSongs(payload, { id: listId, listId });
+    return res.json({
+      code: 200,
+      data: {
+        playlist: { id: listId, platform: 'kugou', trackCount: songs.length },
+        songs,
+        page,
+        pageSize
+      }
+    });
+  } catch (error) {
+    console.error('[platformLogin] Kugou playlist tracks error:', error.message);
+    return res.status(502).json({ code: 502, msg: '酷狗歌单服务暂时不可用，请稍后重试' });
   }
 });
 
@@ -693,7 +1751,6 @@ module.exports = router;
 function createPlatformGatewayApp() {
   const app = express();
   app.disable('x-powered-by');
-  app.use(cors());
   app.use('/platform', router);
   app.use((_req, res) => {
     res.status(404).json({ code: 404, msg: 'Gateway route not found' });
@@ -702,6 +1759,14 @@ function createPlatformGatewayApp() {
 }
 
 module.exports.createPlatformGatewayApp = createPlatformGatewayApp;
+module.exports.parsePtuiCallback = parsePtuiCallback;
+module.exports.parseKugouSongLabel = parseKugouSongLabel;
+module.exports.normalizeKugouPlaylists = normalizeKugouPlaylists;
+module.exports.normalizeKugouSongs = normalizeKugouSongs;
+module.exports.normalizeKugouUserInfo = normalizeKugouUserInfo;
+module.exports.readQqSession = readQqSession;
+module.exports.deleteQqSession = deleteQqSession;
+module.exports.extractQQOAuthCode = extractQQOAuthCode;
 
 if (require.main === module) {
   const port = Number(process.env.PORT || process.env.ZEPHYRUS_GATEWAY_PORT || 3050);

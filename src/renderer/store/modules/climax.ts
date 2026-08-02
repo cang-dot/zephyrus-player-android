@@ -7,7 +7,12 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
-import { type ClimaxSegment,loadClimaxForSong } from '@/api/climax';
+import {
+  type ClimaxSegment,
+  loadClimaxForSong,
+  normalizeClimaxSegments
+} from '@/api/climax';
+import { isLocalSong } from '@/hooks/useLocalMusic';
 import { getLocalClimax } from '@/services/cacheService';
 
 export const useClimaxStore = defineStore('climax', () => {
@@ -39,25 +44,31 @@ export const useClimaxStore = defineStore('climax', () => {
         const { usePlayerStore } = await import('./player');
         const playerStore = usePlayerStore();
         const song = playerStore.playMusic;
-        if (song?.platformId) {
+        const platformId = song?.platformId || songId.slice('server:'.length);
+        let songDuration = song?.dt || song?.duration;
+        let serverSegments = song?.climaxSegments;
+
+        // 云端歌曲的高潮时段只取 songs.json 里标注的 climax，
+        // 歌曲对象里已经带上了归一化后的标注时段。
+        if (!serverSegments?.length) {
           const { getServerSongDetail } = await import('@/api/serverSongs');
-          const detail = await getServerSongDetail(song.platformId);
-          if (detail.climax) {
-            segments.value = [detail.climax];
-            contributor.value = 'Zephyrus云端';
-          } else {
-            segments.value = [];
-            contributor.value = null;
-          }
+          const detail = await getServerSongDetail(platformId);
+          serverSegments = detail.climax;
+          songDuration = detail.duration;
         }
-        loading.value = false;
+
+        segments.value = normalizeClimaxSegments(serverSegments, songDuration);
+        contributor.value = segments.value.length ? 'Zephyrus 云端' : null;
         return;
       }
 
-      // 本地歌曲：从本地永久存储加载
-      if (!/^\d+$/.test(songId)) {
+      const { usePlayerStore } = await import('./player');
+      const song = usePlayerStore().playMusic;
+
+      // 本地歌曲：按实际播放源识别，避免纯数字路径哈希被误当成在线歌曲。
+      if (String(song?.id || '') === songId && isLocalSong(song)) {
         const localData = await getLocalClimax(songId);
-        segments.value = localData?.segments || [];
+        segments.value = normalizeClimaxSegments(localData?.segments, song?.dt || song?.duration);
         contributor.value = localData?.contributor || null;
       } else {
         const result = await loadClimaxForSong(songId);
