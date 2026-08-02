@@ -310,140 +310,159 @@
           </div>
 
           <div class="block-inner" :class="blockInnerClass(item)">
-            <!-- Daily Recommend -->
-            <template v-if="item.type === 'daily-recommend'">
-              <div class="block-top">
-                <span class="block-mini-badge">{{ dailyCount }}{{ t('comp.homeHero.songs') }}</span>
-                <i class="ri-calendar-check-fill block-corner-icon" />
-              </div>
-              <div v-if="item.h >= 2 && !isTall(item)" class="block-date">
-                <span class="block-date-day">{{ dayOfMonth }}</span>
-                <span class="block-date-week">{{ weekdayLabel }}</span>
-              </div>
-              <div v-if="item.w >= 3 && dailySongs.length > 0" class="block-daily-songs">
-                <div
-                  v-for="(song, i) in dailySongs.slice(0, item.w >= 4 ? 4 : 2)"
-                  :key="song.id"
-                  class="block-daily-song truncate"
-                >
-                  <span class="song-num">{{ i + 1 }}</span
-                  >{{ song.name }}
+            <!-- 1x2 / 2x1 紧凑布局：胶囊图片 + 标题（元素级显隐/移动动画） -->
+            <Transition name="block-compact">
+              <div v-if="isTall(item) || isWide(item)" class="block-compact">
+                <div class="block-media-pill">
+                  <img v-if="blockMedia(item)" :src="blockMedia(item)" alt="" />
+                  <i v-else :class="meta[item.type].icon" />
                 </div>
+                <span class="block-compact-label">{{ blockTitle(item) }}</span>
               </div>
-              <div class="block-label">{{ t('comp.homeHero.dailyRecommend') }}</div>
-              <button class="action-btn play-btn" @click.stop="playDayRecommend">
-                <i class="ri-play-fill" />
-              </button>
-            </template>
+            </Transition>
+            <template v-if="!isTall(item) && !isWide(item)">
+              <!-- Daily Recommend -->
+              <template v-if="item.type === 'daily-recommend'">
+                <div class="block-top">
+                  <span class="block-mini-badge"
+                    >{{ dailyCount }}{{ t('comp.homeHero.songs') }}</span
+                  >
+                  <i class="ri-calendar-check-fill block-corner-icon" />
+                </div>
+                <div v-if="item.h >= 2 && !isTall(item)" class="block-date">
+                  <span class="block-date-day">{{ dayOfMonth }}</span>
+                  <span class="block-date-week">{{ weekdayLabel }}</span>
+                </div>
+                <div v-if="item.w >= 3 && dailySongs.length > 0" class="block-daily-songs">
+                  <div
+                    v-for="(song, i) in dailySongs.slice(0, item.w >= 4 ? 4 : 2)"
+                    :key="song.id"
+                    class="block-daily-song truncate"
+                  >
+                    <span class="song-num">{{ i + 1 }}</span
+                    >{{ song.name }}
+                  </div>
+                </div>
+                <div class="block-label">{{ t('comp.homeHero.dailyRecommend') }}</div>
+                <button class="action-btn play-btn" @click.stop="playDayRecommend">
+                  <i class="ri-play-fill" />
+                </button>
+              </template>
 
-            <!-- Personal FM -->
-            <template v-else-if="item.type === 'personal-fm'">
-              <div v-if="isLoggedIn && !isTall(item) && !isWide(item)" class="block-fm-cover-wrap">
-                <img
-                  v-if="displayCover"
-                  :src="getImgUrl(displayCover, '300y300')"
-                  alt=""
-                  class="block-fm-cover"
-                />
-                <div v-else class="block-fm-placeholder"><i class="ri-radio-fill" /></div>
-                <div v-if="isFmPlaying" class="block-fm-eq">
-                  <span
-                    v-for="i in 3"
-                    :key="i"
-                    class="eq-bar"
-                    :style="{ animationDelay: `${(i - 1) * 0.15}s` }"
+              <!-- Personal FM -->
+              <template v-else-if="item.type === 'personal-fm'">
+                <div
+                  v-if="isLoggedIn && !isTall(item) && !isWide(item)"
+                  class="block-fm-cover-wrap"
+                >
+                  <img
+                    v-if="displayCover"
+                    :src="getImgUrl(displayCover, '300y300')"
+                    alt=""
+                    class="block-fm-cover"
+                  />
+                  <div v-else class="block-fm-placeholder"><i class="ri-radio-fill" /></div>
+                  <div v-if="isFmPlaying" class="block-fm-eq">
+                    <span
+                      v-for="i in 3"
+                      :key="i"
+                      class="eq-bar"
+                      :style="{ animationDelay: `${(i - 1) * 0.15}s` }"
+                    />
+                  </div>
+                </div>
+                <div v-else class="block-icon-large"><i class="ri-radio-fill" /></div>
+                <div class="block-label">{{ t('comp.homeHero.personalFm') }}</div>
+                <div v-if="isLoggedIn && displaySong?.name" class="block-fm-song truncate">
+                  {{ displaySong.name }}
+                </div>
+                <div v-else-if="!isLoggedIn" class="block-hint">
+                  {{ t('comp.modularHome.loginToUnlock') }}
+                </div>
+                <button v-if="isLoggedIn" class="action-btn play-btn" @click.stop="handleFmPlay">
+                  <i :class="isFmPlaying ? 'ri-pause-fill' : 'ri-play-fill'" />
+                </button>
+              </template>
+
+              <!-- User -->
+              <template v-else-if="item.type === 'user'">
+                <div v-if="!isTall(item) && !isWide(item)" class="block-user-avatar-wrap">
+                  <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="block-user-avatar" />
+                  <div v-else class="block-user-placeholder"><i class="ri-user-3-fill" /></div>
+                </div>
+                <div v-else class="block-icon-large"><i class="ri-user-3-fill" /></div>
+                <div class="block-label">
+                  {{ userNickname || t('comp.modularHome.blocks.user') }}
+                </div>
+                <div v-if="!isLoggedIn" class="block-hint">
+                  {{ t('comp.modularHome.loginToUnlock') }}
+                </div>
+              </template>
+
+              <!-- Artists -->
+              <template v-else-if="item.type === 'artists'">
+                <div
+                  v-if="artists.length > 0 && !isTall(item) && !isWide(item)"
+                  class="block-collage"
+                >
+                  <img
+                    v-for="(artist, i) in artists.slice(0, 4)"
+                    :key="artist.id"
+                    :src="getImgUrl(artist.picUrl || artist.img1v1Url, '150y150')"
+                    alt=""
+                    class="collage-img"
+                    :style="{ animationDelay: `${i * 0.06}s` }"
                   />
                 </div>
-              </div>
-              <div v-else class="block-icon-large"><i class="ri-radio-fill" /></div>
-              <div class="block-label">{{ t('comp.homeHero.personalFm') }}</div>
-              <div v-if="isLoggedIn && displaySong?.name" class="block-fm-song truncate">
-                {{ displaySong.name }}
-              </div>
-              <div v-else-if="!isLoggedIn" class="block-hint">
-                {{ t('comp.modularHome.loginToUnlock') }}
-              </div>
-              <button v-if="isLoggedIn" class="action-btn play-btn" @click.stop="handleFmPlay">
-                <i :class="isFmPlaying ? 'ri-pause-fill' : 'ri-play-fill'" />
-              </button>
-            </template>
+                <div v-else class="block-icon-large"><i class="ri-mic-fill" /></div>
+                <div class="block-label">{{ t('comp.homeHero.hotArtists') }}</div>
+              </template>
 
-            <!-- User -->
-            <template v-else-if="item.type === 'user'">
-              <div v-if="!isTall(item) && !isWide(item)" class="block-user-avatar-wrap">
-                <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="block-user-avatar" />
-                <div v-else class="block-user-placeholder"><i class="ri-user-3-fill" /></div>
-              </div>
-              <div v-else class="block-icon-large"><i class="ri-user-3-fill" /></div>
-              <div class="block-label">{{ userNickname || t('comp.modularHome.blocks.user') }}</div>
-              <div v-if="!isLoggedIn" class="block-hint">
-                {{ t('comp.modularHome.loginToUnlock') }}
-              </div>
-            </template>
+              <!-- Playlists -->
+              <template v-else-if="item.type === 'playlists'">
+                <div
+                  v-if="playlists.length > 0 && !isTall(item) && !isWide(item)"
+                  class="block-collage"
+                >
+                  <img
+                    v-for="(pl, i) in playlists.slice(0, 4)"
+                    :key="i"
+                    :src="getImgUrl(pl.picUrl, '150y150')"
+                    alt=""
+                    class="collage-img"
+                    :style="{ animationDelay: `${i * 0.06}s` }"
+                  />
+                </div>
+                <div v-else class="block-icon-large"><i class="ri-play-list-2-fill" /></div>
+                <div class="block-label">{{ t('comp.homeHero.hotPlaylists') }}</div>
+              </template>
 
-            <!-- Artists -->
-            <template v-else-if="item.type === 'artists'">
-              <div
-                v-if="artists.length > 0 && !isTall(item) && !isWide(item)"
-                class="block-collage"
-              >
-                <img
-                  v-for="(artist, i) in artists.slice(0, 4)"
-                  :key="artist.id"
-                  :src="getImgUrl(artist.picUrl || artist.img1v1Url, '150y150')"
-                  alt=""
-                  class="collage-img"
-                  :style="{ animationDelay: `${i * 0.06}s` }"
-                />
-              </div>
-              <div v-else class="block-icon-large"><i class="ri-mic-fill" /></div>
-              <div class="block-label">{{ t('comp.homeHero.hotArtists') }}</div>
-            </template>
+              <!-- Daily Album -->
+              <template v-else-if="item.type === 'daily-album'">
+                <div
+                  v-if="dailyAlbum && !isTall(item) && !isWide(item)"
+                  class="block-album-cover-wrap"
+                >
+                  <img
+                    :src="getImgUrl(dailyAlbum.picUrl || dailyAlbum.album?.picUrl, '300y300')"
+                    alt=""
+                    class="block-album-cover"
+                  />
+                </div>
+                <div v-else class="block-icon-large"><i class="ri-disc-fill" /></div>
+                <div class="block-label">
+                  {{ dailyAlbum?.name || t('comp.modularHome.blocks.dailyAlbum') }}
+                </div>
+                <div v-if="!dailyAlbum" class="block-hint">
+                  {{ t('comp.modularHome.dailyAlbumDesc') }}
+                </div>
+              </template>
 
-            <!-- Playlists -->
-            <template v-else-if="item.type === 'playlists'">
-              <div
-                v-if="playlists.length > 0 && !isTall(item) && !isWide(item)"
-                class="block-collage"
-              >
-                <img
-                  v-for="(pl, i) in playlists.slice(0, 4)"
-                  :key="i"
-                  :src="getImgUrl(pl.picUrl, '150y150')"
-                  alt=""
-                  class="collage-img"
-                  :style="{ animationDelay: `${i * 0.06}s` }"
-                />
-              </div>
-              <div v-else class="block-icon-large"><i class="ri-play-list-2-fill" /></div>
-              <div class="block-label">{{ t('comp.homeHero.hotPlaylists') }}</div>
-            </template>
-
-            <!-- Daily Album -->
-            <template v-else-if="item.type === 'daily-album'">
-              <div
-                v-if="dailyAlbum && !isTall(item) && !isWide(item)"
-                class="block-album-cover-wrap"
-              >
-                <img
-                  :src="getImgUrl(dailyAlbum.picUrl || dailyAlbum.album?.picUrl, '300y300')"
-                  alt=""
-                  class="block-album-cover"
-                />
-              </div>
-              <div v-else class="block-icon-large"><i class="ri-disc-fill" /></div>
-              <div class="block-label">
-                {{ dailyAlbum?.name || t('comp.modularHome.blocks.dailyAlbum') }}
-              </div>
-              <div v-if="!dailyAlbum" class="block-hint">
-                {{ t('comp.modularHome.dailyAlbumDesc') }}
-              </div>
-            </template>
-
-            <!-- Static blocks -->
-            <template v-else>
-              <div class="block-icon-large"><i :class="meta[item.type].icon" /></div>
-              <div class="block-label">{{ t(meta[item.type].titleKey) }}</div>
+              <!-- Static blocks -->
+              <template v-else>
+                <div class="block-icon-large"><i :class="meta[item.type].icon" /></div>
+                <div class="block-label">{{ t(meta[item.type].titleKey) }}</div>
+              </template>
             </template>
           </div>
         </div>
@@ -726,6 +745,47 @@ const blockInnerClass = (item: LayoutItem) => ({
   'block-inner--wide': isWide(item),
   'block-inner--square': !isTall(item) && !isWide(item)
 });
+
+/** 1x2 / 2x1 紧凑布局用的图片（优先真实图片，无图回退图标） */
+const blockMedia = (item: LayoutItem): string => {
+  switch (item.type) {
+    case 'user':
+      return avatarUrl.value;
+    case 'personal-fm':
+      return displayCover.value;
+    case 'artists':
+      return artists.value[0]
+        ? getImgUrl(artists.value[0].picUrl || artists.value[0].img1v1Url, '150y150')
+        : '';
+    case 'playlists':
+      return playlists.value[0] ? getImgUrl(playlists.value[0].picUrl, '150y150') : '';
+    case 'daily-album':
+      return dailyAlbum.value
+        ? getImgUrl(dailyAlbum.value.picUrl || dailyAlbum.value.album?.picUrl, '300y300')
+        : '';
+    default:
+      return '';
+  }
+};
+
+const blockTitle = (item: LayoutItem): string => {
+  switch (item.type) {
+    case 'daily-recommend':
+      return t('comp.homeHero.dailyRecommend');
+    case 'personal-fm':
+      return t('comp.homeHero.personalFm');
+    case 'user':
+      return userNickname.value || t('comp.modularHome.blocks.user');
+    case 'artists':
+      return t('comp.homeHero.hotArtists');
+    case 'playlists':
+      return t('comp.homeHero.hotPlaylists');
+    case 'daily-album':
+      return dailyAlbum.value?.name || t('comp.modularHome.blocks.dailyAlbum');
+    default:
+      return t(meta[item.type].titleKey);
+  }
+};
 
 // ==================== Persistence ====================
 
@@ -1183,7 +1243,6 @@ const playFlip = (container: HTMLElement, selector: string, beforeRects: Map<str
     const after = child.getBoundingClientRect();
     const dx = before.left - after.left;
     const dy = before.top - after.top;
-    // 尺寸变化（放大/缩小）时同步缩放过渡，避免模块“瞬变”
     const scaleX = after.width > 0 ? before.width / after.width : 1;
     const scaleY = after.height > 0 ? before.height / after.height : 1;
     if (
@@ -1194,16 +1253,27 @@ const playFlip = (container: HTMLElement, selector: string, beforeRects: Map<str
     ) {
       return;
     }
-    child.style.transformOrigin = 'top left';
-    child.style.transform = `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`;
-    child.style.transition = 'none';
-    child.offsetHeight;
-    child.style.transform = '';
-    child.style.transition = `transform ${SPRING_DURATION} ${SPRING_EASE}`;
-    setTimeout(() => {
-      child.style.transition = '';
-      child.style.transform = '';
-    }, 500);
+    // 用 WAAPI 而非内联 transform：编辑态 jiggle 是无限 CSS 动画，
+    // 会覆盖内联 transform 导致 FLIP 完全不可见；WAAPI 动画优先级更高。
+    child.animate(
+      [
+        {
+          transform: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`,
+          transformOrigin: 'top left',
+          offset: 0
+        },
+        {
+          transform: 'translate(0px, 0px) scale(1, 1)',
+          transformOrigin: 'top left',
+          offset: 1
+        }
+      ],
+      {
+        duration: 420,
+        easing: SPRING_EASE,
+        fill: 'none'
+      }
+    );
   });
 };
 
@@ -1255,8 +1325,21 @@ const onBlankPointerDown = (e: PointerEvent) => {
     return;
   }
 
-  // 已在编辑模式 — 点击空白退出（由 onBackgroundClick 处理）
-  if (isEditMode.value) return;
+  // 已在编辑模式 — 点击空白（未滑动）直接退出
+  if (isEditMode.value) {
+    let moved = false;
+    const exitMoveHandler = (ev: PointerEvent) => {
+      if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) > 12) moved = true;
+    };
+    const exitHandler = () => {
+      document.removeEventListener('pointermove', exitMoveHandler);
+      document.removeEventListener('pointerup', exitHandler);
+      if (!moved) editModeType.value = 'none';
+    };
+    document.addEventListener('pointermove', exitMoveHandler);
+    document.addEventListener('pointerup', exitHandler);
+    return;
+  }
 
   touchStartX = e.clientX;
   touchStartY = e.clientY;
@@ -2495,6 +2578,72 @@ onBeforeUnmount(() => {
     font-size: 16px;
   }
 }
+
+/* 1x2 / 2x1 胶囊图 + 标题（元素级显隐/移动动画） */
+.block-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+}
+
+.block-inner--wide .block-compact {
+  flex-direction: row;
+  gap: 12px;
+}
+
+.block-media-pill {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(255, 255, 255, 0.32);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  i {
+    font-size: 24px;
+    opacity: 0.9;
+  }
+}
+
+.block-compact-label {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.block-compact-enter-active {
+  transition:
+    opacity 0.24s ease,
+    transform 0.32s var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.block-compact-enter-from {
+  opacity: 0;
+  transform: scale(0.82) translateY(6px);
+}
+
 .block-label {
   font-size: 14px;
   font-weight: 600;

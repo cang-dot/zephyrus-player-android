@@ -1460,6 +1460,111 @@ function getPlatformCookieFromRequest(req) {
   return Array.isArray(value) ? value[0] || '' : String(value || '').trim();
 }
 
+/**
+ * QQ 音乐 musicu.fcg 业务接口调用
+ */
+async function qqMusicApi(cookie, module, method, param = {}) {
+  const resp = await axios.post(
+    'https://u.y.qq.com/cgi-bin/musicu.fcg',
+    JSON.stringify({
+      comm: { g_tk: 5381, platform: 'yqq', ct: 24, cv: 0 },
+      req: { module, method, param }
+    }),
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': QQ_USER_AGENT,
+        Referer: 'https://y.qq.com/',
+        Cookie: cookie
+      },
+      timeout: 15000,
+      validateStatus: () => true
+    }
+  );
+  const req = resp.data?.req || resp.data || {};
+  if (Number(req.code) !== 0) {
+    throw new Error(`QQ API ${module}.${method} 返回错误码 ${req.code}`);
+  }
+  return req.data || {};
+}
+
+function normalizeQqPlaylist(item, uin, nickname) {
+  return {
+    id: item.dirid ?? item.dir_id ?? item.id ?? item.disstid ?? 0,
+    name: item.dir_name ?? item.name ?? item.title ?? '',
+    coverImgUrl: item.pic_url ?? item.picUrl ?? item.coverUrl ?? '',
+    trackCount: item.song_num ?? item.songnum ?? item.trackCount ?? 0,
+    playCount: item.listen_num ?? item.play_count ?? item.playCount ?? 0,
+    creator: { userId: Number(uin) || 0, nickname: nickname || 'QQ音乐用户' }
+  };
+}
+
+function normalizeQqAlbum(item) {
+  return {
+    id: item.album_id ?? item.albumId ?? item.mid ?? item.id ?? 0,
+    name: item.album_name ?? item.name ?? item.title ?? '',
+    picUrl: item.pic_url ?? item.picUrl ?? item.coverUrl ?? '',
+    size: item.song_num ?? item.songnum ?? item.total ?? 0,
+    artist: { name: item.singer_name ?? item.singername ?? item.artist ?? '' }
+  };
+}
+
+/**
+ * 拉取 QQ 音乐的创建歌单、收藏歌单、收藏专辑
+ */
+async function fetchQqAccountCollections(cookie) {
+  const values = cookieMap(cookie);
+  const uin = normalizeQQUserId(values.uin || values.p_uin || values.ptui_loginuin || '');
+  if (!uin) return null;
+
+  const nickname = values.nickname || values.nick || '';
+  // 收藏专辑接口通常需要 encrypt_uin，先通过公开主页获取
+  let euin = '';
+  try {
+    const profileResp = await axios.get(
+      'https://c6.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg',
+      {
+        params: { ct: 20, cv: 4747474, cid: 205360838, userid: uin },
+        headers: { 'User-Agent': QQ_USER_AGENT, Referer: 'https://y.qq.com/' },
+        timeout: 12000,
+        validateStatus: () => true
+      }
+    );
+    euin = profileResp.data?.data?.creator?.encrypt_uin || '';
+  } catch {
+    // 拿不到 euin 时退化为 uin 参数
+  }
+  const albumParam = euin
+    ? { euin, offset: 0, size: 100 }
+    : { uin: String(uin), offset: 0, size: 100 };
+
+  const [createdData, favPlaylistData, favAlbumData] = await Promise.allSettled([
+    qqMusicApi(cookie, 'music.musicasset.PlaylistBaseRead', 'GetPlaylistByUin', {
+      uin: String(uin)
+    }),
+    qqMusicApi(cookie, 'music.musicasset.PlaylistFavRead', 'CgiGetPlaylistFavInfo', {
+      uin: String(uin),
+      offset: 0,
+      size: 100
+    }),
+    qqMusicApi(cookie, 'music.musicasset.AlbumFavRead', 'CgiGetAlbumFavInfo', albumParam)
+  ]);
+
+  const playlists = (createdData.status === 'fulfilled' ? createdData.value.v_playlist : [])
+    .map((item) => normalizeQqPlaylist(item, uin, nickname))
+    .filter((item) => item.id);
+  const favorites = (
+    favPlaylistData.status === 'fulfilled' ? favPlaylistData.value.v_playlist : []
+  )
+    .map((item) => normalizeQqPlaylist(item, uin, nickname))
+    .filter((item) => item.id);
+  const albums = (favAlbumData.status === 'fulfilled' ? favAlbumData.value.v_album : [])
+    .map(normalizeQqAlbum)
+    .filter((item) => item.id);
+
+  return { playlists, favorites, albums };
+}
+
 // GET /platform/qq/account/data
 router.get('/qq/account/data', async (req, res) => {
   const cookie = getPlatformCookieFromRequest(req);
@@ -1476,12 +1581,21 @@ router.get('/qq/account/data', async (req, res) => {
     ? `https://q1.qlogo.cn/g?b=qq&nk=${avatarUin}&s=100`
     : '';
   let vip = false;
+  let playlists = [];
+  let favorites = [];
+  let albums = [];
   try {
     const userInfo = await fetchQqUserInfo(cookie);
     if (userInfo) {
       nickname = userInfo.nickname || nickname;
       avatarUrl = userInfo.avatarUrl || avatarUrl;
       vip = Boolean(userInfo.vip);
+    }
+    const collections = await fetchQqAccountCollections(cookie);
+    if (collections) {
+      playlists = collections.playlists;
+      favorites = collections.favorites;
+      albums = collections.albums;
     }
   } catch (error) {
     console.warn('[platformLogin] QQ 账号数据用户信息补充失败:', error.message);
@@ -1496,9 +1610,9 @@ router.get('/qq/account/data', async (req, res) => {
         avatarUrl,
         vip
       },
-      playlists: [],
-      favorites: [],
-      albums: [],
+      playlists,
+      favorites,
+      albums,
       history: []
     }
   });
