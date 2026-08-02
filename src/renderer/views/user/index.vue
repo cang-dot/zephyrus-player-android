@@ -146,6 +146,7 @@ import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import AccountSwitcher from '@/components/user/AccountSwitcher.vue';
 import PlatformAccounts from '@/components/user/PlatformAccounts.vue';
+import { useMusicStore } from '@/store/modules/music';
 import { type PlatformAccount, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { useUserStore } from '@/store/modules/user';
@@ -158,6 +159,7 @@ defineOptions({ name: 'User' });
 const { t } = useI18n();
 const userStore = useUserStore();
 const accountStore = usePlatformAccountsStore();
+const musicStore = useMusicStore();
 const playerStore = usePlayerStore();
 const router = useRouter();
 const { userDetail, recordList } = storeToRefs(userStore);
@@ -560,26 +562,27 @@ const openPlaylist = async (item: any) => {
     const cacheKey = `${account.accountId}:${listId}`;
     openingPlaylistId.value = String(item.id || listId);
     try {
-      let songs = platformPlaylistTracksCache.get(cacheKey) || [];
-      if (!songs.length) {
+      // 先进歌单页（显示加载中），再异步拉取曲目与封面
+      const cachedSongs = platformPlaylistTracksCache.get(cacheKey);
+      musicStore.setCurrentMusicList(cachedSongs || [], item.name, item, false);
+      router.push({
+        name: 'musicList',
+        params: { id: item.id },
+        query: { type: 'playlist', from: 'platform' }
+      });
+
+      if (!cachedSongs?.length) {
         const result = await fetchPlatformPlaylistTracks('qq', account.cookie, listId);
-        songs = result.songs;
+        let songs = result.songs;
         songs = await enrichSongsWithNeteaseCover(songs);
         platformPlaylistTracksCache.set(cacheKey, songs);
+        if (activeAccountId.value !== account.accountId) return;
+        if (!songs.length) {
+          message.warning('这个 QQ 歌单暂时没有可播放的歌曲');
+          return;
+        }
+        musicStore.setCurrentMusicList(songs, item.name, item, false);
       }
-      if (activeAccountId.value !== account.accountId) return;
-      if (!songs.length) {
-        message.warning('这个 QQ 歌单暂时没有可播放的歌曲');
-        return;
-      }
-      navigateToMusicList(router, {
-        id: item.id,
-        type: 'playlist',
-        name: item.name,
-        songList: songs,
-        listInfo: item,
-        canRemove: false
-      });
     } catch (error: any) {
       console.error('加载 QQ 歌单失败:', error);
       message.error(error?.message || 'QQ 歌单加载失败');

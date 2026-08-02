@@ -285,6 +285,12 @@ const fetchData = async () => {
     return;
   }
 
+  // 平台歌单（QQ/酷狗等）：曲目由来源页异步写入 musicStore，这里不做网易云拉取
+  if (type === 'playlist' && route.query.from === 'platform') {
+    loading.value = false;
+    return;
+  }
+
   // 检查是否需要加载数据
   if (
     musicStore.currentListInfo?.id?.toString() === id.toString() &&

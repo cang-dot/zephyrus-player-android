@@ -52,7 +52,7 @@
     </div>
 
     <!-- 全屏播放器：迷你播放栏放大铺满全屏 / 关闭反向缩小 -->
-    <Transition name="player-morph">
+    <Transition @enter="onPlayerEnter" @leave="onPlayerLeave">
       <music-full-wrapper
         v-if="playerStore.musicFull"
         v-model="playerStore.musicFull"
@@ -83,6 +83,42 @@ const settingsStore = useSettingsStore();
 const play = computed(() => playerStore.isPlay);
 // 全屏播放器背景色（跟随当前歌曲封面主色）
 const background = ref('#000');
+
+// 播放器开合形变动画：动画加在迷你播放栏本体上，
+// 结束后移除类避免 transform 残留产生 containing block（否则播放内容错位/点击失效）
+let morphAnimationEndHandler: (() => void) | null = null;
+
+const clearMorphAnimation = () => {
+  if (morphAnimationEndHandler) {
+    playBarRef.value?.removeEventListener('animationend', morphAnimationEndHandler);
+    morphAnimationEndHandler = null;
+  }
+  playBarRef.value?.classList.remove('play-bar-morphing', 'play-bar-morphing-leave');
+};
+
+const onPlayerEnter = (_el: Element, done: () => void) => {
+  clearMorphAnimation();
+  const bar = playBarRef.value;
+  if (!bar) return done();
+  morphAnimationEndHandler = () => {
+    clearMorphAnimation();
+    done();
+  };
+  bar.addEventListener('animationend', morphAnimationEndHandler, { once: true });
+  bar.classList.add('play-bar-morphing');
+};
+
+const onPlayerLeave = (_el: Element, done: () => void) => {
+  clearMorphAnimation();
+  const bar = playBarRef.value;
+  if (!bar) return done();
+  morphAnimationEndHandler = () => {
+    clearMorphAnimation();
+    done();
+  };
+  bar.addEventListener('animationend', morphAnimationEndHandler, { once: true });
+  bar.classList.add('play-bar-morphing-leave');
+};
 
 // 播放控制
 function handleNext() {
@@ -458,12 +494,12 @@ onMounted(() => {
   pointer-events: auto;
 }
 
-.mobile-play-bar :deep(.player-morph-enter-active) {
+.mobile-play-bar.play-bar-morphing {
   animation: playerExpand 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
   transform-origin: 50% 100%;
 }
 
-.mobile-play-bar :deep(.player-morph-leave-active) {
+.mobile-play-bar.play-bar-morphing-leave {
   animation: playerShrink 0.3s cubic-bezier(0.55, 0, 0.55, 0.2) both;
   transform-origin: 50% 100%;
 }
