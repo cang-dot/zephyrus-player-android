@@ -234,8 +234,8 @@ defineExpose({
   color: var(--d-text-primary);
   cursor: pointer;
   transition:
-    background-color 160ms ease,
-    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+    background-color 90ms ease,
+    transform 90ms cubic-bezier(0.23, 1, 0.32, 1);
 
   &:active {
     transform: scale(0.99);

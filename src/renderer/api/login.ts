@@ -3,19 +3,28 @@ import request from '@/utils/request';
 // 创建二维码key
 //  /login/qr/key
 export function getQrKey() {
-  return request.get('/login/qr/key');
+  return request.get('/login/qr/key', {
+    params: { noCookie: true },
+    withCredentials: false
+  });
 }
 
 // 创建二维码
 // /login/qr/create
 export function createQr(key: any) {
-  return request.get('/login/qr/create', { params: { key, qrimg: true } });
+  return request.get('/login/qr/create', {
+    params: { key, qrimg: true, noCookie: true },
+    withCredentials: false
+  });
 }
 
 // 获取二维码状态
 //  /login/qr/check
 export function checkQr(key: any) {
-  return request.get('/login/qr/check', { params: { key, noCookie: true } });
+  return request.get('/login/qr/check', {
+    params: { key, noCookie: true },
+    withCredentials: false
+  });
 }
 
 // 获取登录状态
@@ -26,8 +35,10 @@ export function getLoginStatus() {
 
 // 获取用户信息
 // /user/account
-export function getUserDetail() {
-  return request.get('/user/account');
+export function getUserDetail(cookie?: string) {
+  return request.get('/user/account', {
+    params: cookie ? { cookie } : undefined
+  });
 }
 
 // 退出登录

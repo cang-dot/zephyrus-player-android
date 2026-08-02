@@ -27,6 +27,14 @@ export function registerBuiltinFeatures() {
   });
 
   registerFeature({
+    id: 'star-chart-style',
+    name: '星盘样式',
+    description: '以专辑封面生成旋转点阵星盘，并在中心显示歌词',
+    icon: 'ri-record-circle-line',
+    type: 'playerStyle'
+  });
+
+  registerFeature({
     id: 'magazine-style',
     name: '杂志样式',
     description: '杂志排版风格的歌词展示',

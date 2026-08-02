@@ -10,6 +10,36 @@ export interface ClimaxSegment {
   end: number;
 }
 
+type ClimaxSegmentInput = ClimaxSegment | ClimaxSegment[] | null | undefined;
+
+function normalizeDurationSeconds(duration?: number): number | undefined {
+  if (!Number.isFinite(duration) || !duration || duration <= 0) return undefined;
+  return duration > 1000 ? duration / 1000 : duration;
+}
+
+export function normalizeClimaxSegments(
+  input: ClimaxSegmentInput,
+  duration?: number
+): ClimaxSegment[] {
+  const rawSegments = Array.isArray(input) ? input : input ? [input] : [];
+  const durationSeconds = normalizeDurationSeconds(duration);
+  const maxEnd = Math.max(0, ...rawSegments.map((segment) => Number(segment.end) || 0));
+  const usesMilliseconds =
+    maxEnd > 1000 || Boolean(durationSeconds && maxEnd > durationSeconds * 1.5);
+  const scale = usesMilliseconds ? 0.001 : 1;
+
+  return rawSegments
+    .map((segment) => {
+      const start = Math.max(0, Number(segment.start) * scale);
+      const unclampedEnd = Math.max(start, Number(segment.end) * scale);
+      const end = durationSeconds ? Math.min(unclampedEnd, durationSeconds) : unclampedEnd;
+      return { start, end };
+    })
+    .filter((segment) => Number.isFinite(segment.start) && Number.isFinite(segment.end))
+    .filter((segment) => segment.end > segment.start)
+    .sort((left, right) => left.start - right.start);
+}
+
 export interface ClimaxEntry {
   id: number;
   song_id: string;
@@ -104,7 +134,7 @@ export async function loadClimaxForSong(songId: string, username?: string) {
     }
     const active = result.entries[0];
     return {
-      segments: active.segments,
+      segments: normalizeClimaxSegments(active.segments, active.duration),
       contributor: active.contributor_name,
       entryId: active.id,
       likes: active.likes

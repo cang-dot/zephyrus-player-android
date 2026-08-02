@@ -142,6 +142,24 @@ export const usePlatformAccountsStore = defineStore(
       return true;
     };
 
+    const moveAccount = (fromIndex: number, toIndex: number) => {
+      if (
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= accounts.value.length ||
+        toIndex >= accounts.value.length ||
+        fromIndex === toIndex
+      ) {
+        return false;
+      }
+
+      const nextAccounts = [...accounts.value];
+      const [movedAccount] = nextAccounts.splice(fromIndex, 1);
+      nextAccounts.splice(toIndex, 0, movedAccount);
+      accounts.value = nextAccounts;
+      return true;
+    };
+
     const addOrUpdateAccount = (input: PlatformAccountInput) => {
       const now = Date.now();
       const accountId = resolveAccountId(input);
@@ -270,7 +288,7 @@ export const usePlatformAccountsStore = defineStore(
           avatarUrl: String(legacyUser.avatarUrl || ''),
           vip: Boolean(legacyUser.vipType),
           cookie: legacyToken,
-          loginMethod: legacyLoginMethod || 'cookie'
+          loginMethod: legacyLoginMethod === 'uid' ? 'uid' : 'qr'
         });
       }
 
@@ -308,6 +326,7 @@ export const usePlatformAccountsStore = defineStore(
       activeAccountCache,
       accountsForPlatform,
       setActiveAccount,
+      moveAccount,
       addOrUpdateAccount,
       removeAccount,
       cacheAccountData,

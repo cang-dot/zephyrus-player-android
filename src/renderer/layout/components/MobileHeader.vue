@@ -110,6 +110,7 @@ import { useRoute, useRouter } from 'vue-router';
 
 import { getSearchSuggestions } from '@/api/search';
 import { useSearchStore } from '@/store/modules/search';
+import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { useUserStore } from '@/store/modules/user';
 import { getImgUrl } from '@/utils';
 
@@ -117,6 +118,7 @@ const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
 const userStore = useUserStore();
+const accountStore = usePlatformAccountsStore();
 const searchStore = useSearchStore();
 
 const hasSafeArea = inject('hasSafeArea', false);
@@ -140,7 +142,7 @@ const displayTitle = computed(() => {
 });
 
 const avatarUrl = computed(() => {
-  const url = userStore.user?.avatarUrl;
+  const url = accountStore.activeAccount?.avatarUrl || userStore.user?.avatarUrl;
   return url ? getImgUrl(url, '72y72') : '';
 });
 

@@ -267,6 +267,32 @@ class ClimaxDetector {
     return { ...this.config };
   }
 
+  /**
+   * 读取一帧经过平滑处理的频谱，并压缩到视觉组件需要的 bin 数量。
+   * 返回值始终是 0~1，调用方不会持有分析器内部的可变缓冲区。
+   */
+  public getFrequencySnapshot(binCount = 64): number[] {
+    if (!this.analyserNode || this.frequencyData.length === 0 || binCount <= 0) {
+      return [];
+    }
+
+    this.analyserNode.getByteFrequencyData(this.frequencyData);
+    const snapshot = new Array<number>(binCount).fill(0);
+    const sourceLength = this.frequencyData.length;
+
+    for (let index = 0; index < binCount; index++) {
+      const start = Math.floor((index * sourceLength) / binCount);
+      const end = Math.max(start + 1, Math.floor(((index + 1) * sourceLength) / binCount));
+      let total = 0;
+      for (let sourceIndex = start; sourceIndex < end && sourceIndex < sourceLength; sourceIndex++) {
+        total += this.frequencyData[sourceIndex];
+      }
+      snapshot[index] = total / ((end - start) * 255);
+    }
+
+    return snapshot;
+  }
+
   // ======================== 内部方法 ========================
 
   /**

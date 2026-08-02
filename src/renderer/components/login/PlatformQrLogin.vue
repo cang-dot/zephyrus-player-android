@@ -16,7 +16,13 @@
 
         <Transition name="qr-overlay">
           <div v-if="qrStatus === 'expired' || qrStatus === 'error'" class="qr-overlay">
-            <span>{{ t('login.message.qrExpiredShort') }}</span>
+            <span>
+              {{
+                qrStatus === 'expired'
+                  ? t('login.message.qrExpiredShort')
+                  : t('login.message.loginFailed')
+              }}
+            </span>
             <n-button type="primary" :loading="isRefreshing" @click="loadQr">
               {{ isRefreshing ? t('login.button.refreshing') : t('login.button.refresh') }}
             </n-button>

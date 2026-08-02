@@ -445,6 +445,14 @@ onMounted(() => {
   if (isElectron && settingsStore.appUpdateState.currentVersion === '') {
     settingsStore.setAppUpdateState(createDefaultAppUpdateState(config.version));
   }
+  // 默认向下滚动一点，让内容区直接呈现分区内容而不是停在 Hero 顶部
+  nextTick(() => {
+    nextTick(() => {
+      if (contentRef.value) {
+        contentRef.value.scrollTop = 150;
+      }
+    });
+  });
   if (setData.value.enableRealIP === undefined) {
     setData.value = { ...setData.value, enableRealIP: false };
   }

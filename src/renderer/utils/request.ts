@@ -37,9 +37,9 @@ function computeBaseURL(): string {
   if (api) return api;
   // 兜底：开发环境默认
   if (import.meta.env.DEV) return 'http://localhost:30488';
-  // 生产环境兜底：硬编码 API 地址（防止 env 文件未加载导致请求失败）
-  console.warn('[request] VITE_API 未配置，使用硬编码兜底地址');
-  return 'http://43.250.173.177';
+  // 生产环境兜底：使用 HTTPS 网关，避免 Android WebView 的明文请求限制。
+  console.warn('[request] VITE_API 未配置，使用 HTTPS 网关兜底地址');
+  return 'https://mucang.xyz/zephyrus/api';
 }
 
 const baseURL = computeBaseURL();
@@ -81,9 +81,10 @@ request.interceptors.request.use(
       device: isElectron ? 'pc' : isMobile.value ? 'mobile' : isCapacitor() ? 'capacitor' : 'web'
     };
     const token = localStorage.getItem('token');
-    if (token && config.method !== 'post') {
+    const skipCookie = config.params.noCookie === true;
+    if (token && !skipCookie && config.method !== 'post') {
       config.params.cookie = config.params.cookie !== undefined ? config.params.cookie : token;
-    } else if (token && config.method === 'post') {
+    } else if (token && !skipCookie && config.method === 'post') {
       config.data = {
         ...config.data,
         cookie: token

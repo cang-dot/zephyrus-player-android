@@ -4,6 +4,7 @@ import { createDiscreteApi } from 'naive-ui';
 import i18n from '@/../i18n/renderer';
 import { isCrossPlatformSong } from '@/api/crossPlatformSearch';
 import { getLyricByPlatform, searchFromGDMusic } from '@/api/gdmusic';
+import { resolveKugouNeteaseMatch } from '@/api/kugouPlayback';
 import { getMusicLrc, getMusicUrl, getParsingMusicUrl } from '@/api/music';
 import { playbackRequestManager } from '@/services/playbackRequestManager';
 import { SongSourceConfigManager } from '@/services/SongSourceConfigManager';
@@ -83,6 +84,21 @@ export const getSongUrl = async (
     if (songData.playMusicUrl) {
       if (isDownloaded) return songData.playMusicUrl;
       return await resolveCachedPlaybackUrl(songData.playMusicUrl, songData);
+    }
+
+    // 酷狗歌单通常只提供“歌手 - 歌名.mp3”，优先用拆解后的信息匹配网易云。
+    // 保留原始歌曲对象，匹配失败时仍可回退到酷狗音源。
+    if (songData.platform === 'kugou' && songData.platformId) {
+      try {
+        const matchedSong = await resolveKugouNeteaseMatch(songData);
+        if (matchedSong) {
+          const matchedUrl = await getSongUrl(matchedSong.id, matchedSong, isDownloaded, requestId);
+          if (matchedUrl) return matchedUrl;
+        }
+      } catch (error) {
+        if ((error as Error).message === 'Request cancelled') throw error;
+        console.warn('[kugouPlayback] 网易云播放地址失败，回退酷狗音源:', error);
+      }
     }
 
     // ==================== 跨平台歌曲专用路径 ====================
@@ -312,9 +328,8 @@ export const loadCrossPlatformLyric = async (song: SongResult): Promise<ILyric> 
         return emptyLyric;
       }
 
-      const searchQuery = artistNames.length > 0
-        ? `${songName} ${artistNames.join(' ')}`
-        : songName;
+      const searchQuery =
+        artistNames.length > 0 ? `${songName} ${artistNames.join(' ')}` : songName;
 
       // 在 joox 搜索，取前 10 条结果做精确匹配
       const items = await searchFromGDMusic('joox', searchQuery, 10, 1);
@@ -322,7 +337,10 @@ export const loadCrossPlatformLyric = async (song: SongResult): Promise<ILyric> 
       if (items && items.length > 0) {
         // 归一化比较
         const normalize = (s: string) =>
-          (s || '').toLowerCase().replace(/[\s\-_/\(\)\[\]【】（）.,，。、！？!?;；:：'"`~·]+/g, '').trim();
+          (s || '')
+            .toLowerCase()
+            .replace(/[\s\-_/\x28\x29\x5b\x5d【】（）.,，。、！？!?;；:：'"`~·]+/g, '')
+            .trim();
 
         const targetName = normalize(songName);
         const targetArtists = artistNames.map(normalize);
@@ -526,7 +544,12 @@ export const useSongDetail = () => {
       }
 
       playMusic.playLoading = false;
-      return { ...playMusic, playMusicUrl: playMusic.playMusicUrl, backgroundColor, primaryColor } as SongResult;
+      return {
+        ...playMusic,
+        playMusicUrl: playMusic.playMusicUrl,
+        backgroundColor,
+        primaryColor
+      } as SongResult;
     }
 
     if (playMusic.expiredAt && playMusic.expiredAt < Date.now()) {

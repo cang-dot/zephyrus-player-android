@@ -85,15 +85,22 @@ const timerIsQr = (key: string) => {
 
       // 登录成功
       if (data.code === 803) {
+        clearInterval(timer);
+        timerRef.value = null;
         qrStatus.value = 'confirmed';
+        if (!data.cookie) {
+          throw new Error('网易云登录成功响应缺少 Cookie');
+        }
         localStorage.setItem('token', data.cookie);
-        const user = await getUserDetail();
+        const user = await getUserDetail(data.cookie);
+        if (!user.data?.profile) {
+          localStorage.removeItem('token');
+          throw new Error('网易云登录成功后未获取到用户资料');
+        }
         const successMsg = t('login.message.loginSuccess');
         message.success(successMsg);
         emit('loginSuccess', user.data.profile, 'qr');
-
-        clearInterval(timer);
-        timerRef.value = null;
+        return;
       }
     } catch (error) {
       console.error(t('login.message.qrCheckError'), error);

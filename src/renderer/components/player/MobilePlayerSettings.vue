@@ -594,6 +594,12 @@ const playerStyles = computed(() => [
     color: '#ec4899'
   },
   {
+    key: 'starChart',
+    label: tr('player.styles.starChart', '星盘'),
+    icon: 'ri-record-circle-line',
+    color: 'var(--accent-color, #a0a0a0)'
+  },
+  {
     key: 'magazine',
     label: tr('player.styles.magazine', '杂志'),
     icon: 'ri-layout-grid-line',

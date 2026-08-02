@@ -4,6 +4,22 @@
 
 从 [GitHub Releases](https://github.com/cang-dot/zephyrus-player-android/releases) 下载最新的 APK 文件。
 
+服务器直链：[zephyrus-player-latest.apk](https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk)
+
+## 预览版（Beta）
+
+想抢先体验新功能的用户可安装预览版：
+
+- **当前预览版**：v1.1.3-beta
+- **下载地址**：[zephyrus-player-v1.1.3-beta.apk](https://mucang.xyz/zephyrus/apks/zephyrus-player-v1.1.3-beta.apk)
+- 预览版与正式版安装包互相覆盖安装，数据不冲突
+- 安装版 App 会自动检查更新，检测到新版本时弹出提示；也可在 设置 → 关于 中手动检查
+
+::: warning 注意
+预览版可能存在未完善的功能或问题，建议先在备用设备上体验；发现问题欢迎到
+[GitHub Issues](https://github.com/cang-dot/zephyrus-player-android/issues) 反馈。
+:::
+
 ## 系统要求
 
 - Android 7.0 (API 24) 或更高

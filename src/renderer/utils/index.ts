@@ -88,7 +88,13 @@ export const getImgUrl = (url: string | undefined, size: string = '') => {
     return url.replace(/thumbnail=\d+y\d+(?!.*thumbnail)/, `thumbnail=${size}`);
   }
 
-  const imgUrl = `${url}?param=${size}`;
+  // 非网易云图片通常已经包含平台所需的尺寸参数，避免拼接出无效 URL。
+  if (!url.includes('music.126.net')) {
+    return url.replace(/\{size\}/gi, size || '400');
+  }
+
+  const separator = url.includes('?') ? '&' : '?';
+  const imgUrl = `${url}${separator}param=${size}`;
   return imgUrl;
 };
 

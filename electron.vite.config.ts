@@ -10,6 +10,7 @@ export default defineConfig({
   main: {},
   preload: {},
   renderer: {
+    envDir: resolve('.'),
     resolve: {
       alias: {
         '@': resolve('src/renderer'),

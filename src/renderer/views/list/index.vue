@@ -1,6 +1,14 @@
 <template>
   <div class="list-page">
     <div ref="scrollRef" class="list-scroll" @scroll.passive="onScroll">
+      <glow-tabs
+        v-if="playlistSourceTabs.length > 1"
+        v-model="playlistSourceFilter"
+        :tabs="playlistSourceTabs"
+        scrollable
+        class="playlist-source-tabs"
+      />
+
       <!-- Loading skeleton -->
       <div v-if="isLoading" class="cover-grid">
         <div v-for="i in 6" :key="'skeleton-' + i" class="cover-card">
@@ -16,7 +24,7 @@
       <div v-else-if="items.length > 0" class="cover-grid">
         <div
           v-for="item in items"
-          :key="`${item.type}-${item.id}`"
+          :key="`${item.accountId}-${item.type}-${item.id}`"
           class="cover-card"
           @click="handleItemClick(item)"
         >
@@ -57,45 +65,92 @@
 </template>
 
 <script lang="ts" setup>
+import { useMessage } from 'naive-ui';
 import { computed, onActivated, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 
+import { fetchPlatformPlaylistTracks } from '@/api/platformQrApi';
+import GlowTabs from '@/components/common/GlowTabs.vue';
+import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import { useHeroCard } from '@/composables/useHeroCard';
-import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
 import { useUserStore } from '@/store';
+import {
+  type MusicPlatform,
+  usePlatformAccountsStore
+} from '@/store/modules/platformAccounts';
 import { getImgUrl } from '@/utils';
 
 defineOptions({ name: 'MyMusic' });
 
 const { t } = useI18n();
-const { navigate } = useOverlayNavigate();
+const router = useRouter();
+const message = useMessage();
 const userStore = useUserStore();
+const accountStore = usePlatformAccountsStore();
 const { setHeroCard, setCompact, showHeroCard, hideHeroCard } = useHeroCard();
 
 const scrollRef = ref<HTMLElement | null>(null);
 let rafId = 0;
+const playlistSourceFilter = ref<'all' | MusicPlatform>('all');
+const platformPlaylistTracksCache = new Map<string, any[]>();
 
 // 加载状态：用户未登录或歌单数据未加载完成
 const isLoading = computed(() => {
-  if (!userStore.user) return true;
-  // 等待歌单和专辑数据加载完成
-  return !userStore.playlistLoaded && !userStore.albumLoaded;
+  return !accountStore.accounts.length && !userStore.user;
 });
 
+const playlistSourceTabs = computed(() => [
+  { key: 'all', label: '全部' },
+  ...accountStore.accountsForPlatform('netease').length ? [{ key: 'netease', label: '网易云' }] : [],
+  ...accountStore.accountsForPlatform('qq').length ? [{ key: 'qq', label: 'QQ 音乐' }] : [],
+  ...accountStore.accountsForPlatform('kugou').length ? [{ key: 'kugou', label: '酷狗音乐' }] : []
+]);
+
 const items = computed(() => {
-  const playlists = userStore.playList.map((pl: any) => ({
-    id: pl.id,
-    src: pl.coverImgUrl || '',
-    alt: pl.name || '未知歌单',
-    type: 'playlist' as const
-  }));
-  const albums = userStore.albumList.map((al: any) => ({
-    id: al.id,
-    src: al.picUrl || al.blurPicUrl || '',
-    alt: al.name || '未知专辑',
-    type: 'album' as const
-  }));
-  return [...playlists, ...albums];
+  const result: any[] = [];
+
+  for (const account of accountStore.accounts) {
+    if (playlistSourceFilter.value !== 'all' && account.platform !== playlistSourceFilter.value) {
+      continue;
+    }
+
+    const cache = accountStore.accountCache[account.accountId];
+    const playlists =
+      account.platform === 'netease' && account.accountId === accountStore.activeAccountId
+        ? userStore.playList
+        : cache?.playlists || [];
+    const albums =
+      account.platform === 'netease' && account.accountId === accountStore.activeAccountId
+        ? userStore.albumList
+        : cache?.albums || [];
+
+    for (const playlist of playlists as any[]) {
+      result.push({
+        id: playlist.id,
+        src: playlist.coverImgUrl || playlist.picUrl || '',
+        alt: playlist.name || '未知歌单',
+        type: 'playlist' as const,
+        platform: account.platform,
+        accountId: account.accountId,
+        raw: playlist
+      });
+    }
+
+    for (const album of albums as any[]) {
+      result.push({
+        id: album.id,
+        src: album.picUrl || album.blurPicUrl || album.coverImgUrl || '',
+        alt: album.name || '未知专辑',
+        type: 'album' as const,
+        platform: account.platform,
+        accountId: account.accountId,
+        raw: album
+      });
+    }
+  }
+
+  return result;
 });
 
 // 更新共享卡片内容
@@ -119,8 +174,60 @@ const onScroll = () => {
   });
 };
 
-const handleItemClick = (item: any) => {
-  navigate(`/music-list/${item.id}?type=${item.type === 'album' ? 'album' : 'playlist'}`);
+const handleItemClick = async (item: any) => {
+  const account = accountStore.accounts.find((candidate) => candidate.accountId === item.accountId);
+  if (!account) return;
+
+  accountStore.setActiveAccount(account.accountId);
+
+  if (item.type === 'playlist' && account.platform === 'kugou' && account.cookie) {
+    const listId = String(
+      item.raw.listId ||
+        item.raw.list_id ||
+        item.raw.globalCollectionId ||
+        item.raw.global_collection_id ||
+        item.id ||
+        ''
+    ).trim();
+    if (!listId) {
+      message.warning('这个酷狗歌单缺少可加载的标识');
+      return;
+    }
+
+    const cacheKey = `${account.accountId}:${listId}`;
+    try {
+      let songs = platformPlaylistTracksCache.get(cacheKey) || [];
+      if (!songs.length) {
+        const result = await fetchPlatformPlaylistTracks('kugou', account.cookie, listId);
+        songs = result.songs;
+        platformPlaylistTracksCache.set(cacheKey, songs);
+      }
+      if (!songs.length) {
+        message.warning('这个酷狗歌单暂时没有可播放的歌曲');
+        return;
+      }
+      navigateToMusicList(router, {
+        id: item.id,
+        type: 'playlist',
+        name: item.alt,
+        songList: songs,
+        listInfo: item.raw,
+        canRemove: false
+      });
+    } catch (error: any) {
+      console.error('加载酷狗歌单失败:', error);
+      message.error(error?.message || '酷狗歌单加载失败');
+    }
+    return;
+  }
+
+  navigateToMusicList(router, {
+    id: item.id,
+    type: item.type,
+    name: item.alt,
+    listInfo: item.raw,
+    canRemove: account.platform === 'netease' && item.type === 'playlist'
+  });
 };
 
 // 监听数据变化更新卡片
@@ -162,6 +269,11 @@ onBeforeUnmount(() => {
   /* 为固定悬浮卡片留出空间 */
   padding-top: calc(var(--safe-area-inset-top, 0px) + 140px);
   &::-webkit-scrollbar { display: none; }
+}
+
+.playlist-source-tabs {
+  display: flex;
+  margin: 0 16px 16px;
 }
 
 /* Cover grid */

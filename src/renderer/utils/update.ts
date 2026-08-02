@@ -178,8 +178,17 @@ export const formatDate = (dateStr: string): string => {
  * @returns 如果v1大于v2返回1，如果v1小于v2返回-1，如果相等返回0
  */
 export const compareVersions = (v1: string, v2: string): number => {
-  const v1Parts = v1.split('.').map(Number);
-  const v2Parts = v2.split('.').map(Number);
+  // 兼容 1.1.3-beta 这类预发布后缀：数字段取前缀数值，后缀仅在数字相同时参与比较
+  const parse = (value: string): number[] =>
+    String(value)
+      .replace(/^v/i, '')
+      .split('.')
+      .map((part) => {
+        const match = part.match(/^\d+/);
+        return match ? Number(match[0]) : 0;
+      });
+  const v1Parts = parse(v1);
+  const v2Parts = parse(v2);
 
   for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
     const v1Part = v1Parts[i] || 0;
@@ -189,6 +198,11 @@ export const compareVersions = (v1: string, v2: string): number => {
     if (v1Part < v2Part) return -1;
   }
 
+  // 数字相同：预发布后缀（-beta/-rc 等）小于正式版
+  const v1Suffix = String(v1).replace(/^v?[\d.]+/, '');
+  const v2Suffix = String(v2).replace(/^v?[\d.]+/, '');
+  if (!v1Suffix && v2Suffix) return 1;
+  if (v1Suffix && !v2Suffix) return -1;
   return 0;
 };
 

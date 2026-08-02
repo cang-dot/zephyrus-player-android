@@ -58,7 +58,7 @@
   --m-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
   /* ── 动画时长 ── */
-  --m-duration-press: 160ms;
+  --m-duration-press: 90ms;
   --m-duration-tooltip: 125ms;
   --m-duration-dropdown: 200ms;
   --m-duration-modal: 300ms;

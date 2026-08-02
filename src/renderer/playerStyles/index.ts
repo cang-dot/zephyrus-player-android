@@ -1,6 +1,7 @@
 // 导入所有模式（触发自注册）
 import './default';
 import './stage';
+import './starChart';
 import './magazine';
 import './frenzy';
 import './eerie';

@@ -494,6 +494,7 @@ const playerStyles = computed(() => {
     .filter((s) => {
       if (s.key === 'default') return true;
       if (s.key === 'stage') return isFeatureEnabled('stage-style');
+      if (s.key === 'starChart') return isFeatureEnabled('star-chart-style');
       if (s.key === 'magazine') return isFeatureEnabled('magazine-style');
       if (s.key === 'frenzy') return isFeatureEnabled('frenzy-style');
       if (s.key === 'eerie') return isFeatureEnabled('eerie-style');
@@ -792,6 +793,32 @@ defineExpose({
   font-size: 8px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
+}
+
+.preview-starChart {
+  position: relative;
+  overflow: hidden;
+  background-color: #050505;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.58) 0 1px, transparent 1.5px);
+  background-size: 7px 7px;
+}
+.preview-starChart::before {
+  content: '';
+  position: absolute;
+  inset: 8%;
+  border: 1px solid rgba(var(--accent-color-rgb, 136, 136, 136), 0.5);
+  border-radius: 50%;
+}
+.preview-starChart::after {
+  content: '星盘';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 5px #000;
 }
 
 /* 杂志样式预览：白色背景 + 色块 + 分散文字 */

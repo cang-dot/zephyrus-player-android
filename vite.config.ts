@@ -9,6 +9,7 @@ import VueDevTools from 'vite-plugin-vue-devtools';
 
 export default defineConfig({
   base: './',
+  envDir: resolve('.'),
   // 项目src
   root: resolve('src/renderer'),
   resolve: {

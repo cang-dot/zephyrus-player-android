@@ -30,6 +30,7 @@ import MusicFullMobile from '@/components/lyric/MusicFullMobile.vue';
 import NeonMobilePlayer from '@/components/lyric/NeonMobilePlayer.vue';
 import RainMobilePlayer from '@/components/lyric/RainMobilePlayer.vue';
 import StageMobilePlayer from '@/components/lyric/StageMobilePlayer.vue';
+import StarChartPlayer from '@/components/lyric/StarChartPlayer.vue';
 import { getStyle } from '@/playerStyles';
 import { DEFAULT_LYRIC_CONFIG } from '@/types/lyric';
 import { isMobile } from '@/utils';
@@ -91,6 +92,7 @@ const isFullScreenStyle = computed(() => {
 const mobileStyleComponents: Record<string, any> = {
   magazine: markRaw(MagazineMobilePlayer),
   stage: markRaw(StageMobilePlayer),
+  starChart: markRaw(StarChartPlayer),
   frenzy: markRaw(FrenzyMobilePlayer),
   eerie: markRaw(EerieMobilePlayer),
   neon: markRaw(NeonMobilePlayer),

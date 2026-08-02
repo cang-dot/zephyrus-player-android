@@ -51,7 +51,7 @@
                   {{ account.vipLabel || 'VIP' }}
                 </span>
               </span>
-              <small>{{ methodLabel(account.loginMethod) }}</small>
+              <small>{{ methodLabel(account.platform, account.loginMethod) }}</small>
             </span>
 
             <i
@@ -118,7 +118,12 @@ const platformConfigs = computed(() =>
 
 const accountsForPlatform = (platform: MusicPlatform) => accountStore.accountsForPlatform(platform);
 
-const methodLabel = (method: PlatformLoginMethod) => t(`login.title.${method}`);
+const methodLabel = (platform: MusicPlatform, method: PlatformLoginMethod) => {
+  if (platform === 'netease' && method !== 'uid' && method !== 'qr') {
+    return '网易云登录';
+  }
+  return t(`login.title.${method}`);
+};
 
 const openLogin = (platform?: MusicPlatform) => {
   router.push({

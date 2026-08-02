@@ -17,6 +17,7 @@
 import type { Artist, SongResult } from '@/types/music';
 
 import { type GDCrossPlatformSearchItem,searchFromGDMusic } from './gdmusic';
+import { searchSpotifyViaGateway } from './spotify';
 
 /**
  * 跨平台搜索配置
@@ -39,7 +40,7 @@ const DEFAULT_CONFIG: Required<CrossPlatformSearchConfig> = {
   perSourceLimit: 20,
   enableKuwo: false, // kuwo URL 解析不稳定，默认关闭
   useNativeSearch: true,
-  nativePlatforms: ['qq', 'migu', 'kugou', 'kuwo', 'joox']
+  nativePlatforms: ['qq', 'migu', 'kugou', 'kuwo', 'joox', 'spotify']
 };
 
 /**
@@ -149,6 +150,7 @@ interface NativePlatformSong {
   picUrl?: string;
   platform: string;
   platformId: string;
+  externalUrl?: string;
 }
 
 /**
@@ -212,6 +214,7 @@ function convertNativeItemToSongResult(item: NativePlatformSong): SongResult {
     count: item.duration || 0,
     platform: item.platform,
     platformId: item.platformId,
+    externalUrl: item.externalUrl,
     source: 'netease' as any
   };
 }
@@ -341,6 +344,8 @@ export async function crossPlatformSearch(
       if (kuwoIdx > -1) platforms.splice(kuwoIdx, 1);
     }
     rawSongs = await nativeMultiPlatformSearch(keyword, platforms, cfg.perSourceLimit);
+  } else {
+    rawSongs = await searchSpotifyViaGateway(keyword, cfg.perSourceLimit);
   }
 
   // 如果原生搜索无结果，回退到 GD 音乐台
@@ -394,6 +399,8 @@ export function getCrossPlatformDisplayName(platform: string): string {
       return '酷我';
     case 'kugou':
       return '酷狗';
+    case 'spotify':
+      return 'Spotify';
     case 'netease':
       return '网易云';
     default:

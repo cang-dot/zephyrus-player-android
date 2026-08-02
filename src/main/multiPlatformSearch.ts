@@ -20,7 +20,7 @@ const store = new Store();
 
 // ==================== 类型定义 ====================
 
-export type SearchPlatform = 'qq' | 'migu' | 'kugou' | 'kuwo' | 'joox';
+export type SearchPlatform = 'qq' | 'migu' | 'kugou' | 'kuwo' | 'joox' | 'spotify';
 
 export interface PlatformSong {
   /** 平台歌曲 ID（用于播放时匹配） */
@@ -39,6 +39,7 @@ export interface PlatformSong {
   platform: SearchPlatform;
   /** 平台原始 ID（可能和 id 相同，也可能不同，如 QQ 的 songmid） */
   platformId: string;
+  externalUrl?: string;
 }
 
 export interface MultiPlatformSearchResult {
@@ -137,7 +138,8 @@ export function getPlatformLoginStatus(): Record<SearchPlatform, boolean> {
     migu: Boolean(cookies.migu?.cookie),
     kugou: true, // 酷狗无需登录
     kuwo: true, // 酷我无需登录
-    joox: Boolean(cookies.joox?.cookie)
+    joox: Boolean(cookies.joox?.cookie),
+    spotify: false
   };
 }
 
@@ -339,6 +341,55 @@ async function searchJoox(keyword: string, limit: number): Promise<PlatformSong[
   }));
 }
 
+let spotifyToken = '';
+let spotifyTokenExpiresAt = 0;
+
+async function getSpotifyToken(): Promise<string> {
+  const configuredToken = process.env.SPOTIFY_ACCESS_TOKEN || '';
+  if (configuredToken) return configuredToken;
+  const clientId = process.env.SPOTIFY_CLIENT_ID || '';
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET || '';
+  if (!clientId || !clientSecret) {
+    throw new Error('Spotify 搜索需要配置 SPOTIFY_CLIENT_ID 和 SPOTIFY_CLIENT_SECRET');
+  }
+  if (spotifyToken && spotifyTokenExpiresAt > Date.now() + 30_000) return spotifyToken;
+
+  const response = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: 'grant_type=client_credentials'
+  });
+  const payload = await response.json();
+  if (!response.ok || !payload.access_token) throw new Error('Spotify access token 获取失败');
+  spotifyToken = payload.access_token;
+  spotifyTokenExpiresAt = Date.now() + Number(payload.expires_in || 3600) * 1000;
+  return spotifyToken;
+}
+
+async function searchSpotify(keyword: string, limit: number): Promise<PlatformSong[]> {
+  const token = await getSpotifyToken();
+  const response = await fetch(
+    `https://api.spotify.com/v1/search?type=track&limit=${Math.min(limit, 50)}&q=${encodeURIComponent(keyword)}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  const payload = await response.json();
+  if (!response.ok) throw new Error(`Spotify 搜索失败 (${response.status})`);
+  return (payload.tracks?.items || []).map((track: any): PlatformSong => ({
+    id: `spotify:${track.id}`,
+    name: track.name || '',
+    artists: (track.artists || []).map((artist: any) => artist.name || '').filter(Boolean),
+    album: track.album?.name || '',
+    duration: Number(track.duration_ms) || 0,
+    picUrl: track.album?.images?.[0]?.url,
+    platform: 'spotify',
+    platformId: String(track.id),
+    externalUrl: track.external_urls?.spotify || `https://open.spotify.com/track/${track.id}`
+  }));
+}
+
 // ==================== 搜索调度 ====================
 
 const SEARCH_FUNCTIONS: Record<SearchPlatform, (keyword: string, limit: number) => Promise<PlatformSong[]>> = {
@@ -346,7 +397,8 @@ const SEARCH_FUNCTIONS: Record<SearchPlatform, (keyword: string, limit: number) 
   migu: searchMigu,
   kugou: searchKugou,
   kuwo: searchKuwo,
-  joox: searchJoox
+  joox: searchJoox,
+  spotify: searchSpotify
 };
 
 /**

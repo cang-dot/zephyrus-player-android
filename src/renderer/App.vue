@@ -30,6 +30,7 @@ import { setSmartAudioInstance, useSmartAudio } from '@/composables/useSmartAudi
 import { registerBuiltinFeatures } from '@/features/register';
 import { usePlayerStore } from '@/store/modules/player';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
+import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { useSettingsStore } from '@/store/modules/settings';
 import { useUserStore } from '@/store/modules/user';
 import { isElectron, isLyricWindow } from '@/utils';
@@ -50,9 +51,25 @@ const settingsStore = useSettingsStore();
 const playerStore = usePlayerStore();
 const playerCoreStore = usePlayerCoreStore();
 const userStore = useUserStore();
+const accountStore = usePlatformAccountsStore();
 const router = useRouter();
 const { primaryColor } = useCoverColor();
 const styleEngine = useStyleEngineStore();
+
+watch(
+  () => accountStore.activeAccount,
+  (account) => {
+    if (!account) return;
+    userStore.setUser({
+      userId: Number(account.userId) || 0,
+      nickname: account.nickname,
+      avatarUrl: account.avatarUrl,
+      vipType: account.vip ? 11 : 0
+    });
+    userStore.setLoginType(account.loginMethod);
+  },
+  { immediate: true }
+);
 
 // SharedSongCard 组件引用
 const sharedSongCardRef = ref();
