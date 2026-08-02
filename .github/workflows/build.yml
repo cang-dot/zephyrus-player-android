@@ -71,11 +71,14 @@ jobs:
       - name: Rename APK
         run: |
           APK_DIR="android/app/build/outputs/apk/release"
-          if [ -f "$APK_DIR/zephyrus-player-release-signed.apk" ]; then
-            cp "$APK_DIR/zephyrus-player-release-signed.apk" "zephyrus-player-${{ github.ref_name }}.apk"
+          SIGNED="${{ steps.sign_apk.outputs.SIGNED_RELEASE_FILE }}"
+          if [ -n "$SIGNED" ] && [ -f "$SIGNED" ]; then
+            cp "$SIGNED" "zephyrus-player-${{ github.ref_name }}.apk"
+            echo "Using signed APK: $SIGNED"
           else
             cp "$APK_DIR/app-release-unsigned.apk" "zephyrus-player-${{ github.ref_name }}.apk" 2>/dev/null || \
             cp "$APK_DIR"/*.apk "zephyrus-player-${{ github.ref_name }}.apk"
+            echo "WARNING: signing output not found, using unsigned APK"
           fi
           ls -la "zephyrus-player-${{ github.ref_name }}.apk"
 
