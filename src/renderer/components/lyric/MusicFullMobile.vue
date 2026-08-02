@@ -1,11 +1,10 @@
 <template>
-  <n-drawer
-    v-model:show="isVisible"
-    height="100%"
-    placement="bottom"
+  <!-- 普通全屏容器替代 n-drawer：就地渲染不 Teleport，
+       迷你播放栏的形变动画才能带动它，且不会被其他层级遮挡点击 -->
+  <div
+    v-show="isVisible"
+    class="music-full-mobile-host"
     :style="{ background: playerStore.playMusic.primaryColor || background }"
-    :z-index="9998"
-    :to="drawerHost"
   >
     <div
       id="mobile-drawer-target"
@@ -387,12 +386,12 @@
         </div>
       </div>
     </div>
-  </n-drawer>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { useWindowSize } from '@vueuse/core';
-import { computed, inject, nextTick, onBeforeUnmount, onMounted, type Ref, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
@@ -918,10 +917,6 @@ const props = defineProps({
   }
 });
 
-// 渲染到迷你播放栏内部：开合形变动画才能带动播放器，且不会被底栏遮挡点击
-const playBarHost = inject<Ref<HTMLElement | null> | null>('mobilePlayBarHost', null);
-const drawerHost = computed(() => playBarHost?.value ?? 'body');
-
 const themeMusic = {
   light: 'linear-gradient(to bottom, #ffffff, #f5f5f5)',
   dark: 'linear-gradient(to bottom, #1a1a1a, #000000)'
@@ -1219,6 +1214,14 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
 </script>
 
 <style scoped lang="scss">
+.music-full-mobile-host {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
 #mobile-drawer-target {
   @apply top-0 left-0 absolute overflow-hidden flex flex-col w-full h-full;
   animation-duration: 300ms;
