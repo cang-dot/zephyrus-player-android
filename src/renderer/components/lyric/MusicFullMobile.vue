@@ -5,6 +5,7 @@
     placement="bottom"
     :style="{ background: playerStore.playMusic.primaryColor || background }"
     :z-index="9998"
+    :to="drawerHost"
   >
     <div
       id="mobile-drawer-target"
@@ -391,7 +392,7 @@
 
 <script setup lang="ts">
 import { useWindowSize } from '@vueuse/core';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, type Ref, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
@@ -916,6 +917,10 @@ const props = defineProps({
     default: ''
   }
 });
+
+// 渲染到迷你播放栏内部：开合形变动画才能带动播放器，且不会被底栏遮挡点击
+const playBarHost = inject<Ref<HTMLElement | null> | null>('mobilePlayBarHost', null);
+const drawerHost = computed(() => playBarHost?.value ?? 'body');
 
 const themeMusic = {
   light: 'linear-gradient(to bottom, #ffffff, #f5f5f5)',

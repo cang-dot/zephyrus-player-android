@@ -65,7 +65,7 @@
 <script lang="ts" setup>
 import { useSwipe } from '@vueuse/core';
 import type { Ref } from 'vue';
-import { computed, inject, onMounted, ref, watch } from 'vue';
+import { computed, inject, onMounted, provide, ref, watch } from 'vue';
 
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
@@ -78,6 +78,11 @@ const isCompactNav = inject('isCompactNav', ref(false)) as Ref<boolean>;
 
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
+const playBarRef = ref<HTMLElement | null>(null);
+
+// 供全屏播放器（n-drawer）渲染到迷你播放栏内部，
+// 这样开合形变动画才能真正带动播放器内容，且不会被底栏盖住点击
+provide('mobilePlayBarHost', playBarRef);
 
 // 是否播放
 const play = computed(() => playerStore.isPlay);
@@ -218,7 +223,6 @@ const playMusicEvent = async () => {
 };
 
 // 滑动切歌
-const playBarRef = ref<HTMLElement | null>(null);
 onMounted(() => {
   if (playBarRef.value) {
     const { direction } = useSwipe(playBarRef, {
