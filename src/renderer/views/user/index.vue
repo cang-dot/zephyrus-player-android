@@ -403,7 +403,12 @@ const loadPlatformAccountDataInternal = async (account: PlatformAccount) => {
  * QQ/酷狗歌曲没有封面时，用「歌手+歌名」匹配网易云并补上封面
  */
 const enrichSongsWithNeteaseCover = async (songs: any[]): Promise<any[]> => {
-  const needCover = songs.filter((song) => !song?.picUrl && !song?.al?.picUrl);
+  // 酷狗/QQ 的 CDN 封面不带 CORS 头，crossorigin 加载会变黑图，
+  // 因此只要有网易云匹配结果就用网易云封面（网易云 CDN 带 CORS）。
+  const needCover = songs.filter((song) => {
+    const pic = song?.picUrl || song?.al?.picUrl || '';
+    return !pic || /y\.gtimg\.cn|imgessl\.kugou\.com|imgcache\.qq\.com/.test(pic);
+  });
   if (!needCover.length) return songs;
   let cursor = 0;
   const workers = Array.from({ length: 4 }, async () => {
@@ -599,6 +604,7 @@ const openPlaylist = async (item: any) => {
       if (!songs.length) {
         const result = await fetchPlatformPlaylistTracks('kugou', account.cookie, listId);
         songs = result.songs;
+        songs = await enrichSongsWithNeteaseCover(songs);
         platformPlaylistTracksCache.set(cacheKey, songs);
       }
       if (activeAccountId.value !== account.accountId) return;

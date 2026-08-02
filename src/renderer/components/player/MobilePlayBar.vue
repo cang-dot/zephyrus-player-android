@@ -50,6 +50,15 @@
         <i class="iconfont icon-list mini-list-icon" @click="openPlayListDrawer"></i>
       </div>
     </div>
+
+    <!-- 全屏播放器：迷你播放栏放大铺满全屏 / 关闭反向缩小 -->
+    <Transition name="player-morph">
+      <music-full-wrapper
+        v-if="playerStore.musicFull"
+        v-model="playerStore.musicFull"
+        :background="background"
+      />
+    </Transition>
   </div>
 </template>
 
@@ -58,6 +67,7 @@ import { useSwipe } from '@vueuse/core';
 import type { Ref } from 'vue';
 import { computed, inject, onMounted, ref, watch } from 'vue';
 
+import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
@@ -71,6 +81,8 @@ const settingsStore = useSettingsStore();
 
 // 是否播放
 const play = computed(() => playerStore.isPlay);
+// 全屏播放器背景色（跟随当前歌曲封面主色）
+const background = ref('#000');
 
 // 播放控制
 function handleNext() {
@@ -94,6 +106,14 @@ watch(
   (_newVal) => {
     // 状态栏样式更新已在 Web 环境中禁用
   }
+);
+
+watch(
+  () => playerStore.playMusic,
+  (song) => {
+    background.value = song?.backgroundColor || '#000';
+  },
+  { immediate: true, deep: true }
 );
 
 // 打开播放列表抽屉
@@ -423,5 +443,62 @@ onMounted(() => {
   .mobile-play-list-item {
     @apply px-3 py-1;
   }
+}
+
+/* ═══ 全屏播放器过渡：迷你播放栏放大铺满全屏 / 关闭反向缩小 ═══ */
+.mobile-play-bar.play-bar-expanded {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  max-height: none;
+  bottom: 0;
+  z-index: 100001;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.mobile-play-bar :deep(.player-morph-enter-active) {
+  animation: playerExpand 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: 50% 100%;
+}
+
+.mobile-play-bar :deep(.player-morph-leave-active) {
+  animation: playerShrink 0.3s cubic-bezier(0.55, 0, 0.55, 0.2) both;
+  transform-origin: 50% 100%;
+}
+
+@keyframes playerExpand {
+  from {
+    transform: scale(0.18);
+    opacity: 0.92;
+    border-radius: 24px;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+    border-radius: 0;
+  }
+}
+
+@keyframes playerShrink {
+  from {
+    transform: scale(1);
+    opacity: 1;
+    border-radius: 0;
+  }
+  to {
+    transform: scale(0.18);
+    opacity: 0.92;
+    border-radius: 24px;
+  }
+}
+
+/* 默认样式 n-drawer 的自带滑入会与形变动画冲突，进入侧禁用；退出侧保留兜底 */
+.mobile-play-bar :deep(.slide-in-from-bottom-transition-enter-active),
+.mobile-play-bar :deep(.slide-in-from-bottom-transition-enter-from),
+.mobile-play-bar :deep(.slide-in-from-bottom-transition-enter-to) {
+  transition: none !important;
+  transform: none !important;
 }
 </style>
