@@ -1,10 +1,26 @@
 apply plugin: 'com.android.application'
 
-def releaseStoreFilePath = project.findProperty('ZEPHYRUS_STORE_FILE') ?: System.getenv('ZEPHYRUS_STORE_FILE') ?: 'zephyrus-release.jks'
+// 本地签名优先读取 android/keystore.properties（已 gitignore），
+// 其次支持 ZEPHYRUS_* 项目属性 / 环境变量；CI 由 sign-android-release Action 使用仓库 Secrets 签名。
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def releaseStoreFilePath = keystoreProps.getProperty('storeFile')
+        ?: project.findProperty('ZEPHYRUS_STORE_FILE')
+        ?: System.getenv('ZEPHYRUS_STORE_FILE')
+        ?: 'zephyrus-release.jks'
 def releaseStoreFile = file(releaseStoreFilePath)
-def releaseStorePassword = project.findProperty('ZEPHYRUS_STORE_PASSWORD') ?: System.getenv('ZEPHYRUS_STORE_PASSWORD')
-def releaseKeyAlias = project.findProperty('ZEPHYRUS_KEY_ALIAS') ?: System.getenv('ZEPHYRUS_KEY_ALIAS')
-def releaseKeyPassword = project.findProperty('ZEPHYRUS_KEY_PASSWORD') ?: System.getenv('ZEPHYRUS_KEY_PASSWORD')
+def releaseStorePassword = keystoreProps.getProperty('storePassword')
+        ?: project.findProperty('ZEPHYRUS_STORE_PASSWORD')
+        ?: System.getenv('ZEPHYRUS_STORE_PASSWORD')
+def releaseKeyAlias = keystoreProps.getProperty('keyAlias')
+        ?: project.findProperty('ZEPHYRUS_KEY_ALIAS')
+        ?: System.getenv('ZEPHYRUS_KEY_ALIAS')
+def releaseKeyPassword = keystoreProps.getProperty('keyPassword')
+        ?: project.findProperty('ZEPHYRUS_KEY_PASSWORD')
+        ?: System.getenv('ZEPHYRUS_KEY_PASSWORD')
 def releaseSigningReady = releaseStoreFile.exists() && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
 
 android {
