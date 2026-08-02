@@ -313,11 +313,13 @@
             <!-- 1x2 / 2x1 紧凑布局：胶囊图片 + 标题（元素级显隐/移动动画） -->
             <Transition name="block-compact">
               <div v-if="isTall(item) || isWide(item)" class="block-compact">
-                <div class="block-media-pill">
-                  <img v-if="blockMedia(item)" :src="blockMedia(item)" alt="" />
-                  <i v-else :class="meta[item.type].icon" />
+                <div class="block-capsule">
+                  <div class="block-capsule-avatar">
+                    <img v-if="blockMedia(item)" :src="blockMedia(item)" alt="" />
+                    <i v-else :class="meta[item.type].icon" />
+                  </div>
+                  <span class="block-capsule-label">{{ blockTitle(item) }}</span>
                 </div>
-                <span class="block-compact-label">{{ blockTitle(item) }}</span>
               </div>
             </Transition>
             <template v-if="!isTall(item) && !isWide(item)">
@@ -2582,44 +2584,58 @@ onBeforeUnmount(() => {
 /* 1x2 / 2x1 胶囊图 + 标题（元素级显隐/移动动画） */
 .block-compact {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
   width: 100%;
   height: 100%;
 }
 
-.block-inner--wide .block-compact {
-  flex-direction: row;
-  gap: 12px;
-}
-
-/* 1x2 竖长条：图片固定在左侧，胶囊大圆角容器 */
+/* 1x2 竖长条：胶囊整体靠左（再往左一点），内部竖排 */
 .block-inner--tall .block-compact {
   align-items: flex-start;
   justify-content: center;
-  text-align: left;
+  padding-left: 10px;
 }
 
-.block-inner--tall .block-compact .block-compact-label {
-  text-align: left;
+.block-inner--tall .block-capsule {
+  flex-direction: column;
+  padding: 8px;
+  gap: 6px;
 }
 
-.block-media-pill {
-  width: 52px;
-  height: 52px;
+/* 2x1 横宽条：整体居中 */
+.block-inner--wide .block-compact {
+  align-items: center;
+  justify-content: center;
+}
+
+/* 胶囊容器：类似顶栏搜索框的毛玻璃质感 */
+.block-capsule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 5px;
   border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  max-width: 100%;
+}
+
+.block-capsule-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1.5px solid rgba(255, 255, 255, 0.32);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 0.2);
 
   img {
     width: 100%;
@@ -2628,20 +2644,23 @@ onBeforeUnmount(() => {
   }
 
   i {
-    font-size: 24px;
+    font-size: 20px;
     opacity: 0.9;
   }
 }
 
-.block-compact-label {
+.block-capsule-label {
   font-size: 12px;
   font-weight: 600;
-  line-height: 1.25;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+
+.block-inner--tall .block-capsule .block-capsule-label {
+  max-width: 56px;
+  text-align: center;
 }
 
 .block-compact-enter-active {

@@ -10,6 +10,7 @@ export default {
     application: '应用设置',
     network: '网络设置',
     system: '系统管理',
+    keepAlive: '后台保活',
     plugins: '额外功能',
     about: '关于'
   },

@@ -9,6 +9,7 @@ export default {
     application: '애플리케이션 설정',
     network: '네트워크 설정',
     system: '시스템 관리',
+    keepAlive: '백그라운드 유지',
     plugins: '추가 기능',
     about: '정보'
   },

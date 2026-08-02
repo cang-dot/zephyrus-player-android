@@ -9,6 +9,7 @@ export default {
     application: '應用程式設定',
     network: '網路設定',
     system: '系統管理',
+    keepAlive: '背景保活',
     plugins: '額外功能',
     about: '關於'
   },

@@ -1462,10 +1462,11 @@ function getPlatformCookieFromRequest(req) {
 
 // ==================== QQ 音乐签名版业务接口（参照 QQMusicApi-nodejs） ====================
 
-const QQ_SIGN_PART1_INDEXES = [21, 4, 9, 26, 16, 20, 27, 30];
-const QQ_SIGN_PART2_INDEXES = [18, 11, 3, 2, 1, 7, 6, 25];
+// 2026 年仍生效的 zzc 签名参数（来自仍在维护的 QQMusicapi 实现）
+const QQ_SIGN_PART1_INDEXES = [23, 14, 6, 36, 16, 7, 19];
+const QQ_SIGN_PART2_INDEXES = [16, 1, 32, 12, 19, 27, 8, 5];
 const QQ_SIGN_SCRAMBLE = [
-  21, 4, 9, 26, 16, 20, 27, 30, 18, 11, 3, 2, 1, 7, 6, 25, 13, 22, 19, 14
+  89, 39, 179, 150, 218, 82, 58, 252, 177, 52, 186, 123, 120, 64, 242, 133, 143, 161, 121, 179
 ];
 
 function zzcSign(data) {
@@ -1559,22 +1560,22 @@ async function qqMusicApi(cookie, module, method, param = {}) {
 
 function normalizeQqPlaylist(item, uin, nickname) {
   return {
-    id: item.dirid ?? item.dir_id ?? item.id ?? item.disstid ?? 0,
-    name: item.dir_name ?? item.name ?? item.title ?? '',
-    coverImgUrl: item.pic_url ?? item.picUrl ?? item.coverUrl ?? '',
-    trackCount: item.song_num ?? item.songnum ?? item.trackCount ?? 0,
-    playCount: item.listen_num ?? item.play_count ?? item.playCount ?? 0,
+    id: item.dirId ?? item.dirid ?? item.tid ?? item.id ?? item.disstid ?? 0,
+    name: item.dirName ?? item.dir_name ?? item.name ?? item.title ?? '',
+    coverImgUrl: item.picUrl ?? item.pic_url ?? item.coverImgUrl ?? item.coverUrl ?? '',
+    trackCount: item.songNum ?? item.song_num ?? item.songnum ?? item.trackCount ?? 0,
+    playCount: item.listenNum ?? item.listen_num ?? item.playCount ?? item.play_count ?? 0,
     creator: { userId: Number(uin) || 0, nickname: nickname || 'QQ音乐用户' }
   };
 }
 
 function normalizeQqAlbum(item) {
   return {
-    id: item.album_id ?? item.albumId ?? item.mid ?? item.id ?? 0,
-    name: item.album_name ?? item.name ?? item.title ?? '',
-    picUrl: item.pic_url ?? item.picUrl ?? item.coverUrl ?? '',
-    size: item.song_num ?? item.songnum ?? item.total ?? 0,
-    artist: { name: item.singer_name ?? item.singername ?? item.artist ?? '' }
+    id: item.albumId ?? item.album_id ?? item.mid ?? item.id ?? 0,
+    name: item.albumName ?? item.album_name ?? item.name ?? item.title ?? '',
+    picUrl: item.picUrl ?? item.pic_url ?? item.coverUrl ?? '',
+    size: item.songNum ?? item.song_num ?? item.songnum ?? item.total ?? 0,
+    artist: { name: item.singerName ?? item.singer_name ?? item.singername ?? item.artist ?? '' }
   };
 }
 
@@ -1641,21 +1642,21 @@ async function fetchQqAccountCollections(cookie) {
 
   const playlists = (
     createdData.status === 'fulfilled'
-      ? pickQqList(createdData.value, ['v_playlist', 'playlist', 'list', 'data'])
+      ? pickQqList(createdData.value, ['v_playlist', 'v_list', 'playlist', 'list', 'data'])
       : []
   )
     .map((item) => normalizeQqPlaylist(item, uin, nickname))
     .filter((item) => item.id);
   const favorites = (
     favPlaylistData.status === 'fulfilled'
-      ? pickQqList(favPlaylistData.value, ['v_playlist', 'playlist', 'list', 'data'])
+      ? pickQqList(favPlaylistData.value, ['v_list', 'v_playlist', 'playlist', 'list', 'data'])
       : []
   )
     .map((item) => normalizeQqPlaylist(item, uin, nickname))
     .filter((item) => item.id);
   const albums = (
     favAlbumData.status === 'fulfilled'
-      ? pickQqList(favAlbumData.value, ['v_album', 'album', 'albumlist', 'list', 'data'])
+      ? pickQqList(favAlbumData.value, ['v_list', 'v_album', 'album', 'albumlist', 'list', 'data'])
       : []
   )
     .map(normalizeQqAlbum)

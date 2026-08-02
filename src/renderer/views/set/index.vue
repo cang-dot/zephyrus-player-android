@@ -24,10 +24,10 @@
           </div>
         </div>
         <!-- Section tabs: glow style, always visible inside the card -->
-        <GlowTabs
+        <glow-tabs
           v-show="!isSearching"
           v-model="currentSection"
-          :tabs="navSections.map(s => ({ key: s.id, label: s.title }))"
+          :tabs="navSections.map((s) => ({ key: s.id, label: s.title }))"
           scrollable
           class="section-bar-glow"
         />
@@ -86,13 +86,16 @@
           <div v-show="currentSection === 'system'" class="animate-fade-in">
             <system-tab />
           </div>
+          <div v-show="currentSection === 'keepAlive'" class="animate-fade-in">
+            <keep-alive-tab />
+          </div>
           <div v-show="currentSection === 'about'" class="animate-fade-in">
             <about-tab />
           </div>
         </template>
 
         <div class="bottom-spacer" />
-        <PlayBottom />
+        <play-bottom />
       </div>
     </div>
   </div>
@@ -116,6 +119,7 @@ import AboutTab from './tabs/AboutTab.vue';
 import ApplicationTab from './tabs/ApplicationTab.vue';
 import BasicTab from './tabs/BasicTab.vue';
 import InterfaceTab from './tabs/InterfaceTab.vue';
+import KeepAliveTab from './tabs/KeepAliveTab.vue';
 import NetworkTab from './tabs/NetworkTab.vue';
 import PlaybackTab from './tabs/PlaybackTab.vue';
 import SystemTab from './tabs/SystemTab.vue';
@@ -193,6 +197,7 @@ const settingSections: SettingSectionConfig[] = [
   { id: 'application', electron: true },
   { id: 'network', electron: true },
   { id: 'system', electron: true },
+  { id: 'keepAlive' },
   { id: 'about' }
 ];
 
@@ -265,7 +270,13 @@ const settingIndex = computed<SearchResult[]>(() => {
     { title: t('settings.basic.defaultPage'), desc: t('settings.basic.defaultPageDesc') }
   ];
   basicItems.forEach((item) => {
-    items.push({ tabId: 'basic', tabLabel: tabLabels['basic'], title: item.title, desc: item.desc, titlePath: item.title });
+    items.push({
+      tabId: 'basic',
+      tabLabel: tabLabels['basic'],
+      title: item.title,
+      desc: item.desc,
+      titlePath: item.title
+    });
   });
 
   const interfaceItems = [
@@ -285,7 +296,13 @@ const settingIndex = computed<SearchResult[]>(() => {
     { title: t('settings.interface.sidebarOrder'), desc: t('settings.interface.sidebarOrderDesc') }
   ];
   interfaceItems.forEach((item) => {
-    items.push({ tabId: 'interface', tabLabel: tabLabels['interface'], title: item.title, desc: item.desc, titlePath: item.title });
+    items.push({
+      tabId: 'interface',
+      tabLabel: tabLabels['interface'],
+      title: item.title,
+      desc: item.desc,
+      titlePath: item.title
+    });
   });
 
   const playbackItems = [
@@ -296,7 +313,13 @@ const settingIndex = computed<SearchResult[]>(() => {
     { title: t('settings.playback.gapless'), desc: t('settings.playback.gaplessDesc') }
   ];
   playbackItems.forEach((item) => {
-    items.push({ tabId: 'playback', tabLabel: tabLabels['playback'], title: item.title, desc: item.desc, titlePath: item.title });
+    items.push({
+      tabId: 'playback',
+      tabLabel: tabLabels['playback'],
+      title: item.title,
+      desc: item.desc,
+      titlePath: item.title
+    });
   });
 
   if (isElectron) {
@@ -304,11 +327,23 @@ const settingIndex = computed<SearchResult[]>(() => {
       { title: t('settings.application.gpu'), desc: t('settings.application.gpuDesc') },
       { title: t('settings.application.diskCache'), desc: t('settings.application.diskCacheDesc') },
       { title: t('settings.application.cacheSize'), desc: t('settings.application.cacheSizeDesc') },
-      { title: t('settings.application.downloadPath'), desc: t('settings.application.downloadPathDesc') },
-      { title: t('settings.application.closeAction'), desc: t('settings.application.closeActionDesc') }
+      {
+        title: t('settings.application.downloadPath'),
+        desc: t('settings.application.downloadPathDesc')
+      },
+      {
+        title: t('settings.application.closeAction'),
+        desc: t('settings.application.closeActionDesc')
+      }
     ];
     appItems.forEach((item) => {
-      items.push({ tabId: 'application', tabLabel: tabLabels['application'], title: item.title, desc: item.desc, titlePath: item.title });
+      items.push({
+        tabId: 'application',
+        tabLabel: tabLabels['application'],
+        title: item.title,
+        desc: item.desc,
+        titlePath: item.title
+      });
     });
 
     const networkItems = [
@@ -318,7 +353,13 @@ const settingIndex = computed<SearchResult[]>(() => {
       { title: t('settings.network.musicSources'), desc: t('settings.network.musicSourcesDesc') }
     ];
     networkItems.forEach((item) => {
-      items.push({ tabId: 'network', tabLabel: tabLabels['network'], title: item.title, desc: item.desc, titlePath: item.title });
+      items.push({
+        tabId: 'network',
+        tabLabel: tabLabels['network'],
+        title: item.title,
+        desc: item.desc,
+        titlePath: item.title
+      });
     });
 
     const systemItems = [
@@ -327,7 +368,13 @@ const settingIndex = computed<SearchResult[]>(() => {
       { title: t('settings.system.clearCache'), desc: t('settings.system.clearCacheDesc') }
     ];
     systemItems.forEach((item) => {
-      items.push({ tabId: 'system', tabLabel: tabLabels['system'], title: item.title, desc: item.desc, titlePath: item.title });
+      items.push({
+        tabId: 'system',
+        tabLabel: tabLabels['system'],
+        title: item.title,
+        desc: item.desc,
+        titlePath: item.title
+      });
     });
   }
 
@@ -337,7 +384,13 @@ const settingIndex = computed<SearchResult[]>(() => {
     { title: t('settings.about.feedback'), desc: t('settings.about.feedbackDesc') }
   ];
   aboutItems.forEach((item) => {
-    items.push({ tabId: 'about', tabLabel: tabLabels['about'], title: item.title, desc: item.desc, titlePath: item.title });
+    items.push({
+      tabId: 'about',
+      tabLabel: tabLabels['about'],
+      title: item.title,
+      desc: item.desc,
+      titlePath: item.title
+    });
   });
 
   return items;
@@ -427,7 +480,9 @@ onMounted(() => {
   /* 为固定悬浮卡片留出空间 */
   padding-top: calc(var(--safe-area-inset-top, 0px) + 210px);
 }
-.settings-scroll::-webkit-scrollbar { display: none; }
+.settings-scroll::-webkit-scrollbar {
+  display: none;
+}
 
 /* Safe area spacer */
 .safe-top {
@@ -448,9 +503,10 @@ onMounted(() => {
   z-index: 50;
   border-radius: 22px;
   overflow: hidden;
-  transition: border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-              box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-              top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    border-radius 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .hero-card.compact {
   border-radius: 18px;
@@ -478,8 +534,9 @@ onMounted(() => {
   flex-direction: column;
   gap: 12px;
   padding: 20px 20px 12px;
-  transition: padding 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-              gap 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    padding 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    gap 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .hero-card.compact .hero-top {
   padding: 10px 16px 8px;
@@ -526,7 +583,10 @@ onMounted(() => {
   font-size: 14px;
   color: var(--cover-text-primary, var(--m-text-primary, var(--text-color, #000)));
   outline: none;
-  transition: background 0.2s ease, box-shadow 0.2s ease, height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .hero-card.compact .search-input {
@@ -598,7 +658,9 @@ onMounted(() => {
   margin-bottom: 8px;
   background: var(--cover-surface, rgba(128, 128, 128, 0.06));
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    background 0.2s ease,
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .search-result-card:hover {
@@ -680,8 +742,14 @@ onMounted(() => {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 :deep(.setting-item-flash) {
@@ -689,8 +757,14 @@ onMounted(() => {
 }
 
 @keyframes flashHighlight {
-  0%, 100% { background: transparent; }
-  10%, 30% { background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.08); }
+  0%,
+  100% {
+    background: transparent;
+  }
+  10%,
+  30% {
+    background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.08);
+  }
 }
 
 .bottom-spacer {

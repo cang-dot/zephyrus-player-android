@@ -10,6 +10,7 @@ export default {
     application: 'Application Settings',
     network: 'Network Settings',
     system: 'System Management',
+    keepAlive: 'Keep-alive',
     plugins: 'Extra Features',
     about: 'About'
   },

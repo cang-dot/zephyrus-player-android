@@ -80,6 +80,7 @@ import { computed, defineAsyncComponent, onMounted, provide, ref, watch } from '
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 
+import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import { useHeroCard } from '@/composables/useHeroCard';
 import homeRouter from '@/router/home';
 import otherRouter from '@/router/other';
@@ -91,9 +92,6 @@ import type { SongResult } from '@/types/music';
 import FloatingHeroCard from './components/FloatingHeroCard.vue';
 import MobileHeader from './components/MobileHeader.vue';
 const MobilePlayBar = defineAsyncComponent(() => import('@/components/player/MobilePlayBar.vue'));
-const MusicFullWrapper = defineAsyncComponent(
-  () => import('@/components/lyric/MusicFullWrapper.vue')
-);
 const PlayingListDrawer = defineAsyncComponent(
   () => import('@/components/player/PlayingListDrawer.vue')
 );
