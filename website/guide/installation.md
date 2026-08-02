@@ -10,8 +10,8 @@
 
 想抢先体验新功能的用户可安装预览版：
 
-- **当前预览版**：v1.1.3-beta
-- **下载地址**：[zephyrus-player-v1.1.3-beta.apk](https://mucang.xyz/zephyrus/apks/zephyrus-player-v1.1.3-beta.apk)
+- **当前版本**：v1.1.3
+- **下载地址**：[zephyrus-player-v1.1.3.apk](https://mucang.xyz/zephyrus/apks/zephyrus-player-v1.1.3.apk)
 - 预览版与正式版安装包互相覆盖安装，数据不冲突
 - 安装版 App 会自动检查更新，检测到新版本时弹出提示；也可在 设置 → 关于 中手动检查
 

@@ -35,6 +35,70 @@ function platformCors(req, res, next) {
 
 router.use(platformCors);
 
+// ==================== 更新发布信息自动同步（RELEASE_NOTE） ====================
+
+const RELEASE_NOTE_FILE = '/var/www/zephyrus/apks/latest.json';
+const RELEASE_NOTE_API =
+  'https://api.github.com/repos/cang-dot/zephyrus-player-android/releases/latest';
+
+/**
+ * 从 GitHub Releases 拉取最新发布信息，写入服务器 latest.json（供 App 更新检查使用）
+ */
+async function syncReleaseNote() {
+  try {
+    const response = await axios.get(RELEASE_NOTE_API, {
+      headers: {
+        'User-Agent': 'Zephyrus-Player-Gateway',
+        ...(process.env.GITHUB_TOKEN
+          ? { Authorization: `token ${process.env.GITHUB_TOKEN}` }
+          : {})
+      },
+      timeout: 15000,
+      validateStatus: () => true
+    });
+    const release = response.data;
+    if (!release?.tag_name || response.status >= 400) {
+      throw new Error(`GitHub 返回异常 ${response.status}`);
+    }
+    const apk = (release.assets || []).find((asset) =>
+      String(asset?.name || '').endsWith('.apk')
+    );
+    const payload = {
+      tag_name: release.tag_name,
+      body: release.body || '',
+      published_at: release.published_at || '',
+      html_url: release.html_url || '',
+      assets: [
+        {
+          name: apk?.name || `zephyrus-player-${release.tag_name}.apk`,
+          browser_download_url: 'https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk',
+          size: apk?.size || 0
+        }
+      ]
+    };
+    fs.writeFileSync(RELEASE_NOTE_FILE, JSON.stringify(payload, null, 2));
+    console.log(`[platformLogin] RELEASE_NOTE 已同步: ${release.tag_name}`);
+    return true;
+  } catch (error) {
+    console.error('[platformLogin] RELEASE_NOTE 同步失败:', error.message);
+    return false;
+  }
+}
+
+// GET /platform/release-note/sync — 手动触发同步
+router.get('/release-note/sync', async (req, res) => {
+  const ok = await syncReleaseNote();
+  res.json({ code: ok ? 200 : 500, msg: ok ? 'RELEASE_NOTE 已同步' : '同步失败，请查看服务器日志' });
+});
+
+// 启动后自动同步一次，之后每 30 分钟自动同步
+setTimeout(() => {
+  syncReleaseNote();
+}, 3000);
+setInterval(() => {
+  syncReleaseNote();
+}, 30 * 60 * 1000);
+
 // ==================== 工具函数 ====================
 
 function md5(str) {

@@ -10,6 +10,7 @@
           <traffic-warning-drawer v-if="!isElectron"></traffic-warning-drawer>
           <disclaimer-modal></disclaimer-modal>
           <shared-song-card ref="sharedSongCardRef"></shared-song-card>
+          <mobile-update-modal v-if="!isElectron" />
         </n-message-provider>
       </n-dialog-provider>
     </n-config-provider>
@@ -24,13 +25,14 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import DisclaimerModal from '@/components/common/DisclaimerModal.vue';
+import MobileUpdateModal from '@/components/common/MobileUpdateModal.vue';
 import SharedSongCard from '@/components/common/SharedSongCard.vue';
 import TrafficWarningDrawer from '@/components/TrafficWarningDrawer.vue';
 import { setSmartAudioInstance, useSmartAudio } from '@/composables/useSmartAudio';
 import { registerBuiltinFeatures } from '@/features/register';
+import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
-import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { useSettingsStore } from '@/store/modules/settings';
 import { useUserStore } from '@/store/modules/user';
 import { isElectron, isLyricWindow } from '@/utils';

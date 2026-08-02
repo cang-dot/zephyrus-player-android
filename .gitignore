@@ -48,6 +48,7 @@ AGENTS.md
 .sisyphus
 
 .worktrees
+__pycache__/
 
 .auto-imports.d.ts
 .components.d.ts

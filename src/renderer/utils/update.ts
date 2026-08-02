@@ -43,6 +43,7 @@ export interface UpdateResult {
     assets: Array<{
       browser_download_url: string;
       name: string;
+      size?: number;
     }>;
   } | null;
 }
@@ -249,7 +250,8 @@ export const checkUpdate = async (
         html_url: releaseInfo.html_url,
         assets: releaseInfo.assets.map((asset) => ({
           browser_download_url: asset.browser_download_url,
-          name: asset.name
+          name: asset.name,
+          size: asset.size
         }))
       }
     };

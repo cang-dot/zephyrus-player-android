@@ -32,6 +32,9 @@ type NativeBridge = {
   openNotificationSettings: () => void;
   openAppDetailsSettings: () => void;
   openDisplayOverOtherAppsSettings: () => void;
+  installApkFromCache: (fileName: string) => void;
+  startApkDownload: (url: string, expectedSize: number) => void;
+  getApkDownloadState: () => string;
 };
 
 declare global {
@@ -212,6 +215,48 @@ export function setBackgroundKeepAlive(enabled: boolean) {
     window.AndroidNative!.setBackgroundKeepAlive(Boolean(enabled));
   } catch (e) {
     console.warn('[NativeBridge] 设置后台保活失败:', e);
+  }
+}
+
+/**
+ * 安装应用内下载到缓存目录的 APK（唤起系统安装器）
+ */
+export function installApkFromCache(fileName: string) {
+  if (!isAndroidNative()) return;
+  try {
+    window.AndroidNative!.installApkFromCache(fileName);
+  } catch (e) {
+    console.warn('[NativeBridge] 唤起系统安装器失败:', e);
+  }
+}
+
+export interface ApkDownloadState {
+  done: boolean;
+  error: boolean;
+  message: string;
+  bytes: number;
+  expected: number;
+}
+
+/**
+ * 原生线程下载 APK 到缓存目录（大文件不经过 JS 桥接，避免内存溢出闪退）
+ */
+export function startApkDownload(url: string, expectedSize: number) {
+  if (!isAndroidNative()) return;
+  try {
+    window.AndroidNative!.startApkDownload(url, expectedSize);
+  } catch (e) {
+    console.warn('[NativeBridge] 启动 APK 下载失败:', e);
+  }
+}
+
+export function getApkDownloadState(): ApkDownloadState | null {
+  if (!isAndroidNative()) return null;
+  try {
+    return JSON.parse(window.AndroidNative!.getApkDownloadState() || '{}');
+  } catch (e) {
+    console.warn('[NativeBridge] 读取下载状态失败:', e);
+    return null;
   }
 }
 

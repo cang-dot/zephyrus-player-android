@@ -58,23 +58,29 @@
       clickable
       @click="openModal('应用介绍', readmeText)"
     />
-    <setting-item
-      title="使用文档"
-      description="查看完整使用文档"
-      clickable
-      @click="openDocs"
-    />
+    <setting-item title="使用文档" description="查看完整使用文档" clickable @click="openDocs" />
   </setting-section>
 
   <!-- 内嵌内容弹窗 -->
   <teleport to="body">
     <transition name="fade">
-      <div v-if="modalVisible" class="fixed inset-0 z-[99999] flex items-center justify-center p-6" @click.self="closeModal">
+      <div
+        v-if="modalVisible"
+        class="fixed inset-0 z-[99999] flex items-center justify-center p-6"
+        @click.self="closeModal"
+      >
         <div class="absolute inset-0 bg-black/60"></div>
-        <div class="relative w-full max-w-lg max-h-[80vh] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-          <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div
+          class="relative w-full max-w-lg max-h-[80vh] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        >
+          <div
+            class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0"
+          >
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ modalTitle }}</h3>
-            <button @click="closeModal" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">
+            <button
+              @click="closeModal"
+              class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
               <i class="ri-close-line text-xl"></i>
             </button>
           </div>
@@ -88,18 +94,19 @@
 </template>
 
 <script setup lang="ts">
+import { marked } from 'marked';
 import { computed, inject, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { openUpdateModal } from '@/composables/useUpdateModal';
 import { useSettingsStore } from '@/store/modules/settings';
 import { isElectron } from '@/utils';
 import { checkUpdate, UpdateResult } from '@/utils/update';
 
-import { marked } from 'marked';
-import config from '../../../../../package.json';
-import userAgreementText from '../../../../../用户协议.md?raw';
 import licenseText from '../../../../../LICENSE?raw';
+import config from '../../../../../package.json';
 import readmeText from '../../../../../README.md?raw';
+import userAgreementText from '../../../../../用户协议.md?raw';
 import { APP_UPDATE_STATUS, hasAvailableAppUpdate } from '../../../../shared/appUpdate';
 import { SETTINGS_DATA_KEY, SETTINGS_MESSAGE_KEY } from '../keys';
 import SBtn from '../SBtn.vue';
@@ -183,7 +190,10 @@ const checkForUpdates = async (isClick = false) => {
     const result = await checkUpdate(config.version);
     if (result) {
       webUpdateInfo.value = result;
-      if (!result.hasUpdate && isClick) {
+      if (result.hasUpdate) {
+        // 移动端：检测到更新后弹出应用内更新弹窗（含更新内容）
+        openUpdateModal(result);
+      } else if (isClick) {
         message.success(t('settings.about.latest'));
       }
     } else if (isClick) {
@@ -205,7 +215,8 @@ const openReleasePage = () => {
     return;
   }
 
-  window.open(updateInfo.value.releaseInfo?.html_url || setData.value.authorUrl);
+  // 移动端：打开应用内更新弹窗（展示更新内容 + 应用内下载安装）
+  openUpdateModal(updateInfo.value);
 };
 
 const openManualUpdatePage = async () => {
@@ -218,11 +229,11 @@ const openManualUpdatePage = async () => {
 };
 
 const openAuthor = () => {
-window.open(setData.value.authorUrl);
+  window.open(setData.value.authorUrl);
 };
 
 const openDocs = () => {
-window.open('https://www.mucang.xyz/zephyrus/docs');
+  window.open('https://www.mucang.xyz/zephyrus/docs');
 };
 
 defineExpose({ checkForUpdates });
