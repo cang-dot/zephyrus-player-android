@@ -10,6 +10,13 @@ updates:
     # Check the npm registry for updates every day (weekdays)
     schedule:
       interval: 'monthly'
+    # 大版本升级与当前依赖树 peer 冲突（eslint 10 不兼容 eslint-plugin-import，
+    # vue-router 5 要求 vite ^7.3/^8），忽略 semver-major 避免 CI 持续失败
+    ignore:
+      - dependency-name: 'eslint'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'vue-router'
+        update-types: ['version-update:semver-major']
 
   # Enable version updates for Docker
   - package-ecosystem: 'docker'
