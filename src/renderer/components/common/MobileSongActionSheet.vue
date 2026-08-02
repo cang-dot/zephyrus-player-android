@@ -41,7 +41,7 @@
               <i class="ri-arrow-right-s-line sheet-action-arrow" />
             </button>
             <button
-              v-if="album?.id"
+              v-if="album?.name && (album?.id || isServerItem)"
               class="sheet-action-btn sheet-navigation-btn"
               @click="handleAction('gotoAlbum')"
             >
@@ -91,6 +91,7 @@ import { NImage } from 'naive-ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { isServerSongResult } from '@/api/serverSongs';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 
@@ -131,6 +132,7 @@ const firstArtistId = computed(() => {
 });
 
 const album = computed(() => props.item.al || props.item.album || props.item.song?.album);
+const isServerItem = computed(() => isServerSongResult(props.item));
 const coverUrl = computed(
   () => props.item.picUrl || props.item.al?.picUrl || props.item.album?.picUrl || ''
 );
@@ -154,7 +156,9 @@ const handleAction = (action: string) => {
       if (firstArtistId.value) emit('goto-artist', firstArtistId.value);
       break;
     case 'gotoAlbum':
-      if (album.value?.id) emit('goto-album', album.value.id);
+      if (album.value?.name && (album.value?.id || isServerItem.value)) {
+        emit('goto-album', album.value.id || -1);
+      }
       break;
     case 'remove':
       emit('remove');

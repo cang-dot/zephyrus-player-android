@@ -243,6 +243,7 @@ import {
   subscribePlaylist,
   updatePlaylistTracks
 } from '@/api/music';
+import playlistPlaceholder from '@/assets/icon_512.png';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { useDownload } from '@/hooks/useDownload';
@@ -325,6 +326,27 @@ const fetchData = async () => {
       } else {
         message.error(t('common.loadFailed'));
       }
+    } else if (type === 'server-album') {
+      // 云端同名专辑：从 songs.json 按专辑名聚合
+      const { getServerAlbumSongs } = await import('@/api/serverSongs');
+      const albumName = decodeURIComponent(String(id));
+      const songs = await getServerAlbumSongs(albumName);
+      if (songs.length > 0) {
+        musicStore.setCurrentMusicList(
+          songs,
+          albumName,
+          {
+            id: albumName,
+            name: albumName,
+            artist: songs[0].ar?.[0]?.name || '',
+            picUrl: songs[0].picUrl,
+            type: 'server-album'
+          },
+          false
+        );
+      } else {
+        message.error(t('common.loadFailed'));
+      }
     }
   } catch (error) {
     console.error('加载列表数据失败:', error);
@@ -342,7 +364,7 @@ watch(
   { immediate: true }
 );
 const isDailyRecommend = computed(() => route.query.type === 'dailyRecommend');
-const isAlbum = computed(() => route.query.type === 'album');
+const isAlbum = computed(() => route.query.type === 'album' || route.query.type === 'server-album');
 
 const name = computed(() => {
   if (isDailyRecommend.value) return t('comp.recommendSinger.songlist');
@@ -433,7 +455,7 @@ const getCoverImgUrl = computed(() => {
   const coverImgUrl = listInfo.value?.coverImgUrl || listInfo.value?.picUrl;
   if (coverImgUrl) return coverImgUrl;
   const song = songList.value[0];
-  return song?.picUrl || song?.al?.picUrl || song?.album?.picUrl || '';
+  return song?.picUrl || song?.al?.picUrl || song?.album?.picUrl || playlistPlaceholder;
 });
 
 // 全量歌曲列表（用于"播放全部"等操作）
@@ -713,7 +735,7 @@ const loadMoreSongs = async () => {
 
 const saveHistory = () => {
   if (!listInfo.value?.id) return;
-  if (isAlbum.value) {
+  if (route.query.type === 'album') {
     playHistoryStore.addAlbum({
       id: listInfo.value.id,
       name: listInfo.value.name || '',
@@ -734,6 +756,7 @@ const saveHistory = () => {
 };
 
 const toggleCollect = async () => {
+  if (route.query.type === 'server-album') return;
   if (!listInfo.value?.id || !hasPermission(true)) {
     if (!listInfo.value?.id) return;
     message.error(getLoginErrorMessage(true));

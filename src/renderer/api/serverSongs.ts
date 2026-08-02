@@ -31,6 +31,13 @@ export interface ServerSong {
   climax?: ClimaxSegment[];
 }
 
+/**
+ * 判断歌曲是否来自 Zephyrus 云端歌曲库
+ */
+export function isServerSongResult(item: { id?: unknown; platform?: string }): boolean {
+  return item?.platform === 'server' || String(item?.id || '').startsWith('server:');
+}
+
 /** 内存缓存 */
 let cachedSongs: ServerSong[] | null = null;
 
@@ -252,6 +259,21 @@ export async function getServerSongDetail(
     // 不再根据 LRC 重复句推断额外的副歌时段。
     climax: normalizeClimaxSegments(song.climax, song.duration)
   };
+}
+
+/**
+ * 获取云端同名专辑的全部歌曲（按 track 排序）
+ */
+export async function getServerAlbumSongs(albumName: string): Promise<SongResult[]> {
+  const all = await loadServerSongs();
+  return all
+    .filter((song) => song.album === albumName)
+    .sort((left, right) =>
+      String(left.track || '').localeCompare(String(right.track || ''), 'zh-CN', {
+        numeric: true
+      })
+    )
+    .map(serverSongToSongResult);
 }
 
 /**

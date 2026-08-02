@@ -19,6 +19,7 @@ import { NDropdown, NEllipsis, NImage } from 'naive-ui';
 import { computed, h, inject } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { isServerSongResult } from '@/api/serverSongs';
 import type { SongResult } from '@/types/music';
 import { getImgUrl, isElectron } from '@/utils';
 import { hasPermission } from '@/utils/auth';
@@ -62,6 +63,7 @@ const album = computed(() => {
   };
   return song.al || song.album || song.song?.album;
 });
+const isServerItem = computed(() => isServerSongResult(props.item));
 
 // 渲染歌曲预览
 const renderSongPreview = () => {
@@ -172,7 +174,7 @@ const dropdownOptions = computed<MenuOption[]>(() => {
       label: album.value?.name || '未知专辑',
       key: 'gotoAlbum',
       icon: () => h('i', { class: 'iconfont ri-disc-line' }),
-      disabled: !album.value?.id
+      disabled: !album.value?.name || (!album.value?.id && !isServerItem.value)
     },
     {
       type: 'divider',
@@ -271,8 +273,8 @@ const handleSelect = (key: string | number) => {
       break;
     }
     case 'gotoAlbum': {
-      if (album.value?.id) {
-        emits('goto-album', album.value.id);
+      if (album.value?.name && (album.value?.id || isServerItem.value)) {
+        emits('goto-album', album.value.id || -1);
       }
       break;
     }

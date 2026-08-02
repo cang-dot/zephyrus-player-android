@@ -8,6 +8,7 @@ import { getImgUrl } from '@/utils';
 import { getImageBackground } from '@/utils/linearColor';
 
 import { dislikeRecommendedSong } from '../api/music';
+import { isServerSongResult } from '../api/serverSongs';
 import { useArtist } from './useArtist';
 import { useDownload } from './useDownload';
 import { useOverlayNavigate } from './useOverlayNavigate';
@@ -200,7 +201,18 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
   };
 
   // 处理专辑点击
-  const handleAlbumClick = (id: number) => {
+  const handleAlbumClick = (id: number | string = 0) => {
+    // 云端歌曲：跳转到云端同名专辑详情页（以专辑名为路由标识）
+    if (isServerSongResult(props.item)) {
+      const albumName =
+        props.item.al?.name ||
+        (props.item as any).album?.name ||
+        (props.item as any).song?.album?.name;
+      if (albumName) {
+        navigate(`/music-list/${encodeURIComponent(albumName)}?type=server-album`);
+        return;
+      }
+    }
     navigate(`/music-list/${id}?type=album`);
   };
 

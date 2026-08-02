@@ -57,7 +57,12 @@
           </n-ellipsis>
         </div>
         <div v-if="item.al?.name" class="song-item-content-album">
-          <n-ellipsis class="text-ellipsis" line-clamp="1">{{ item.al.name }}</n-ellipsis>
+          <n-ellipsis
+            class="text-ellipsis cursor-pointer hover:text-[var(--accent-color)]"
+            line-clamp="1"
+            @click.stop="onAlbumNameClick"
+            >{{ item.al.name }}</n-ellipsis
+          >
         </div>
       </div>
     </template>
@@ -82,7 +87,7 @@ import { getImgUrl } from '@/utils';
 
 import BaseSongItem from './BaseSongItem.vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     item: SongResult;
     favorite?: boolean;
@@ -108,6 +113,11 @@ const baseItem = ref<InstanceType<typeof BaseSongItem>>();
 // 从playerStore和baseItem鑾峰彇鍝嶅簲寮忕姸鎬
 const isPlaying = computed(() => baseItem.value?.isPlaying || false);
 const artists = computed(() => baseItem.value?.artists || []);
+
+const onAlbumNameClick = () => {
+  const albumId = props.item.al?.id ?? (props.item as any).album?.id ?? -1;
+  baseItem.value?.handleAlbumClick(albumId);
+};
 
 // 鍖呰鏂规硶锛岄伩鍏嶇洿鎺ヨ闂彲鑳戒负undefined的ref
 const onToggleSelect = () => {

@@ -57,7 +57,12 @@
           </div>
         </div>
         <div class="song-item-content-compact-album">
-          <n-ellipsis line-clamp="1">{{ item.al?.name || '-' }}</n-ellipsis>
+          <n-ellipsis
+            line-clamp="1"
+            class="cursor-pointer hover:text-[var(--accent-color)]"
+            @click.stop="onAlbumNameClick"
+            >{{ item.al?.name || '-' }}</n-ellipsis
+          >
         </div>
         <div class="song-item-content-compact-duration">
           {{ formatDuration(getDuration(item)) }}
@@ -84,7 +89,7 @@ import type { SongResult } from '@/types/music';
 
 import BaseSongItem from './BaseSongItem.vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     item: SongResult;
     favorite?: boolean;
@@ -109,6 +114,11 @@ const baseItem = ref<InstanceType<typeof BaseSongItem>>();
 
 const isPlaying = computed(() => baseItem.value?.isPlaying || false);
 const artists = computed(() => baseItem.value?.artists || []);
+
+const onAlbumNameClick = () => {
+  const albumId = props.item.al?.id ?? (props.item as any).album?.id ?? -1;
+  baseItem.value?.handleAlbumClick(albumId);
+};
 
 const onToggleSelect = () => {
   baseItem.value?.toggleSelect();
