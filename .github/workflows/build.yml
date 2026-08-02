@@ -71,8 +71,10 @@ jobs:
       - name: Rename APK
         run: |
           APK_DIR="android/app/build/outputs/apk/release"
-          SIGNED="${{ steps.sign_apk.outputs.SIGNED_RELEASE_FILE }}"
-          if [ -n "$SIGNED" ] && [ -f "$SIGNED" ]; then
+          # r0adkll/sign-android-release@v1 固定输出 app-release-unsigned-signed.apk
+          # （其 SIGNED_RELEASE_FILE 输出使用废弃的 set-output，当前 runner 上不可靠）
+          SIGNED="$APK_DIR/app-release-unsigned-signed.apk"
+          if [ -f "$SIGNED" ]; then
             cp "$SIGNED" "zephyrus-player-${{ github.ref_name }}.apk"
             echo "Using signed APK: $SIGNED"
           else
