@@ -46,6 +46,11 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
 
+      - name: Install build-tools 29.0.3 for APK signing
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "build-tools;29.0.3"
+
       - name: Sign APK
         uses: r0adkll/sign-android-release@v1
         id: sign_apk
