@@ -30,11 +30,10 @@
     <mobile-play-bar v-if="isPlay" />
 
     <!-- 全屏播放器过渡层：迷你播放栏快速延伸至全屏 / 关闭反向收缩 -->
-    <Transition name="player-full">
-      <div v-if="playerStore.musicFull" class="player-full-layer">
-        <music-full-wrapper v-model="playerStore.musicFull" :background="fullPlayerBackground" />
-      </div>
-    </Transition>
+    <!-- 常驻挂载（不能用 v-if，否则 n-drawer 重挂载会丢失进入动画） -->
+    <div class="player-full-layer" :class="{ 'player-full-open': playerStore.musicFull }">
+      <music-full-wrapper v-model="playerStore.musicFull" :background="fullPlayerBackground" />
+    </div>
 
     <!-- 底部导航菜单 — glow-menu 浮动风格 -->
     <Transition name="glow-nav-in">
@@ -254,19 +253,18 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   position: fixed;
   inset: 0;
   z-index: 9990;
-}
-
-.player-full-enter-active,
-.player-full-leave-active {
+  transform: translateY(100%);
+  opacity: 0.96;
+  pointer-events: none;
   transition:
     transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
     opacity 0.22s ease;
 }
 
-.player-full-enter-from,
-.player-full-leave-to {
-  transform: translateY(100%);
-  opacity: 0.96;
+.player-full-layer.player-full-open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .mobile-content {

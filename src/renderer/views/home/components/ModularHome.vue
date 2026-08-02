@@ -291,7 +291,7 @@
           @pointerdown="onItemPointerDown($event, item.type, 'grid')"
           @click="onItemClick(item.type)"
         >
-          <div class="block-bg" :style="{ background: meta[item.type].gradient }" />
+          <div class="block-bg" :style="blockBgStyle(item)" />
           <div class="block-glow" :style="{ background: meta[item.type].glowColor }" />
           <div
             v-if="isEditMode"
@@ -313,13 +313,11 @@
             <!-- 1x2 / 2x1 紧凑布局：胶囊图片 + 标题（元素级显隐/移动动画） -->
             <Transition name="block-compact">
               <div v-if="isTall(item) || isWide(item)" class="block-compact">
-                <div class="block-capsule">
-                  <div class="block-capsule-avatar">
-                    <img v-if="blockMedia(item)" :src="blockMedia(item)" alt="" />
-                    <i v-else :class="meta[item.type].icon" />
-                  </div>
-                  <span class="block-capsule-label">{{ blockTitle(item) }}</span>
+                <div class="block-compact-avatar">
+                  <img v-if="blockMedia(item)" :src="blockMedia(item)" alt="" />
+                  <i v-else :class="meta[item.type].icon" />
                 </div>
+                <span class="block-compact-title">{{ blockTitle(item) }}</span>
               </div>
             </Transition>
             <template v-if="!isTall(item) && !isWide(item)">
@@ -968,6 +966,14 @@ const cardBgStyle = (type: BlockType) => {
     };
   }
   return { background: meta[type].gradient };
+};
+
+/** 1x2 / 2x1 胶囊卡片：背景与顶栏/底栏同源，避免高饱和渐变 */
+const blockBgStyle = (item: LayoutItem) => {
+  if (isTall(item) || isWide(item)) {
+    return { background: 'var(--cover-surface, rgba(20, 20, 22, 0.72))' };
+  }
+  return { background: meta[item.type].gradient };
 };
 
 const fetchFmSongs = async (retries = 3): Promise<any[]> => {
@@ -2018,8 +2024,9 @@ onBeforeUnmount(() => {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   touch-action: manipulation;
-  transition: transform var(--m-duration-press, 90ms)
-    var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  transition:
+    transform var(--m-duration-press, 90ms) var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    border-radius 0.35s var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   &:active:not(.edit-mode):not(.dragging) {
     transform: scale(0.98);
   }
@@ -2581,61 +2588,58 @@ onBeforeUnmount(() => {
   }
 }
 
-/* 1x2 / 2x1 胶囊图 + 标题（元素级显隐/移动动画） */
+/* 1x2 / 2x1：卡片本体就是胶囊形状，背景与顶栏/底栏同源（不毛玻璃、不高饱和） */
+.block-item.blk-tall,
+.block-item.blk-wide {
+  border-radius: 999px;
+  border: 1px solid var(--cover-border, rgba(255, 255, 255, 0.08));
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  .block-glow {
+    display: none;
+  }
+}
+
 .block-compact {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   width: 100%;
   height: 100%;
+  padding: 10px 12px;
 }
 
-/* 1x2 竖长条：胶囊整体靠左（再往左一点），内部竖排 */
+/* 1x2 竖胶囊：图片固定在左侧 */
 .block-inner--tall .block-compact {
+  flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  padding-left: 10px;
+  padding-left: 14px;
+  gap: 8px;
 }
 
-.block-inner--tall .block-capsule {
-  flex-direction: column;
-  padding: 8px;
-  gap: 6px;
-}
-
-/* 2x1 横宽条：整体居中 */
+/* 2x1 横胶囊：整体居中 */
 .block-inner--wide .block-compact {
+  flex-direction: row;
   align-items: center;
   justify-content: center;
+  gap: 10px;
 }
 
-/* 胶囊容器：类似顶栏搜索框的毛玻璃质感 */
-.block-capsule {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 14px 5px 5px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  max-width: 100%;
-}
-
-.block-capsule-avatar {
-  width: 40px;
-  height: 40px;
+.block-compact-avatar {
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.14);
 
   img {
     width: 100%;
@@ -2644,23 +2648,25 @@ onBeforeUnmount(() => {
   }
 
   i {
-    font-size: 20px;
-    opacity: 0.9;
+    font-size: 22px;
+    opacity: 0.92;
   }
 }
 
-.block-capsule-label {
+.block-compact-title {
   font-size: 12px;
   font-weight: 600;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+  max-width: 100%;
+  color: var(--cover-text-primary, #fff);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
 }
 
-.block-inner--tall .block-capsule .block-capsule-label {
-  max-width: 56px;
-  text-align: center;
+.block-inner--tall .block-compact-title {
+  max-width: 52px;
 }
 
 .block-compact-enter-active {
