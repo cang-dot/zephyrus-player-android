@@ -1,10 +1,11 @@
 <template>
-  <!-- 普通全屏容器替代 n-drawer：就地渲染不 Teleport，
-       迷你播放栏的形变动画才能带动它，且不会被其他层级遮挡点击 -->
-  <div
-    v-show="isVisible"
-    class="music-full-mobile-host"
+  <n-drawer
+    v-model:show="isVisible"
+    height="100%"
+    placement="bottom"
     :style="{ background: playerStore.playMusic.primaryColor || background }"
+    :to="`#layout-main`"
+    :z-index="9998"
   >
     <div
       id="mobile-drawer-target"
@@ -386,7 +387,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </n-drawer>
 </template>
 
 <script setup lang="ts">
@@ -1214,14 +1215,6 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
 </script>
 
 <style scoped lang="scss">
-.music-full-mobile-host {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-  overflow: hidden;
-  overscroll-behavior: contain;
-}
-
 #mobile-drawer-target {
   @apply top-0 left-0 absolute overflow-hidden flex flex-col w-full h-full;
   animation-duration: 300ms;

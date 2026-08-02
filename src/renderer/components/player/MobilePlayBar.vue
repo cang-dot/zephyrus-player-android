@@ -4,7 +4,7 @@
     class="mobile-play-bar"
     :class="[
       setAnimationClass('animate__fadeInUp'),
-      isExpanded ? 'play-bar-expanded' : 'play-bar-mini',
+      playerStore.musicFull ? 'play-bar-expanded' : 'play-bar-mini',
       shouldShowMobileMenu ? 'is-menu-show' : 'is-menu-hide',
       isCompactNav && shouldShowMobileMenu ? 'compact-nav' : ''
     ]"
@@ -19,7 +19,7 @@
     }"
   >
     <!-- 迷你模式 - musicFull 为 false 时显示 -->
-    <div v-if="!isExpanded" class="mobile-mini-controls">
+    <div v-if="!playerStore.musicFull" class="mobile-mini-controls">
       <!-- 歌曲信息 -->
       <div class="mini-song-info" @click="setMusicFull">
         <n-image
@@ -51,21 +51,19 @@
       </div>
     </div>
 
-    <!-- 全屏播放器：迷你播放栏放大铺满全屏 / 关闭反向缩小 -->
-    <Transition @enter="onPlayerEnter" @leave="onPlayerLeave">
-      <music-full-wrapper
-        v-if="playerStore.musicFull"
-        v-model="playerStore.musicFull"
-        :background="background"
-      />
-    </Transition>
+    <!-- 全屏播放器 -->
+    <music-full-wrapper
+      ref="MusicFullRef"
+      v-model="playerStore.musicFull"
+      :background="background"
+    />
   </div>
 </template>
 
 <script lang="ts" setup>
 import { useSwipe } from '@vueuse/core';
 import type { Ref } from 'vue';
-import { computed, inject, onMounted, provide, ref, watch } from 'vue';
+import { computed, inject, onMounted, ref, watch } from 'vue';
 
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
@@ -78,102 +76,11 @@ const isCompactNav = inject('isCompactNav', ref(false)) as Ref<boolean>;
 
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
-const playBarRef = ref<HTMLElement | null>(null);
-
-// 供全屏播放器（n-drawer）渲染到迷你播放栏内部，
-// 这样开合形变动画才能真正带动播放器内容，且不会被底栏盖住点击
-provide('mobilePlayBarHost', playBarRef);
 
 // 是否播放
 const play = computed(() => playerStore.isPlay);
-// 全屏播放器背景色（跟随当前歌曲封面主色）
+// 背景颜色
 const background = ref('#000');
-// 播放器开合状态：关闭时延迟到缩小动画结束再恢复迷你形态
-const isExpanded = ref(false);
-
-// 播放器开合形变动画：用 WAAPI 直接动画迷你播放栏本体，
-// fill:none 结束后不残留 transform（残留会形成 containing block，导致内容错位/点击失效）
-let morphFallbackTimer: number | null = null;
-
-const clearMorphFallback = () => {
-  if (morphFallbackTimer) {
-    window.clearTimeout(morphFallbackTimer);
-    morphFallbackTimer = null;
-  }
-};
-
-const onPlayerEnter = (_el: Element, done: () => void) => {
-  clearMorphFallback();
-  isExpanded.value = true;
-  const bar = playBarRef.value;
-  if (!bar) return done();
-  bar.animate(
-    [
-      {
-        transform: 'scale(0.18)',
-        opacity: 0.92,
-        borderRadius: '24px',
-        offset: 0
-      },
-      {
-        transform: 'scale(1)',
-        opacity: 1,
-        borderRadius: '0px',
-        offset: 1
-      }
-    ],
-    {
-      duration: 340,
-      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-      fill: 'none'
-    }
-  );
-  done();
-};
-
-const onPlayerLeave = (_el: Element, done: () => void) => {
-  clearMorphFallback();
-  const bar = playBarRef.value;
-  if (!bar) return done();
-  let finished = false;
-  const finish = () => {
-    if (finished) return;
-    finished = true;
-    clearMorphFallback();
-    isExpanded.value = false;
-    done();
-  };
-  const animation = bar.animate(
-    [
-      {
-        transform: 'scale(1)',
-        opacity: 1,
-        borderRadius: '0px',
-        offset: 0
-      },
-      {
-        transform: 'scale(0.18)',
-        opacity: 0.92,
-        borderRadius: '24px',
-        offset: 1
-      }
-    ],
-    {
-      duration: 300,
-      easing: 'cubic-bezier(0.55, 0, 0.55, 0.2)',
-      fill: 'both'
-    }
-  );
-  animation.onfinish = finish;
-  morphFallbackTimer = window.setTimeout(finish, 400);
-};
-
-watch(
-  () => playerStore.musicFull,
-  (visible) => {
-    if (visible) isExpanded.value = true;
-  }
-);
 
 // 播放控制
 function handleNext() {
@@ -183,6 +90,9 @@ function handleNext() {
 function handlePrev() {
   playerStore.prevPlay();
 }
+
+// 全屏播放器引用
+const MusicFullRef = ref<any>(null);
 
 // 设置 musicFull
 const setMusicFull = () => {
@@ -197,14 +107,6 @@ watch(
   (_newVal) => {
     // 状态栏样式更新已在 Web 环境中禁用
   }
-);
-
-watch(
-  () => playerStore.playMusic,
-  (song) => {
-    background.value = song?.backgroundColor || '#000';
-  },
-  { immediate: true, deep: true }
 );
 
 // 打开播放列表抽屉
@@ -223,6 +125,7 @@ const playMusicEvent = async () => {
 };
 
 // 滑动切歌
+const playBarRef = ref<HTMLElement | null>(null);
 onMounted(() => {
   if (playBarRef.value) {
     const { direction } = useSwipe(playBarRef, {
@@ -234,6 +137,14 @@ onMounted(() => {
     });
   }
 });
+
+watch(
+  () => playerStore.playMusic,
+  async () => {
+    background.value = playMusic.value.backgroundColor as string;
+  },
+  { immediate: true, deep: true }
+);
 </script>
 
 <style lang="scss" scoped>
@@ -533,26 +444,5 @@ onMounted(() => {
   .mobile-play-list-item {
     @apply px-3 py-1;
   }
-}
-
-/* ═══ 全屏播放器过渡：迷你播放栏放大铺满全屏 / 关闭反向缩小 ═══ */
-.mobile-play-bar.play-bar-expanded {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100dvh;
-  max-height: none;
-  bottom: 0;
-  z-index: 100001;
-  background: transparent;
-  pointer-events: auto;
-}
-
-/* 默认样式 n-drawer 的自带滑入会与形变动画冲突，进入侧禁用；退出侧保留兜底 */
-.mobile-play-bar :deep(.slide-in-from-bottom-transition-enter-active),
-.mobile-play-bar :deep(.slide-in-from-bottom-transition-enter-from),
-.mobile-play-bar :deep(.slide-in-from-bottom-transition-enter-to) {
-  transition: none !important;
-  transform: none !important;
 }
 </style>
