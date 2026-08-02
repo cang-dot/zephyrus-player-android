@@ -252,7 +252,7 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 .player-full-layer {
   position: fixed;
   inset: 0;
-  z-index: 9990;
+  z-index: 100001;
   overflow: hidden;
   transform-origin: 50% 100%;
   transform: scale(0.16);

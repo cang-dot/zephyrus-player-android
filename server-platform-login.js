@@ -1598,10 +1598,16 @@ function normalizeQqSong(item) {
         .split(/[,，、/&|]/)
         .map((artist) => artist.trim())
         .filter(Boolean);
+  const albumRaw =
+    typeof item.album === 'object' && item.album !== null ? item.album : null;
   const albumMid =
-    firstOwnValue(item, ['albummid']) || firstDeepValue(item, ['albummid', 'album_mid']);
+    firstOwnValue(item, ['albummid', 'album_mid']) ||
+    (albumRaw ? firstOwnValue(albumRaw, ['mid', 'albummid', 'album_mid']) : '') ||
+    '';
   const albumName =
-    firstOwnValue(item, ['albumname']) || firstDeepValue(item, ['albumname', 'album_name']);
+    firstOwnValue(item, ['albumname', 'album_name']) ||
+    (albumRaw ? firstOwnValue(albumRaw, ['name', 'title']) : '') ||
+    '';
   const album = {
     id: albumMid || '0',
     name: albumName || '未知专辑',
@@ -1803,6 +1809,98 @@ router.get('/qq/playlist/tracks', async (req, res) => {
   } catch (error) {
     console.error('[platformLogin] QQ playlist tracks error:', error.message);
     return res.status(502).json({ code: 502, msg: 'QQ 歌单加载失败，请稍后重试' });
+  }
+});
+
+// GET /platform/qq/search?keyword=xxx&limit=20
+router.get('/qq/search', async (req, res) => {
+  const keyword = String(req.query.keyword || req.query.q || '').trim();
+  const limit = Math.min(30, Math.max(1, Number(req.query.limit) || 20));
+  if (!keyword) return res.json({ code: 200, data: { songs: [] } });
+  const cookie = getPlatformCookieFromRequest(req);
+  try {
+    const data = await qqSignedApi(
+      cookie,
+      'music.search.SearchCgiService',
+      'DoSearchForQQMusicDesktop',
+      {
+        num_per_page: limit,
+        page_num: 1,
+        query: keyword,
+        search_type: 0
+      }
+    );
+    const songs = (data?.body?.song?.list || []).map(normalizeQqSong).filter(Boolean);
+    return res.json({ code: 200, data: { songs } });
+  } catch (error) {
+    console.error('[platformLogin] QQ search error:', error.message);
+    return res.status(502).json({ code: 502, msg: 'QQ 搜索服务暂时不可用，请稍后重试' });
+  }
+});
+
+// GET /platform/kugou/search?keyword=xxx&limit=20
+router.get('/kugou/search', async (req, res) => {
+  const keyword = String(req.query.keyword || req.query.q || '').trim();
+  const limit = Math.min(30, Math.max(1, Number(req.query.limit) || 20));
+  if (!keyword) return res.json({ code: 200, data: { songs: [] } });
+  try {
+    const response = await axios.get(
+      `http://mobilecdn.kugou.com/api/v3/search/song?keyword=${encodeURIComponent(
+        keyword
+      )}&page=1&pagesize=${limit}`,
+      {
+        timeout: 12000,
+        validateStatus: () => true
+      }
+    );
+    const list = response.data?.data?.info || [];
+    const songs = list
+      .map((song) => {
+        const hash = firstOwnValue(song, ['hash', 'file_hash', 'filehash']);
+        const songName = firstOwnValue(song, ['songname', 'song_name', 'filename']);
+        if (!hash || !songName) return null;
+        const artistNames = String(
+          firstOwnValue(song, ['singername', 'singer_name', 'singer']) || ''
+        )
+          .split(/[、,/&|]/)
+          .map((artist) => artist.trim())
+          .filter(Boolean);
+        const albumName = firstOwnValue(song, ['album_name', 'albumname', 'album']) || '';
+        const albumId = firstOwnValue(song, ['album_id', 'albumid']) || '';
+        const rawDuration = Number(firstOwnValue(song, ['duration', 'timelen']));
+        const duration = rawDuration > 0 && rawDuration < 1000 ? rawDuration * 1000 : rawDuration;
+        const artists = (artistNames.length ? artistNames : ['未知歌手']).map((artist, index) => ({
+          id: index,
+          name: artist
+        }));
+        const album = {
+          id: albumId || '0',
+          name: albumName || '未知专辑',
+          picUrl: albumId
+            ? `https://imgessl.kugou.com/stdmusic/150/${albumId}.jpg`
+            : ''
+        };
+        return {
+          id: `kugou:${hash}`,
+          name: songName,
+          picUrl: album.picUrl,
+          ar: artists,
+          artists,
+          al: album,
+          album,
+          count: 0,
+          dt: duration || 0,
+          duration: duration || 0,
+          platform: 'kugou',
+          platformId: String(hash),
+          source: 'kugou'
+        };
+      })
+      .filter(Boolean);
+    return res.json({ code: 200, data: { songs } });
+  } catch (error) {
+    console.error('[platformLogin] Kugou search error:', error.message);
+    return res.status(502).json({ code: 502, msg: '酷狗搜索服务暂时不可用，请稍后重试' });
   }
 });
 

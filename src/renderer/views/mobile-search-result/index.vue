@@ -124,6 +124,7 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import { crossPlatformSearch } from '@/api/crossPlatformSearch';
+import { searchPlatformMusic } from '@/api/platformQrApi';
 import { getSearch } from '@/api/search';
 import {
   rankSearchResults,
@@ -282,6 +283,7 @@ const performSearch = async (isLoadMore = false) => {
       if (!isLoadMore) {
         triggerCrossSearch(keyword.value, songs);
         triggerServerSearch(keyword.value, songs);
+        triggerPlatformSearch(keyword.value, songs);
       }
     }
     // 歌手搜索
@@ -493,6 +495,45 @@ const triggerServerSearch = async (kw: string, existingSongs: any[]) => {
   } catch (e) {
     console.error('[云端歌曲搜索失败]:', e);
   }
+};
+
+// 已登录平台（QQ/酷狗）搜索：登录后解锁对应平台搜索
+const triggerPlatformSearch = async (kw: string, existingSongs: any[]) => {
+  const platforms: Array<'qq' | 'kugou'> = [];
+  if (localStorage.getItem('platform-cookie-qq')) platforms.push('qq');
+  if (localStorage.getItem('platform-cookie-kugou')) platforms.push('kugou');
+  if (!platforms.length) return;
+
+  const existingKeys = new Set(
+    existingSongs.map((s: any) =>
+      `${(s.name || '').toLowerCase()}|${(s.ar || s.artists || [])
+        .map((a: any) => a.name)
+        .join(',')}`.toLowerCase()
+    )
+  );
+  for (const platform of platforms) {
+    try {
+      const songs = await searchPlatformMusic(platform, kw, 15);
+      const deduped = songs.filter(
+        (s) =>
+          !existingKeys.has(
+            `${(s.name || '').toLowerCase()}|${s.ar?.map((a) => a.name).join(',')}`.toLowerCase()
+          )
+      );
+      if (deduped.length > 0) {
+        results.value = [...results.value, ...deduped];
+        classifySongs(deduped);
+        deduped.forEach((s) =>
+          existingKeys.add(
+            `${(s.name || '').toLowerCase()}|${s.ar?.map((a) => a.name).join(',')}`.toLowerCase()
+          )
+        );
+      }
+    } catch (e) {
+      console.error(`[${platform} 搜索失败]:`, e);
+    }
+  }
+  results.value = rankSearchResults(results.value, keyword.value);
 };
 
 // 选择搜索类型

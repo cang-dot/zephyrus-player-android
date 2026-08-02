@@ -136,6 +136,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
+import { resolveNeteaseMatch } from '@/api/kugouPlayback';
 import { fetchPlatformAccountData, fetchPlatformPlaylistTracks } from '@/api/platformQrApi';
 import { getUserAlbumSublist, getUserDetail, getUserPlaylist, getUserRecord } from '@/api/user';
 import playlistPlaceholder from '@/assets/icon_512.png';
@@ -398,6 +399,38 @@ const loadPlatformAccountDataInternal = async (account: PlatformAccount) => {
   }
 };
 
+/**
+ * QQ/酷狗歌曲没有封面时，用「歌手+歌名」匹配网易云并补上封面
+ */
+const enrichSongsWithNeteaseCover = async (songs: any[]): Promise<any[]> => {
+  const needCover = songs.filter((song) => !song?.picUrl && !song?.al?.picUrl);
+  if (!needCover.length) return songs;
+  let cursor = 0;
+  const workers = Array.from({ length: 4 }, async () => {
+    while (cursor < needCover.length) {
+      const song = needCover[cursor++];
+      try {
+        const matched = await resolveNeteaseMatch(song);
+        if (matched?.picUrl) {
+          const index = songs.indexOf(song);
+          if (index !== -1) {
+            songs[index] = {
+              ...song,
+              picUrl: matched.picUrl,
+              al: { ...(song.al || {}), picUrl: matched.picUrl },
+              album: { ...(song.album || {}), picUrl: matched.picUrl }
+            };
+          }
+        }
+      } catch {
+        // 匹配失败时保持原样
+      }
+    }
+  });
+  await Promise.all(workers);
+  return songs;
+};
+
 const loadData = async () => {
   try {
     if (activePlatform.value === 'netease' && (!userDetail.value || !recordList.value?.length)) {
@@ -526,6 +559,7 @@ const openPlaylist = async (item: any) => {
       if (!songs.length) {
         const result = await fetchPlatformPlaylistTracks('qq', account.cookie, listId);
         songs = result.songs;
+        songs = await enrichSongsWithNeteaseCover(songs);
         platformPlaylistTracksCache.set(cacheKey, songs);
       }
       if (activeAccountId.value !== account.accountId) return;
