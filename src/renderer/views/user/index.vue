@@ -25,8 +25,8 @@
               <div v-else class="avatar-placeholder">
                 <i class="ri-user-3-line" />
               </div>
-              <div v-if="currentLoginType" class="login-badge">
-                {{ t('login.title.' + currentLoginType) }}
+              <div v-if="loginBadgeText" class="login-badge">
+                {{ loginBadgeText }}
               </div>
             </div>
             <div class="profile-info">
@@ -57,7 +57,7 @@
           <!-- Tab bar: glow tabs, always visible, stays inside the card -->
           <glow-tabs
             v-model="currentTab"
-            :tabs="tabs.map((tab) => ({ key: tab.key, label: t(tab.label) }))"
+            :tabs="visibleTabs.map((tab) => ({ key: tab.key, label: t(tab.label) }))"
             full-width
             class="tab-bar-glow"
           />
@@ -81,6 +81,7 @@
               v-for="(item, index) in currentList"
               :key="index"
               class="playlist-card"
+              :class="{ 'is-opening': openingPlaylistId === String(item.id) }"
               @click="handleItemClick(item)"
             >
               <div class="playlist-cover-wrap">
@@ -135,7 +136,9 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
+import { fetchPlatformAccountData, fetchPlatformPlaylistTracks } from '@/api/platformQrApi';
 import { getUserAlbumSublist, getUserDetail, getUserPlaylist, getUserRecord } from '@/api/user';
+import playlistPlaceholder from '@/assets/icon_512.png';
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PlayBottom from '@/components/common/PlayBottom.vue';
@@ -187,6 +190,9 @@ const currentTab = ref('created');
 
 const { accounts, activeAccountId, activeAccount, activeAccountCache } = storeToRefs(accountStore);
 const activePlatform = computed(() => activeAccount.value?.platform || 'netease');
+const visibleTabs = computed(() =>
+  tabs.filter((tab) => tab.key !== 'album' || activePlatform.value !== 'kugou')
+);
 const user = computed(() => {
   if (activeAccount.value) {
     return {
@@ -215,11 +221,21 @@ const createdPlaylists = computed(() => {
 
 const favoritePlaylists = computed(() => {
   if (!user.value) return [];
+  if (activePlatform.value === 'kugou') {
+    const merged = [...cachedFavorites.value, ...cachedAlbums.value];
+    return merged.filter(
+      (item, index, list) =>
+        list.findIndex((candidate) => String(candidate.id) === String(item.id)) === index
+    );
+  }
   if (activePlatform.value !== 'netease') return cachedFavorites.value;
   return userStore.playList.filter((item) => item.creator?.userId !== user.value!.userId);
 });
 
 const currentList = computed(() => {
+  if (currentTab.value === 'created') {
+    return createdPlaylists.value;
+  }
   if (currentTab.value === 'album') {
     return activePlatform.value === 'netease' ? userStore.albumList : cachedAlbums.value;
   }
@@ -227,7 +243,11 @@ const currentList = computed(() => {
 });
 
 const getCoverUrl = (item: any) => {
-  return item.coverImgUrl || item.picUrl || '';
+  const coverUrl = item.coverImgUrl || item.picUrl || '';
+  if (coverUrl) return coverUrl;
+
+  const trackCount = Number(item.trackCount ?? item.songCount ?? item.count ?? 0);
+  return trackCount === 0 ? playlistPlaceholder : '';
 };
 
 const getItemDescription = (item: any) => {
@@ -296,9 +316,91 @@ const loadPage = async () => {
   await loadData();
 };
 
+let platformDataRequestId = 0;
+const platformDataRequests = new Map<string, Promise<void>>();
+const platformPlaylistTracksCache = new Map<string, any[]>();
+const openingPlaylistId = ref<string | null>(null);
+
+const loadPlatformAccountData = async (account: PlatformAccount) => {
+  const pendingRequest = platformDataRequests.get(account.accountId);
+  if (pendingRequest) return pendingRequest;
+
+  const request = loadPlatformAccountDataInternal(account);
+  platformDataRequests.set(account.accountId, request);
+  try {
+    await request;
+  } finally {
+    if (platformDataRequests.get(account.accountId) === request) {
+      platformDataRequests.delete(account.accountId);
+    }
+  }
+};
+
+const loadPlatformAccountDataInternal = async (account: PlatformAccount) => {
+  const requestId = ++platformDataRequestId;
+  const cachedData = accountStore.activeAccountCache;
+  recordList.value = (cachedData?.history || []) as any[];
+
+  if (!account.cookie || (account.platform !== 'qq' && account.platform !== 'kugou')) {
+    return;
+  }
+
+  try {
+    const data = await fetchPlatformAccountData(account.platform, account.cookie);
+    if (
+      !mounted.value ||
+      requestId !== platformDataRequestId ||
+      activeAccountId.value !== account.accountId
+    ) {
+      return;
+    }
+
+    const userInfo = data.userInfo || {};
+    const nextUserId = String(userInfo.userId || account.userId);
+    const nextNickname = userInfo.nickname || account.nickname;
+    const nextAvatarUrl = userInfo.avatarUrl || account.avatarUrl;
+    const nextVip = userInfo.vip == null ? account.vip : Boolean(userInfo.vip);
+    const nextVipLabel = userInfo.vipLabel || account.vipLabel;
+    const profileChanged =
+      nextUserId !== account.userId ||
+      nextNickname !== account.nickname ||
+      nextAvatarUrl !== account.avatarUrl ||
+      nextVip !== account.vip ||
+      nextVipLabel !== account.vipLabel;
+
+    if (profileChanged) {
+      accountStore.addOrUpdateAccount({
+        accountId: account.accountId,
+        platform: account.platform,
+        userId: nextUserId,
+        nickname: nextNickname,
+        avatarUrl: nextAvatarUrl,
+        vip: nextVip,
+        vipLabel: nextVipLabel,
+        cookie: account.cookie,
+        loginMethod: account.loginMethod
+      });
+    }
+
+    accountStore.cacheAccountData(account.accountId, 'playlists', data.playlists);
+    accountStore.cacheAccountData(account.accountId, 'favorites', data.favorites);
+    accountStore.cacheAccountData(account.accountId, 'albums', data.albums);
+    accountStore.cacheAccountData(account.accountId, 'history', data.history);
+    recordList.value = data.history;
+  } catch (error: any) {
+    console.error(`${account.platform} 账号数据加载失败:`, error);
+    const hasCachedData = Boolean(
+      cachedData?.playlists?.length || cachedData?.favorites?.length || cachedData?.history?.length
+    );
+    if (!hasCachedData && mounted.value && requestId === platformDataRequestId) {
+      message.error(error?.message || `${account.nickname} 的账号数据加载失败`);
+    }
+  }
+};
+
 const loadData = async () => {
   try {
-    if (!userDetail.value || !recordList.value?.length) {
+    if (activePlatform.value === 'netease' && (!userDetail.value || !recordList.value?.length)) {
       infoLoading.value = true;
     }
     if (!user.value) {
@@ -307,14 +409,19 @@ const loadData = async () => {
     }
 
     if (activePlatform.value !== 'netease') {
-      userDetail.value = null;
-      recordList.value = displayRecordList.value;
+      const account = activeAccount.value;
+      if (account) {
+        await loadPlatformAccountData(account);
+      }
       return;
     }
 
     const neteaseUserId = Number(user.value.userId);
+    const cachedNeteasePlaylists = (activeAccountCache.value?.playlists || []) as any[];
+    userStore.playList = cachedNeteasePlaylists;
+
     const promises = [getUserDetail(neteaseUserId), getUserRecord(neteaseUserId)];
-    if (userStore.playList.length === 0) {
+    if (cachedNeteasePlaylists.length === 0) {
       promises.push(getUserPlaylist(neteaseUserId));
     }
     const results = await Promise.all(promises);
@@ -329,6 +436,9 @@ const loadData = async () => {
     }));
     if (results.length > 2 && results[2].data?.playlist) {
       userStore.playList = results[2].data.playlist;
+      if (activeAccountId.value) {
+        accountStore.cacheAccountData(activeAccountId.value, 'playlists', results[2].data.playlist);
+      }
     }
   } catch (error: any) {
     console.error('加载用户页面失败:', error);
@@ -405,7 +515,80 @@ onMounted(() => {
   checkLoginStatus() && loadData();
 });
 
-const openPlaylist = (item: any) => {
+const openPlaylist = async (item: any) => {
+  const account = activeAccount.value;
+  if (account?.platform === 'qq' && account.cookie) {
+    const listId = String(item.id || item.tid || item.dirId || item.dirid || '').trim();
+    const cacheKey = `${account.accountId}:${listId}`;
+    openingPlaylistId.value = String(item.id || listId);
+    try {
+      let songs = platformPlaylistTracksCache.get(cacheKey) || [];
+      if (!songs.length) {
+        const result = await fetchPlatformPlaylistTracks('qq', account.cookie, listId);
+        songs = result.songs;
+        platformPlaylistTracksCache.set(cacheKey, songs);
+      }
+      if (activeAccountId.value !== account.accountId) return;
+      if (!songs.length) {
+        message.warning('这个 QQ 歌单暂时没有可播放的歌曲');
+        return;
+      }
+      navigateToMusicList(router, {
+        id: item.id,
+        type: 'playlist',
+        name: item.name,
+        songList: songs,
+        listInfo: item,
+        canRemove: false
+      });
+    } catch (error: any) {
+      console.error('加载 QQ 歌单失败:', error);
+      message.error(error?.message || 'QQ 歌单加载失败');
+    } finally {
+      openingPlaylistId.value = null;
+    }
+    return;
+  }
+  if (account?.platform === 'kugou' && account.cookie) {
+    const listId = String(
+      item.listId ||
+        item.list_id ||
+        item.globalCollectionId ||
+        item.global_collection_id ||
+        item.id ||
+        ''
+    ).trim();
+    const cacheKey = `${account.accountId}:${listId}`;
+    openingPlaylistId.value = String(item.id || listId);
+    try {
+      let songs = platformPlaylistTracksCache.get(cacheKey) || [];
+      if (!songs.length) {
+        const result = await fetchPlatformPlaylistTracks('kugou', account.cookie, listId);
+        songs = result.songs;
+        platformPlaylistTracksCache.set(cacheKey, songs);
+      }
+      if (activeAccountId.value !== account.accountId) return;
+      if (!songs.length) {
+        message.warning('这个酷狗歌单暂时没有可播放的歌曲');
+        return;
+      }
+      navigateToMusicList(router, {
+        id: item.id,
+        type: 'playlist',
+        name: item.name,
+        songList: songs,
+        listInfo: item,
+        canRemove: false
+      });
+    } catch (error: any) {
+      console.error('加载酷狗歌单失败:', error);
+      message.error(error?.message || '酷狗歌单加载失败');
+    } finally {
+      openingPlaylistId.value = null;
+    }
+    return;
+  }
+
   navigateToMusicList(router, {
     id: item.id,
     type: 'playlist',
@@ -440,6 +623,21 @@ const handleLoginSuccess = () => {
 
 const isLoggedIn = computed(() => accounts.value.length > 0 || userStore.user);
 const currentLoginType = computed(() => activeAccount.value?.loginMethod || userStore.loginType);
+const loginBadgeText = computed(() => {
+  if (!currentLoginType.value) return '';
+  if (activePlatform.value === 'netease') {
+    if (currentLoginType.value === 'uid') return 'UID 登录';
+    if (currentLoginType.value === 'qr') return '扫码登录';
+    return '网易云登录';
+  }
+  if (currentLoginType.value === 'qr') return '扫码登录';
+  if (currentLoginType.value === 'uid') return 'UID 登录';
+  return '账号登录';
+});
+
+watch(visibleTabs, (nextTabs) => {
+  if (!nextTabs.some((tab) => tab.key === currentTab.value)) currentTab.value = 'favorite';
+});
 </script>
 
 <style lang="scss" scoped>
@@ -730,6 +928,12 @@ const currentLoginType = computed(() => activeAccount.value?.loginMethod || user
   margin-bottom: 24px;
 }
 
+.playlist-platform-tabs {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin-bottom: 2px;
+}
+
 .import-card {
   display: flex;
   flex-direction: column;
@@ -739,7 +943,7 @@ const currentLoginType = computed(() => activeAccount.value?.loginMethod || user
   background: transparent;
   cursor: pointer;
   padding: 0;
-  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform var(--m-duration-press, 90ms) cubic-bezier(0.23, 1, 0.32, 1);
   &:active {
     transform: scale(0.96);
   }
@@ -775,7 +979,11 @@ const currentLoginType = computed(() => activeAccount.value?.loginMethod || user
 
 .playlist-card {
   cursor: pointer;
-  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform var(--m-duration-press, 90ms) cubic-bezier(0.23, 1, 0.32, 1);
+  &.is-opening {
+    opacity: 0.68;
+    transform: scale(0.98);
+  }
   &:active {
     transform: scale(0.96);
   }

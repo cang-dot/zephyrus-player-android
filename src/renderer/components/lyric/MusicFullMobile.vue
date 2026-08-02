@@ -4,7 +4,6 @@
     height="100%"
     placement="bottom"
     :style="{ background: playerStore.playMusic.primaryColor || background }"
-    :to="`#layout-main`"
     :z-index="9998"
   >
     <div

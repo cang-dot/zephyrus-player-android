@@ -280,18 +280,15 @@
           :key="item.type"
           :data-block-id="item.type"
           class="block-item"
-          :class="[
-            {
-              dragging: drag.active && drag.itemId === item.type && drag.source === 'grid',
-              'edit-mode': isEditMode
-            },
-            blockAspectClass(item)
-          ]"
+          :class="{
+            dragging: drag.active && drag.itemId === item.type && drag.source === 'grid',
+            'edit-mode': isEditMode
+          }"
           :style="blockStyle(item)"
           @pointerdown="onItemPointerDown($event, item.type, 'grid')"
           @click="onItemClick(item.type)"
         >
-          <div class="block-bg" :style="blockBgStyle(item)" />
+          <div class="block-bg" :style="{ background: meta[item.type].gradient }" />
           <div class="block-glow" :style="{ background: meta[item.type].glowColor }" />
           <div
             v-if="isEditMode"
@@ -309,160 +306,131 @@
             <i class="ri-drag-move-2-fill" />
           </div>
 
-          <div class="block-inner" :class="blockInnerClass(item)">
-            <!-- 1x2 / 2x1 紧凑布局：胶囊图片 + 标题（元素级显隐/移动动画） -->
-            <Transition name="block-compact">
-              <div v-if="isTall(item) || isWide(item)" class="block-compact">
-                <div class="block-compact-avatar">
-                  <img v-if="blockMedia(item)" :src="blockMedia(item)" alt="" />
-                  <i v-else :class="meta[item.type].icon" />
-                </div>
-                <span class="block-compact-title">{{ blockTitle(item) }}</span>
+          <div class="block-inner">
+            <!-- Daily Recommend -->
+            <template v-if="item.type === 'daily-recommend'">
+              <div class="block-top">
+                <span class="block-mini-badge">{{ dailyCount }}{{ t('comp.homeHero.songs') }}</span>
+                <i class="ri-calendar-check-fill block-corner-icon" />
               </div>
-            </Transition>
-            <template v-if="!isTall(item) && !isWide(item)">
-              <!-- Daily Recommend -->
-              <template v-if="item.type === 'daily-recommend'">
-                <div class="block-top">
-                  <span class="block-mini-badge"
-                    >{{ dailyCount }}{{ t('comp.homeHero.songs') }}</span
-                  >
-                  <i class="ri-calendar-check-fill block-corner-icon" />
-                </div>
-                <div v-if="item.h >= 2 && !isTall(item)" class="block-date">
-                  <span class="block-date-day">{{ dayOfMonth }}</span>
-                  <span class="block-date-week">{{ weekdayLabel }}</span>
-                </div>
-                <div v-if="item.w >= 3 && dailySongs.length > 0" class="block-daily-songs">
-                  <div
-                    v-for="(song, i) in dailySongs.slice(0, item.w >= 4 ? 4 : 2)"
-                    :key="song.id"
-                    class="block-daily-song truncate"
-                  >
-                    <span class="song-num">{{ i + 1 }}</span
-                    >{{ song.name }}
-                  </div>
-                </div>
-                <div class="block-label">{{ t('comp.homeHero.dailyRecommend') }}</div>
-                <button class="action-btn play-btn" @click.stop="playDayRecommend">
-                  <i class="ri-play-fill" />
-                </button>
-              </template>
-
-              <!-- Personal FM -->
-              <template v-else-if="item.type === 'personal-fm'">
+              <div v-if="item.h >= 2" class="block-date">
+                <span class="block-date-day">{{ dayOfMonth }}</span>
+                <span class="block-date-week">{{ weekdayLabel }}</span>
+              </div>
+              <div v-if="item.w >= 3 && dailySongs.length > 0" class="block-daily-songs">
                 <div
-                  v-if="isLoggedIn && !isTall(item) && !isWide(item)"
-                  class="block-fm-cover-wrap"
+                  v-for="(song, i) in dailySongs.slice(0, item.w >= 4 ? 4 : 2)"
+                  :key="song.id"
+                  class="block-daily-song truncate"
                 >
-                  <img
-                    v-if="displayCover"
-                    :src="getImgUrl(displayCover, '300y300')"
-                    alt=""
-                    class="block-fm-cover"
-                  />
-                  <div v-else class="block-fm-placeholder"><i class="ri-radio-fill" /></div>
-                  <div v-if="isFmPlaying" class="block-fm-eq">
-                    <span
-                      v-for="i in 3"
-                      :key="i"
-                      class="eq-bar"
-                      :style="{ animationDelay: `${(i - 1) * 0.15}s` }"
-                    />
-                  </div>
+                  <span class="song-num">{{ i + 1 }}</span
+                  >{{ song.name }}
                 </div>
-                <div v-else class="block-icon-large"><i class="ri-radio-fill" /></div>
-                <div class="block-label">{{ t('comp.homeHero.personalFm') }}</div>
-                <div v-if="isLoggedIn && displaySong?.name" class="block-fm-song truncate">
-                  {{ displaySong.name }}
-                </div>
-                <div v-else-if="!isLoggedIn" class="block-hint">
-                  {{ t('comp.modularHome.loginToUnlock') }}
-                </div>
-                <button v-if="isLoggedIn" class="action-btn play-btn" @click.stop="handleFmPlay">
-                  <i :class="isFmPlaying ? 'ri-pause-fill' : 'ri-play-fill'" />
-                </button>
-              </template>
+              </div>
+              <div class="block-label">{{ t('comp.homeHero.dailyRecommend') }}</div>
+              <button class="action-btn play-btn" @click.stop="playDayRecommend">
+                <i class="ri-play-fill" />
+              </button>
+            </template>
 
-              <!-- User -->
-              <template v-else-if="item.type === 'user'">
-                <div v-if="!isTall(item) && !isWide(item)" class="block-user-avatar-wrap">
-                  <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="block-user-avatar" />
-                  <div v-else class="block-user-placeholder"><i class="ri-user-3-fill" /></div>
-                </div>
-                <div v-else class="block-icon-large"><i class="ri-user-3-fill" /></div>
-                <div class="block-label">
-                  {{ userNickname || t('comp.modularHome.blocks.user') }}
-                </div>
-                <div v-if="!isLoggedIn" class="block-hint">
-                  {{ t('comp.modularHome.loginToUnlock') }}
-                </div>
-              </template>
-
-              <!-- Artists -->
-              <template v-else-if="item.type === 'artists'">
-                <div
-                  v-if="artists.length > 0 && !isTall(item) && !isWide(item)"
-                  class="block-collage"
-                >
-                  <img
-                    v-for="(artist, i) in artists.slice(0, 4)"
-                    :key="artist.id"
-                    :src="getImgUrl(artist.picUrl || artist.img1v1Url, '150y150')"
-                    alt=""
-                    class="collage-img"
-                    :style="{ animationDelay: `${i * 0.06}s` }"
-                  />
-                </div>
-                <div v-else class="block-icon-large"><i class="ri-mic-fill" /></div>
-                <div class="block-label">{{ t('comp.homeHero.hotArtists') }}</div>
-              </template>
-
-              <!-- Playlists -->
-              <template v-else-if="item.type === 'playlists'">
-                <div
-                  v-if="playlists.length > 0 && !isTall(item) && !isWide(item)"
-                  class="block-collage"
-                >
-                  <img
-                    v-for="(pl, i) in playlists.slice(0, 4)"
+            <!-- Personal FM -->
+            <template v-else-if="item.type === 'personal-fm'">
+              <div v-if="isLoggedIn" class="block-fm-cover-wrap">
+                <img
+                  v-if="displayCover"
+                  :src="getImgUrl(displayCover, '300y300')"
+                  alt=""
+                  class="block-fm-cover"
+                />
+                <div v-else class="block-fm-placeholder"><i class="ri-radio-fill" /></div>
+                <div v-if="isFmPlaying" class="block-fm-eq">
+                  <span
+                    v-for="i in 3"
                     :key="i"
-                    :src="getImgUrl(pl.picUrl, '150y150')"
-                    alt=""
-                    class="collage-img"
-                    :style="{ animationDelay: `${i * 0.06}s` }"
+                    class="eq-bar"
+                    :style="{ animationDelay: `${(i - 1) * 0.15}s` }"
                   />
                 </div>
-                <div v-else class="block-icon-large"><i class="ri-play-list-2-fill" /></div>
-                <div class="block-label">{{ t('comp.homeHero.hotPlaylists') }}</div>
-              </template>
+              </div>
+              <div v-else class="block-icon-large"><i class="ri-radio-fill" /></div>
+              <div class="block-label">{{ t('comp.homeHero.personalFm') }}</div>
+              <div v-if="isLoggedIn && displaySong?.name" class="block-fm-song truncate">
+                {{ displaySong.name }}
+              </div>
+              <div v-else-if="!isLoggedIn" class="block-hint">
+                {{ t('comp.modularHome.loginToUnlock') }}
+              </div>
+              <button v-if="isLoggedIn" class="action-btn play-btn" @click.stop="handleFmPlay">
+                <i :class="isFmPlaying ? 'ri-pause-fill' : 'ri-play-fill'" />
+              </button>
+            </template>
 
-              <!-- Daily Album -->
-              <template v-else-if="item.type === 'daily-album'">
-                <div
-                  v-if="dailyAlbum && !isTall(item) && !isWide(item)"
-                  class="block-album-cover-wrap"
-                >
-                  <img
-                    :src="getImgUrl(dailyAlbum.picUrl || dailyAlbum.album?.picUrl, '300y300')"
-                    alt=""
-                    class="block-album-cover"
-                  />
-                </div>
-                <div v-else class="block-icon-large"><i class="ri-disc-fill" /></div>
-                <div class="block-label">
-                  {{ dailyAlbum?.name || t('comp.modularHome.blocks.dailyAlbum') }}
-                </div>
-                <div v-if="!dailyAlbum" class="block-hint">
-                  {{ t('comp.modularHome.dailyAlbumDesc') }}
-                </div>
-              </template>
+            <!-- User -->
+            <template v-else-if="item.type === 'user'">
+              <div class="block-user-avatar-wrap">
+                <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="block-user-avatar" />
+                <div v-else class="block-user-placeholder"><i class="ri-user-3-fill" /></div>
+              </div>
+              <div class="block-label">{{ userNickname || t('comp.modularHome.blocks.user') }}</div>
+              <div v-if="!isLoggedIn" class="block-hint">
+                {{ t('comp.modularHome.loginToUnlock') }}
+              </div>
+            </template>
 
-              <!-- Static blocks -->
-              <template v-else>
-                <div class="block-icon-large"><i :class="meta[item.type].icon" /></div>
-                <div class="block-label">{{ t(meta[item.type].titleKey) }}</div>
-              </template>
+            <!-- Artists -->
+            <template v-else-if="item.type === 'artists'">
+              <div v-if="artists.length > 0" class="block-collage">
+                <img
+                  v-for="(artist, i) in artists.slice(0, 4)"
+                  :key="artist.id"
+                  :src="getImgUrl(artist.picUrl || artist.img1v1Url, '150y150')"
+                  alt=""
+                  class="collage-img"
+                  :style="{ animationDelay: `${i * 0.06}s` }"
+                />
+              </div>
+              <div v-else class="block-icon-large"><i class="ri-mic-fill" /></div>
+              <div class="block-label">{{ t('comp.homeHero.hotArtists') }}</div>
+            </template>
+
+            <!-- Playlists -->
+            <template v-else-if="item.type === 'playlists'">
+              <div v-if="playlists.length > 0" class="block-collage">
+                <img
+                  v-for="(pl, i) in playlists.slice(0, 4)"
+                  :key="i"
+                  :src="getImgUrl(pl.picUrl, '150y150')"
+                  alt=""
+                  class="collage-img"
+                  :style="{ animationDelay: `${i * 0.06}s` }"
+                />
+              </div>
+              <div v-else class="block-icon-large"><i class="ri-play-list-2-fill" /></div>
+              <div class="block-label">{{ t('comp.homeHero.hotPlaylists') }}</div>
+            </template>
+
+            <!-- Daily Album -->
+            <template v-else-if="item.type === 'daily-album'">
+              <div v-if="dailyAlbum" class="block-album-cover-wrap">
+                <img
+                  :src="getImgUrl(dailyAlbum.picUrl || dailyAlbum.album?.picUrl, '300y300')"
+                  alt=""
+                  class="block-album-cover"
+                />
+              </div>
+              <div v-else class="block-icon-large"><i class="ri-disc-fill" /></div>
+              <div class="block-label">
+                {{ dailyAlbum?.name || t('comp.modularHome.blocks.dailyAlbum') }}
+              </div>
+              <div v-if="!dailyAlbum" class="block-hint">
+                {{ t('comp.modularHome.dailyAlbumDesc') }}
+              </div>
+            </template>
+
+            <!-- Static blocks -->
+            <template v-else>
+              <div class="block-icon-large"><i :class="meta[item.type].icon" /></div>
+              <div class="block-label">{{ t(meta[item.type].titleKey) }}</div>
             </template>
           </div>
         </div>
@@ -728,65 +696,6 @@ const blockStyle = (item: LayoutItem) => {
   };
 };
 
-// ==================== Block Aspect Layouts ====================
-
-/** 1x2 竖长条 / 2x1 横宽条 / 正方形，各自使用独立布局而非简单拉伸 */
-const isTall = (item: LayoutItem) => item.h > item.w;
-const isWide = (item: LayoutItem) => item.w > item.h;
-
-const blockAspectClass = (item: LayoutItem) => {
-  if (isTall(item)) return 'blk-tall';
-  if (isWide(item)) return 'blk-wide';
-  return 'blk-square';
-};
-
-const blockInnerClass = (item: LayoutItem) => ({
-  'block-inner--tall': isTall(item),
-  'block-inner--wide': isWide(item),
-  'block-inner--square': !isTall(item) && !isWide(item)
-});
-
-/** 1x2 / 2x1 紧凑布局用的图片（优先真实图片，无图回退图标） */
-const blockMedia = (item: LayoutItem): string => {
-  switch (item.type) {
-    case 'user':
-      return avatarUrl.value;
-    case 'personal-fm':
-      return displayCover.value;
-    case 'artists':
-      return artists.value[0]
-        ? getImgUrl(artists.value[0].picUrl || artists.value[0].img1v1Url, '150y150')
-        : '';
-    case 'playlists':
-      return playlists.value[0] ? getImgUrl(playlists.value[0].picUrl, '150y150') : '';
-    case 'daily-album':
-      return dailyAlbum.value
-        ? getImgUrl(dailyAlbum.value.picUrl || dailyAlbum.value.album?.picUrl, '300y300')
-        : '';
-    default:
-      return '';
-  }
-};
-
-const blockTitle = (item: LayoutItem): string => {
-  switch (item.type) {
-    case 'daily-recommend':
-      return t('comp.homeHero.dailyRecommend');
-    case 'personal-fm':
-      return t('comp.homeHero.personalFm');
-    case 'user':
-      return userNickname.value || t('comp.modularHome.blocks.user');
-    case 'artists':
-      return t('comp.homeHero.hotArtists');
-    case 'playlists':
-      return t('comp.homeHero.hotPlaylists');
-    case 'daily-album':
-      return dailyAlbum.value?.name || t('comp.modularHome.blocks.dailyAlbum');
-    default:
-      return t(meta[item.type].titleKey);
-  }
-};
-
 // ==================== Persistence ====================
 
 const loadLayout = (): { cards: LayoutItem[]; blocks: LayoutItem[] } => {
@@ -966,14 +875,6 @@ const cardBgStyle = (type: BlockType) => {
     };
   }
   return { background: meta[type].gradient };
-};
-
-/** 1x2 / 2x1 胶囊卡片：背景与顶栏/底栏同源，避免高饱和渐变 */
-const blockBgStyle = (item: LayoutItem) => {
-  if (isTall(item) || isWide(item)) {
-    return { background: 'var(--cover-surface, rgba(20, 20, 22, 0.72))' };
-  }
-  return { background: meta[item.type].gradient };
 };
 
 const fetchFmSongs = async (retries = 3): Promise<any[]> => {
@@ -1568,7 +1469,7 @@ const onDocPointerMove = (e: PointerEvent) => {
       }
     }
   } else if (drag.source === 'grid' && drag.targetZone === 'grid') {
-    // 按指针所在网格单元计算目标位，拖动时其他模块实时避让（FLIP 动画）
+    // 按指针所在网格单元计算目标位，拖动时其他模块实时避让（WAAPI FLIP 动画）
     const grid = blockGridRef.value;
     if (!grid) return;
     const size = blockSize({ type: 'x' as any, w: 1, h: 1 } as LayoutItem);
@@ -1586,7 +1487,6 @@ const onDocPointerMove = (e: PointerEvent) => {
     blockItems.value.splice(cellIndex, 0, moved);
     saveLayout();
 
-    // 修正拖拽元素的起点，避免布局重排后位移突变
     const dragSelector = `[data-block-id="${drag.itemId}"]`;
     const draggedElement = document.querySelector(dragSelector) as HTMLElement | null;
     if (draggedElement) {
@@ -2024,9 +1924,8 @@ onBeforeUnmount(() => {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   touch-action: manipulation;
-  transition:
-    transform var(--m-duration-press, 90ms) var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
-    border-radius 0.35s var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  transition: transform var(--m-duration-press, 90ms)
+    var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   &:active:not(.edit-mode):not(.dragging) {
     transform: scale(0.98);
   }
@@ -2514,172 +2413,6 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   color: #fff;
 }
-
-/* 1x2 竖长条：居中的紧凑布局，不是原模块的纵向拉伸 */
-.block-inner--tall {
-  align-items: center;
-  text-align: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 8px;
-
-  .block-label {
-    font-size: 12px;
-    line-height: 1.25;
-  }
-  .block-icon-large {
-    font-size: 26px;
-  }
-  .block-mini-badge {
-    font-size: 9px;
-  }
-  .block-corner-icon {
-    display: none;
-  }
-  .block-hint {
-    display: none;
-  }
-  .block-fm-song {
-    display: none;
-  }
-  .action-btn {
-    bottom: 8px;
-    right: 8px;
-    width: 32px;
-    height: 32px;
-    font-size: 15px;
-  }
-}
-
-/* 2x1 横宽条：图标/封面居左、文字居右的横向布局 */
-.block-inner--wide {
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
-  padding: 8px 12px;
-
-  .block-label {
-    font-size: 13px;
-    line-height: 1.2;
-  }
-  .block-icon-large {
-    font-size: 28px;
-  }
-  .block-corner-icon {
-    display: none;
-  }
-  .block-hint {
-    display: none;
-  }
-  .block-daily-songs {
-    display: none;
-  }
-  .block-fm-song {
-    display: none;
-  }
-  .action-btn {
-    position: static;
-    margin-left: auto;
-    flex-shrink: 0;
-    width: 34px;
-    height: 34px;
-    font-size: 16px;
-  }
-}
-
-/* 1x2 / 2x1：卡片本体就是胶囊形状，背景与顶栏/底栏同源（不毛玻璃、不高饱和） */
-.block-item.blk-tall,
-.block-item.blk-wide {
-  border-radius: 999px;
-  border: 1px solid var(--cover-border, rgba(255, 255, 255, 0.08));
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-
-  .block-glow {
-    display: none;
-  }
-}
-
-.block-compact {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  height: 100%;
-  padding: 10px 12px;
-}
-
-/* 1x2 竖胶囊：图片固定在左侧 */
-.block-inner--tall .block-compact {
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  padding-left: 14px;
-  gap: 8px;
-}
-
-/* 2x1 横胶囊：整体居中 */
-.block-inner--wide .block-compact {
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-
-.block-compact-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  i {
-    font-size: 22px;
-    opacity: 0.92;
-  }
-}
-
-.block-compact-title {
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  color: var(--cover-text-primary, #fff);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
-}
-
-.block-inner--tall .block-compact-title {
-  max-width: 52px;
-}
-
-.block-compact-enter-active {
-  transition:
-    opacity 0.24s ease,
-    transform 0.32s var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
-}
-
-.block-compact-enter-from {
-  opacity: 0;
-  transform: scale(0.82) translateY(6px);
-}
-
 .block-label {
   font-size: 14px;
   font-weight: 600;

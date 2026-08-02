@@ -248,23 +248,34 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   background: var(--m-bg, var(--bg-color));
 }
 
-/* 全屏播放器过渡层：迷你播放栏快速延伸至全屏 / 关闭反向收缩 */
+/* 全屏播放器过渡层：迷你播放栏从底部放大铺满全屏，关闭反向收缩 */
 .player-full-layer {
   position: fixed;
   inset: 0;
   z-index: 9990;
-  transform: translateY(100%);
-  opacity: 0.96;
+  overflow: hidden;
+  transform-origin: 50% 100%;
+  transform: scale(0.16);
+  opacity: 0.92;
+  border-radius: 24px;
   pointer-events: none;
   transition:
-    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.22s ease;
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s ease,
+    border-radius 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .player-full-layer.player-full-open {
-  transform: translateY(0);
+  transform: scale(1);
   opacity: 1;
+  border-radius: 0;
   pointer-events: auto;
+}
+
+/* 播放器内容在层内由层统一缩放，禁用 n-drawer 自带的滑动过渡避免双重动画 */
+.player-full-layer :deep(.slide-in-from-bottom-transition-enter-active),
+.player-full-layer :deep(.slide-in-from-bottom-transition-leave-active) {
+  transition: none !important;
 }
 
 .mobile-content {

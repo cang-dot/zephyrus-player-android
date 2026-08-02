@@ -1560,7 +1560,8 @@ async function qqMusicApi(cookie, module, method, param = {}) {
 
 function normalizeQqPlaylist(item, uin, nickname) {
   return {
-    id: item.dirId ?? item.dirid ?? item.tid ?? item.id ?? item.disstid ?? 0,
+    // CgiGetDiss 需要用 tid（dirId 是系统分类，拉曲目会失败）
+    id: item.tid ?? item.dirId ?? item.dirid ?? item.id ?? item.disstid ?? 0,
     name: item.dirName ?? item.dir_name ?? item.name ?? item.title ?? '',
     coverImgUrl: item.picUrl ?? item.pic_url ?? item.coverImgUrl ?? item.coverUrl ?? '',
     trackCount: item.songNum ?? item.song_num ?? item.songnum ?? item.trackCount ?? 0,
@@ -1576,6 +1577,58 @@ function normalizeQqAlbum(item) {
     picUrl: item.picUrl ?? item.pic_url ?? item.coverUrl ?? '',
     size: item.songNum ?? item.song_num ?? item.songnum ?? item.total ?? 0,
     artist: { name: item.singerName ?? item.singer_name ?? item.singername ?? item.artist ?? '' }
+  };
+}
+
+function normalizeQqSong(item) {
+  const platformId = firstOwnValue(item, ['songmid', 'mid', 'song_id', 'songid']);
+  if (!platformId) return null;
+  const name = firstOwnValue(item, ['songname', 'name', 'title']);
+  if (!name) return null;
+  const rawSinger = rawOwnValue(item, ['singer', 'singers', 'artist']);
+  const artistNames = Array.isArray(rawSinger)
+    ? rawSinger
+        .map((artist) =>
+          typeof artist === 'string'
+            ? artist
+            : firstOwnValue(artist, ['name', 'singer_name', 'singername'])
+        )
+        .filter(Boolean)
+    : String(rawSinger || '')
+        .split(/[,，、/&|]/)
+        .map((artist) => artist.trim())
+        .filter(Boolean);
+  const albumMid =
+    firstOwnValue(item, ['albummid']) || firstDeepValue(item, ['albummid', 'album_mid']);
+  const albumName =
+    firstOwnValue(item, ['albumname']) || firstDeepValue(item, ['albumname', 'album_name']);
+  const album = {
+    id: albumMid || '0',
+    name: albumName || '未知专辑',
+    picUrl: albumMid
+      ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg`
+      : ''
+  };
+  const rawDuration = Number(firstOwnValue(item, ['interval', 'duration', 'dt']));
+  const duration = rawDuration > 0 && rawDuration < 1000 ? rawDuration * 1000 : rawDuration;
+  const artists = (artistNames.length ? artistNames : ['未知歌手']).map((artist, index) => ({
+    id: index,
+    name: artist
+  }));
+  return {
+    id: `qq:${platformId}`,
+    name,
+    picUrl: album.picUrl,
+    ar: artists,
+    artists,
+    al: album,
+    album,
+    count: 0,
+    dt: duration || 0,
+    duration: duration || 0,
+    platform: 'qq',
+    platformId: String(platformId),
+    source: 'qq'
   };
 }
 
@@ -1720,6 +1773,37 @@ router.get('/qq/account/data', async (req, res) => {
       history: []
     }
   });
+});
+
+// GET /platform/qq/playlist/tracks?id=xxx
+router.get('/qq/playlist/tracks', async (req, res) => {
+  const cookie = getPlatformCookieFromRequest(req);
+  const listId = String(req.query.id || req.query.listId || '').trim();
+  if (!listId) {
+    return res.status(400).json({ code: 400, msg: '缺少 QQ 歌单 ID' });
+  }
+  try {
+    const data = await qqSignedApi(cookie, 'music.srfDissInfo.DissInfo', 'CgiGetDiss', {
+      disstid: /^\d+$/.test(listId) ? Number(listId) : listId,
+      song_num: 200,
+      song_begin: 0,
+      userinfo: 1,
+      orderlist: 1
+    });
+    const songs = (data.songlist || []).map(normalizeQqSong).filter(Boolean);
+    return res.json({
+      code: 200,
+      data: {
+        playlist: { id: listId, platform: 'qq', trackCount: songs.length },
+        songs,
+        page: 1,
+        pageSize: songs.length
+      }
+    });
+  } catch (error) {
+    console.error('[platformLogin] QQ playlist tracks error:', error.message);
+    return res.status(502).json({ code: 502, msg: 'QQ 歌单加载失败，请稍后重试' });
+  }
 });
 
 // GET /platform/kugou/account/data
