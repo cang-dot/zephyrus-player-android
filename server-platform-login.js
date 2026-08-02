@@ -460,6 +460,85 @@ function createQQLoginFromCookie(cookie, loginData = {}) {
   };
 }
 
+/**
+ * 获取 QQ 音乐账号的真实昵称/头像（登录态接口优先，公开主页兜底）
+ */
+async function fetchQqUserInfo(cookie) {
+  const values = cookieMap(cookie);
+  const userId = normalizeQQUserId(values.uin || values.p_uin || values.ptui_loginuin || '');
+  if (!userId) return null;
+
+  // 1) 登录态接口（含昵称/头像/VIP）
+  const key = values.qm_keyst || values.qqmusic_key || values.p_skey || values.skey || '';
+  if (key) {
+    try {
+      const resp = await axios.post(
+        'https://u.y.qq.com/cgi-bin/musicu.fcg',
+        JSON.stringify({
+          comm: { g_tk: 5381, platform: 'yqq', ct: 24, cv: 0 },
+          req: {
+            module: 'music.UserInfo.userInfoServer',
+            method: 'GetLoginUserInfo',
+            param: {}
+          }
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': QQ_USER_AGENT,
+            Referer: 'https://y.qq.com/',
+            Cookie: cookie
+          },
+          timeout: 12000,
+          validateStatus: () => true
+        }
+      );
+      const data = resp.data?.req?.data || resp.data?.data;
+      const nickname =
+        firstDeepValue(data, ['nickname', 'nick', 'user_name']) ||
+        firstDeepValue(resp.data, ['nickname', 'nick', 'user_name']);
+      if (nickname) {
+        return {
+          nickname,
+          avatarUrl:
+            firstDeepValue(data, ['avatarUrl', 'avatar_url', 'headpic', 'head_pic']) || '',
+          vip: Boolean(firstDeepValue(data, ['vip', 'is_vip']))
+        };
+      }
+    } catch (error) {
+      console.warn('[platformLogin] QQ GetLoginUserInfo 失败，使用公开主页兜底:', error.message);
+    }
+  }
+
+  // 2) 公开主页兜底（仅需 uin）
+  try {
+    const profileResp = await axios.get(
+      'https://c6.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg',
+      {
+        params: { ct: 20, cv: 4747474, cid: 205360838, userid: userId },
+        headers: {
+          'User-Agent': QQ_USER_AGENT,
+          Referer: 'https://y.qq.com/'
+        },
+        timeout: 12000,
+        validateStatus: () => true
+      }
+    );
+    const creator = profileResp.data?.data?.creator;
+    if (creator?.nick) {
+      return {
+        nickname: creator.nick,
+        avatarUrl: creator.headpic || '',
+        vip: false
+      };
+    }
+  } catch (error) {
+    console.warn('[platformLogin] QQ 公开主页信息获取失败:', error.message);
+  }
+
+  return null;
+}
+
 async function completeQQLogin(redirectUrl, sessionCookie) {
   let redirect;
   try {
@@ -620,6 +699,18 @@ async function completeQQLogin(redirectUrl, sessionCookie) {
   const completedLogin = createQQLoginFromCookie(resultCookie, loginData);
   if (!completedLogin) {
     throw new Error('QQ 音乐登录密钥获取失败，请重新扫码');
+  }
+  // 登录成功后拉取真实昵称/头像
+  try {
+    const userInfo = await fetchQqUserInfo(completedLogin.cookie);
+    if (userInfo) {
+      completedLogin.userInfo = {
+        ...completedLogin.userInfo,
+        ...userInfo
+      };
+    }
+  } catch (error) {
+    console.warn('[platformLogin] QQ 用户信息补充失败:', error.message);
   }
   return completedLogin;
 }
@@ -1370,7 +1461,7 @@ function getPlatformCookieFromRequest(req) {
 }
 
 // GET /platform/qq/account/data
-router.get('/qq/account/data', (req, res) => {
+router.get('/qq/account/data', async (req, res) => {
   const cookie = getPlatformCookieFromRequest(req);
   const values = cookieMap(cookie);
   const userId = normalizeQQUserId(values.uin || values.p_uin || values.ptui_loginuin || '');
@@ -1380,16 +1471,30 @@ router.get('/qq/account/data', (req, res) => {
   }
 
   const avatarUin = userId.replace(/^o/i, '');
+  let nickname = values.nickname || values.nick || 'QQ音乐用户';
+  let avatarUrl = /^\d+$/.test(avatarUin)
+    ? `https://q1.qlogo.cn/g?b=qq&nk=${avatarUin}&s=100`
+    : '';
+  let vip = false;
+  try {
+    const userInfo = await fetchQqUserInfo(cookie);
+    if (userInfo) {
+      nickname = userInfo.nickname || nickname;
+      avatarUrl = userInfo.avatarUrl || avatarUrl;
+      vip = Boolean(userInfo.vip);
+    }
+  } catch (error) {
+    console.warn('[platformLogin] QQ 账号数据用户信息补充失败:', error.message);
+  }
+
   return res.json({
     code: 200,
     data: {
       userInfo: {
         userId,
-        nickname: values.nickname || values.nick || 'QQ音乐用户',
-        avatarUrl: /^\d+$/.test(avatarUin)
-          ? `https://q1.qlogo.cn/g?b=qq&nk=${avatarUin}&s=100`
-          : '',
-        vip: false
+        nickname,
+        avatarUrl,
+        vip
       },
       playlists: [],
       favorites: [],

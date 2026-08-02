@@ -448,6 +448,94 @@ function createQQLoginFromCookie(cookie: string, loginData: any = {}): QQLoginCo
   };
 }
 
+/**
+ * 获取 QQ 音乐账号的真实昵称/头像（登录态接口优先，公开主页兜底）
+ */
+async function fetchQqUserInfo(cookie: string): Promise<{
+  nickname: string;
+  avatarUrl: string;
+  vip: boolean;
+} | null> {
+  const values = cookieMap(cookie);
+  const userId = normalizeQQUserId(values.uin || values.p_uin || values.ptui_loginuin || '');
+  if (!userId) return null;
+
+  const key = values.qm_keyst || values.qqmusic_key || values.p_skey || values.skey || '';
+  if (key) {
+    try {
+      const response = await fetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': QQ_USER_AGENT,
+          Referer: 'https://y.qq.com/',
+          Cookie: cookie
+        },
+        body: JSON.stringify({
+          comm: { g_tk: 5381, platform: 'yqq', ct: 24, cv: 0 },
+          req: {
+            module: 'music.UserInfo.userInfoServer',
+            method: 'GetLoginUserInfo',
+            param: {}
+          }
+        })
+      });
+      const text = await response.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        // 响应非 JSON 时走公开主页兜底
+      }
+      const data = json.req?.data || json.data;
+      const nickname =
+        firstDeepValue(data, ['nickname', 'nick', 'user_name']) ||
+        firstDeepValue(json, ['nickname', 'nick', 'user_name']);
+      if (nickname) {
+        return {
+          nickname,
+          avatarUrl:
+            firstDeepValue(data, ['avatarUrl', 'avatar_url', 'headpic', 'head_pic']) || '',
+          vip: Boolean(firstDeepValue(data, ['vip', 'is_vip']))
+        };
+      }
+    } catch (error: any) {
+      console.warn('[platformLogin] QQ GetLoginUserInfo 失败，使用公开主页兜底:', error.message);
+    }
+  }
+
+  try {
+    const params = new URLSearchParams({
+      ct: '20',
+      cv: '4747474',
+      cid: '205360838',
+      userid: userId
+    });
+    const response = await fetch(
+      `https://c6.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg?${params.toString()}`,
+      {
+        headers: {
+          'User-Agent': QQ_USER_AGENT,
+          Referer: 'https://y.qq.com/'
+        }
+      }
+    );
+    const json: any = await response.json();
+    const creator = json?.data?.creator;
+    if (creator?.nick) {
+      return {
+        nickname: creator.nick,
+        avatarUrl: creator.headpic || '',
+        vip: false
+      };
+    }
+  } catch (error: any) {
+    console.warn('[platformLogin] QQ 公开主页信息获取失败:', error.message);
+  }
+
+  return null;
+}
+
 async function completeQQLogin(
   redirectUrl: string,
   sessionCookie: string
@@ -611,6 +699,18 @@ async function completeQQLogin(
   const completedLogin = createQQLoginFromCookie(resultCookie, loginData);
   if (!completedLogin) {
     throw new Error('QQ 音乐登录密钥获取失败，请重新扫码');
+  }
+  // 登录成功后拉取真实昵称/头像
+  try {
+    const userInfo = await fetchQqUserInfo(completedLogin.cookie);
+    if (userInfo) {
+      completedLogin.userInfo = {
+        ...completedLogin.userInfo,
+        ...userInfo
+      };
+    }
+  } catch (error: any) {
+    console.warn('[platformLogin] QQ 用户信息补充失败:', error.message);
   }
   return completedLogin;
 }

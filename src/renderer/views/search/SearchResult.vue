@@ -254,6 +254,8 @@ import { useRoute, useRouter } from 'vue-router';
 
 import { crossPlatformSearch } from '@/api/crossPlatformSearch';
 import { getSearch } from '@/api/search';
+import { rankSearchResults, searchServerSongs, serverSongToSongResult } from '@/api/serverSongs';
+import { openSpotifyTrack } from '@/api/spotify';
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SearchItem from '@/components/common/SearchItem.vue';
@@ -459,6 +461,8 @@ const loadSearch = async (isLoadMore = false) => {
       searchDetail.value.djRadios = [...(searchDetail.value.djRadios || []), ...djRadios];
     } else {
       searchDetail.value = { songs, albums, mvs, playlists, djRadios };
+      // 第一页统一按匹配度排序（云端/跨平台补充结果稍后合并时也会重新排序）
+      searchDetail.value.songs = rankSearchResults(searchDetail.value.songs, keywords);
     }
 
     // 对新加载的歌曲触发来源探测（仅单曲类型）
@@ -471,6 +475,7 @@ const loadSearch = async (isLoadMore = false) => {
     // 跨平台搜索结果会异步合并进来，去重逻辑保证不重复
     if (searchType.value === SEARCH_TYPE.MUSIC && !isLoadMore) {
       triggerCrossPlatformSearch(keywords, songs);
+      triggerServerSearch(keywords);
     }
 
     hasMore.value =
@@ -630,6 +635,34 @@ const probeSources = (songs: any[]) => {
   );
 };
 
+const getSongIdentity = (song: any): string => {
+  const artists = (song.ar || song.artists || []).map((artist: any) => artist.name || artist);
+  return `${song.name || ''}|${artists.join(',')}`.toLowerCase();
+};
+
+const mergeSupplementalSongs = (songs: SongResult[]) => {
+  if (!searchDetail.value || songs.length === 0) return;
+
+  const existing = searchDetail.value.songs || [];
+  const existingKeys = new Set(existing.map(getSongIdentity));
+  const deduped = songs.filter((song) => !existingKeys.has(getSongIdentity(song)));
+  if (deduped.length === 0) return;
+
+  searchDetail.value.songs = [...existing, ...deduped];
+  searchDetail.value.songs = rankSearchResults(searchDetail.value.songs, currentKeyword.value);
+  probeSources(deduped);
+  sourceLabelVersion.value++;
+};
+
+const triggerServerSearch = async (keyword: string) => {
+  try {
+    const serverSongs = await searchServerSongs(keyword, 20);
+    mergeSupplementalSongs(serverSongs.map(serverSongToSongResult));
+  } catch (error) {
+    console.error('[ServerSongs] 搜索失败:', error);
+  }
+};
+
 /**
  * 触发跨平台补充搜索
  * 当网易云搜索结果不足时，调用 GD 音乐台 joox 音源搜索 QQ 独占内容
@@ -642,15 +675,7 @@ const triggerCrossPlatformSearch = async (keyword: string, neteaseSongs: any[]) 
 
     const crossResults = await crossPlatformSearch(keyword, existingSongs);
 
-    if (crossResults.length > 0 && searchDetail.value) {
-      // 合并跨平台结果到歌曲列表
-      searchDetail.value.songs = [...(searchDetail.value.songs || []), ...crossResults];
-
-      // 对跨平台歌曲触发来源标注（即时分类，无需网络探测）
-      probeSources(crossResults);
-
-      sourceLabelVersion.value++;
-    }
+    mergeSupplementalSongs(crossResults);
   } catch (error) {
     console.error(t('search.crossSearch.failed'), error);
   } finally {
@@ -659,6 +684,10 @@ const triggerCrossPlatformSearch = async (keyword: string, neteaseSongs: any[]) 
 };
 
 const handlePlay = (item: any) => {
+  if (item?.platform === 'spotify' && item.externalUrl) {
+    openSpotifyTrack(item.externalUrl);
+    return;
+  }
   const songs = (searchDetail.value?.songs || []).map(formatSong);
   const selectedSong = songs.find((song) => song.id === item.id) || item;
 
@@ -668,7 +697,9 @@ const handlePlay = (item: any) => {
 
 const handlePlayAll = () => {
   if (!searchDetail.value?.songs?.length) return;
-  const songs = searchDetail.value.songs.map(formatSong);
+  const songs = searchDetail.value.songs
+    .map(formatSong)
+    .filter((song: any) => song?.platform !== 'spotify');
   confirmPlaylistReplace(() => {
     playerStore.setPlayList(songs);
     if (songs[0]) {

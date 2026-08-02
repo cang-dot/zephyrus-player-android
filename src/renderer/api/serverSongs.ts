@@ -152,6 +152,35 @@ function scoreText(value: string, query: string, rawQuery: string): number {
   return Number.POSITIVE_INFINITY;
 }
 
+/**
+ * 统一的模糊匹配评分（越小越匹配），供搜索结果整体排序使用
+ */
+export function fuzzyScoreText(value: string, rawQuery: string): number {
+  const trimmed = String(rawQuery || '').trim();
+  if (!value || !trimmed) return Number.POSITIVE_INFINITY;
+  return scoreText(value, normalizeSearchText(trimmed), trimmed);
+}
+
+/**
+ * 把搜索结果按“与搜索词的匹配度”重新排序（稳定排序，等分保持原顺序）
+ */
+export function rankSearchResults(songs: SongResult[], keyword: string): SongResult[] {
+  const trimmed = String(keyword || '').trim();
+  if (!trimmed || !songs?.length) return songs;
+  return songs
+    .map((song, index) => {
+      const name = song.name || '';
+      const artistNames = (song.ar || song.artists || [])
+        .map((artist: any) => artist.name || '')
+        .join(' ');
+      const albumName = song.al?.name || (song as any).album?.name || '';
+      const score = fuzzyScoreText(`${name} ${artistNames} ${albumName}`, trimmed);
+      return { song, index, score };
+    })
+    .sort((left, right) => left.score - right.score || left.index - right.index)
+    .map((item) => item.song);
+}
+
 function scoreServerSong(song: ServerSong, query: string, rawQuery: string): number {
   const candidates = [
     { value: song.name, weight: 0 },

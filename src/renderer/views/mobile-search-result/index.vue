@@ -125,7 +125,13 @@ import { useRoute, useRouter } from 'vue-router';
 
 import { crossPlatformSearch } from '@/api/crossPlatformSearch';
 import { getSearch } from '@/api/search';
-import { searchServerSongs, type ServerSong } from '@/api/serverSongs';
+import {
+  rankSearchResults,
+  searchServerSongs,
+  type ServerSong,
+  serverSongToSongResult
+} from '@/api/serverSongs';
+import { openSpotifyTrack } from '@/api/spotify';
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
@@ -139,7 +145,7 @@ import {
 } from '@/services/sourceProbeService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSearchStore } from '@/store/modules/search';
-import type { Artist, SongResult } from '@/types/music';
+import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 
 const { t, locale } = useI18n();
@@ -266,6 +272,7 @@ const performSearch = async (isLoadMore = false) => {
         results.value = [...results.value, ...songs];
       } else {
         results.value = songs;
+        results.value = rankSearchResults(results.value, keyword.value);
         classifySongs(songs);
       }
 
@@ -439,6 +446,7 @@ const triggerCrossSearch = async (kw: string, neteaseSongs: any[]) => {
     const crossResults = await crossPlatformSearch(kw, existingSongs);
     if (crossResults.length > 0) {
       results.value = [...results.value, ...crossResults];
+      results.value = rankSearchResults(results.value, keyword.value);
       classifySongs(crossResults);
     }
   } catch (e) {
@@ -452,65 +460,7 @@ const triggerCrossSearch = async (kw: string, neteaseSongs: any[]) => {
  * 将 ServerSong 转换为 SongResult 格式
  */
 function convertServerSongToSongResult(s: ServerSong): SongResult {
-  const artists: Artist[] = s.artists.map((name, idx) => ({
-    name,
-    id: idx,
-    picId: 0,
-    img1v1Id: 0,
-    briefDesc: '',
-    picUrl: '',
-    img1v1Url: '',
-    albumSize: 0,
-    alias: [],
-    trans: '',
-    musicSize: 0,
-    topicPerson: 0
-  }));
-
-  const album = {
-    name: s.album || '',
-    id: 0,
-    type: '',
-    size: 0,
-    picId: 0,
-    blurPicUrl: '',
-    companyId: 0,
-    pic: 0,
-    picUrl: s.picUrl || '',
-    publishTime: 0,
-    description: '',
-    tags: '',
-    company: '',
-    briefDesc: '',
-    artist: artists[0] || ({} as Artist),
-    songs: [],
-    alias: [],
-    status: 0,
-    copyrightId: 0,
-    commentThreadId: '',
-    artists,
-    subType: '',
-    transName: null,
-    onSale: false,
-    mark: 0,
-    picId_str: ''
-  };
-
-  return {
-    id: `server:${s.id}`,
-    name: s.name,
-    picUrl: s.picUrl,
-    ar: artists,
-    artists,
-    al: album,
-    album,
-    count: s.duration,
-    dt: s.duration,
-    platform: 'server',
-    platformId: s.id,
-    playMusicUrl: s.audioUrl,
-    source: 'netease' as any
-  };
+  return serverSongToSongResult(s);
 }
 
 // Zephyrus 云端歌曲搜索
@@ -537,6 +487,7 @@ const triggerServerSearch = async (kw: string, existingSongs: any[]) => {
 
     if (deduped.length > 0) {
       results.value = [...results.value, ...deduped];
+      results.value = rankSearchResults(results.value, keyword.value);
       classifySongs(deduped);
     }
   } catch (e) {
@@ -574,6 +525,10 @@ const handleScroll = (e: Event) => {
 
 // 播放音乐
 const handlePlay = (item: any) => {
+  if (item?.platform === 'spotify' && item.externalUrl) {
+    openSpotifyTrack(item.externalUrl);
+    return;
+  }
   playerStore.setPlayList(filteredResults.value);
   playerStore.setPlay(item);
 };
