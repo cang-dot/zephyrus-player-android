@@ -54,6 +54,9 @@ const CACHE_EXPIRE_TIME = 1000 * 60 * 10; // 10分钟过期
 // 请求配置
 const REQUEST_TIMEOUT = 2000; // 2秒超时
 
+// 服务器直连的发布信息（国内可达性最好，且可返回服务器直链）
+const SERVER_RELEASE_INFO_URL = 'https://mucang.xyz/zephyrus/apks/latest.json';
+
 /**
  * 从缓存获取代理节点
  */
@@ -127,6 +130,18 @@ export const getProxyNodes = async (): Promise<string[]> => {
  */
 export const getLatestReleaseInfo = async (): Promise<GithubReleaseInfo | null> => {
   try {
+    // 0) 服务器直连优先：国内网络稳定，且确保下载走服务器直链
+    try {
+      const serverResp = await axios.get<GithubReleaseInfo>(SERVER_RELEASE_INFO_URL, {
+        timeout: 5000
+      });
+      if (serverResp.data?.tag_name) {
+        return serverResp.data;
+      }
+    } catch (error) {
+      console.warn('服务器更新信息获取失败，回退 GitHub:', error);
+    }
+
     const token = import.meta.env.VITE_GITHUB_TOKEN;
     const headers = {};
     // 构建 API URL 列表
