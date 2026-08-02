@@ -4,7 +4,7 @@
     class="mobile-play-bar"
     :class="[
       setAnimationClass('animate__fadeInUp'),
-      playerStore.musicFull ? 'play-bar-expanded' : 'play-bar-mini',
+      isExpanded ? 'play-bar-expanded' : 'play-bar-mini',
       shouldShowMobileMenu ? 'is-menu-show' : 'is-menu-hide',
       isCompactNav && shouldShowMobileMenu ? 'compact-nav' : ''
     ]"
@@ -19,7 +19,7 @@
     }"
   >
     <!-- 迷你模式 - musicFull 为 false 时显示 -->
-    <div v-if="!playerStore.musicFull" class="mobile-mini-controls">
+    <div v-if="!isExpanded" class="mobile-mini-controls">
       <!-- 歌曲信息 -->
       <div class="mini-song-info" @click="setMusicFull">
         <n-image
@@ -83,42 +83,92 @@ const settingsStore = useSettingsStore();
 const play = computed(() => playerStore.isPlay);
 // 全屏播放器背景色（跟随当前歌曲封面主色）
 const background = ref('#000');
+// 播放器开合状态：关闭时延迟到缩小动画结束再恢复迷你形态
+const isExpanded = ref(false);
 
-// 播放器开合形变动画：动画加在迷你播放栏本体上，
-// 结束后移除类避免 transform 残留产生 containing block（否则播放内容错位/点击失效）
-let morphAnimationEndHandler: (() => void) | null = null;
+// 播放器开合形变动画：用 WAAPI 直接动画迷你播放栏本体，
+// fill:none 结束后不残留 transform（残留会形成 containing block，导致内容错位/点击失效）
+let morphFallbackTimer: number | null = null;
 
-const clearMorphAnimation = () => {
-  if (morphAnimationEndHandler) {
-    playBarRef.value?.removeEventListener('animationend', morphAnimationEndHandler);
-    morphAnimationEndHandler = null;
+const clearMorphFallback = () => {
+  if (morphFallbackTimer) {
+    window.clearTimeout(morphFallbackTimer);
+    morphFallbackTimer = null;
   }
-  playBarRef.value?.classList.remove('play-bar-morphing', 'play-bar-morphing-leave');
 };
 
 const onPlayerEnter = (_el: Element, done: () => void) => {
-  clearMorphAnimation();
+  clearMorphFallback();
+  isExpanded.value = true;
   const bar = playBarRef.value;
   if (!bar) return done();
-  morphAnimationEndHandler = () => {
-    clearMorphAnimation();
-    done();
-  };
-  bar.addEventListener('animationend', morphAnimationEndHandler, { once: true });
-  bar.classList.add('play-bar-morphing');
+  bar.animate(
+    [
+      {
+        transform: 'scale(0.18)',
+        opacity: 0.92,
+        borderRadius: '24px',
+        offset: 0
+      },
+      {
+        transform: 'scale(1)',
+        opacity: 1,
+        borderRadius: '0px',
+        offset: 1
+      }
+    ],
+    {
+      duration: 340,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      fill: 'none'
+    }
+  );
+  done();
 };
 
 const onPlayerLeave = (_el: Element, done: () => void) => {
-  clearMorphAnimation();
+  clearMorphFallback();
   const bar = playBarRef.value;
   if (!bar) return done();
-  morphAnimationEndHandler = () => {
-    clearMorphAnimation();
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    clearMorphFallback();
+    isExpanded.value = false;
     done();
   };
-  bar.addEventListener('animationend', morphAnimationEndHandler, { once: true });
-  bar.classList.add('play-bar-morphing-leave');
+  const animation = bar.animate(
+    [
+      {
+        transform: 'scale(1)',
+        opacity: 1,
+        borderRadius: '0px',
+        offset: 0
+      },
+      {
+        transform: 'scale(0.18)',
+        opacity: 0.92,
+        borderRadius: '24px',
+        offset: 1
+      }
+    ],
+    {
+      duration: 300,
+      easing: 'cubic-bezier(0.55, 0, 0.55, 0.2)',
+      fill: 'both'
+    }
+  );
+  animation.onfinish = finish;
+  morphFallbackTimer = window.setTimeout(finish, 400);
 };
+
+watch(
+  () => playerStore.musicFull,
+  (visible) => {
+    if (visible) isExpanded.value = true;
+  }
+);
 
 // 播放控制
 function handleNext() {
@@ -492,42 +542,6 @@ onMounted(() => {
   z-index: 100001;
   background: transparent;
   pointer-events: auto;
-}
-
-.mobile-play-bar.play-bar-morphing {
-  animation: playerExpand 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
-  transform-origin: 50% 100%;
-}
-
-.mobile-play-bar.play-bar-morphing-leave {
-  animation: playerShrink 0.3s cubic-bezier(0.55, 0, 0.55, 0.2) both;
-  transform-origin: 50% 100%;
-}
-
-@keyframes playerExpand {
-  from {
-    transform: scale(0.18);
-    opacity: 0.92;
-    border-radius: 24px;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-    border-radius: 0;
-  }
-}
-
-@keyframes playerShrink {
-  from {
-    transform: scale(1);
-    opacity: 1;
-    border-radius: 0;
-  }
-  to {
-    transform: scale(0.18);
-    opacity: 0.92;
-    border-radius: 24px;
-  }
 }
 
 /* 默认样式 n-drawer 的自带滑入会与形变动画冲突，进入侧禁用；退出侧保留兜底 */
