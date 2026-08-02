@@ -6,15 +6,11 @@
  */
 
 import { defineStore } from 'pinia';
-import { computed,ref } from 'vue';
+import { computed, ref } from 'vue';
 
-import {
-  type ClimaxSegment,
-  loadClimaxForSong,
-  normalizeClimaxSegments
-} from '@/api/climax';
-import { type CommunityLyric,loadCommunityLyricForSong } from '@/api/communityLyric';
-import { type KeywordMark,loadKeywordsForSong } from '@/api/keywords';
+import { type ClimaxSegment, loadClimaxForSong, normalizeClimaxSegments } from '@/api/climax';
+import { type CommunityLyric, loadCommunityLyricForSong } from '@/api/communityLyric';
+import { type KeywordMark, loadKeywordsForSong } from '@/api/keywords';
 import { isLocalSong } from '@/hooks/useLocalMusic';
 import {
   getClimaxCache,
@@ -23,7 +19,8 @@ import {
   getLocalClimax,
   saveClimaxCache,
   saveCommunityLyricCache,
-  saveKeywordsCache} from '@/services/cacheService';
+  saveKeywordsCache
+} from '@/services/cacheService';
 
 export const useCommunityDataStore = defineStore('communityData', () => {
   // ==================== State ====================
@@ -88,8 +85,8 @@ export const useCommunityDataStore = defineStore('communityData', () => {
         let songDuration = currentSong?.dt || currentSong?.duration;
         let serverSegments = currentSong?.climaxSegments;
 
-        // 云端歌曲的高潮时段只取 songs.json 里标注的 climax，
-        // 歌曲对象里已经带上了归一化后的标注时段。
+        // 云端歌曲的高潮时段只信任“标注的时段”：
+        // 优先取社区标注（编辑器/应用内标记，支持多段），没有社区标注时回退 songs.json。
         if (!serverSegments?.length) {
           const [{ getServerSongDetail }] = await Promise.all([import('@/api/serverSongs')]);
           const detail = await getServerSongDetail(platformId);
@@ -97,8 +94,25 @@ export const useCommunityDataStore = defineStore('communityData', () => {
           songDuration = detail.duration;
         }
 
+        // 先用云端歌曲的原始 id 查社区标注，再试带 server: 前缀的完整 id
+        const communityResult = await loadClimaxForSong(platformId);
+        if (!communityResult.segments.length && songId !== platformId) {
+          const fullIdResult = await loadClimaxForSong(songId);
+          if (fullIdResult.segments.length) {
+            communityResult.segments = fullIdResult.segments;
+            communityResult.contributor = fullIdResult.contributor;
+          }
+        }
+        if (communityResult.segments.length) {
+          serverSegments = communityResult.segments;
+        }
+
         climaxSegments.value = normalizeClimaxSegments(serverSegments, songDuration);
-        climaxContributor.value = climaxSegments.value.length ? 'Zephyrus 云端' : null;
+        climaxContributor.value = climaxSegments.value.length
+          ? communityResult.segments.length
+            ? communityResult.contributor || 'Zephyrus 云端'
+            : 'Zephyrus 云端'
+          : null;
         return;
       }
 
@@ -217,13 +231,15 @@ export const useCommunityDataStore = defineStore('communityData', () => {
    */
   function getKeywordsForLine(lineIndex: number) {
     if (!keywordMark.value) return [];
-    const line = keywordMark.value.lines.find(l => l.lineIndex === lineIndex);
+    const line = keywordMark.value.lines.find((l) => l.lineIndex === lineIndex);
     return line?.words ?? [];
   }
 
   // ==================== Computed ====================
   const hasClimax = computed(() => climaxSegments.value.length > 0);
-  const hasKeywords = computed(() => keywordMark.value !== null && keywordMark.value.lines.length > 0);
+  const hasKeywords = computed(
+    () => keywordMark.value !== null && keywordMark.value.lines.length > 0
+  );
   const hasCommunityLyric = computed(() => communityLyric.value !== null);
 
   return {

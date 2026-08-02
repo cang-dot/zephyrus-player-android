@@ -81,6 +81,10 @@ function mergeCookieParts(...cookieSources) {
     for (const part of cookiePartsFromString(source)) {
       const separatorIndex = part.indexOf('=');
       if (separatorIndex > 0) {
+        // QQ 常用同名空值 Cookie（如 p_skey=; Expires=...）清除旧值，
+        // 跳过空值避免覆盖刚拿到的真实 Cookie。
+        const value = part.slice(separatorIndex + 1);
+        if (!value) continue;
         cookies.set(part.slice(0, separatorIndex), part);
       }
     }
@@ -350,8 +354,7 @@ router.get('/spotify/search', async (req, res) => {
       album: track.album?.name || '',
       duration: Number(track.duration_ms) || 0,
       picUrl: track.album?.images?.[0]?.url || '',
-      externalUrl:
-        track.external_urls?.spotify || `https://open.spotify.com/track/${track.id}`
+      externalUrl: track.external_urls?.spotify || `https://open.spotify.com/track/${track.id}`
     }));
     return res.json({ code: 200, data: { tracks } });
   } catch (error) {
@@ -404,7 +407,9 @@ function extractQQOAuthCode(response) {
     for (let attempt = 0; attempt < 3; attempt++) {
       const queryMatch = text.match(/[?&#](?:code|auth_code)=([^&#"'\\\s]+)/i);
       if (queryMatch?.[1]) return decodeURIComponent(queryMatch[1]);
-      const bodyMatch = text.match(/(?:["']|\\)?(?:code|auth_code)(?:["']|\\)?\s*[:=]\s*(?:["']|\\)?([^&"'\\\s,}]+)/i);
+      const bodyMatch = text.match(
+        /(?:["']|\\)?(?:code|auth_code)(?:["']|\\)?\s*[:=]\s*(?:["']|\\)?([^&"'\\\s,}]+)/i
+      );
       if (bodyMatch?.[1]) return decodeURIComponent(bodyMatch[1]);
       try {
         const decoded = decodeURIComponent(text);
@@ -501,10 +506,7 @@ async function completeQQLogin(redirectUrl, sessionCookie) {
   }
 
   const checkSigSetCookie = setCookiesFromHeader(checkSigResponse.headers['set-cookie']).join('; ');
-  let graphCookie = mergeCookieParts(
-    sessionCookie,
-    checkSigSetCookie
-  );
+  let graphCookie = mergeCookieParts(sessionCookie, checkSigSetCookie);
 
   // check_sig 必须返回 p_skey，否则后续 OAuth 授权必然失败。
   const checkSigCookies = cookieMap(graphCookie);
@@ -1766,6 +1768,7 @@ module.exports.normalizeKugouSongs = normalizeKugouSongs;
 module.exports.normalizeKugouUserInfo = normalizeKugouUserInfo;
 module.exports.readQqSession = readQqSession;
 module.exports.deleteQqSession = deleteQqSession;
+module.exports.mergeCookieParts = mergeCookieParts;
 module.exports.extractQQOAuthCode = extractQQOAuthCode;
 
 if (require.main === module) {

@@ -7,11 +7,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
-import {
-  type ClimaxSegment,
-  loadClimaxForSong,
-  normalizeClimaxSegments
-} from '@/api/climax';
+import { type ClimaxSegment, loadClimaxForSong, normalizeClimaxSegments } from '@/api/climax';
 import { isLocalSong } from '@/hooks/useLocalMusic';
 import { getLocalClimax } from '@/services/cacheService';
 
@@ -48,8 +44,8 @@ export const useClimaxStore = defineStore('climax', () => {
         let songDuration = song?.dt || song?.duration;
         let serverSegments = song?.climaxSegments;
 
-        // 云端歌曲的高潮时段只取 songs.json 里标注的 climax，
-        // 歌曲对象里已经带上了归一化后的标注时段。
+        // 云端歌曲的高潮时段只信任“标注的时段”：
+        // 优先取社区标注（编辑器/应用内标记，支持多段），没有社区标注时回退 songs.json。
         if (!serverSegments?.length) {
           const { getServerSongDetail } = await import('@/api/serverSongs');
           const detail = await getServerSongDetail(platformId);
@@ -57,8 +53,25 @@ export const useClimaxStore = defineStore('climax', () => {
           songDuration = detail.duration;
         }
 
+        // 先用云端歌曲的原始 id 查社区标注，再试带 server: 前缀的完整 id
+        const communityResult = await loadClimaxForSong(platformId);
+        if (!communityResult.segments.length && songId !== platformId) {
+          const fullIdResult = await loadClimaxForSong(songId);
+          if (fullIdResult.segments.length) {
+            communityResult.segments = fullIdResult.segments;
+            communityResult.contributor = fullIdResult.contributor;
+          }
+        }
+        if (communityResult.segments.length) {
+          serverSegments = communityResult.segments;
+        }
+
         segments.value = normalizeClimaxSegments(serverSegments, songDuration);
-        contributor.value = segments.value.length ? 'Zephyrus 云端' : null;
+        contributor.value = segments.value.length
+          ? communityResult.segments.length
+            ? communityResult.contributor || 'Zephyrus 云端'
+            : 'Zephyrus 云端'
+          : null;
         return;
       }
 
@@ -127,6 +140,6 @@ export const useClimaxStore = defineStore('climax', () => {
     isTimeInClimax,
     getCurrentSegment,
     clear,
-    updateSegments,
+    updateSegments
   };
 });

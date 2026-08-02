@@ -305,6 +305,10 @@ function mergeCookieParts(...cookieSources: string[]): string {
     for (const part of cookiePartsFromString(source)) {
       const separatorIndex = part.indexOf('=');
       if (separatorIndex > 0) {
+        // QQ 常用同名空值 Cookie（如 p_skey=; Expires=...）清除旧值，
+        // 跳过空值避免覆盖刚拿到的真实 Cookie。
+        const value = part.slice(separatorIndex + 1);
+        if (!value) continue;
         cookies.set(part.slice(0, separatorIndex), part);
       }
     }
@@ -376,11 +380,15 @@ function normalizeQQUserId(value: unknown): string {
 function extractQQOAuthCode(location: string, body: string): string {
   const values = [location, body];
   for (const value of values) {
-    let text = String(value || '').replace(/&amp;/gi, '&').replace(/\\u0026/gi, '&');
+    let text = String(value || '')
+      .replace(/&amp;/gi, '&')
+      .replace(/\\u0026/gi, '&');
     for (let attempt = 0; attempt < 3; attempt++) {
       const queryMatch = text.match(/[?&#](?:code|auth_code)=([^&#"'\\\s]+)/i);
       if (queryMatch?.[1]) return decodeURIComponent(queryMatch[1]);
-      const bodyMatch = text.match(/(?:["']|\\)?(?:code|auth_code)(?:["']|\\)?\s*[:=]\s*(?:["']|\\)?([^&"'\\\s,}]+)/i);
+      const bodyMatch = text.match(
+        /(?:["']|\\)?(?:code|auth_code)(?:["']|\\)?\s*[:=]\s*(?:["']|\\)?([^&"'\\\s,}]+)/i
+      );
       if (bodyMatch?.[1]) return decodeURIComponent(bodyMatch[1]);
       try {
         const decoded = decodeURIComponent(text);
@@ -486,13 +494,10 @@ async function completeQQLogin(
   if (checkSigResponse.status >= 400) {
     throw new Error(`QQ check_sig 请求被拒绝 (${checkSigResponse.status})`);
   }
-  const checkSigSetCookie = setCookiesFromHeader(checkSigResponse.headers.raw()['set-cookie'] || []).join(
-    '; '
-  );
-  let graphCookie = mergeCookieParts(
-    sessionCookie,
-    checkSigSetCookie
-  );
+  const checkSigSetCookie = setCookiesFromHeader(
+    checkSigResponse.headers.raw()['set-cookie'] || []
+  ).join('; ');
+  let graphCookie = mergeCookieParts(sessionCookie, checkSigSetCookie);
 
   // check_sig 必须返回 p_skey，否则后续 OAuth 授权必然失败。
   const checkSigCookies = cookieMap(graphCookie);
@@ -552,9 +557,7 @@ async function completeQQLogin(
   if (!oauthCode) {
     const fallbackLogin = createQQLoginFromCookie(graphCookie);
     if (fallbackLogin) return fallbackLogin;
-    const bodyPreview = String(authorizeBodyText)
-      .replace(/\s+/g, ' ')
-      .slice(0, 200);
+    const bodyPreview = String(authorizeBodyText).replace(/\s+/g, ' ').slice(0, 200);
     throw new Error(
       `QQ OAuth 授权码获取失败 (status=${authorizeResponse.status}, ` +
         `location=${location.slice(0, 200) || '<empty>'}, body=${bodyPreview || '<empty>'})，请重新扫码`
