@@ -577,5 +577,22 @@ export default {
       downloading: '下载中',
       installing: '安装中...'
     }
+  },
+  keepAlive: {
+    title: '后台保活',
+    desc: '管理后台运行与系统权限，让音乐持续播放',
+    audioFocus: '后台保活',
+    audioFocusDesc: '保持音频焦点，尽量不被其他应用的录音/音频/视频播放打断',
+    batteryOptimization: '电池优化',
+    batteryOptimizationDesc: '忽略电池优化，防止后台播放被系统限制',
+    autoStart: '自启动管理',
+    autoStartDesc: '允许应用开机自启动（部分机型需要）',
+    notification: '通知权限',
+    notificationDesc: '允许显示媒体通知与播放控制',
+    displayOverOtherApps: '后台弹出界面',
+    displayOverOtherAppsDesc: '允许在后台弹出界面（部分机型需要）',
+    appDetails: '应用详情',
+    appDetailsDesc: '打开应用详情页查看/修改全部权限',
+    tips: '提示：不同品牌机型对后台限制不同，建议同时允许自启动并忽略电池优化。'
   }
 };

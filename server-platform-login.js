@@ -1460,6 +1460,75 @@ function getPlatformCookieFromRequest(req) {
   return Array.isArray(value) ? value[0] || '' : String(value || '').trim();
 }
 
+// ==================== QQ 音乐签名版业务接口（参照 QQMusicApi-nodejs） ====================
+
+const QQ_SIGN_PART1_INDEXES = [21, 4, 9, 26, 16, 20, 27, 30];
+const QQ_SIGN_PART2_INDEXES = [18, 11, 3, 2, 1, 7, 6, 25];
+const QQ_SIGN_SCRAMBLE = [
+  21, 4, 9, 26, 16, 20, 27, 30, 18, 11, 3, 2, 1, 7, 6, 25, 13, 22, 19, 14
+];
+
+function zzcSign(data) {
+  const hash = crypto
+    .createHash('sha1')
+    .update(JSON.stringify(data))
+    .digest('hex')
+    .toUpperCase();
+
+  let part1 = '';
+  for (const i of QQ_SIGN_PART1_INDEXES) {
+    if (i < hash.length) part1 += hash[i];
+  }
+  let part2 = '';
+  for (const i of QQ_SIGN_PART2_INDEXES) {
+    if (i < hash.length) part2 += hash[i];
+  }
+
+  const part3Buffer = Buffer.alloc(20);
+  for (let i = 0; i < QQ_SIGN_SCRAMBLE.length && i * 2 + 1 < hash.length; i++) {
+    const hexValue = parseInt(hash.substring(i * 2, i * 2 + 2), 16);
+    part3Buffer[i] = QQ_SIGN_SCRAMBLE[i] ^ hexValue;
+  }
+  const b64Part = part3Buffer.toString('base64').replace(/[\/\\+=]/g, '');
+  return `zzc${part1}${b64Part}${part2}`.toLowerCase();
+}
+
+/**
+ * 签名版 QQ 音乐 API（musics.fcg + zzc sign），与 guowenye/QQMusicApi-nodejs 一致
+ */
+async function qqSignedApi(cookie, module, method, param = {}) {
+  const comm = {
+    ct: '11',
+    cv: '13.2.5.8',
+    v: '13.2.5.8',
+    tmeAppID: 'qqmusic',
+    format: 'json',
+    inCharset: 'utf-8',
+    outCharset: 'utf-8'
+  };
+  const requestKey = `${module}.${method}`;
+  const payload = { comm, [requestKey]: { module, method, param } };
+
+  const resp = await axios.post('https://u.y.qq.com/cgi-bin/musics.fcg', payload, {
+    params: { sign: zzcSign(payload) },
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': QQ_USER_AGENT,
+      Referer: 'https://y.qq.com/',
+      Origin: 'https://y.qq.com',
+      Cookie: cookie
+    },
+    timeout: 15000,
+    validateStatus: () => true
+  });
+
+  const item = resp.data?.[requestKey] || resp.data?.req || resp.data;
+  if (item && Number(item.code) !== 0) {
+    throw new Error(`QQ 签名接口 ${requestKey} 返回错误码 ${item.code}`);
+  }
+  return item?.data || resp.data?.data || {};
+}
+
 /**
  * QQ 音乐 musicu.fcg 业务接口调用
  */
@@ -1509,6 +1578,16 @@ function normalizeQqAlbum(item) {
   };
 }
 
+function pickQqList(data, keys) {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== 'object') return [];
+  for (const key of keys) {
+    const value = data[key];
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
+
 /**
  * 拉取 QQ 音乐的创建歌单、收藏歌单、收藏专辑
  */
@@ -1539,28 +1618,52 @@ async function fetchQqAccountCollections(cookie) {
     : { uin: String(uin), offset: 0, size: 100 };
 
   const [createdData, favPlaylistData, favAlbumData] = await Promise.allSettled([
-    qqMusicApi(cookie, 'music.musicasset.PlaylistBaseRead', 'GetPlaylistByUin', {
+    qqSignedApi(cookie, 'music.musicasset.PlaylistBaseRead', 'GetPlaylistByUin', {
       uin: String(uin)
     }),
-    qqMusicApi(cookie, 'music.musicasset.PlaylistFavRead', 'CgiGetPlaylistFavInfo', {
+    qqSignedApi(cookie, 'music.musicasset.PlaylistFavRead', 'CgiGetPlaylistFavInfo', {
       uin: String(uin),
       offset: 0,
       size: 100
     }),
-    qqMusicApi(cookie, 'music.musicasset.AlbumFavRead', 'CgiGetAlbumFavInfo', albumParam)
+    qqSignedApi(cookie, 'music.musicasset.AlbumFavRead', 'CgiGetAlbumFavInfo', albumParam)
   ]);
 
-  const playlists = (createdData.status === 'fulfilled' ? createdData.value.v_playlist : [])
-    .map((item) => normalizeQqPlaylist(item, uin, nickname))
-    .filter((item) => item.id);
-  const favorites = (
-    favPlaylistData.status === 'fulfilled' ? favPlaylistData.value.v_playlist : []
+  for (const [label, result] of [
+    ['created', createdData],
+    ['favPlaylists', favPlaylistData],
+    ['favAlbums', favAlbumData]
+  ]) {
+    if (result.status === 'rejected') {
+      console.error(`[platformLogin] QQ 拉取${label}失败:`, result.reason?.message);
+    }
+  }
+
+  const playlists = (
+    createdData.status === 'fulfilled'
+      ? pickQqList(createdData.value, ['v_playlist', 'playlist', 'list', 'data'])
+      : []
   )
     .map((item) => normalizeQqPlaylist(item, uin, nickname))
     .filter((item) => item.id);
-  const albums = (favAlbumData.status === 'fulfilled' ? favAlbumData.value.v_album : [])
+  const favorites = (
+    favPlaylistData.status === 'fulfilled'
+      ? pickQqList(favPlaylistData.value, ['v_playlist', 'playlist', 'list', 'data'])
+      : []
+  )
+    .map((item) => normalizeQqPlaylist(item, uin, nickname))
+    .filter((item) => item.id);
+  const albums = (
+    favAlbumData.status === 'fulfilled'
+      ? pickQqList(favAlbumData.value, ['v_album', 'album', 'albumlist', 'list', 'data'])
+      : []
+  )
     .map(normalizeQqAlbum)
     .filter((item) => item.id);
+
+  console.log(
+    `[platformLogin] QQ 账号数据: 创建歌单=${playlists.length} 收藏歌单=${favorites.length} 收藏专辑=${albums.length}`
+  );
 
   return { playlists, favorites, albums };
 }

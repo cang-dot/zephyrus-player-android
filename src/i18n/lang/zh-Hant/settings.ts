@@ -566,5 +566,22 @@ export default {
       downloading: '下載中',
       installing: '安裝中...'
     }
+  },
+  keepAlive: {
+    title: '背景保活',
+    desc: '管理背景執行與系統權限，讓音樂持續播放',
+    audioFocus: '背景保活',
+    audioFocusDesc: '保持音訊焦點，盡量不被其他 App 的錄音/音訊/影片播放打斷',
+    batteryOptimization: '電池最佳化',
+    batteryOptimizationDesc: '忽略電池最佳化，避免背景播放被系統限制',
+    autoStart: '自啟動管理',
+    autoStartDesc: '允許應用程式開機自啟動（部分機型需要）',
+    notification: '通知權限',
+    notificationDesc: '允許顯示媒體通知與播放控制',
+    displayOverOtherApps: '背景彈出介面',
+    displayOverOtherAppsDesc: '允許在背景彈出介面（部分機型需要）',
+    appDetails: '應用程式詳情',
+    appDetailsDesc: '開啟應用程式詳情頁檢視/修改全部權限',
+    tips: '提示：不同品牌機型對背景限制不同，建議同時允許自啟動並忽略電池最佳化。'
   }
 };

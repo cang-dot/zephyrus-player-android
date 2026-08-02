@@ -6,7 +6,7 @@
       setAnimationClass('animate__fadeInUp'),
       playerStore.musicFull ? 'play-bar-expanded' : 'play-bar-mini',
       shouldShowMobileMenu ? 'is-menu-show' : 'is-menu-hide',
-      (isCompactNav && shouldShowMobileMenu) ? 'compact-nav' : ''
+      isCompactNav && shouldShowMobileMenu ? 'compact-nav' : ''
     ]"
     :style="{
       color: playerStore.musicFull
@@ -50,13 +50,6 @@
         <i class="iconfont icon-list mini-list-icon" @click="openPlayListDrawer"></i>
       </div>
     </div>
-
-    <!-- 全屏播放器 -->
-    <music-full-wrapper
-      ref="MusicFullRef"
-      v-model="playerStore.musicFull"
-      :background="background"
-    />
   </div>
 </template>
 
@@ -65,7 +58,6 @@ import { useSwipe } from '@vueuse/core';
 import type { Ref } from 'vue';
 import { computed, inject, onMounted, ref, watch } from 'vue';
 
-import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
@@ -79,8 +71,6 @@ const settingsStore = useSettingsStore();
 
 // 是否播放
 const play = computed(() => playerStore.isPlay);
-// 背景颜色
-const background = ref('#000');
 
 // 播放控制
 function handleNext() {
@@ -90,9 +80,6 @@ function handleNext() {
 function handlePrev() {
   playerStore.prevPlay();
 }
-
-// 全屏播放器引用
-const MusicFullRef = ref<any>(null);
 
 // 设置 musicFull
 const setMusicFull = () => {
@@ -137,14 +124,6 @@ onMounted(() => {
     });
   }
 });
-
-watch(
-  () => playerStore.playMusic,
-  async () => {
-    background.value = playMusic.value.backgroundColor as string;
-  },
-  { immediate: true, deep: true }
-);
 </script>
 
 <style lang="scss" scoped>
@@ -153,11 +132,12 @@ watch(
   z-index: 100000;
   animation-duration: 0.3s !important;
   /* 统一弹簧过渡 — 位置、宽度、高度、边距全部平滑形变，不创建新对象 */
-  transition: bottom 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-              left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-              width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-              max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-              min-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    bottom 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    min-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
   &.is-menu-show {
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 60px);
@@ -282,12 +262,13 @@ watch(
     @apply flex items-center justify-between pr-4 mx-3 h-12 rounded-full shadow-lg;
     background: var(--m-surface, #eae6df);
     /* 内部元素形变过渡 — 与外层同步 */
-    transition: margin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-                height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-                padding 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-                gap 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-                background 0.5s ease,
-                border 0.5s ease;
+    transition:
+      margin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+      height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+      padding 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+      gap 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+      background 0.5s ease,
+      border 0.5s ease;
 
     .mini-song-info {
       @apply flex items-center flex-1 min-w-0 cursor-pointer;
@@ -296,14 +277,17 @@ watch(
       .mini-song-cover {
         @apply w-12 h-12 rounded-full;
         border: 8px solid var(--m-surface-alt, #e0dbd3);
-        transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-                    height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-                    border-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        transition:
+          width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+          height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+          border-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
       }
 
       .mini-song-text {
         @apply ml-3 min-w-0 flex-1 flex items-center;
-        transition: opacity 0.3s ease, max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        transition:
+          opacity 0.3s ease,
+          max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
         overflow: hidden;
 
         .mini-song-title {
@@ -327,9 +311,10 @@ watch(
 
         &.play {
           @apply w-9 h-9 rounded-full flex items-center justify-center mr-2;
-          transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-                      height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-                      margin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+          transition:
+            width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+            height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+            margin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
           .iconfont {
             @apply text-xl transition;
@@ -364,64 +349,64 @@ watch(
     padding: 0 !important;
   }
 
-    /* 直接复制 .mobile-glow-nav 的样式参数 */
-    &.compact-nav .mobile-mini-controls {
-      margin: 0 !important;
-      width: 100%;
-      /* 底栏高度 = padding(4+4) + item(36px) + border(1+1) = 46px */
-      height: 46px;
-      /* 直接复制底栏的 padding */
-      padding: 4px 6px;
-      gap: 2px;
-      justify-content: center !important;
-      /* 直接复制 .mobile-glow-nav 的视觉参数 */
-      border-radius: 9999px;
-      background: var(--cover-surface, rgba(20, 20, 22, 0.72));
-      backdrop-filter: blur(28px) saturate(180%);
-      -webkit-backdrop-filter: blur(28px) saturate(180%);
-      border: 1px solid var(--cover-border, rgba(255, 255, 255, 0.08));
-      box-shadow:
-        0 6px 24px rgba(0, 0, 0, 0.25),
-        0 1px 4px rgba(0, 0, 0, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    }
-
-    /* 紧凑模式隐藏歌名文字（通过 opacity+max-width 平滑过渡） */
-    &.compact-nav .mobile-mini-controls .mini-song-info .mini-song-text {
-      opacity: 0;
-      max-width: 0;
-      margin-left: 0 !important;
-      pointer-events: none;
-    }
-
-    &.compact-nav .mobile-mini-controls .mini-song-info {
-      flex: 0 0 auto !important;
-    }
-
-    &.compact-nav .mobile-mini-controls .mini-song-info .mini-song-cover {
-      width: 36px !important;
-      height: 36px !important;
-      border-width: 3px !important;
-      border-color: var(--cover-border, rgba(255, 255, 255, 0.08)) !important;
-    }
-
-    &.compact-nav .mobile-mini-controls .mini-playback-controls .mini-control-btn.play {
-      width: 36px !important;
-      height: 36px !important;
-      margin-right: 0 !important;
-    }
-
-    &.compact-nav .mobile-mini-controls .mini-playback-controls .mini-control-btn.play .iconfont {
-      font-size: 18px !important;
-      color: var(--accent-color, #fff) !important;
-    }
-
-    &.compact-nav .mobile-mini-controls .mini-playback-controls .mini-list-icon {
-      font-size: 18px !important;
-      padding: 4px !important;
-      color: var(--cover-text-muted, rgba(255, 255, 255, 0.5)) !important;
-    }
+  /* 直接复制 .mobile-glow-nav 的样式参数 */
+  &.compact-nav .mobile-mini-controls {
+    margin: 0 !important;
+    width: 100%;
+    /* 底栏高度 = padding(4+4) + item(36px) + border(1+1) = 46px */
+    height: 46px;
+    /* 直接复制底栏的 padding */
+    padding: 4px 6px;
+    gap: 2px;
+    justify-content: center !important;
+    /* 直接复制 .mobile-glow-nav 的视觉参数 */
+    border-radius: 9999px;
+    background: var(--cover-surface, rgba(20, 20, 22, 0.72));
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid var(--cover-border, rgba(255, 255, 255, 0.08));
+    box-shadow:
+      0 6px 24px rgba(0, 0, 0, 0.25),
+      0 1px 4px rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
+
+  /* 紧凑模式隐藏歌名文字（通过 opacity+max-width 平滑过渡） */
+  &.compact-nav .mobile-mini-controls .mini-song-info .mini-song-text {
+    opacity: 0;
+    max-width: 0;
+    margin-left: 0 !important;
+    pointer-events: none;
+  }
+
+  &.compact-nav .mobile-mini-controls .mini-song-info {
+    flex: 0 0 auto !important;
+  }
+
+  &.compact-nav .mobile-mini-controls .mini-song-info .mini-song-cover {
+    width: 36px !important;
+    height: 36px !important;
+    border-width: 3px !important;
+    border-color: var(--cover-border, rgba(255, 255, 255, 0.08)) !important;
+  }
+
+  &.compact-nav .mobile-mini-controls .mini-playback-controls .mini-control-btn.play {
+    width: 36px !important;
+    height: 36px !important;
+    margin-right: 0 !important;
+  }
+
+  &.compact-nav .mobile-mini-controls .mini-playback-controls .mini-control-btn.play .iconfont {
+    font-size: 18px !important;
+    color: var(--accent-color, #fff) !important;
+  }
+
+  &.compact-nav .mobile-mini-controls .mini-playback-controls .mini-list-icon {
+    font-size: 18px !important;
+    padding: 4px !important;
+    color: var(--cover-text-muted, rgba(255, 255, 255, 0.5)) !important;
+  }
+}
 
 .mobile-play-list-container {
   height: 60vh;

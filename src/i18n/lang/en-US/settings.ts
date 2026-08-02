@@ -581,5 +581,22 @@ export default {
       downloading: 'Downloading',
       installing: 'Installing...'
     }
+  },
+  keepAlive: {
+    title: 'Background Keep-alive',
+    desc: 'Manage background running and system permissions so music keeps playing',
+    audioFocus: 'Background Keep-alive',
+    audioFocusDesc: 'Hold audio focus so playback is less likely to be interrupted by other apps',
+    batteryOptimization: 'Battery optimization',
+    batteryOptimizationDesc: 'Ignore battery optimization to keep background playback',
+    autoStart: 'Auto start',
+    autoStartDesc: 'Allow the app to start at boot (some devices require this)',
+    notification: 'Notifications',
+    notificationDesc: 'Allow media notifications and playback controls',
+    displayOverOtherApps: 'Display over other apps',
+    displayOverOtherAppsDesc: 'Allow showing over other apps (some devices require this)',
+    appDetails: 'App details',
+    appDetailsDesc: 'Open app details to view or change all permissions',
+    tips: 'Tip: background restrictions vary by device; enable auto-start and ignore battery optimization.'
   }
 };

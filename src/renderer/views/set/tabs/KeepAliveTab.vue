@@ -9,6 +9,18 @@
     </div>
 
     <div class="keep-alive-list">
+      <!-- 后台保活（音频焦点保持） -->
+      <div class="keep-alive-item keep-alive-item--switch">
+        <div class="item-icon-wrap">
+          <i class="ri-headphone-line" />
+        </div>
+        <div class="item-content">
+          <div class="item-title">{{ t('settings.keepAlive.audioFocus') }}</div>
+          <div class="item-desc">{{ t('settings.keepAlive.audioFocusDesc') }}</div>
+        </div>
+        <n-switch v-model:value="setData.backgroundKeepAlive" size="small" />
+      </div>
+
       <!-- 电池优化 -->
       <div class="keep-alive-item" @click="handleBatteryOptimization">
         <div class="item-icon-wrap">
@@ -78,6 +90,7 @@
 </template>
 
 <script setup lang="ts">
+import { inject } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import {
@@ -87,8 +100,10 @@ import {
   openDisplayOverOtherAppsSettings,
   openNotificationSettings
 } from '@/services/androidNative';
+import { SETTINGS_DATA_KEY } from '@/views/set/keys';
 
 const { t } = useI18n();
+const setData = inject(SETTINGS_DATA_KEY)!;
 
 const handleBatteryOptimization = () => {
   openBatteryOptimizationSettings();

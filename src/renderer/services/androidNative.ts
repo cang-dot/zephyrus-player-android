@@ -203,6 +203,18 @@ export function openDisplayOverOtherAppsSettings() {
   }
 }
 
+/**
+ * 设置后台保活（音频焦点保持）
+ */
+export function setBackgroundKeepAlive(enabled: boolean) {
+  if (!isAndroidNative()) return;
+  try {
+    window.AndroidNative!.setBackgroundKeepAlive(Boolean(enabled));
+  } catch (e) {
+    console.warn('[NativeBridge] 设置后台保活失败:', e);
+  }
+}
+
 // ==================== 返回手势处理（基于 history API）====================
 //
 // 原理：
@@ -450,6 +462,15 @@ export function initNativeBridge() {
 
     // 9. 显示初始空闲通知（常驻通知，确保通知不间歇性失效）
     showIdleMusicNotification();
+
+    // 10. 后台保活：初始化时同步一次，并监听设置变化
+    setBackgroundKeepAlive(Boolean(settingsStore.setData?.backgroundKeepAlive));
+    watch(
+      () => settingsStore.setData?.backgroundKeepAlive,
+      (enabled) => {
+        setBackgroundKeepAlive(Boolean(enabled));
+      }
+    );
 
     console.log('[NativeBridge] 原生桥接已初始化');
   } catch (e) {

@@ -10,7 +10,7 @@
     <mobile-header />
 
     <!-- 共享悬浮卡片 — 所有页面复用同一元素 -->
-    <FloatingHeroCard />
+    <floating-hero-card />
 
     <!-- 主内容区域（铺满全屏，顶栏透明叠加） -->
     <div
@@ -29,9 +29,20 @@
     <!-- 底部播放条 -->
     <mobile-play-bar v-if="isPlay" />
 
+    <!-- 全屏播放器过渡层：迷你播放栏快速延伸至全屏 / 关闭反向收缩 -->
+    <Transition name="player-full">
+      <div v-if="playerStore.musicFull" class="player-full-layer">
+        <music-full-wrapper v-model="playerStore.musicFull" :background="fullPlayerBackground" />
+      </div>
+    </Transition>
+
     <!-- 底部导航菜单 — glow-menu 浮动风格 -->
     <Transition name="glow-nav-in">
-      <div v-if="shouldShowBottomMenu" class="mobile-glow-nav-wrap" :class="{ 'compact-mode': isCompactNav }">
+      <div
+        v-if="shouldShowBottomMenu"
+        class="mobile-glow-nav-wrap"
+        :class="{ 'compact-mode': isCompactNav }"
+      >
         <div class="mobile-glow-nav-glow" :style="{ background: navGlowStyle }" />
         <div class="mobile-glow-nav">
           <router-link
@@ -41,11 +52,16 @@
             class="glow-nav-item"
             :class="{ active: isActive(item.path) }"
           >
-            <div class="glow-item-radial" :style="isActive(item.path) ? { background: activeGlowStyle } : {}" />
+            <div
+              class="glow-item-radial"
+              :style="isActive(item.path) ? { background: activeGlowStyle } : {}"
+            />
             <div class="glow-item-content">
               <i class="iconfont glow-item-icon" :class="item.meta.icon" />
               <Transition name="label-pop">
-                <span v-if="isActive(item.path)" class="glow-item-label">{{ t(item.meta.title) }}</span>
+                <span v-if="isActive(item.path)" class="glow-item-label">{{
+                  t(item.meta.title)
+                }}</span>
               </Transition>
             </div>
           </router-link>
@@ -64,17 +80,20 @@ import { computed, defineAsyncComponent, onMounted, provide, ref, watch } from '
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 
+import { useHeroCard } from '@/composables/useHeroCard';
 import homeRouter from '@/router/home';
 import otherRouter from '@/router/other';
-import { useHeroCard } from '@/composables/useHeroCard';
 import { useMenuStore } from '@/store/modules/menu';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import type { SongResult } from '@/types/music';
 
-import MobileHeader from './components/MobileHeader.vue';
 import FloatingHeroCard from './components/FloatingHeroCard.vue';
+import MobileHeader from './components/MobileHeader.vue';
 const MobilePlayBar = defineAsyncComponent(() => import('@/components/player/MobilePlayBar.vue'));
+const MusicFullWrapper = defineAsyncComponent(
+  () => import('@/components/lyric/MusicFullWrapper.vue')
+);
 const PlayingListDrawer = defineAsyncComponent(
   () => import('@/components/player/PlayingListDrawer.vue')
 );
@@ -90,6 +109,16 @@ const menuStore = useMenuStore();
 const settingsStore = useSettingsStore();
 const { t } = useI18n();
 const { hideHeroCard } = useHeroCard();
+
+// 全屏播放器背景色（跟随当前歌曲封面主色）
+const fullPlayerBackground = ref('#000');
+watch(
+  () => playerStore.playMusic,
+  (song) => {
+    fullPlayerBackground.value = song?.backgroundColor || '#000';
+  },
+  { immediate: true, deep: true }
+);
 
 // 底栏布局模式：default | compact
 const navLayoutMode = computed(() => settingsStore.setData?.bottomNavLayout || 'default');
@@ -222,6 +251,26 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   background: var(--m-bg, var(--bg-color));
 }
 
+/* 全屏播放器过渡层：迷你播放栏快速延伸至全屏 / 关闭反向收缩 */
+.player-full-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+}
+
+.player-full-enter-active,
+.player-full-leave-active {
+  transition:
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s ease;
+}
+
+.player-full-enter-from,
+.player-full-leave-to {
+  transform: translateY(100%);
+  opacity: 0.96;
+}
+
 .mobile-content {
   @apply flex-1 overflow-auto;
   height: 100%;
@@ -257,11 +306,12 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   align-items: center;
   gap: 0;
   /* 紧凑模式切换：通过 left/right/transform/width 的弹簧过渡实现位置移动，不创建新元素 */
-  transition: left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-              right 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-              transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-              width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-              max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    right 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* 外层径向辉光 — 动态强调色 */
@@ -309,9 +359,10 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
-  transition: padding 0.45s $spring,
-              min-width 0.45s $spring,
-              transform 0.3s $spring;
+  transition:
+    padding 0.45s $spring,
+    min-width 0.45s $spring,
+    transform 0.3s $spring;
 
   &:active {
     transform: scale(0.88);
@@ -331,8 +382,9 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   border-radius: 9999px;
   opacity: 0;
   transform: scale(0.6);
-  transition: opacity 0.4s $spring-smooth,
-              transform 0.5s $spring;
+  transition:
+    opacity 0.4s $spring-smooth,
+    transform 0.5s $spring;
   pointer-events: none;
 }
 
@@ -356,8 +408,9 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 .glow-item-icon {
   font-size: 19px;
   color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
-  transition: color 0.35s $spring-smooth,
-              transform 0.45s $spring;
+  transition:
+    color 0.35s $spring-smooth,
+    transform 0.45s $spring;
 }
 
 /* 选中态：图标弹跳放大 + 强调色 */
@@ -383,14 +436,16 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* 文字弹入弹出动画 */
 .label-pop-enter-active {
-  transition: opacity 0.35s $spring-smooth,
-              transform 0.45s $spring,
-              max-width 0.45s $spring;
+  transition:
+    opacity 0.35s $spring-smooth,
+    transform 0.45s $spring,
+    max-width 0.45s $spring;
 }
 .label-pop-leave-active {
-  transition: opacity 0.2s ease,
-              transform 0.25s $spring-smooth,
-              max-width 0.25s $spring-smooth;
+  transition:
+    opacity 0.2s ease,
+    transform 0.25s $spring-smooth,
+    max-width 0.25s $spring-smooth;
 }
 .label-pop-enter-from {
   opacity: 0;
@@ -405,11 +460,14 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* Glow nav 入场动画 */
 .glow-nav-in-enter-active {
-  transition: opacity 0.4s $spring-smooth,
-              transform 0.5s $spring;
+  transition:
+    opacity 0.4s $spring-smooth,
+    transform 0.5s $spring;
 }
 .glow-nav-in-leave-active {
-  transition: opacity 0.25s ease, transform 0.3s $spring-smooth;
+  transition:
+    opacity 0.25s ease,
+    transform 0.3s $spring-smooth;
 }
 .glow-nav-in-enter-from {
   opacity: 0;
@@ -422,12 +480,14 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* Apple-style page transition: 弹簧曲线 */
 .page-fade-enter-active {
-  transition: opacity 0.35s $spring-smooth,
-              transform 0.5s $spring;
+  transition:
+    opacity 0.35s $spring-smooth,
+    transform 0.5s $spring;
 }
 .page-fade-leave-active {
-  transition: opacity 0.25s $spring-smooth,
-              transform 0.3s $spring-smooth;
+  transition:
+    opacity 0.25s $spring-smooth,
+    transform 0.3s $spring-smooth;
 }
 
 .page-fade-enter-from {

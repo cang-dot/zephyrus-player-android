@@ -573,5 +573,22 @@ export default {
       downloading: 'ダウンロード中',
       installing: 'インストール中...'
     }
+  },
+  keepAlive: {
+    title: 'バックグラウンド維持',
+    desc: 'バックグラウンド動作と権限を管理し、音楽を再生し続けます',
+    audioFocus: 'バックグラウンド維持',
+    audioFocusDesc: 'オーディオフォーカスを保持し、他のアプリの録音・再生による中断を抑えます',
+    batteryOptimization: 'バッテリー最適化',
+    batteryOptimizationDesc: 'バッテリー最適化を無視してバックグラウンド再生を維持',
+    autoStart: '自動起動',
+    autoStartDesc: '端末起動時の自動起動を許可（一部端末で必要）',
+    notification: '通知',
+    notificationDesc: 'メディア通知と再生コントロールを許可',
+    displayOverOtherApps: '他アプリの上に表示',
+    displayOverOtherAppsDesc: 'バックグラウンドでオーバーレイ表示を許可（一部端末で必要）',
+    appDetails: 'アプリ情報',
+    appDetailsDesc: 'アプリ情報を開いて権限を確認・変更',
+    tips: '端末ごとにバックグラウンド制限が異なります。自動起動とバッテリー最適化の無視も推奨します。'
   }
 };

@@ -2595,10 +2595,21 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+/* 1x2 竖长条：图片固定在左侧，胶囊大圆角容器 */
+.block-inner--tall .block-compact {
+  align-items: flex-start;
+  justify-content: center;
+  text-align: left;
+}
+
+.block-inner--tall .block-compact .block-compact-label {
+  text-align: left;
+}
+
 .block-media-pill {
   width: 52px;
   height: 52px;
-  border-radius: 50%;
+  border-radius: 999px;
   overflow: hidden;
   flex-shrink: 0;
   display: flex;

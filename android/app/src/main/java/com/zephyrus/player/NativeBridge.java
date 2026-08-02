@@ -807,6 +807,23 @@ public class NativeBridge {
     }
 
     /**
+     * 设置后台保活（音频焦点保持）
+     * 开启后播放服务会持续持有音频焦点，尽量避免被其他应用的录音/音频/视频播放阻断
+     */
+    @JavascriptInterface
+    public void setBackgroundKeepAlive(boolean enabled) {
+        try {
+            activity.getSharedPreferences("zephyrus_prefs", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .putBoolean("background_keep_alive", enabled)
+                    .apply();
+            MusicPlaybackService.setKeepAliveEnabled(enabled);
+        } catch (Exception e) {
+            Log.e("NativeBridge", "setBackgroundKeepAlive error", e);
+        }
+    }
+
+    /**
      * 尝试打开自启动管理页（各厂商不同）
      */
     @JavascriptInterface

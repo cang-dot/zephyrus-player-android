@@ -574,5 +574,22 @@ export default {
       downloading: '다운로드 중',
       installing: '설치 중...'
     }
+  },
+  keepAlive: {
+    title: '백그라운드 유지',
+    desc: '백그라운드 실행과 시스템 권한을 관리하여 음악이 계속 재생되게 합니다',
+    audioFocus: '백그라운드 유지',
+    audioFocusDesc: '오디오 포커스를 유지하여 다른 앱의 녹음/재생에 의한 중단을 줄입니다',
+    batteryOptimization: '배터리 최적화',
+    batteryOptimizationDesc: '배터리 최적화를 무시하여 백그라운드 재생 유지',
+    autoStart: '자동 시작',
+    autoStartDesc: '기기 부팅 시 자동 시작 허용 (일부 기기 필요)',
+    notification: '알림',
+    notificationDesc: '미디어 알림 및 재생 컨트롤 허용',
+    displayOverOtherApps: '다른 앱 위에 표시',
+    displayOverOtherAppsDesc: '백그라운드에서 오버레이 표시 허용 (일부 기기 필요)',
+    appDetails: '앱 정보',
+    appDetailsDesc: '앱 정보를 열어 모든 권한 확인/변경',
+    tips: '기기별 백그라운드 제한이 다르므로 자동 시작과 배터리 최적화 무시도 권장합니다.'
   }
 };

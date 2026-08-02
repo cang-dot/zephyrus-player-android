@@ -39,6 +39,7 @@
   "diskCacheDir": "",
   "diskCacheMaxSizeMB": 4096,
   "diskCacheCleanupPolicy": "lru",
+  "backgroundKeepAlive": false,
   "sidebarItems": {
     "order": ["/", "/search", "/list", "/album", "/toplist", "/podcast", "/history", "/local-music", "/user", "/set"],
     "hidden": []
