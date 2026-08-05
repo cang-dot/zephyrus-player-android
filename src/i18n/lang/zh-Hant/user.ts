@@ -50,5 +50,10 @@ platforms: '平台帳號'
     loadFailed: '載入使用者頁面失敗',
     deleteSuccess: '刪除成功',
     deleteFailed: '刪除失敗'
+  },
+  accountSwitcher: {
+    title: '切換帳號',
+    addAccount: '新增帳號',
+    close: '關閉'
   }
 };

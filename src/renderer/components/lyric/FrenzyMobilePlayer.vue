@@ -13,6 +13,19 @@
         @touchstart="onSwipeCloseTouchStart"
         @touchend="onSwipeCloseTouchEnd"
       >
+        <!-- CRT 故障背景层 -->
+        <glitch-background
+          baseColor="#f5f5f5"
+          accentColor="#d0d0d0"
+          :intensity="glitchIntensity"
+          :crtIntensity="crtIntensity"
+          :speed="0.8"
+          :showScanlines="true"
+        />
+
+        <!-- 高潮过渡闪光 -->
+        <div class="climax-flash" :style="climaxFlashStyle"></div>
+
         <!-- 四角装饰圆点 -->
         <div class="corner-dot tl"></div>
         <div class="corner-dot tr"></div>
@@ -100,8 +113,9 @@
  * - 四角圆点装饰
  * - 音频响应：鼓点时字号脉冲/颜色切换
  */
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
+import GlitchBackground from '@/components/lyric/GlitchBackground.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
@@ -112,6 +126,7 @@ import { useTapToggle } from '@/composables/useTapToggle';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
+import { drumDetector } from '@/services/drumDetector';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { secondToMinute } from '@/utils';
@@ -165,6 +180,121 @@ onMounted(() => {
   if (playerStore.currentSong?.id) {
     styleEngine.loadClimaxData(String(playerStore.currentSong.id));
   }
+});
+
+// ==================== 鼓点检测 ====================
+const beatSpike = ref(0);
+let spikeTimer: ReturnType<typeof setTimeout> | null = null;
+const SPIKE_DURATION = 120;
+
+onMounted(() => {
+  const unsubscribe = drumDetector.onBeat((info) => {
+    const spikeAmount = info.isStrong ? 0.45 : 0.25;
+    beatSpike.value = spikeAmount * (0.6 + info.kickEnergy * 0.4);
+
+    if (spikeTimer) clearTimeout(spikeTimer);
+    spikeTimer = setTimeout(() => {
+      beatSpike.value = 0;
+    }, SPIKE_DURATION);
+  });
+
+  onUnmounted(() => {
+    unsubscribe();
+    if (spikeTimer) clearTimeout(spikeTimer);
+  });
+});
+
+// ==================== 故障强度 ====================
+const glitchIntensity = computed(() => {
+  const baseIntensity = 0.15;
+  const energyBoost = styleEngine.energyLevel * 0.15;
+  const climaxBoost = styleEngine.isInClimax ? 0.3 : 0;
+  const base = Math.min(1.0, baseIntensity + energyBoost + climaxBoost);
+  const spike = styleEngine.isInClimax ? beatSpike.value : beatSpike.value * 0.3;
+  return Math.min(1.0, base + spike);
+});
+
+// ==================== CRT 老电视失真 ====================
+const crtIntensityCurrent = ref(0);
+let crtTarget = 0;
+let crtRafId = 0;
+const CRT_FADE_SPEED = 0.04;
+
+function crtAnimate() {
+  const diff = crtTarget - crtIntensityCurrent.value;
+  if (Math.abs(diff) < 0.01) {
+    crtIntensityCurrent.value = crtTarget;
+    crtRafId = 0;
+    return;
+  }
+  crtIntensityCurrent.value += diff * CRT_FADE_SPEED;
+  crtRafId = requestAnimationFrame(crtAnimate);
+}
+
+const crtIntensity = computed(() => {
+  const beatBoost = styleEngine.isInClimax ? beatSpike.value * 0.4 : 0;
+  return Math.min(1.0, crtIntensityCurrent.value + beatBoost);
+});
+
+watch(
+  () => styleEngine.isInClimax,
+  (inClimax) => {
+    crtTarget = inClimax ? 0.6 : 0;
+    if (!crtRafId) crtRafId = requestAnimationFrame(crtAnimate);
+  }
+);
+
+// ==================== 高潮过渡闪光 ====================
+const climaxFlashOpacity = ref(0);
+const climaxFlashHue = ref(0);
+let flashTimer: ReturnType<typeof setTimeout> | null = null;
+let flashTimer2: ReturnType<typeof setTimeout> | null = null;
+
+const climaxFlashStyle = computed(() => ({
+  opacity: climaxFlashOpacity.value,
+  filter: `hue-rotate(${climaxFlashHue.value}deg)`,
+  mixBlendMode: 'overlay'
+}));
+
+watch(
+  () => styleEngine.isInClimax,
+  (newVal, oldVal) => {
+    if (newVal === oldVal) return;
+
+    if (newVal) {
+      climaxFlashOpacity.value = 0.7;
+      climaxFlashHue.value = 200;
+      if (flashTimer) clearTimeout(flashTimer);
+      flashTimer = setTimeout(() => {
+        climaxFlashOpacity.value = 0;
+        climaxFlashHue.value = 0;
+      }, 180);
+    } else {
+      climaxFlashOpacity.value = 0.5;
+      climaxFlashHue.value = 30;
+      if (flashTimer) clearTimeout(flashTimer);
+      flashTimer = setTimeout(() => {
+        climaxFlashOpacity.value = 0;
+        climaxFlashHue.value = 0;
+      }, 200);
+      if (flashTimer2) clearTimeout(flashTimer2);
+      flashTimer2 = setTimeout(() => {
+        climaxFlashOpacity.value = 0.3;
+        climaxFlashHue.value = -20;
+        if (flashTimer) clearTimeout(flashTimer);
+        flashTimer = setTimeout(() => {
+          climaxFlashOpacity.value = 0;
+          climaxFlashHue.value = 0;
+        }, 120);
+      }, 250);
+    }
+  }
+);
+
+onUnmounted(() => {
+  if (flashTimer) clearTimeout(flashTimer);
+  if (flashTimer2) clearTimeout(flashTimer2);
+  if (crtRafId) cancelAnimationFrame(crtRafId);
 });
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
@@ -248,14 +378,9 @@ const textColorGray = computed(() => {
 });
 
 /**
- * 背景：高潮时切换为强调色的浅色变体
+ * 背景：由 GlitchBackground 提供，设为透明避免遮挡 WebGL 层
  */
-const backgroundColor = computed(() => {
-  if (styleEngine.isInClimax) {
-    return '#f5f5f5'; // 高潮时也保持浅色，但文字变色
-  }
-  return '#f5f5f5';
-});
+const backgroundColor = computed(() => 'transparent');
 
 // ==================== 播放控制 ====================
 
@@ -307,6 +432,40 @@ function formatTime(seconds: number): string {
   background: #f5f5f5;
 }
 
+/* CRT 闪光层 */
+.climax-flash {
+  position: absolute;
+  inset: 0;
+  background: white;
+  pointer-events: none;
+  z-index: 15;
+  transition: opacity 0.15s ease-out;
+}
+
+/* 确保 GlitchBackground 在歌词和控件之下 */
+.frenzy-mobile-player :deep(.glitch-bg-container) {
+  z-index: 0;
+}
+
+/* 巨字和控件在 glitch 之上 */
+.giant-text-container,
+.top-controls,
+.bottom-controls,
+.corner-dot {
+  position: absolute;
+  z-index: 10;
+}
+
+.giant-text-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 20px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
 /* 四角圆点装饰 */
 .corner-dot {
   position: absolute;
@@ -334,14 +493,7 @@ function formatTime(seconds: number): string {
   }
 }
 
-/* 巨字容器 */
-.giant-text-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0 20px;
-}
-
+/* 巨字样式 */
 .giant-text {
   font-family: var(--m-font-art, 'Inter', sans-serif);
   font-weight: 900;

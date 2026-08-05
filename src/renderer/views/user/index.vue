@@ -2,20 +2,59 @@
   <div class="user-page">
     <template v-if="infoLoading">
       <div class="skeleton-wrap">
-        <div class="skeleton-card skeleton-shimmer" style="height: 180px" />
-        <div class="skeleton-grid">
-          <div v-for="i in 4" :key="i" class="skeleton-item skeleton-shimmer" />
+        <!-- Hero card skeleton -->
+        <div class="skel-hero-card">
+          <div class="skel-hero-top">
+            <div class="skel-avatar">
+              <i class="ri-loader-4-line skel-spin" />
+            </div>
+            <div class="skel-profile">
+              <div class="skel-text-mask skel-name" />
+              <div class="skel-text-mask skel-sig" />
+            </div>
+          </div>
+          <div class="skel-stats-row">
+            <div class="skel-text-mask skel-stat" />
+            <div class="skel-text-mask skel-stat" />
+            <div class="skel-text-mask skel-stat" />
+          </div>
+          <div class="skel-tab-bar">
+            <div class="skel-text-mask skel-tab" />
+            <div class="skel-text-mask skel-tab" />
+            <div class="skel-text-mask skel-tab" />
+          </div>
+        </div>
+        <!-- Playlist grid skeleton -->
+        <div class="skel-grid">
+          <div v-for="i in 4" :key="i" class="skel-playlist-card">
+            <div class="skel-cover">
+              <i class="ri-music-2-line skel-spin" />
+            </div>
+            <div class="skel-text-mask skel-pl-name" />
+            <div class="skel-text-mask skel-pl-desc" />
+          </div>
         </div>
       </div>
     </template>
     <template v-else>
-      <div ref="scrollRef" class="user-scroll" @scroll.passive="onScroll">
+      <div ref="scrollRef" class="user-scroll" :class="{ 'picker-open': showAccountOverlay }" @scroll.passive="onScroll">
         <!-- Sticky morphing hero card -->
-        <div v-if="user" class="hero-card" :class="{ compact: isCompact }">
+        <div
+          v-if="user"
+          class="hero-card"
+          :class="{ compact: isCompact, 'account-picker-open': showAccountOverlay }"
+        >
           <div class="hero-bg" />
-          <!-- Profile row: avatar + name + signature -->
+          <!-- Profile row: avatar + name + signature (stays sharp) -->
           <div class="hero-top">
-            <div class="avatar-wrap">
+            <div
+              class="avatar-wrap"
+              :class="{ 'is-long-pressing': isLongPressing }"
+              @pointerdown="startAvatarPress"
+              @pointermove="moveAvatarPress"
+              @pointerup="finishAvatarPress"
+              @pointercancel="finishAvatarPress"
+            >
               <img
                 v-if="user.avatarUrl"
                 class="avatar-img"
@@ -28,6 +67,10 @@
               <div v-if="loginBadgeText" class="login-badge">
                 {{ loginBadgeText }}
               </div>
+              <!-- 长按提示 -->
+              <div v-if="accounts.length > 1" class="long-press-hint">
+                <i class="ri-arrow-up-s-line" />
+              </div>
             </div>
             <div class="profile-info">
               <h1 class="profile-name">{{ user.nickname }}</h1>
@@ -36,6 +79,41 @@
               </p>
             </div>
           </div>
+
+          <!-- 内联账号切换列表：长按后从下方渐显，卡片向下拉长 -->
+          <div class="account-picker-inline" :class="{ open: showAccountOverlay }">
+            <button
+              v-for="account in otherAccounts"
+              :key="account.accountId"
+              type="button"
+              class="account-picker-row"
+              @click="selectAccountInline(account)"
+            >
+              <div class="account-picker-avatar-wrap">
+                <img
+                  v-if="account.avatarUrl"
+                  :src="account.avatarUrl"
+                  alt=""
+                  class="account-picker-avatar"
+                />
+                <div v-else class="account-picker-avatar-placeholder">
+                  <i class="ri-user-3-line" />
+                </div>
+                <span class="account-picker-badge">
+                  <platform-logo :platform="account.platform" :size="12" />
+                </span>
+              </div>
+              <div class="account-picker-info">
+                <span class="account-picker-name">{{ account.nickname }}</span>
+                <span class="account-picker-desc">{{ platformName(account.platform) }}{{ account.vip ? ' · ' + (account.vipLabel || 'VIP') : '' }}</span>
+              </div>
+            </button>
+            <button type="button" class="account-picker-add" @click="goToLogin">
+              <i class="ri-add-line" />
+              <span>{{ t('user.accountSwitcher.addAccount') }}</span>
+            </button>
+          </div>
+
           <!-- Stats row: collapses on scroll -->
           <div class="stats-row">
             <div class="stat-item">
@@ -53,8 +131,6 @@
               <span class="stat-label">{{ t('user.profile.level') }}</span>
             </div>
           </div>
-          <account-switcher :collapsed="isCompact" />
-          <!-- Tab bar: glow tabs, always visible, stays inside the card -->
           <glow-tabs
             v-model="currentTab"
             :tabs="visibleTabs.map((tab) => ({ key: tab.key, label: t(tab.label) }))"
@@ -121,6 +197,13 @@
         <play-bottom />
       </div>
 
+      <!-- 点击遮罩关闭账号选择 -->
+      <div
+        v-if="showAccountOverlay"
+        class="account-picker-backdrop"
+        @click="showAccountOverlay = false"
+      />
+
       <!-- Login prompt -->
       <div v-if="!isLoggedIn" class="login-container" :class="setAnimationClass('animate__fadeIn')">
         <login-component @login-success="handleLoginSuccess" />
@@ -132,7 +215,7 @@
 <script lang="ts" setup>
 import { useMessage } from 'naive-ui';
 import { storeToRefs } from 'pinia';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
@@ -144,10 +227,10 @@ import GlowTabs from '@/components/common/GlowTabs.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
-import AccountSwitcher from '@/components/user/AccountSwitcher.vue';
+import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import PlatformAccounts from '@/components/user/PlatformAccounts.vue';
 import { useMusicStore } from '@/store/modules/music';
-import { type PlatformAccount, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
+import { type MusicPlatform, type PlatformAccount, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { useUserStore } from '@/store/modules/user';
 import { getImgUrl, isElectron, setAnimationClass } from '@/utils';
@@ -171,6 +254,91 @@ const message = useMessage();
 const scrollRef = ref<HTMLElement | null>(null);
 const isCompact = ref(false);
 let rafId = 0;
+
+// ===== 长按头像弹出账号切换 =====
+const showAccountOverlay = ref(false);
+const isLongPressing = ref(false);
+let avatarPressTimer: ReturnType<typeof setTimeout> | null = null;
+let avatarPressStartX = 0;
+let avatarPressStartY = 0;
+let avatarPressMoved = false;
+
+const AVATAR_LONG_PRESS_MS = 500;
+const AVATAR_PRESS_THRESHOLD = 10;
+
+const clearAvatarPressTimer = () => {
+  if (avatarPressTimer) {
+    clearTimeout(avatarPressTimer);
+    avatarPressTimer = null;
+  }
+};
+
+const startAvatarPress = (event: PointerEvent) => {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  avatarPressStartX = event.clientX;
+  avatarPressStartY = event.clientY;
+  avatarPressMoved = false;
+  clearAvatarPressTimer();
+  avatarPressTimer = setTimeout(() => {
+    if (!avatarPressMoved && accounts.value.length > 1) {
+      isLongPressing.value = true;
+      // 触觉反馈
+      if (navigator.vibrate) navigator.vibrate(15);
+      showAccountOverlay.value = true;
+      // 阻止页面滚动
+      if (scrollRef.value) scrollRef.value.style.overflow = 'hidden';
+    }
+  }, AVATAR_LONG_PRESS_MS);
+};
+
+const moveAvatarPress = (event: PointerEvent) => {
+  if (Math.hypot(event.clientX - avatarPressStartX, event.clientY - avatarPressStartY) > AVATAR_PRESS_THRESHOLD) {
+    avatarPressMoved = true;
+    clearAvatarPressTimer();
+  }
+};
+
+const finishAvatarPress = () => {
+  clearAvatarPressTimer();
+  // 延迟重置以允许点击事件正常处理
+  setTimeout(() => {
+    isLongPressing.value = false;
+  }, 100);
+};
+
+// 关闭账号选择时恢复滚动
+watch(showAccountOverlay, (visible) => {
+  if (!visible && scrollRef.value) {
+    scrollRef.value.style.overflow = '';
+  }
+});
+
+const handleOverlaySelect = (account: PlatformAccount) => {
+  handleAccountChange(account);
+};
+
+const otherAccounts = computed(() =>
+  accounts.value.filter((a) => a.accountId !== activeAccountId.value)
+);
+
+const PLATFORM_NAMES: Record<MusicPlatform, string> = {
+  netease: '网易云',
+  qq: 'QQ 音乐',
+  kugou: '酷狗音乐',
+  spotify: 'Spotify'
+};
+
+const platformName = (platform: MusicPlatform) => PLATFORM_NAMES[platform] || platform;
+
+const selectAccountInline = (account: PlatformAccount) => {
+  showAccountOverlay.value = false;
+  handleAccountChange(account);
+};
+
+const goToLogin = () => {
+  showAccountOverlay.value = false;
+  router.push('/login');
+};
 
 const onScroll = () => {
   if (rafId) return;
@@ -282,6 +450,9 @@ const handlePlayRecord = (item: any) => {
 };
 
 const handleAccountChange = async (account: PlatformAccount) => {
+  // 先切换 store 中的活跃账号
+  accountStore.setActiveAccount(account.accountId);
+
   userDetail.value = null;
   recordList.value = [];
 
@@ -300,6 +471,7 @@ const handleAccountChange = async (account: PlatformAccount) => {
 
 onBeforeUnmount(() => {
   mounted.value = false;
+  clearAvatarPressTimer();
 });
 
 const checkLoginStatus = () => {
@@ -553,6 +725,14 @@ watch(currentTab, async (newTab) => {
 
 onMounted(() => {
   checkLoginStatus() && loadData();
+  // 默认往下滚动一点，让内容区直接呈现而不是停在 Hero 顶部
+  nextTick(() => {
+    nextTick(() => {
+      if (scrollRef.value) {
+        scrollRef.value.scrollTop = 52;
+      }
+    });
+  });
 });
 
 const openPlaylist = async (item: any) => {
@@ -706,21 +886,163 @@ watch(visibleTabs, (nextTabs) => {
   }
 }
 
-/* Skeleton */
+/* Skeleton — 新骨架屏：图片转圈 + 文字遮罩 */
 .skeleton-wrap {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   padding: 16px;
+  /* 避开顶栏，与 hero-card 对齐 */
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 52px);
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
-.skeleton-card {
-  border-radius: 20px;
+
+.skel-hero-card {
+  border-radius: 22px;
+  padding: 20px;
+  margin-bottom: 16px;
+  background: var(--cover-surface, var(--d-surface, rgba(255, 255, 255, 0.55)));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.skel-hero-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   margin-bottom: 16px;
 }
-.skeleton-grid {
+
+.skel-avatar {
+  display: flex;
+  width: 64px;
+  height: 64px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--cover-surface-alt, rgba(128, 128, 128, 0.08));
+  flex-shrink: 0;
+
+  i {
+    font-size: 26px;
+    color: var(--cover-text-muted, var(--d-text-muted, #9a9590));
+  }
+}
+
+.skel-profile {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skel-name {
+  width: 120px;
+  height: 20px;
+}
+
+.skel-sig {
+  width: 180px;
+  height: 14px;
+}
+
+.skel-stats-row {
+  display: flex;
+  gap: 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--cover-border, rgba(128, 128, 128, 0.1));
+  margin-bottom: 12px;
+}
+
+.skel-stat {
+  flex: 1;
+  height: 36px;
+  margin: 0 8px;
+}
+
+.skel-tab-bar {
+  display: flex;
+  gap: 8px;
+}
+
+.skel-tab {
+  flex: 1;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.skel-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
-  .skeleton-item {
-    height: 200px;
-    border-radius: 16px;
+}
+
+.skel-playlist-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skel-cover {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cover-surface-alt, rgba(128, 128, 128, 0.08));
+
+  i {
+    font-size: 28px;
+    color: var(--cover-text-muted, var(--d-text-muted, #9a9590));
+    opacity: 0.5;
+  }
+}
+
+.skel-pl-name {
+  width: 70%;
+  height: 13px;
+}
+
+.skel-pl-desc {
+  width: 50%;
+  height: 11px;
+}
+
+/* 文字遮罩骨架 — shimmer 渐变扫光 */
+.skel-text-mask {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--cover-surface-alt, rgba(128, 128, 128, 0.08)) 25%,
+    var(--cover-surface-hover, rgba(128, 128, 128, 0.14)) 50%,
+    var(--cover-surface-alt, rgba(128, 128, 128, 0.08)) 75%
+  );
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.6s ease-in-out infinite;
+}
+
+.skel-spin {
+  animation: skel-rotate 1.2s linear infinite;
+}
+
+@keyframes skel-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes skel-rotate {
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -905,10 +1227,10 @@ watch(visibleTabs, (nextTabs) => {
   max-height: 80px;
   overflow: hidden;
   transition:
-    opacity 160ms ease,
-    max-height 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    padding-top 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    padding-bottom 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 200ms ease,
+    max-height 240ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    padding-top 240ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    padding-bottom 240ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
     border-color 180ms ease;
 
   .hero-card.compact & {
@@ -951,7 +1273,11 @@ watch(visibleTabs, (nextTabs) => {
 /* Tab bar — glow tabs, stays inside the card */
 .tab-bar-glow {
   margin: 4px 4px 8px;
-  transition: margin 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+  transition:
+    margin 240ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    opacity 240ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    max-height 240ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
   .hero-card.compact & {
     margin: 0 16px 6px;
@@ -1142,25 +1468,225 @@ watch(visibleTabs, (nextTabs) => {
   height: calc(var(--safe-area-inset-bottom, 0px) + 140px);
 }
 
-.skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--cover-surface-alt, rgba(128, 128, 128, 0.08)) 25%,
-    var(--cover-surface-hover, rgba(128, 128, 128, 0.12)) 50%,
-    var(--cover-surface-alt, rgba(128, 128, 128, 0.08)) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+/* ===== 长按头像视觉反馈 ===== */
+.avatar-wrap {
+  touch-action: auto;
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  &.is-long-pressing {
+    transform: scale(0.92);
+  }
 }
 
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
+.long-press-hint {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  display: flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-color, #888);
+  color: #fff;
+  font-size: 14px;
+  opacity: 0;
+  transform: scale(0.5);
+  transition:
+    opacity 200ms ease,
+    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+
+  .hero-card:not(.compact) & {
+    opacity: 0.7;
+    transform: scale(1);
+    animation: long-press-pulse 2s ease-in-out infinite;
   }
 }
+
+@keyframes long-press-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.9) translateY(0);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1) translateY(-2px);
+  }
+}
+
+/* ===== 内联账号选择器 ===== */
+
+/* 打开时：统计栏 + 标签栏渐隐收缩，内容区渐隐 */
+.hero-card.account-picker-open {
+  .stats-row {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-color: transparent;
+  }
+
+  .tab-bar-glow {
+    opacity: 0;
+    max-height: 0;
+    margin: 0;
+  }
+}
+
+.user-scroll.picker-open .content-area {
+  opacity: 0.15;
+  pointer-events: none;
+  transition: opacity 320ms ease;
+}
+
+/* 透明遮罩，在 hero-card 下方（z-index 45 < 50），点击卡片外区域关闭 */
+.account-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+}
+
+/* 内联账号列表区域：始终在 DOM 中，用 max-height + opacity 过渡 */
+.account-picker-inline {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 20px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-height 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 240ms ease,
+    padding 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  &.open {
+    max-height: 500px;
+    opacity: 1;
+    padding: 0 20px 12px;
+  }
+}
+
+.account-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+.account-picker-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.account-picker-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.account-picker-avatar-placeholder {
+  display: flex;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--cover-surface-hover, rgba(128, 128, 128, 0.08));
+  color: var(--accent-color);
+  font-size: 20px;
+}
+
+.account-picker-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--cover-surface, var(--d-surface));
+  border-radius: 50%;
+  background: var(--cover-surface, var(--d-surface));
+}
+
+.account-picker-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-picker-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--cover-text-primary, var(--d-text-primary));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-picker-desc {
+  font-size: 12px;
+  color: var(--cover-text-muted, var(--d-text-muted));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-picker-add {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  > i {
+    display: flex;
+    width: 48px;
+    height: 48px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1.5px dashed rgba(var(--accent-color-rgb, 136, 136, 136), 0.35);
+    color: var(--accent-color);
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  > span {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--cover-text-secondary, var(--d-text-secondary));
+  }
+}
+
+/* 不再使用 Vue Transition，改用 CSS max-height 过渡 */
 
 @media (prefers-reduced-motion: reduce) {
   .hero-card,
@@ -1170,8 +1696,28 @@ watch(visibleTabs, (nextTabs) => {
   .profile-signature,
   .stats-row,
   .tab-bar-glow,
-  .avatar-placeholder {
+  .avatar-placeholder,
+  .avatar-wrap,
+  .long-press-hint,
+  .account-picker-inline {
     transition: none;
+  }
+
+  .skel-spin {
+    animation-duration: 3s;
+  }
+
+  .skel-text-mask {
+    animation: none;
+  }
+
+  .long-press-hint {
+    animation: none;
+  }
+
+  .account-picker-row:active,
+  .account-picker-add:active {
+    transform: none;
   }
 }
 </style>

@@ -118,15 +118,29 @@ class PreloadService {
   }
 
   /**
-   * 获取已预加载的音频实例（如果存在）
+   * 获取已预加载的音频实例（如果存在），不从缓存移除
+   * 用于 crossfade 前检查是否已预加载就绪
    */
   public getPreloadedSound(songId: string | number): Howl | undefined {
     return this.preloadedSounds.get(songId);
   }
 
   /**
+   * 非消费式获取：检查预加载实例是否就绪但不移除
+   * crossfade 成功启动后才应调用 consume 移除
+   */
+  public peek(songId: string | number): Howl | undefined {
+    const sound = this.preloadedSounds.get(songId);
+    if (sound && sound.state() === 'loaded') {
+      return sound;
+    }
+    return undefined;
+  }
+
+  /**
    * 消耗（使用）已预加载的音频
    * 从缓存中移除但不 unload（由调用方管理生命周期）
+   * 仅在确认使用该实例后调用（如 crossfade 成功启动后）
    * @returns 预加载的 Howl 实例，如果没有则返回 undefined
    */
   public consume(songId: string | number): Howl | undefined {

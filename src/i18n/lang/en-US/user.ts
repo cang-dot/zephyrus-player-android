@@ -50,5 +50,10 @@ platforms: 'Platforms'
     loadFailed: 'Failed to load user page',
     deleteSuccess: 'Successfully deleted',
     deleteFailed: 'Failed to delete'
+  },
+  accountSwitcher: {
+    title: 'Switch Account',
+    addAccount: 'Add Account',
+    close: 'Close'
   }
 };

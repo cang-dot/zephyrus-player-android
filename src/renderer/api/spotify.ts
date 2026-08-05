@@ -1,6 +1,8 @@
 import axios from 'axios';
 
 import type { Artist, SongResult } from '@/types/music';
+import { isSpotifyLoggedIn } from '@/services/spotifyAuth';
+import { searchTracks as searchTracksDirect } from '@/services/spotifyApi';
 
 const gatewayBaseURL = (import.meta.env.VITE_MUSIC_GATEWAY || 'https://mucang.xyz/zephyrus/api')
   .replace(/\/+$/, '')
@@ -33,8 +35,26 @@ function toArtist(name: string, index: number): Artist {
   };
 }
 
+/**
+ * 搜索 Spotify 曲库
+ *
+ * 优先使用 Spotify Web API（需要用户已登录），
+ * 未登录时回退到网关代理搜索。
+ */
 export async function searchSpotifyViaGateway(keyword: string, limit = 20): Promise<SongResult[]> {
   if (!keyword.trim()) return [];
+
+  // 如果用户已登录 Spotify，直接使用 Web API
+  if (isSpotifyLoggedIn()) {
+    try {
+      const results = await searchTracksDirect(keyword, limit);
+      if (results.length > 0) return results;
+    } catch (error) {
+      console.warn('[Spotify] 直接 API 搜索失败，回退到网关:', error);
+    }
+  }
+
+  // 回退到网关代理
   try {
     const response = await axios.get<{ code: number; data?: { tracks?: SpotifyTrack[] } }>(
       `${gatewayBaseURL}/platform/spotify/search`,
@@ -97,6 +117,10 @@ export function openSpotifyTrack(url: string): void {
   if (!url) return;
   if (window.api?.openExternal) {
     void window.api.openExternal(url);
+    return;
+  }
+  if (typeof (window as any).AndroidNative !== 'undefined' && (window as any).AndroidNative.openExternal) {
+    (window as any).AndroidNative.openExternal(url);
     return;
   }
   window.open(url, '_blank', 'noopener,noreferrer');

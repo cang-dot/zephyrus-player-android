@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
-export const MUSIC_PLATFORMS = ['netease', 'qq', 'kugou'] as const;
+export const MUSIC_PLATFORMS = ['netease', 'qq', 'kugou', 'spotify'] as const;
 const DEPRECATED_LOGIN_PLATFORMS = ['kuwo', 'migu'] as const;
 
 export type MusicPlatform = (typeof MUSIC_PLATFORMS)[number];
-export type PlatformLoginMethod = 'qr' | 'cookie' | 'uid';
+export type PlatformLoginMethod = 'qr' | 'cookie' | 'uid' | 'oauth';
 export type AccountDataKind = 'playlists' | 'favorites' | 'albums' | 'history';
 
 export interface PlatformAccount {
@@ -45,7 +45,8 @@ export interface PlatformAccountCache {
 const PLATFORM_NAMES: Record<MusicPlatform, string> = {
   netease: '网易云',
   qq: 'QQ 音乐',
-  kugou: '酷狗音乐'
+  kugou: '酷狗音乐',
+  spotify: 'Spotify'
 };
 
 function parseStoredJson<T>(key: string, fallback: T): T {
@@ -96,6 +97,7 @@ export const usePlatformAccountsStore = defineStore(
     const syncRuntimePlatformCookie = (platform: MusicPlatform, cookie: string) => {
       if (
         platform === 'netease' ||
+        platform === 'spotify' ||
         typeof window === 'undefined' ||
         !window.api?.setPlatformCookie
       ) {
@@ -110,6 +112,12 @@ export const usePlatformAccountsStore = defineStore(
     const syncLegacyPlatformState = (account: PlatformAccount) => {
       localStorage.setItem('active-music-account', account.accountId);
       localStorage.setItem('active-music-platform', account.platform);
+
+      // Spotify 使用独立的 OAuth 令牌管理，不走 cookie 体系
+      if (account.platform === 'spotify') {
+        return;
+      }
+
       localStorage.setItem(`platform-user-${account.platform}`, JSON.stringify(account));
 
       if (account.cookie) {

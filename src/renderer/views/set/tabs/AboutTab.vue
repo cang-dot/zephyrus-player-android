@@ -59,6 +59,51 @@
       @click="openModal('应用介绍', readmeText)"
     />
     <setting-item title="使用文档" description="查看完整使用文档" clickable @click="openDocs" />
+
+    <!-- 意见反馈 -->
+    <setting-item title="意见反馈" description="提交 Bug 报告或功能建议">
+      <template #description>
+        <div class="flex flex-col gap-2">
+          <div class="flex gap-2">
+            <button
+              v-for="opt in feedbackTypeOptions"
+              :key="opt.value"
+              class="feedback-type-btn"
+              :class="{ active: feedbackType === opt.value }"
+              @click="feedbackType = opt.value"
+            >
+              <i :class="opt.icon" class="mr-1"></i>{{ opt.label }}
+            </button>
+          </div>
+          <textarea
+            v-model="feedbackContent"
+            placeholder="描述你遇到的问题或建议..."
+            rows="3"
+            class="feedback-textarea"
+          ></textarea>
+          <input
+            v-model="feedbackContact"
+            type="text"
+            placeholder="联系方式（可选，方便回复你）"
+            class="feedback-contact"
+          />
+          <div v-if="feedbackResult" class="text-xs" :class="feedbackResult.success ? 'text-green-500' : 'text-red-400'">
+            {{ feedbackResult.message }}
+          </div>
+        </div>
+      </template>
+      <template #action>
+        <s-btn
+          variant="primary"
+          :disabled="!feedbackContent.trim() || feedbackSubmitting"
+          @click="submitFeedbackAction"
+        >
+          <i v-if="feedbackSubmitting" class="ri-loader-4-line animate-spin mr-1"></i>
+          <i v-else class="ri-send-plane-line mr-1"></i>
+          {{ feedbackSubmitting ? '提交中...' : '提交' }}
+        </s-btn>
+      </template>
+    </setting-item>
   </setting-section>
 
   <!-- 内嵌内容弹窗 -->
@@ -107,6 +152,7 @@ import licenseText from '../../../../../LICENSE?raw';
 import config from '../../../../../package.json';
 import readmeText from '../../../../../README.md?raw';
 import userAgreementText from '../../../../../用户协议.md?raw';
+import { submitFeedback, type FeedbackType, type FeedbackResult } from '@/api/feedback';
 import { APP_UPDATE_STATUS, hasAvailableAppUpdate } from '../../../../shared/appUpdate';
 import { SETTINGS_DATA_KEY, SETTINGS_MESSAGE_KEY } from '../keys';
 import SBtn from '../SBtn.vue';
@@ -236,10 +282,100 @@ const openDocs = () => {
   window.open('https://www.mucang.xyz/zephyrus/docs');
 };
 
+// ==================== 意见反馈 ====================
+const feedbackType = ref<FeedbackType>('bug');
+const feedbackContent = ref('');
+const feedbackContact = ref('');
+const feedbackSubmitting = ref(false);
+const feedbackResult = ref<FeedbackResult | null>(null);
+
+const feedbackTypeOptions = [
+  { value: 'bug' as const, label: 'Bug', icon: 'ri-bug-line' },
+  { value: 'feature' as const, label: '功能建议', icon: 'ri-lightbulb-line' },
+  { value: 'other' as const, label: '其他', icon: 'ri-chat-3-line' }
+];
+
+async function submitFeedbackAction() {
+  if (!feedbackContent.value.trim()) return;
+  feedbackSubmitting.value = true;
+  feedbackResult.value = null;
+  try {
+    const result = await submitFeedback({
+      type: feedbackType.value,
+      content: feedbackContent.value.trim(),
+      contact: feedbackContact.value.trim() || undefined,
+      appVersion: config.version || '1.2.0',
+      device: navigator.userAgent || 'unknown',
+      osVersion: navigator.platform || 'unknown'
+    });
+    feedbackResult.value = result;
+    if (result.success) {
+      feedbackContent.value = '';
+      feedbackContact.value = '';
+      message.success(result.message);
+    } else {
+      message.error(result.message);
+    }
+  } finally {
+    feedbackSubmitting.value = false;
+  }
+}
+
 defineExpose({ checkForUpdates });
 </script>
 
 <style scoped>
+.feedback-type-btn {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--m-border, rgba(0, 0, 0, 0.08));
+  background: transparent;
+  color: var(--m-text-secondary, #666);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.feedback-type-btn.active {
+  background: var(--accent-color, #1ed760);
+  color: #fff;
+  border-color: var(--accent-color, #1ed760);
+}
+
+.feedback-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--m-border, rgba(0, 0, 0, 0.08));
+  background: var(--m-surface, rgba(0, 0, 0, 0.03));
+  color: var(--m-text-primary, #333);
+  font-size: 13px;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+}
+
+.feedback-textarea:focus {
+  border-color: var(--accent-color, #1ed760);
+}
+
+.feedback-contact {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--m-border, rgba(0, 0, 0, 0.08));
+  background: var(--m-surface, rgba(0, 0, 0, 0.03));
+  color: var(--m-text-primary, #333);
+  font-size: 13px;
+  outline: none;
+}
+
+.feedback-contact:focus {
+  border-color: var(--accent-color, #1ed760);
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.25s ease;

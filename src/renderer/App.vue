@@ -11,6 +11,7 @@
           <disclaimer-modal></disclaimer-modal>
           <shared-song-card ref="sharedSongCardRef"></shared-song-card>
           <mobile-update-modal v-if="!isElectron" />
+          <onboarding-overlay v-if="!isElectron" ref="onboardingRef" />
         </n-message-provider>
       </n-dialog-provider>
     </n-config-provider>
@@ -47,6 +48,7 @@ import { useStyleEngineStore } from './store/modules/styleEngine';
 import { isMobile } from './utils';
 import { useAppShortcuts } from './utils/appShortcuts';
 import { setSharedSongCardRef } from './utils/deepLink';
+import OnboardingOverlay from '@/components/common/OnboardingOverlay.vue';
 
 const { locale } = useI18n();
 const settingsStore = useSettingsStore();
@@ -57,6 +59,7 @@ const accountStore = usePlatformAccountsStore();
 const router = useRouter();
 const { primaryColor } = useCoverColor();
 const styleEngine = useStyleEngineStore();
+const onboardingRef = ref();
 
 watch(
   () => accountStore.activeAccount,
@@ -366,6 +369,11 @@ onMounted(async () => {
 
   // 初始化样式引擎（启动鼓点/高潮检测器）
   styleEngine.init();
+
+  // 首次使用展示新手引导
+  if (!isElectron) {
+    nextTick(() => onboardingRef.value?.show());
+  }
 
   // 初始化 Android 原生桥接（状态栏、媒体通知、返回手势、安全区域）
   // 必须在 store 初始化后调用，内部会 watch playerStore 和 settingsStore

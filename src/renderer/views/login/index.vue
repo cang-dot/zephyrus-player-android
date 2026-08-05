@@ -26,6 +26,7 @@
         />
 
         <segment-slider
+          v-if="activePlatform !== 'spotify'"
           :model-value="activeMethod"
           :tabs="methodTabs"
           class="login-method-slider"
@@ -35,8 +36,13 @@
         <div class="login-content">
           <Transition name="login-content" mode="out-in">
             <div :key="`${activePlatform}-${activeMethod}`" class="login-form">
+              <spotify-login
+                v-if="activePlatform === 'spotify'"
+                @login-success="handleSpotifyLoginSuccess"
+              />
+
               <qr-login
-                v-if="activePlatform === 'netease' && activeMethod === 'qr'"
+                v-else-if="activePlatform === 'netease' && activeMethod === 'qr'"
                 @login-success="handleNeteaseLoginSuccess"
                 @login-error="handleLoginError"
               />
@@ -81,6 +87,7 @@ import SegmentSlider from '@/components/common/SegmentSlider.vue';
 import PlatformCookieLogin from '@/components/login/PlatformCookieLogin.vue';
 import PlatformQrLogin from '@/components/login/PlatformQrLogin.vue';
 import QrLogin from '@/components/login/QrLogin.vue';
+import SpotifyLogin from '@/components/login/SpotifyLogin.vue';
 import UidLogin from '@/components/login/UidLogin.vue';
 import {
   MUSIC_PLATFORMS,
@@ -118,6 +125,7 @@ const platformTabs = computed(() =>
 
 const availableMethods = computed<LoginMethod[]>(() => {
   if (activePlatform.value === 'netease') return ['qr', 'cookie', 'uid'];
+  if (activePlatform.value === 'spotify') return ['oauth'];
   return ['qr', 'cookie'];
 });
 
@@ -135,7 +143,12 @@ const qrPlatform = computed<'qq' | 'kugou' | null>(() =>
 const switchPlatform = (platform: Platform) => {
   if (!MUSIC_PLATFORMS.includes(platform)) return;
   activePlatform.value = platform;
-  activeMethod.value = 'qr';
+  // Spotify 只支持 OAuth 登录，不需要选择登录方式
+  if (platform === 'spotify') {
+    activeMethod.value = 'oauth';
+  } else {
+    activeMethod.value = 'qr';
+  }
 };
 
 const switchMethod = (method: LoginMethod) => {
@@ -195,6 +208,10 @@ const handleCookieLoginSuccess = (userInfo: any, cookie: string) => {
 
 const handlePlatformLoginSuccess = (userInfo: any, cookie: string) => {
   saveAccount(activePlatform.value, userInfo || {}, cookie, 'qr');
+  finishLogin();
+};
+
+const handleSpotifyLoginSuccess = () => {
   finishLogin();
 };
 

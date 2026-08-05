@@ -2,13 +2,15 @@ export default {
   platform: {
     netease: '網易雲',
     qq: 'QQ音樂',
-    kugou: '酷狗'
+    kugou: '酷狗',
+    spotify: 'Spotify'
   },
   title: {
     qr: '掃碼登入',
     phone: '手機號登入',
     cookie: 'Cookie登入',
-    uid: 'UID登入'
+    uid: 'UID登入',
+    oauth: 'OAuth 授權'
   },
   qrTip: '使用網易雲APP掃碼登入',
   phoneTip: '使用網易雲帳號登入',
@@ -63,5 +65,15 @@ export default {
     qrGenerating: '正在生成二維碼...'
   },
   qrTitle: '掃碼登入網易雲音樂',
-  uidWarning: '注意：UID登入僅用於查看使用者公開資訊，無法訪問需要登入權限的功能'
+  uidWarning: '注意：UID登入僅用於查看使用者公開資訊，無法訪問需要登入權限的功能',
+  spotify: {
+    loginWithSpotify: '使用 Spotify 登入',
+    description: '登入 Spotify 後可搜尋全球曲庫、查看你的歌單，Premium 用戶可控制播放',
+    waiting: '等待授權中…',
+    waitingHint: '請在彈出的瀏覽器中完成 Spotify 授權',
+    continue: '繼續',
+    featureSearch: '搜尋 Spotify 全球曲庫',
+    featurePlaylist: '查看和管理你的歌單',
+    featurePremium: 'Premium 用戶可控制播放'
+  }
 };

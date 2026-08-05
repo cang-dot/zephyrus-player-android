@@ -12,6 +12,7 @@ export default {
     system: 'System Management',
     keepAlive: 'Keep-alive',
     plugins: 'Extra Features',
+    spotify: 'Spotify',
     about: 'About'
   },
   basic: {

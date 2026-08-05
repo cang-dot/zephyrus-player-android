@@ -135,7 +135,8 @@ onBeforeUnmount(() => {
 const PLATFORM_NAMES: Record<MusicPlatform, string> = {
   netease: '网易云',
   qq: 'QQ 音乐',
-  kugou: '酷狗音乐'
+  kugou: '酷狗音乐',
+  spotify: 'Spotify'
 };
 
 const platformName = (platform: MusicPlatform) => PLATFORM_NAMES[platform];

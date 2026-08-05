@@ -140,6 +140,21 @@ public class MainActivity extends BridgeActivity {
         if (!url.startsWith("zephyrus://")) return false;
         Log.i("ZephyrusDeepLink", "Received deep link: " + url);
 
+        // Spotify OAuth 回调：zephyrus://auth/callback?code=xxx
+        if (url.startsWith("zephyrus://auth/callback")) {
+            Log.i("SpotifyAuth", "Received OAuth callback: " + url);
+            WebView webView = bridge.getWebView();
+            if (webView != null) {
+                final String js = "window.__handleSpotifyCallback && window.__handleSpotifyCallback('" + url + "');";
+                webView.postDelayed(() -> evaluateJavascript(js), 500);
+                webView.postDelayed(() -> evaluateJavascript(js), 1500);
+                webView.postDelayed(() -> evaluateJavascript(js), 3000);
+            }
+            lastClipboardContent = url;
+            return true;
+        }
+
+        // 歌曲分享链接：zephyrus://song/{id}
         WebView webView = bridge.getWebView();
         if (webView != null) {
             // 统一调用 __handleClipboardShare：Intent 和剪贴板都走卡片流程
@@ -228,6 +243,13 @@ public class MainActivity extends BridgeActivity {
      */
     public static MainActivity getInstance() {
         return instance;
+    }
+
+    /**
+     * 获取 Capacitor Bridge 实例（供 MusicPlaybackService 等外部类访问 WebView）
+     */
+    public com.getcapacitor.Bridge getBridge() {
+        return this.bridge;
     }
 
     /**

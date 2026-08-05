@@ -165,6 +165,39 @@
       </template>
     </setting-item>
 
+    <!-- 解锁密钥 -->
+    <setting-item title="解锁密钥">
+      <template #description>
+        <div v-if="unlockKeyValid" class="text-sm text-green-500 mb-1">
+          <i class="ri-shield-check-line mr-1"></i>VIP 歌曲已解锁
+        </div>
+        <div v-else class="text-sm text-gray-500 mb-1">
+          输入口令解锁 VIP 歌曲播放
+        </div>
+        <div v-if="!unlockKeyValid" class="flex gap-2 items-start">
+          <s-input
+            v-model="unlockKeyInput"
+            placeholder="输入口令..."
+            width="flex-1"
+          />
+          <s-btn
+            variant="primary"
+            :disabled="!unlockKeyInput.trim() || unlockKeyVerifying"
+            @click="activateUnlockKey"
+          >
+            <i v-if="unlockKeyVerifying" class="ri-loader-4-line animate-spin mr-1"></i>
+            {{ unlockKeyVerifying ? '验证中...' : '验证' }}
+          </s-btn>
+        </div>
+        <div v-if="unlockKeyError" class="text-xs text-red-400 mt-1">{{ unlockKeyError }}</div>
+      </template>
+      <template #action>
+        <s-btn v-if="unlockKeyValid" variant="danger" @click="removeUnlockKey">
+          移除口令
+        </s-btn>
+      </template>
+    </setting-item>
+
     <setting-item v-if="isElectron" :title="t('settings.basic.gpuAcceleration')">
       <template #description>
         <div class="text-sm text-gray-500 mb-2">
@@ -197,6 +230,7 @@ import { computed, h, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { getUserDetail } from '@/api/login';
+import { verifyUnlockKey, saveUnlockKey, getUnlockKey, clearUnlockKey } from '@/api/unlockKey';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 import CookieSettingsModal from '@/components/settings/CookieSettingsModal.vue';
 import { useSettingsStore } from '@/store/modules/settings';
@@ -330,6 +364,40 @@ watch(
   { immediate: true }
 );
 
+// ==================== 解锁密钥 ====================
+const unlockKeyInput = ref('');
+const unlockKeyVerifying = ref(false);
+const unlockKeyValid = ref(false);
+const unlockKeyError = ref('');
+
+async function activateUnlockKey() {
+  const token = unlockKeyInput.value.trim();
+  if (!token) return;
+  unlockKeyVerifying.value = true;
+  unlockKeyError.value = '';
+  try {
+    const result = await verifyUnlockKey(token);
+    if (result.valid) {
+      saveUnlockKey(token);
+      unlockKeyValid.value = true;
+      unlockKeyInput.value = '';
+      message.success('VIP 歌曲已解锁');
+    } else {
+      unlockKeyError.value = result.message || '口令无效';
+    }
+  } catch {
+    unlockKeyError.value = '网络错误，请稍后重试';
+  } finally {
+    unlockKeyVerifying.value = false;
+  }
+}
+
+function removeUnlockKey() {
+  clearUnlockKey();
+  unlockKeyValid.value = false;
+  message.success('口令已移除');
+}
+
 onMounted(() => {
   if (window.electron) {
     window.electron.ipcRenderer.on('gpu-acceleration-updated', (_, enabled: boolean) => {
@@ -340,6 +408,11 @@ onMounted(() => {
       console.error('GPU加速设置更新错误:', errorMessage);
       gpuAccelerationChanged.value = false;
     });
+  }
+
+  // 初始化解锁密钥状态
+  if (getUnlockKey()) {
+    unlockKeyValid.value = true;
   }
 });
 

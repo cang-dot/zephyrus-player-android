@@ -12,6 +12,7 @@ export default {
     system: '系统管理',
     keepAlive: '后台保活',
     plugins: '额外功能',
+    spotify: 'Spotify',
     about: '关于'
   },
   basic: {

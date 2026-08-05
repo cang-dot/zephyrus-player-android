@@ -229,13 +229,20 @@
             >
               <div class="progress-track">
                 <div
+                  v-if="!transitionStore.isCrossfadingUI || !transitionStore.currentSongEnded"
                   class="progress-fill"
-                  :style="{ width: `${(nowTime / Math.max(1, allTime)) * 100}%` }"
+                  :class="{ 'fading-out': transitionStore.currentSongEnded }"
+                  :style="currentFillStyle"
+                ></div>
+                <div
+                  v-if="transitionStore.isCrossfadingUI"
+                  class="progress-fill-next"
+                  :style="nextFillStyle"
                 ></div>
                 <div
                   class="progress-thumb"
                   :class="{ active: isThumbDragging || isMouseDragging }"
-                  :style="{ left: `${(nowTime / Math.max(1, allTime)) * 100}%` }"
+                  :style="{ left: thumbPosition }"
                   @touchstart="handleThumbTouchStart"
                   @touchmove="handleThumbTouchMove"
                   @touchend="handleThumbTouchEnd"
@@ -347,13 +354,20 @@
           >
             <div class="progress-track">
               <div
+                v-if="!transitionStore.isCrossfadingUI || !transitionStore.currentSongEnded"
                 class="progress-fill"
-                :style="{ width: `${(nowTime / Math.max(1, allTime)) * 100}%` }"
+                :class="{ 'fading-out': transitionStore.currentSongEnded }"
+                :style="currentFillStyle"
+              ></div>
+              <div
+                v-if="transitionStore.isCrossfadingUI"
+                class="progress-fill-next"
+                :style="nextFillStyle"
               ></div>
               <div
                 class="progress-thumb"
                 :class="{ active: isThumbDragging || isMouseDragging }"
-                :style="{ left: `${(nowTime / Math.max(1, allTime)) * 100}%` }"
+                :style="{ left: thumbPosition }"
                 @touchstart="handleThumbTouchStart"
                 @touchmove="handleThumbTouchMove"
                 @touchend="handleThumbTouchEnd"
@@ -413,6 +427,7 @@ import {
 import { useArtist } from '@/hooks/useArtist';
 import { usePlayMode } from '@/hooks/usePlayMode';
 import { usePlayerStore } from '@/store/modules/player';
+import { useTransitionStore } from '@/store/modules/transition';
 import { DEFAULT_LYRIC_CONFIG, LyricConfig } from '@/types/lyric';
 import { getImgUrl, secondToMinute } from '@/utils';
 import { animateGradient, getHoverBackgroundColor, getTextColors } from '@/utils/linearColor';
@@ -420,6 +435,32 @@ import { showBottomToast } from '@/utils/shortcutToast';
 
 const { t } = useI18n();
 const playerStore = usePlayerStore();
+const transitionStore = useTransitionStore();
+
+// ==================== Crossfade 进度条动画 ====================
+
+/** 上一首进度填充样式：正常显示 nowTime/allTime */
+const currentFillStyle = computed(() => {
+  return { width: `${(nowTime.value / Math.max(1, allTime.value)) * 100}%` };
+});
+
+/** 下一首进度填充样式：使用 nextAccentColor，宽度跟随 nextProgress */
+const nextFillStyle = computed(() => {
+  const color = transitionStore.nextAccentColor || '#ffffff';
+  return {
+    width: `${transitionStore.nextProgress}%`,
+    background: color,
+    boxShadow: `0 0 8px ${color}80`,
+  };
+});
+
+/** 进度条 thumb 位置：crossfade 时跟随下一首进度 */
+const thumbPosition = computed(() => {
+  if (transitionStore.isCrossfadingUI) {
+    return `${transitionStore.nextProgress}%`;
+  }
+  return `${(nowTime.value / Math.max(1, allTime.value)) * 100}%`;
+});
 
 // 播放控制相关
 const play = computed(() => playerStore.isPlay);
@@ -1255,6 +1296,20 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
         @apply absolute top-0 left-0 h-full bg-white rounded-full;
         box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
         z-index: 1;
+        transition: width 0.1s linear;
+
+        /* 上一首播放到尽头后：主体色渐变为轨道背景色，然后隐藏 */
+        &.fading-out {
+          background: rgba(255, 255, 255, 0.15) !important;
+          box-shadow: none;
+          transition: background 0.6s ease, box-shadow 0.6s ease;
+        }
+      }
+
+      .progress-fill-next {
+        @apply absolute top-0 left-0 h-full rounded-full;
+        z-index: 1;
+        pointer-events: none;
         transition: width 0.1s linear;
       }
 

@@ -50,5 +50,10 @@ platforms: '平台账号'
     loadFailed: '加载用户页面失败',
     deleteSuccess: '删除成功',
     deleteFailed: '删除失败'
+  },
+  accountSwitcher: {
+    title: '切换账号',
+    addAccount: '添加账号',
+    close: '关闭'
   }
 };

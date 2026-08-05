@@ -675,11 +675,11 @@ export const usePlaylistStore = defineStore(
         if (success) {
           playerCore.isPlay = true;
 
-          // 预加载下一首歌曲
+          // 预加载下一首歌曲（提前到 1 秒，给 crossfade 更多准备时间）
           if (songIndex !== -1) {
             setTimeout(() => {
               preloadNextSongs(playListIndex.value);
-            }, 3000);
+            }, 1000);
           }
         }
         return success;

@@ -32,6 +32,14 @@
                 <data android:scheme="zephyrus" android:host="song" />
             </intent-filter>
 
+            <!-- Deep link: zephyrus://auth/callback (Spotify OAuth) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="zephyrus" android:host="auth" android:pathPrefix="/callback" />
+            </intent-filter>
+
         </activity>
 
         <service

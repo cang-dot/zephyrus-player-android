@@ -198,6 +198,140 @@
             <!-- 分隔线 -->
             <div class="h-px bg-white/10 my-5"></div>
 
+            <!-- 手动标记高潮段落 -->
+            <div class="mb-6">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-white/80">
+                  <i class="ri-fire-line mr-1"></i>
+                  高潮段落标记
+                </span>
+                <span class="text-xs text-white/40">{{ manualClimaxSegments.length }} 段</span>
+              </div>
+
+              <!-- 当前播放时间显示 -->
+              <div class="flex items-center justify-between mb-2 px-1">
+                <span class="text-xs text-white/50">在时间轴上拖动以标记高潮段落</span>
+                <span class="text-xs font-mono text-white/60">{{ formatTime(currentPlayTime) }} / {{ formatTime(songDuration) }}</span>
+              </div>
+
+              <!-- 时间轴 -->
+              <div class="climax-timeline-wrapper">
+                <!-- 时间刻度 -->
+                <div class="climax-time-scale">
+                  <span
+                    v-for="mark in climaxTimeMarks"
+                    :key="mark"
+                    class="climax-time-mark"
+                    :style="{ left: (mark / songDuration) * 100 + '%' }"
+                  >{{ formatTime(mark) }}</span>
+                </div>
+
+                <!-- 时间轴主体 -->
+                <div
+                  class="climax-timeline"
+                  ref="climaxTimelineRef"
+                  @touchstart.passive="onTimelineTouchStart"
+                  @touchmove.passive="onTimelineTouchMove"
+                  @touchend="onTimelineTouchEnd"
+                >
+                  <!-- 已有段落 -->
+                  <div
+                    v-for="(seg, i) in manualClimaxSegments"
+                    :key="'seg-' + i"
+                    class="climax-region"
+                    :class="{ 'climax-region-active': currentPlayTime >= seg.start && currentPlayTime <= seg.end }"
+                    :style="getClimaxRegionStyle(seg)"
+                  >
+                    <!-- 左侧拖拽手柄 -->
+                    <div
+                      class="climax-handle left"
+                      @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'start')"
+                      @touchmove.stop.prevent="onEdgeTouchMove"
+                      @touchend.stop="onEdgeTouchEnd"
+                    ></div>
+                    <!-- 中间内容 -->
+                    <div class="climax-region-content">
+                      <span class="climax-region-label">{{ formatTime(seg.start) }} - {{ formatTime(seg.end) }}</span>
+                    </div>
+                    <!-- 右侧拖拽手柄 -->
+                    <div
+                      class="climax-handle right"
+                      @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'end')"
+                      @touchmove.stop.prevent="onEdgeTouchMove"
+                      @touchend.stop="onEdgeTouchEnd"
+                    ></div>
+                  </div>
+
+                  <!-- 拖拽预览选区 -->
+                  <div v-if="isClimaxDragging" class="climax-preview" :style="getClimaxPreviewStyle()"></div>
+
+                  <!-- 当前播放位置 -->
+                  <div class="climax-playhead" :style="{ left: (currentPlayTime / songDuration) * 100 + '%' }"></div>
+                </div>
+              </div>
+
+              <!-- 操作按钮 -->
+              <div class="flex gap-2 mt-3">
+                <button
+                  v-if="manualClimaxSegments.length > 0"
+                  @click="clearAllClimaxSegments"
+                  class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
+                >
+                  <i class="ri-eraser-line mr-1"></i>清空全部
+                </button>
+                <button
+                  @click="seekToPlayhead"
+                  class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
+                >
+                  <i class="ri-music-2-line mr-1"></i>跳到播放位置
+                </button>
+                <button
+                  @click="queryCloudClimax"
+                  :disabled="cloudClimaxLoading"
+                  class="flex-1 py-2 rounded-xl text-sm bg-[var(--accent-color)]/20 text-[var(--accent-color)] active:scale-95 transition-transform disabled:opacity-50"
+                >
+                  <i v-if="cloudClimaxLoading" class="ri-loader-4-line animate-spin mr-1"></i>
+                  <i v-else class="ri-cloud-line mr-1"></i>
+                  {{ cloudClimaxLoading ? '查询中...' : '查询云端' }}
+                </button>
+              </div>
+
+              <!-- 云端查询结果 -->
+              <div v-if="cloudClimaxResults.length > 0" class="mt-3 space-y-2">
+                <div class="text-xs text-white/50 px-1">找到 {{ cloudClimaxResults.length }} 条云端高潮数据，点击覆盖到本地</div>
+                <div
+                  v-for="(result, i) in cloudClimaxResults"
+                  :key="'cloud-' + i"
+                  @click="applyCloudClimax(result)"
+                  class="flex items-center gap-3 p-3 rounded-xl bg-white/5 active:bg-white/10 transition-colors"
+                >
+                  <i class="ri-cloud-line text-white/40 text-lg flex-shrink-0"></i>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm text-white/80 truncate">{{ result.songName }}</div>
+                    <div class="text-xs text-white/40 truncate">
+                      {{ result.artist || '未知艺术家' }} · {{ result.segments.length }}段 · 贡献者: {{ result.contributor || '云端' }}
+                    </div>
+                  </div>
+                  <i class="ri-download-2-line text-[var(--accent-color)] flex-shrink-0"></i>
+                </div>
+              </div>
+
+              <!-- 云端查询无结果 -->
+              <div v-if="cloudClimaxSearched && cloudClimaxResults.length === 0" class="mt-3 flex flex-col items-center justify-center py-3 text-white/30">
+                <i class="ri-cloud-off-line text-3xl mb-1"></i>
+                <p class="text-xs">未找到同名歌曲的云端高潮数据</p>
+              </div>
+
+              <!-- 空状态提示 -->
+              <div v-if="manualClimaxSegments.length === 0 && !cloudClimaxSearched" class="flex flex-col items-center justify-center py-3 text-white/30">
+                <i class="ri-fire-line text-3xl mb-1"></i>
+                <p class="text-xs">在时间轴上左右拖动来创建高潮段落</p>
+              </div>
+            </div>
+
+            <!-- 分隔线 -->
+            <div class="h-px bg-white/10 my-5"></div>
+
             <!-- 歌词设置 -->
             <div class="mb-6">
               <div class="flex items-center justify-between mb-3">
@@ -501,6 +635,9 @@
                 </button>
               </div>
             </div>
+
+            <!-- 分隔线 -->
+            <div class="h-px bg-white/10 my-5"></div>
           </div>
         </div>
       </div>
@@ -516,13 +653,266 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { useMetaphor } from '@/features/lyric-metaphor/useMetaphor';
-import { lrcArray, playMusic } from '@/hooks/MusicHook';
+import { isLocalSong, lrcArray, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
+import { useStyleEngineStore } from '@/store/modules/styleEngine';
+import { saveLocalClimax, getLocalClimax } from '@/services/cacheService';
+import { searchServerSongs, type ServerSong } from '@/api/serverSongs';
+import { loadClimaxForSong, normalizeClimaxSegments, type ClimaxSegment } from '@/api/climax';
 import type { LyricConfig } from '@/types/lyric';
 import { DEFAULT_LYRIC_CONFIG } from '@/types/lyric';
+import { secondToMinute } from '@/utils';
 
 const { t } = useI18n();
 const playerStore = usePlayerStore();
+const styleEngine = useStyleEngineStore();
+
+// ==================== 手动高潮段落标记（时间轴拖拽） ====================
+const currentPlayTime = computed(() => nowTime.value);
+const songDuration = computed(() => (playMusic.value?.dt || playMusic.value?.duration || 0) / 1000 || 1);
+const manualClimaxSegments = ref<{ start: number; end: number }[]>([]);
+const climaxTimelineRef = ref<HTMLElement | null>(null);
+
+// 拖拽创建新段落
+const isClimaxDragging = ref(false);
+const climaxDragStart = ref(0);
+const climaxDragEnd = ref(0);
+
+// 边缘拖拽调整已有段落
+const climaxEdgeDrag = ref<{
+  segIndex: number;
+  edge: 'start' | 'end';
+  startTouchX: number;
+  origStart: number;
+  origEnd: number;
+} | null>(null);
+
+// 时间刻度
+const climaxTimeMarks = computed(() => {
+  const marks: number[] = [];
+  const step = Math.max(10, Math.ceil(songDuration.value / 10));
+  for (let t = 0; t <= songDuration.value; t += step) {
+    marks.push(t);
+  }
+  return marks;
+});
+
+function formatTime(sec: number): string {
+  if (!sec || sec < 0) return '0:00';
+  return secondToMinute(sec);
+}
+
+function getClimaxRegionStyle(seg: { start: number; end: number }) {
+  const left = (seg.start / songDuration.value) * 100;
+  const width = ((seg.end - seg.start) / songDuration.value) * 100;
+  return { left: `${left}%`, width: `${Math.max(0.5, width)}%` };
+}
+
+function getClimaxPreviewStyle() {
+  const start = Math.min(climaxDragStart.value, climaxDragEnd.value);
+  const end = Math.max(climaxDragStart.value, climaxDragEnd.value);
+  const left = (start / songDuration.value) * 100;
+  const width = ((end - start) / songDuration.value) * 100;
+  return { left: `${left}%`, width: `${Math.max(0.5, width)}%` };
+}
+
+function touchToTime(e: TouchEvent): number {
+  if (!climaxTimelineRef.value) return 0;
+  const rect = climaxTimelineRef.value.getBoundingClientRect();
+  const x = e.touches[0]?.clientX ?? e.changedTouches[0]?.clientX ?? 0;
+  const ratio = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+  return ratio * songDuration.value;
+}
+
+// 时间轴拖拽创建新段落
+function onTimelineTouchStart(e: TouchEvent) {
+  if (climaxEdgeDrag.value) return;
+  const t = touchToTime(e);
+  isClimaxDragging.value = true;
+  climaxDragStart.value = t;
+  climaxDragEnd.value = t;
+}
+
+function onTimelineTouchMove(e: TouchEvent) {
+  if (!isClimaxDragging.value) return;
+  climaxDragEnd.value = touchToTime(e);
+}
+
+function onTimelineTouchEnd() {
+  if (!isClimaxDragging.value) return;
+  isClimaxDragging.value = false;
+  const start = Math.min(climaxDragStart.value, climaxDragEnd.value);
+  const end = Math.max(climaxDragStart.value, climaxDragEnd.value);
+  if (end - start > 1) {
+    addClimaxSegment(start, end);
+  }
+}
+
+// 边缘拖拽调整
+function onEdgeTouchStart(e: TouchEvent, segIndex: number, edge: 'start' | 'end') {
+  const seg = manualClimaxSegments.value[segIndex];
+  if (!seg) return;
+  climaxEdgeDrag.value = {
+    segIndex,
+    edge,
+    startTouchX: touchToTime(e),
+    origStart: seg.start,
+    origEnd: seg.end
+  };
+}
+
+function onEdgeTouchMove(e: TouchEvent) {
+  if (!climaxEdgeDrag.value) return;
+  const currentX = touchToTime(e);
+  const delta = currentX - climaxEdgeDrag.value.startTouchX;
+  const segs = [...manualClimaxSegments.value];
+  const seg = { ...segs[climaxEdgeDrag.value.segIndex] };
+
+  if (climaxEdgeDrag.value.edge === 'start') {
+    seg.start = Math.max(0, Math.min(seg.end - 0.5, climaxEdgeDrag.value.origStart + delta));
+  } else {
+    seg.end = Math.min(songDuration.value, Math.max(seg.start + 0.5, climaxEdgeDrag.value.origEnd + delta));
+  }
+  segs[climaxEdgeDrag.value.segIndex] = seg;
+  manualClimaxSegments.value = segs;
+}
+
+function onEdgeTouchEnd() {
+  if (!climaxEdgeDrag.value) return;
+  climaxEdgeDrag.value = null;
+  saveManualClimax();
+}
+
+function addClimaxSegment(start: number, end: number) {
+  const all = [...manualClimaxSegments.value, { start, end }].sort((a, b) => a.start - b.start);
+  // 合并重叠段落
+  const merged: { start: number; end: number }[] = [{ ...all[0] }];
+  for (let i = 1; i < all.length; i++) {
+    const last = merged[merged.length - 1];
+    if (all[i].start <= last.end) {
+      last.end = Math.max(last.end, all[i].end);
+    } else {
+      merged.push({ ...all[i] });
+    }
+  }
+  manualClimaxSegments.value = merged;
+  saveManualClimax();
+}
+
+function removeClimaxSegment(index: number) {
+  manualClimaxSegments.value.splice(index, 1);
+  saveManualClimax();
+}
+
+function clearAllClimaxSegments() {
+  manualClimaxSegments.value = [];
+  saveManualClimax();
+}
+
+function seekToPlayhead() {
+  if (sound?.value) {
+    sound.value.seek(currentPlayTime.value);
+  }
+}
+
+async function saveManualClimax() {
+  const song = playMusic.value;
+  if (!song) return;
+  const songId = String(song.id);
+  const segments = manualClimaxSegments.value.map(s => ({ start: s.start, end: s.end }));
+  await saveLocalClimax(songId, { segments, contributor: '手动标记' });
+  styleEngine.climaxSegments = segments as any;
+}
+
+async function loadManualClimax() {
+  const song = playMusic.value;
+  if (!song) return;
+  const songId = String(song.id);
+  const data = await getLocalClimax(songId);
+  if (data?.segments?.length) {
+    manualClimaxSegments.value = data.segments.map(s => ({ start: s.start, end: s.end }));
+  } else {
+    manualClimaxSegments.value = styleEngine.climaxSegments.map(s => ({ start: s.start, end: s.end }));
+  }
+}
+
+// ==================== 云端高潮数据查询 ====================
+interface CloudClimaxResult {
+  songName: string;
+  artist: string;
+  segments: { start: number; end: number }[];
+  contributor: string | null;
+  source: string;
+}
+
+const cloudClimaxLoading = ref(false);
+const cloudClimaxSearched = ref(false);
+const cloudClimaxResults = ref<CloudClimaxResult[]>([]);
+
+async function queryCloudClimax() {
+  const song = playMusic.value;
+  if (!song?.name) return;
+
+  cloudClimaxLoading.value = true;
+  cloudClimaxSearched.value = false;
+  cloudClimaxResults.value = [];
+
+  try {
+    const songName = song.name.trim();
+    const serverSongs = await searchServerSongs(songName, 10);
+    const matched = serverSongs.filter(s => s.name === songName);
+    const results: CloudClimaxResult[] = [];
+
+    // 1. 收集 songs.json 中自带的高潮数据
+    for (const ss of matched) {
+      if (ss.climax && ss.climax.length > 0) {
+        const normalized = normalizeClimaxSegments(ss.climax, ss.duration);
+        if (normalized.length > 0) {
+          results.push({
+            songName: ss.name,
+            artist: ss.artists.join(' / '),
+            segments: normalized.map(s => ({ start: s.start, end: s.end })),
+            contributor: 'Zephyrus 云端',
+            source: 'songs.json'
+          });
+        }
+      }
+
+      // 2. 查询社区标注的高潮数据
+      const communityResult = await loadClimaxForSong(ss.id);
+      if (communityResult.segments && communityResult.segments.length > 0) {
+        results.push({
+          songName: ss.name,
+          artist: ss.artists.join(' / '),
+          segments: communityResult.segments.map(s => ({ start: s.start, end: s.end })),
+          contributor: communityResult.contributor || '社区用户',
+          source: 'community'
+        });
+      }
+    }
+
+    cloudClimaxResults.value = results;
+    cloudClimaxSearched.value = true;
+  } catch (err) {
+    console.error('[MobileClimax] 查询云端高潮数据失败:', err);
+    cloudClimaxSearched.value = true;
+  } finally {
+    cloudClimaxLoading.value = false;
+  }
+}
+
+function applyCloudClimax(result: CloudClimaxResult) {
+  manualClimaxSegments.value = result.segments.map(s => ({ start: s.start, end: s.end }));
+  saveManualClimax();
+  cloudClimaxResults.value = [];
+  cloudClimaxSearched.value = false;
+}
+
+watch(() => playMusic.value?.id, () => {
+  cloudClimaxSearched.value = false;
+  cloudClimaxResults.value = [];
+  loadManualClimax();
+}, { immediate: true });
 
 // 安全的 i18n 翻译：当 vue-i18n 找不到键时返回键路径本身（而非空字符串），
 // 因此 `t(key) || fallback` 会因键路径为真值而失效。这里显式比对返回值。
@@ -960,5 +1350,120 @@ onUnmounted(() => {
 
 .share-toggle-switch.on .share-toggle-knob {
   transform: translateX(18px);
+}
+
+/* ==================== 高潮段落时间轴 ==================== */
+.climax-timeline-wrapper {
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.climax-time-scale {
+  position: relative;
+  height: 16px;
+  margin-bottom: 4px;
+}
+
+.climax-time-mark {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.climax-timeline {
+  position: relative;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  overflow: visible;
+  touch-action: none;
+}
+
+.climax-region {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 32px;
+  background: rgba(255, 200, 50, 0.35);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  z-index: 2;
+  transition: background 0.2s ease;
+}
+
+.climax-region-active {
+  background: rgba(255, 200, 50, 0.6);
+}
+
+.climax-handle {
+  width: 16px;
+  height: 100%;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 3;
+  touch-action: none;
+}
+
+.climax-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 2px;
+}
+
+.climax-handle.left::after {
+  left: 5px;
+}
+
+.climax-handle.right::after {
+  right: 5px;
+}
+
+.climax-region-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.climax-region-label {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.climax-preview {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 32px;
+  background: rgba(255, 200, 50, 0.25);
+  border-radius: 16px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.climax-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ef4444;
+  transform: translateX(-1px);
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
 }
 </style>

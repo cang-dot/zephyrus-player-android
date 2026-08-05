@@ -2,13 +2,15 @@ export default {
   platform: {
     netease: '网易云',
     qq: 'QQ音乐',
-    kugou: '酷狗'
+    kugou: '酷狗',
+    spotify: 'Spotify'
   },
   title: {
     qr: '扫码登录',
     phone: '手机号登录',
     cookie: 'Cookie登录',
-    uid: 'UID登录'
+    uid: 'UID登录',
+    oauth: 'OAuth 授权'
   },
   qrTip: '使用APP扫码登录',
   phoneTip: '使用账号登录',
@@ -63,5 +65,15 @@ export default {
     qrGenerating: '正在生成二维码...'
   },
   qrTitle: '扫码登录',
-  uidWarning: '注意：UID登录仅用于查看用户公开信息，无法访问需要登录权限的功能'
+  uidWarning: '注意：UID登录仅用于查看用户公开信息，无法访问需要登录权限的功能',
+  spotify: {
+    loginWithSpotify: '使用 Spotify 登录',
+    description: '登录 Spotify 后可搜索全球曲库、查看你的歌单，Premium 用户可控制播放',
+    waiting: '等待授权中…',
+    waitingHint: '请在弹出的浏览器中完成 Spotify 授权',
+    continue: '继续',
+    featureSearch: '搜索 Spotify 全球曲库',
+    featurePlaylist: '查看和管理你的歌单',
+    featurePremium: 'Premium 用户可控制播放'
+  }
 };

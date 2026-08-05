@@ -517,6 +517,18 @@ export function initNativeBridge() {
       }
     );
 
+    // 11. 音频焦点恢复钩子：其他应用抢走焦点后，保活模式下自动恢复播放
+    (window as any).__audioFocusResumed = () => {
+      import('@/services/audioService').then(({ audioService }) => {
+        const currentSound = audioService.getCurrentSound();
+        if (currentSound && !currentSound.playing()) {
+          currentSound.play();
+        }
+      }).catch((e) => {
+        console.warn('[NativeBridge] 音频焦点恢复后播放失败:', e);
+      });
+    };
+
     console.log('[NativeBridge] 原生桥接已初始化');
   } catch (e) {
     console.error('[NativeBridge] 初始化失败:', e);

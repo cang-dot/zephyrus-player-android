@@ -5,6 +5,7 @@ import type { SongResult } from '@/types/music';
 import request from '@/utils/request';
 
 import { MusicParser, type MusicParseResult } from './musicParser';
+import { getUnlockKey, getUnlockSongUrl } from './unlockKey';
 
 // 将 FM 歌曲移至垃圾桶（不喜欢）
 export const fmTrash = (id: number) => {
@@ -43,13 +44,40 @@ export const getMusicUrl = async (id: number, isDownloaded: boolean = false) => 
     console.error('error', error);
   }
 
-  return await request.get('/song/url/v1', {
+  const result = await request.get('/song/url/v1', {
     params: {
       id,
       level: settingStore.setData.musicQuality || 'higher',
       encodeType: settingStore.setData.musicQuality == 'lossless' ? 'aac' : 'flac'
     }
   });
+
+  // 如果拿到 URL 则直接返回
+  if (result?.data?.data?.[0]?.url && !result.data.data[0].freeTrialInfo) {
+    return result;
+  }
+
+  // 未拿到 URL 或试听片段 → 尝试用解锁口令走服务器代理
+  const unlockToken = getUnlockKey();
+  if (unlockToken) {
+    const quality = settingStore.setData.musicQuality || 'higher';
+    const unlockResult = await getUnlockSongUrl(id, unlockToken, quality);
+    if (unlockResult.url) {
+      return {
+        data: {
+          data: [{
+            url: unlockResult.url,
+            br: unlockResult.br || 0,
+            size: unlockResult.size || 0,
+            type: 'unlock',
+            level: quality
+          }]
+        }
+      };
+    }
+  }
+
+  return result;
 };
 
 // 获取歌曲详情

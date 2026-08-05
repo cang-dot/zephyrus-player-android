@@ -50,5 +50,10 @@ export default {
     loadFailed: 'ユーザーページの読み込みに失敗しました',
     deleteSuccess: '削除成功',
     deleteFailed: '削除失敗'
+  },
+  accountSwitcher: {
+    title: 'アカウント切替',
+    addAccount: 'アカウント追加',
+    close: '閉じる'
   }
 };

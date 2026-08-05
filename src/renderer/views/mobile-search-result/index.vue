@@ -126,6 +126,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { crossPlatformSearch } from '@/api/crossPlatformSearch';
 import { searchPlatformMusic } from '@/api/platformQrApi';
 import { getSearch } from '@/api/search';
+import { getUnlockKey, getUnlockSearchResults } from '@/api/unlockKey';
 import {
   rankSearchResults,
   searchServerSongs,
@@ -284,6 +285,7 @@ const performSearch = async (isLoadMore = false) => {
         triggerCrossSearch(keyword.value, songs);
         triggerServerSearch(keyword.value, songs);
         triggerPlatformSearch(keyword.value, songs);
+        triggerUnlockSearch(keyword.value, songs);
       }
     }
     // 歌手搜索
@@ -494,6 +496,46 @@ const triggerServerSearch = async (kw: string, existingSongs: any[]) => {
     }
   } catch (e) {
     console.error('[云端歌曲搜索失败]:', e);
+  }
+};
+
+// VIP 解锁搜索：有解锁口令时，通过服务器代理搜索 VIP 歌曲
+const triggerUnlockSearch = async (kw: string, existingSongs: any[]) => {
+  const unlockToken = getUnlockKey();
+  if (!unlockToken) return;
+
+  try {
+    const { songs: vipSongs, vipUnlocked } = await getUnlockSearchResults(kw, unlockToken, 30, 0);
+    if (!vipUnlocked || vipSongs.length === 0) return;
+
+    // 去重：与已有结果合并
+    const existingKeys = new Set(
+      existingSongs.map((s: any) =>
+        `${(s.name || '').toLowerCase()}|${(s.ar || s.artists || [])
+          .map((a: any) => a.name)
+          .join(',')}`.toLowerCase()
+      )
+    );
+    const deduped = vipSongs.filter(
+      (s: any) =>
+        !existingKeys.has(
+          `${(s.name || '').toLowerCase()}|${(s.ar || []).map((a: any) => a.name).join(',')}`.toLowerCase()
+        )
+    );
+
+    if (deduped.length > 0) {
+      // 标记为 VIP 来源
+      const formatted = deduped.map((s: any) => ({
+        ...s,
+        picUrl: s.al?.picUrl,
+        artists: s.ar
+      }));
+      results.value = [...results.value, ...formatted];
+      results.value = rankSearchResults(results.value, keyword.value);
+      classifySongs(formatted);
+    }
+  } catch (e) {
+    console.error('[VIP 解锁搜索失败]:', e);
   }
 };
 

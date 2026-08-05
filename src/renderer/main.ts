@@ -28,3 +28,12 @@ app.mount('#app');
 // 注册 deep link 处理器（供原生 Android 调用）
 import { setupDeepLinkHandler } from '@/utils/deepLink';
 setupDeepLinkHandler();
+
+// 注册 Spotify OAuth 回调处理器（供原生 Android 调用）
+import { useSpotifyStore } from '@/store/modules/spotify';
+const spotifyStore = useSpotifyStore();
+(window as any).__handleSpotifyCallback = (url: string) => {
+  spotifyStore.handleCallback(url).catch(console.error);
+};
+// 初始化 Spotify 登录状态
+spotifyStore.init();

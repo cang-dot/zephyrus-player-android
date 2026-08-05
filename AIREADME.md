@@ -2,7 +2,7 @@
 
 > 本文件供 AI 助手快速理解项目架构、开发规范与已知陷阱。
 > **每次修改代码后必须提交一次 commit。** 推送 / 打 tag / 发布需用户明确授权。
-> 另见同目录 `AGENTRULES.md`（强制行为规范）与 `DEV_PLAN_v1.1.3.md`（服务器部署细节）。
+> 另见同目录 `AGENTRULES.md`（强制行为规范）与 `DEV_PLAN.md`（服务器部署细节）。
 
 ## 项目关系
 
@@ -11,7 +11,7 @@
 | **安卓版（本仓库）** | [cang-dot/zephyrus-player-android](https://github.com/cang-dot/zephyrus-player-android) |
 | **桌面版（Electron）** | [cang-dot/zephyrus-player](https://github.com/cang-dot/zephyrus-player) |
 
-两仓库共享渲染层设计，但本仓库是独立维护的 Android 版本（Capacitor），版本号：**v1.1.3-beta**。
+两仓库共享渲染层设计，但本仓库是独立维护的 Android 版本（Capacitor），版本号：**v1.2.0**。
 
 ---
 

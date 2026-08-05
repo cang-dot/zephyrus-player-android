@@ -449,7 +449,7 @@ onMounted(() => {
   nextTick(() => {
     nextTick(() => {
       if (contentRef.value) {
-        contentRef.value.scrollTop = 150;
+        contentRef.value.scrollTop = 250;
       }
     });
   });

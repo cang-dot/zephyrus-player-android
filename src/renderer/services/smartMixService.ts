@@ -182,41 +182,70 @@ class SmartMixService {
         return; // 加载失败，回退到正常切歌
       }
     } else {
-      // 在线歌曲：优先使用预加载的 Howl
-      const preloaded = preloadService.consume(nextSong.id);
-      if (preloaded && preloaded.state() === 'loaded') {
+      // 在线歌曲：优先使用预加载的 Howl（非消费式获取）
+      const preloaded = preloadService.peek(nextSong.id);
+      if (preloaded) {
         nextSound = preloaded;
-      } else if (nextSong.playMusicUrl) {
-        // 有 URL，创建新 Howl
-        try {
-          nextSound = await preloadService.load(nextSong);
-        } catch {
+      } else {
+        // 预加载未就绪，尝试解析 URL 并加载
+        if (!nextSong.playMusicUrl) {
+          // URL 未解析，先尝试获取歌曲详情解析 URL
+          try {
+            const { useSongDetail } = await import('@/hooks/usePlayerHooks');
+            const { getSongDetail } = useSongDetail();
+            const detailed = await getSongDetail(nextSong);
+            if (detailed?.playMusicUrl) {
+              nextSong.playMusicUrl = detailed.playMusicUrl;
+              // 同步回播放列表
+              if (list[nextIndex]) {
+                list[nextIndex] = { ...list[nextIndex], playMusicUrl: detailed.playMusicUrl };
+              }
+            } else {
+              // URL 解析失败，跳过 crossfade，回退到正常切歌
+              return;
+            }
+          } catch (e) {
+            console.warn('[SmartMix] 解析下一首 URL 失败，跳过 crossfade:', e);
+            return;
+          }
+        }
+        // 有 URL，加载音频
+        if (nextSong.playMusicUrl) {
+          try {
+            nextSound = await preloadService.load(nextSong);
+          } catch (e) {
+            console.warn('[SmartMix] 加载下一首音频失败，跳过 crossfade:', e);
+            return;
+          }
+        } else {
           return;
         }
-      } else {
-        // URL 未解析，跳过 crossfade
-        return;
       }
     }
 
     // 触发 crossfade
-    await this.doCrossfade(
+    const crossfadeStarted = await this.doCrossfade(
       nextSound,
       nextSong,
       nextIndex,
       crossfadeDuration,
       mixEngine.transitionLevel
     );
+
+    // crossfade 成功启动后才从预加载缓存中移除
+    if (crossfadeStarted && !isLocalSong(nextSong)) {
+      preloadService.consume(nextSong.id);
+    }
   }
 
-  /** 执行 crossfade 并监听完成/取消事件 */
+  /** 执行 crossfade 并监听完成/取消事件，返回是否成功启动 */
   private async doCrossfade(
     nextSound: Howl | LocalAudioPlayer,
     nextSong: SongResult,
     nextIndex: number,
     duration: number,
     level: 1 | 2 | 3
-  ): Promise<void> {
+  ): Promise<boolean> {
     this.isCrossfading = true;
 
     try {
@@ -228,7 +257,7 @@ class SmartMixService {
       const success = await audioService.crossfadeToNext(nextSound, nextSong, duration, level);
       if (!success) {
         this.isCrossfading = false;
-        return;
+        return false;
       }
 
       // 监听 crossfade 完成
@@ -247,12 +276,15 @@ class SmartMixService {
         this.clearPending();
       };
       audioService.on('crossfade-cancelled', onCancel);
+
+      return true;
     } catch (e) {
       // 异常时必须重置 isCrossfading，否则 'end' 事件会被永远跳过
       // 导致播放完当前歌曲后无法自动切到下一首
       console.error('[SmartMix] doCrossfade 异常，重置 isCrossfading:', e);
       this.isCrossfading = false;
       this.clearPending();
+      return false;
     }
   }
 
@@ -321,14 +353,14 @@ class SmartMixService {
         console.warn('[SmartMix] 添加播放历史失败:', e);
       }
 
-      // 预加载下下首
+      // 预加载下下首（提前到 1 秒，给后续 crossfade 更多准备时间）
       setTimeout(() => {
         try {
           playlistStore.preloadNextSongs(nextIndex);
         } catch (e) {
           console.warn('[SmartMix] 预加载下一首失败:', e);
         }
-      }, 3000);
+      }, 1000);
 
       // 发送给歌词窗口
       if (window.electron) {

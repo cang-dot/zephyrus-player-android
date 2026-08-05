@@ -50,5 +50,10 @@ platforms: '플랫폼'
     loadFailed: '사용자 페이지 로드 실패',
     deleteSuccess: '삭제 성공',
     deleteFailed: '삭제 실패'
+  },
+  accountSwitcher: {
+    title: '계정 전환',
+    addAccount: '계정 추가',
+    close: '닫기'
   }
 };

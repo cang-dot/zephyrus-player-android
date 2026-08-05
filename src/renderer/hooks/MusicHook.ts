@@ -298,6 +298,28 @@ const setupAudioListeners = () => {
         // 智能混音 crossfade 检查（异步，不阻塞进度更新）
         smartMixService.checkCrossfade(currentTime, allTime.value).catch(() => {});
 
+        // === Crossfade 进度条动画：更新下一首进度 + 检测上一首结束 ===
+        if (smartMixService.getIsCrossfading()) {
+          import('@/store/modules/transition').then(({ useTransitionStore }) => {
+            const ts = useTransitionStore();
+            // 更新下一首实时进度
+            const crossSound = audioService.getCrossfadingSound();
+            if (crossSound) {
+              try {
+                const nextTime = crossSound.seek() as number;
+                const nextDur = crossSound.duration() as number;
+                if (typeof nextTime === 'number' && typeof nextDur === 'number' && nextDur > 0) {
+                  ts.updateNextProgress((nextTime / nextDur) * 100);
+                }
+              } catch {}
+            }
+            // 检测上一首是否播放到尽头
+            if (!ts.currentSongEnded && allTime.value > 0 && currentTime >= allTime.value - 0.3) {
+              ts.setCurrentSongEnded();
+            }
+          });
+        }
+
         // === 歌词索引更新 ===
         const newIndex = getLrcIndex(nowTime.value);
         if (newIndex !== nowIndex.value) {
@@ -544,8 +566,27 @@ const setupAudioListeners = () => {
 
   // crossfade 开始：通知 transition store 更新 UI
   audioService.on('crossfade-start', (payload: { track: SongResult; duration: number }) => {
+    // 获取下一首主体色
+    const nextColor =
+      payload.track.backgroundColor ||
+      (payload.track as any).primaryColor ||
+      '#ffffff';
+
+    // 获取上一首主体色
+    const currentColor =
+      getPlayerStore().playMusic?.backgroundColor ||
+      (getPlayerStore().playMusic as any)?.primaryColor ||
+      '#ffffff';
+
     import('@/store/modules/transition').then(({ useTransitionStore }) => {
-      useTransitionStore().begin(payload.track, payload.duration);
+      useTransitionStore().begin(
+        payload.track,
+        payload.duration,
+        0, // currentProgress (unused in new animation)
+        0, // nextDuration (unused in new animation)
+        nextColor,
+        currentColor
+      );
     });
   });
 

@@ -2,13 +2,15 @@ export default {
   platform: {
     netease: 'NetEase',
     qq: 'QQ Music',
-    kugou: 'Kugou'
+    kugou: 'Kugou',
+    spotify: 'Spotify'
   },
   title: {
     qr: 'QR Code Login',
     phone: 'Phone Login',
     cookie: 'Cookie Login',
-    uid: 'UID Login'
+    uid: 'UID Login',
+    oauth: 'OAuth Authorization'
   },
   qrTip: 'Scan with NetEase Cloud Music APP',
   phoneTip: 'Login with NetEase Cloud account',
@@ -65,5 +67,15 @@ export default {
   },
   qrTitle: 'NetEase Cloud Music QR Code Login',
   uidWarning:
-    'Note: UID login is only for viewing user public information and cannot access features that require login permissions.'
+    'Note: UID login is only for viewing user public information and cannot access features that require login permissions.',
+  spotify: {
+    loginWithSpotify: 'Login with Spotify',
+    description: 'Search the global catalog, view your playlists, and Premium users can control playback',
+    waiting: 'Waiting for authorization…',
+    waitingHint: 'Please complete Spotify authorization in the browser',
+    continue: 'Continue',
+    featureSearch: 'Search Spotify global catalog',
+    featurePlaylist: 'View and manage your playlists',
+    featurePremium: 'Premium users can control playback'
+  }
 };

@@ -1033,4 +1033,19 @@ public class NativeBridge {
         // 所有厂商 Intent 均失败，回退到应用详情页
         openAppDetailsSettings();
     }
+
+    /**
+     * 在外部浏览器中打开 URL（用于 Spotify OAuth 授权等）
+     */
+    @JavascriptInterface
+    public void openExternal(String url) {
+        if (url == null || url.isEmpty()) return;
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(intent);
+        } catch (Exception e) {
+            Log.e("NativeBridge", "openExternal error", e);
+        }
+    }
 }
