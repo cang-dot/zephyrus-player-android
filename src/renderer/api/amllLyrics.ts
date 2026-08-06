@@ -10,12 +10,30 @@ export interface AmllSongSource {
   songId: string;
 }
 
+interface CachedTtmlLyric {
+  schemaVersion: 1;
+  cachedAt: number;
+  lyric: TtmlLyric;
+}
+
+interface TtmlEndpoint {
+  url: string;
+  timeoutMs: number;
+}
+
 const RAW_BASE = 'https://raw.githubusercontent.com/amll-dev/amll-ttml-db/refs/heads/main';
 const JSDELIVR_BASE = 'https://cdn.jsdelivr.net/gh/amll-dev/amll-ttml-db@main';
 const COMMUNITY_MIRROR_BASE = 'https://amlldb.bikonoo.com';
+const ZEPHYRUS_DB_BASE = String(import.meta.env.VITE_TTML_DB_BASE_URL || '')
+  .trim()
+  .replace(/\/+$/, '');
 const DB_NAME = 'zephyrus-cache';
 const STORE_NAME = 'amll-ttml';
 const DB_VERSION = 2;
+const CACHE_SCHEMA_VERSION = 1;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const OWNED_SOURCE_TIMEOUT_MS = 2500;
+const FALLBACK_SOURCE_TIMEOUT_MS = 8000;
 
 const PLATFORM_FOLDERS: Record<AmllPlatform, string> = {
   netease: 'ncm-lyrics',
@@ -65,12 +83,19 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-async function getCached(key: string): Promise<TtmlLyric | null> {
+async function getCached(key: string): Promise<CachedTtmlLyric | null> {
   try {
     const database = await openDb();
     return await new Promise((resolve) => {
       const request = database.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(key);
-      request.onsuccess = () => resolve((request.result as TtmlLyric | undefined) || null);
+      request.onsuccess = () => {
+        const cached = request.result as CachedTtmlLyric | undefined;
+        const isUsable =
+          cached?.schemaVersion === CACHE_SCHEMA_VERSION &&
+          Number.isFinite(cached.cachedAt) &&
+          Boolean(cached.lyric?.lines?.length);
+        resolve(isUsable ? cached : null);
+      };
       request.onerror = () => resolve(null);
     });
   } catch {
@@ -83,7 +108,12 @@ async function setCached(key: string, value: TtmlLyric): Promise<void> {
     const database = await openDb();
     await new Promise<void>((resolve) => {
       const transaction = database.transaction(STORE_NAME, 'readwrite');
-      transaction.objectStore(STORE_NAME).put(value, key);
+      const cached: CachedTtmlLyric = {
+        schemaVersion: CACHE_SCHEMA_VERSION,
+        cachedAt: Date.now(),
+        lyric: value
+      };
+      transaction.objectStore(STORE_NAME).put(cached, key);
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => resolve();
     });
@@ -92,9 +122,9 @@ async function setCached(key: string, value: TtmlLyric): Promise<void> {
   }
 }
 
-async function fetchText(url: string): Promise<string | null> {
+async function fetchText(url: string, timeoutMs: number): Promise<string | null> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 8000);
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) return null;
@@ -107,16 +137,30 @@ async function fetchText(url: string): Promise<string | null> {
   }
 }
 
-function sourceUrls(source: AmllSongSource): string[] {
+function sourceUrls(source: AmllSongSource): TtmlEndpoint[] {
   const folder = PLATFORM_FOLDERS[source.platform];
   const id = encodeURIComponent(source.songId);
   const mirrorPath =
     source.platform === 'netease' ? `ncm-lyrics/${id}.ttml` : `${folder}/${id}.ttml`;
+  const ownedSource = ZEPHYRUS_DB_BASE
+    ? [
+        {
+          url: `${ZEPHYRUS_DB_BASE}/${folder}/${id}.ttml`,
+          timeoutMs: OWNED_SOURCE_TIMEOUT_MS
+        }
+      ]
+    : [];
   return [
-    `${RAW_BASE}/${folder}/${id}.ttml`,
-    `${JSDELIVR_BASE}/${folder}/${id}.ttml`,
-    `${COMMUNITY_MIRROR_BASE}/${mirrorPath}`
+    ...ownedSource,
+    { url: `${RAW_BASE}/${folder}/${id}.ttml`, timeoutMs: FALLBACK_SOURCE_TIMEOUT_MS },
+    { url: `${JSDELIVR_BASE}/${folder}/${id}.ttml`, timeoutMs: FALLBACK_SOURCE_TIMEOUT_MS },
+    { url: `${COMMUNITY_MIRROR_BASE}/${mirrorPath}`, timeoutMs: FALLBACK_SOURCE_TIMEOUT_MS }
   ];
+}
+
+function cacheKeyFor(source: AmllSongSource): string {
+  const scope = ZEPHYRUS_DB_BASE || 'upstream-only';
+  return `v2:${scope}:${source.platform}:${source.songId}`;
 }
 
 export async function getAmllLyric(
@@ -126,20 +170,20 @@ export async function getAmllLyric(
   const normalized = normalizePlatform(platform);
   if (!normalized) return null;
   const source: AmllSongSource = { platform: normalized, songId: String(songId) };
-  const cacheKey = `${source.platform}:${source.songId}`;
+  const cacheKey = cacheKeyFor(source);
   const cached = await getCached(cacheKey);
-  if (cached) return cached;
+  if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) return cached.lyric;
 
-  for (const url of sourceUrls(source)) {
-    const xml = await fetchText(url);
+  for (const endpoint of sourceUrls(source)) {
+    const xml = await fetchText(endpoint.url, endpoint.timeoutMs);
     if (!xml) continue;
     const parsed = parseTtml(xml);
     if (!parsed || parsed.lines.length === 0) continue;
-    parsed.source = url;
+    parsed.source = endpoint.url;
     await setCached(cacheKey, parsed);
     return parsed;
   }
-  return null;
+  return cached?.lyric || null;
 }
 
 export async function getAmllLyricForSong(
@@ -164,7 +208,7 @@ export async function clearAmllCache(
     database
       .transaction(STORE_NAME, 'readwrite')
       .objectStore(STORE_NAME)
-      .delete(`${normalized}:${String(songId)}`);
+      .delete(cacheKeyFor({ platform: normalized, songId: String(songId) }));
   } catch {
     // Ignore unavailable storage.
   }
