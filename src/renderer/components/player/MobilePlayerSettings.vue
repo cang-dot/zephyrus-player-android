@@ -88,251 +88,12 @@
               </div>
             </div>
 
-            <div class="mb-6 rounded-2xl bg-white/5 p-4">
-              <div class="mb-3 text-sm font-medium text-white/80">外观</div>
-              <div class="flex items-center justify-between py-2">
-                <span class="text-xs text-white/60">歌词颜色</span>
-                <input
-                  v-model="lyricConfig.lyricColor"
-                  type="color"
-                  class="h-8 w-12 rounded border-0 bg-transparent"
-                />
-              </div>
-              <div class="flex items-center justify-between py-2">
-                <span class="text-xs text-white/60">自定义背景</span>
-                <button
-                  class="share-toggle-switch"
-                  :class="{ on: lyricConfig.useCustomBackground }"
-                  @click="lyricConfig.useCustomBackground = !lyricConfig.useCustomBackground"
-                >
-                  <span class="share-toggle-knob"></span>
-                </button>
-              </div>
-              <div v-if="lyricConfig.useCustomBackground" class="mt-2 space-y-3">
-                <div class="grid grid-cols-3 gap-2">
-                  <button
-                    v-for="mode in ['solid', 'gradient', 'image']"
-                    :key="mode"
-                    class="rounded-lg px-2 py-2 text-xs"
-                    :class="
-                      lyricConfig.backgroundMode === mode
-                        ? 'bg-white/20 text-white'
-                        : 'bg-white/5 text-white/50'
-                    "
-                    @click="setBackgroundMode(mode)"
-                  >
-                    {{ mode === 'solid' ? '纯色' : mode === 'gradient' ? '渐变' : '图片' }}
-                  </button>
-                </div>
-                <input
-                  v-if="lyricConfig.backgroundMode === 'solid'"
-                  v-model="lyricConfig.solidColor"
-                  type="color"
-                  class="h-10 w-full rounded-lg border-0 bg-transparent"
-                />
-                <div v-if="lyricConfig.backgroundMode === 'gradient'" class="flex gap-2">
-                  <input
-                    v-model="lyricConfig.gradientColors.colors[0]"
-                    type="color"
-                    class="h-10 flex-1 rounded-lg border-0 bg-transparent"
-                  />
-                  <input
-                    v-model="lyricConfig.gradientColors.colors[1]"
-                    type="color"
-                    class="h-10 flex-1 rounded-lg border-0 bg-transparent"
-                  />
-                </div>
-                <div v-if="lyricConfig.backgroundMode === 'image'" class="space-y-2">
-                  <input
-                    ref="backgroundFileInput"
-                    type="file"
-                    accept="image/*"
-                    class="hidden"
-                    @change="handleBackgroundImageChange"
-                  />
-                  <button
-                    class="w-full rounded-xl bg-white/10 py-2 text-sm text-white/70"
-                    @click="backgroundFileInput?.click()"
-                  >
-                    <i class="ri-image-add-line mr-1"></i>选择背景图片
-                  </button>
-                  <img
-                    v-if="lyricConfig.backgroundImage"
-                    :src="lyricConfig.backgroundImage"
-                    class="max-h-32 w-full rounded-xl object-cover"
-                  />
-                  <div v-if="lyricConfig.backgroundImage" class="grid grid-cols-2 gap-2">
-                    <label class="text-xs text-white/50"
-                      >模糊 {{ lyricConfig.imageBlur }}px<input
-                        v-model.number="lyricConfig.imageBlur"
-                        type="range"
-                        min="0"
-                        max="20"
-                        class="w-full"
-                    /></label>
-                    <label class="text-xs text-white/50"
-                      >亮度 {{ lyricConfig.imageBrightness }}%<input
-                        v-model.number="lyricConfig.imageBrightness"
-                        type="range"
-                        min="0"
-                        max="200"
-                        class="w-full"
-                    /></label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 自定义效果（非默认样式时显示） -->
-            <div v-if="currentPlayerStyle !== 'default'" class="mb-6">
-              <div class="flex items-center justify-between mb-3">
-                <span class="text-sm font-medium text-white/80">自定义效果</span>
-              </div>
-              <div class="space-y-4 px-1">
-                <!-- 通用：字体导入 -->
-                <div class="flex items-center gap-3">
-                  <button
-                    @click="importFont"
-                    class="px-3 py-2 rounded-full text-sm bg-white/10 text-white/70 hover:bg-white/15"
-                  >
-                    <i class="ri-font-line mr-1"></i>导入字体 (.ttf)
-                  </button>
-                  <span v-if="customFontName" class="text-xs text-white/50 truncate">{{
-                    customFontName
-                  }}</span>
-                </div>
-
-                <!-- Stage -->
-                <template v-if="currentPlayerStyle === 'stage'">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs text-white/60">Aurora 速度</span>
-                    <input
-                      type="range"
-                      min="0.4"
-                      max="2"
-                      step="0.1"
-                      v-model.number="styleConfig.auroraSpeed"
-                      class="w-32 accent-[var(--accent-color)]"
-                    />
-                  </div>
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs text-white/60">鼓点闪白强度</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      v-model.number="styleConfig.beatFlashIntensity"
-                      class="w-32 accent-[var(--accent-color)]"
-                    />
-                  </div>
-                </template>
-
-                <!-- Eerie -->
-                <template v-if="currentPlayerStyle === 'eerie'">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs text-white/60">报纸闪现频率(ms)</span>
-                    <input
-                      type="range"
-                      min="200"
-                      max="1000"
-                      step="100"
-                      v-model.number="styleConfig.newspaperFreq"
-                      class="w-32 accent-[var(--accent-color)]"
-                    />
-                  </div>
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs text-white/60">关键词字号</span>
-                    <input
-                      type="range"
-                      min="16"
-                      max="48"
-                      step="2"
-                      v-model.number="styleConfig.keywordSize"
-                      class="w-32 accent-[var(--accent-color)]"
-                    />
-                  </div>
-                </template>
-
-                <!-- Neon -->
-                <template v-if="currentPlayerStyle === 'neon'">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs text-white/60">光晕半径</span>
-                    <input
-                      type="range"
-                      min="4"
-                      max="30"
-                      step="2"
-                      v-model.number="styleConfig.glowRadius"
-                      class="w-32 accent-[var(--accent-color)]"
-                    />
-                  </div>
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs text-white/60">脉冲速度</span>
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="3"
-                      step="0.1"
-                      v-model.number="styleConfig.pulseSpeed"
-                      class="w-32 accent-[var(--accent-color)]"
-                    />
-                  </div>
-                </template>
-
-                <!-- Frenzy -->
-                <template v-if="currentPlayerStyle === 'frenzy'">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs text-white/60">巨字字号</span>
-                    <input
-                      type="range"
-                      min="40"
-                      max="120"
-                      step="5"
-                      v-model.number="styleConfig.giantSize"
-                      class="w-32 accent-[var(--accent-color)]"
-                    />
-                  </div>
-                </template>
-
-                <!-- Magazine -->
-                <template v-if="currentPlayerStyle === 'magazine'">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs text-white/60">翻页速度(ms)</span>
-                    <input
-                      type="range"
-                      min="200"
-                      max="800"
-                      step="50"
-                      v-model.number="styleConfig.flipSpeed"
-                      class="w-32 accent-[var(--accent-color)]"
-                    />
-                  </div>
-                </template>
-
-                <template v-if="currentPlayerStyle === 'flash'">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs text-white/60">巨字大小</span>
-                    <input
-                      type="range"
-                      min="72"
-                      max="320"
-                      step="4"
-                      v-model.number="styleConfig.flashFontSize"
-                      class="w-32 accent-[var(--accent-color)]"
-                    />
-                  </div>
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs text-white/60">重点词颜色</span>
-                    <input
-                      v-model="styleConfig.flashKeywordColor"
-                      type="color"
-                      class="h-8 w-10 rounded border-0 bg-transparent"
-                    />
-                  </div>
-                </template>
-              </div>
-            </div>
+            <player-style-customization-panel
+              :key="currentPlayerStyle"
+              v-model="styleConfig"
+              :style-key="currentPlayerStyle"
+              @reset="resetCurrentStyleConfig"
+            />
 
             <!-- 分隔线 -->
             <div class="h-px bg-white/10 my-5"></div>
@@ -893,13 +654,15 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { storeToRefs } from 'pinia';
-import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import { loadClimaxForSong, normalizeClimaxSegments, uploadClimax } from '@/api/climax';
 import { searchServerSongs } from '@/api/serverSongs';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
+import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
+import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
 import { useMetaphor } from '@/features/lyric-metaphor/useMetaphor';
 import { lrcArray, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
@@ -911,6 +674,8 @@ import { useUserStore } from '@/store/modules/user';
 import type { LyricConfig } from '@/types/lyric';
 import { DEFAULT_LYRIC_CONFIG } from '@/types/lyric';
 import type { SongResult } from '@/types/music';
+import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from '@/types/playerStyle';
+import { isMobilePlayerStyleKey } from '@/types/playerStyle';
 import { getImgUrl, secondToMinute } from '@/utils';
 
 const { t } = useI18n();
@@ -921,7 +686,6 @@ const userStore = useUserStore();
 const { navigateToArtist } = useArtist();
 const message = window.$message;
 const activeTab = ref<'song' | 'control'>('control');
-const backgroundFileInput = ref<HTMLInputElement | null>(null);
 const openPlaylistDrawer = inject<(songOrId: number | SongResult) => void>('openPlaylistDrawer');
 
 const currentSong = computed(() => playMusic.value || null);
@@ -986,26 +750,6 @@ async function toggleCurrentFavorite() {
   if (id === undefined) return;
   if (currentIsFavorite.value) await playerStore.removeFromFavorite(id);
   else await playerStore.addToFavorite(id);
-}
-
-function setBackgroundMode(mode: string) {
-  if (mode === 'solid' || mode === 'gradient' || mode === 'image' || mode === 'css') {
-    lyricConfig.value.backgroundMode = mode;
-  }
-}
-
-function handleBackgroundImageChange(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0];
-  if (!file || !file.type.startsWith('image/')) return;
-  if (file.size > 20 * 1024 * 1024) {
-    message?.error('背景图片不能超过 20MB');
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    lyricConfig.value.backgroundImage = String(reader.result || '');
-  };
-  reader.readAsDataURL(file);
 }
 
 // ==================== 手动高潮段落标记（时间轴拖拽） ====================
@@ -1345,7 +1089,21 @@ const analyzeLyrics = async () => {
 };
 
 // 播放器样式配置
-const lyricConfig = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
+function loadStoredLyricConfig(): LyricConfig {
+  try {
+    const saved = localStorage.getItem('music-full-config');
+    const parsed = saved ? JSON.parse(saved) : {};
+    return {
+      ...DEFAULT_LYRIC_CONFIG,
+      ...parsed,
+      playerStyle: isMobilePlayerStyleKey(parsed.playerStyle) ? parsed.playerStyle : 'default'
+    };
+  } catch {
+    return { ...DEFAULT_LYRIC_CONFIG };
+  }
+}
+
+const lyricConfig = ref<LyricConfig>(loadStoredLyricConfig());
 
 watch(
   lyricConfig,
@@ -1357,7 +1115,7 @@ watch(
 );
 
 const playerStyles = computed<
-  Array<{ key: LyricConfig['playerStyle']; label: string; icon: string; color: string }>
+  Array<{ key: MobilePlayerStyleKey; label: string; icon: string; color: string }>
 >(() => [
   {
     key: 'default' as const,
@@ -1406,61 +1164,61 @@ const playerStyles = computed<
     label: tr('player.styles.rain', '雨夜'),
     icon: 'ri-rainy-line',
     color: '#3b82f6'
-  },
-  {
-    key: 'flash' as const,
-    label: tr('player.styles.flash', '快闪'),
-    icon: 'ri-flashlight-line',
-    color: '#ffcf4a'
   }
 ]);
 
-const currentPlayerStyle = computed(() => lyricConfig.value.playerStyle || 'default');
+const currentPlayerStyle = computed<MobilePlayerStyleKey>(() =>
+  isMobilePlayerStyleKey(lyricConfig.value.playerStyle) ? lyricConfig.value.playerStyle : 'default'
+);
 
-const setPlayerStyle = (style: string) => {
-  lyricConfig.value.playerStyle = style as LyricConfig['playerStyle'];
+const setPlayerStyle = (style: MobilePlayerStyleKey) => {
+  lyricConfig.value.playerStyle = style;
   localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
   window.dispatchEvent(new CustomEvent('music-full-config-updated'));
 };
 
 // ==================== 自定义效果配置 ====================
-const styleConfigDefaults: Record<string, any> = {
-  stage: { auroraSpeed: 0.8, beatFlashIntensity: 0.5 },
-  eerie: { newspaperFreq: 500, keywordSize: 32 },
-  neon: { glowRadius: 12, pulseSpeed: 1.5 },
-  frenzy: { giantSize: 80 },
-  magazine: { flipSpeed: 400 },
-  flash: { flashFontSize: 180, flashKeywordColor: '#ffcf4a' }
-};
-
-const styleConfig = ref<any>({});
-const customFontName = ref('');
+const styleConfig = ref<PlayerStyleCustomConfig>(createPlayerStyleConfig('default'));
+let suppressStyleSave = false;
 
 function loadStyleConfig() {
   try {
     const saved = localStorage.getItem('music-full-config');
-    if (!saved) return;
-    const config = JSON.parse(saved);
+    const config = saved ? JSON.parse(saved) : {};
     const allConfigs = config.styleCustomConfig || {};
-    const styleKey = config.playerStyle || 'default';
-    styleConfig.value = { ...styleConfigDefaults[styleKey], ...allConfigs[styleKey] };
-    customFontName.value = allConfigs[styleKey]?.customFontName || '';
+    const styleKey = isMobilePlayerStyleKey(config.playerStyle) ? config.playerStyle : 'default';
+    styleConfig.value = resolvePlayerStyleConfig(styleKey, allConfigs[styleKey]);
   } catch {
     // 忽略配置读取失败
   }
 }
 
-function saveStyleConfig() {
+function resetCurrentStyleConfig() {
   try {
-    const saved = localStorage.getItem('music-full-config');
-    if (!saved) return;
-    const config = JSON.parse(saved);
-    if (!config.styleCustomConfig) config.styleCustomConfig = {};
-    config.styleCustomConfig[config.playerStyle] = {
+    suppressStyleSave = true;
+    if (lyricConfig.value.styleCustomConfig) {
+      delete lyricConfig.value.styleCustomConfig[currentPlayerStyle.value];
+    }
+    styleConfig.value = createPlayerStyleConfig(currentPlayerStyle.value);
+    localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
+    window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+    void nextTick(() => {
+      suppressStyleSave = false;
+    });
+  } catch (error) {
+    console.error('还原样式配置失败:', error);
+  }
+}
+
+function saveStyleConfig() {
+  if (suppressStyleSave) return;
+  try {
+    if (!lyricConfig.value.styleCustomConfig) lyricConfig.value.styleCustomConfig = {};
+    lyricConfig.value.styleCustomConfig[currentPlayerStyle.value] = {
       ...styleConfig.value,
-      customFontName: customFontName.value
+      customFontName: styleConfig.value.customFontName
     };
-    localStorage.setItem('music-full-config', JSON.stringify(config));
+    localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
     window.dispatchEvent(new CustomEvent('music-full-config-updated'));
   } catch (e) {
     console.error('保存自定义配置失败:', e);
@@ -1469,33 +1227,6 @@ function saveStyleConfig() {
 
 watch(styleConfig, () => saveStyleConfig(), { deep: true });
 watch(currentPlayerStyle, () => loadStyleConfig(), { immediate: true });
-
-// 导入 TTF 字体
-function importFont() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.ttf,.otf';
-  input.onchange = async (e) => {
-    const file = (e.target as HTMLInputElement).files?.[0];
-    if (!file) return;
-    customFontName.value = file.name;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1];
-      const fontName = `UserFont-${currentPlayerStyle.value}`;
-      const oldStyle = document.getElementById(`user-font-${currentPlayerStyle.value}`);
-      if (oldStyle) oldStyle.remove();
-      const styleEl = document.createElement('style');
-      styleEl.id = `user-font-${currentPlayerStyle.value}`;
-      styleEl.textContent = `@font-face { font-family: '${fontName}'; src: url(data:font/ttf;base64,${base64}); }`;
-      document.head.appendChild(styleEl);
-      styleConfig.value.customFontFamily = fontName;
-      saveStyleConfig();
-    };
-    reader.readAsDataURL(file);
-  };
-  input.click();
-}
 
 loadStyleConfig();
 
@@ -1664,15 +1395,6 @@ watch(
 onMounted(() => {
   if (hasTimerActive.value && sleepTimer.value.type === 'time') {
     startTimerUpdate();
-  }
-  // 加载歌词配置
-  const saved = localStorage.getItem('music-full-config');
-  if (saved) {
-    try {
-      lyricConfig.value = { ...DEFAULT_LYRIC_CONFIG, ...JSON.parse(saved) };
-    } catch {
-      // keep default
-    }
   }
 });
 

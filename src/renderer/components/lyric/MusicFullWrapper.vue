@@ -20,10 +20,9 @@
 
 <script setup lang="ts">
 import { useWindowSize } from '@vueuse/core';
-import { computed, markRaw, onMounted, onUnmounted, ref } from 'vue';
+import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import EerieMobilePlayer from '@/components/lyric/EerieMobilePlayer.vue';
-import FlashPlayer from '@/components/lyric/FlashPlayer.vue';
 import FrenzyMobilePlayer from '@/components/lyric/FrenzyMobilePlayer.vue';
 import MagazineMobilePlayer from '@/components/lyric/MagazineMobilePlayer.vue';
 import MusicFull from '@/components/lyric/MusicFull.vue';
@@ -33,11 +32,14 @@ import RainMobilePlayer from '@/components/lyric/RainMobilePlayer.vue';
 import StageMobilePlayer from '@/components/lyric/StageMobilePlayer.vue';
 import StarChartPlayer from '@/components/lyric/StarChartPlayer.vue';
 import { getStyle } from '@/playerStyles';
-import { DEFAULT_LYRIC_CONFIG } from '@/types/lyric';
+import { usePlayerStore } from '@/store/modules/player';
+import { useStyleEngineStore } from '@/store/modules/styleEngine';
+import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
+import { isMobilePlayerStyleKey } from '@/types/playerStyle';
 import { isMobile } from '@/utils';
 
 // 响应式配置状态
-const playerStyle = ref<string>(DEFAULT_LYRIC_CONFIG.playerStyle);
+const playerStyle = ref<LyricConfig['playerStyle']>(DEFAULT_LYRIC_CONFIG.playerStyle);
 
 // 从 localStorage 读取配置
 function loadConfig() {
@@ -45,7 +47,16 @@ function loadConfig() {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      playerStyle.value = parsed.playerStyle || DEFAULT_LYRIC_CONFIG.playerStyle;
+      const savedStyle = parsed.playerStyle;
+      const normalized =
+        savedStyle === 'classic' || isMobilePlayerStyleKey(savedStyle)
+          ? savedStyle
+          : DEFAULT_LYRIC_CONFIG.playerStyle;
+      playerStyle.value = normalized;
+      if (savedStyle !== normalized) {
+        parsed.playerStyle = normalized;
+        localStorage.setItem('music-full-config', JSON.stringify(parsed));
+      }
     } catch {
       playerStyle.value = DEFAULT_LYRIC_CONFIG.playerStyle;
     }
@@ -97,9 +108,18 @@ const mobileStyleComponents: Record<string, any> = {
   frenzy: markRaw(FrenzyMobilePlayer),
   eerie: markRaw(EerieMobilePlayer),
   neon: markRaw(NeonMobilePlayer),
-  rain: markRaw(RainMobilePlayer),
-  flash: markRaw(FlashPlayer)
+  rain: markRaw(RainMobilePlayer)
 };
+
+const playerStore = usePlayerStore();
+const styleEngine = useStyleEngineStore();
+watch(
+  () => [isMobile.value, playerStore.currentSong?.id] as const,
+  ([mobile, songId]) => {
+    if (mobile && songId) void styleEngine.loadClimaxData(String(songId));
+  },
+  { immediate: true }
+);
 
 const componentToUse = computed(() => {
   const style = getStyle(playerStyle.value);

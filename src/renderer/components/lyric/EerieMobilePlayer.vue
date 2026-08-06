@@ -4,11 +4,16 @@
       <div
         v-if="isVisible"
         class="eerie-mobile-player player-style-surface"
+        :class="{
+          'player-style-customized': isCustom,
+          'player-style-custom-background': customBackgroundActive
+        }"
         :style="{
           ...styleVars,
           '--accent-color': accentColor,
           '--accent-dark': accentDark,
-          '--bg-color': bgColor
+          '--bg-color': bgColor,
+          '--player-style-resolved-font': fontFamily
         }"
         @click="handleTapToggle"
         @touchstart="onSwipeCloseTouchStart"
@@ -25,16 +30,25 @@
           ></div>
         </transition-group>
 
+        <ttml-word-effect-layer
+          v-if="!showFullLyrics"
+          :auxiliary-tokens="ttmlPlayback.auxiliaryTokens.value"
+          :main-token="ttmlPlayback.currentMainToken.value"
+          :show-drop="showWordDrop"
+        />
+
         <!-- 歌词层（前奏阶段不显示歌词，只显示噪点背景，点击切换滚动歌词） -->
-        <div class="lyrics-layer" v-show="!showFullLyrics">
-          <template v-if="!isIntro && isInClimax && climaxDisplayKeywords.length > 0">
+        <div class="lyrics-layer" v-show="!showFullLyrics && !showWordDrop">
+          <template
+            v-if="!isIntro && isInClimax && effects.keyword && climaxDisplayKeywords.length > 0"
+          >
             <div class="climax-keywords">
               <span
                 v-for="(kw, i) in climaxDisplayKeywords"
                 :key="i"
                 class="keyword-char"
                 :style="{
-                  color: accentColor,
+                  color: isCustom ? 'var(--player-style-lyric-color)' : accentColor,
                   fontSize: climaxFontSizePx,
                   fontWeight: eerieFontWeightValue
                 }"
@@ -50,7 +64,7 @@
                 class="calligraphy-char"
                 :style="{
                   fontSize: charData.size + 'px',
-                  color: accentColor,
+                  color: isCustom ? 'var(--player-style-lyric-color)' : accentColor,
                   marginLeft: charData.margin + 'px',
                   marginRight: charData.margin + 'px',
                   fontWeight: eerieFontWeightValue
@@ -112,13 +126,14 @@ import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch
 import newspaperManifest from '@/assets/textures/newspaper/manifest.json';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
+import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
-import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
+import { useTtmlPlayback } from '@/composables/useTtmlPlayback';
 import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drawCracks } from '@/lib/crackRenderer';
@@ -265,8 +280,14 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 // 海报分享
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
 const controlsRef = ref();
-const { config: styleCfg } = useStyleCustomConfig('eerie');
-const { styleVars } = usePlayerStyleAppearance();
+const {
+  config: styleCfg,
+  effects,
+  styleVars,
+  isCustom,
+  customBackgroundActive
+} = usePlayerStyleAppearance('eerie');
+const ttmlPlayback = useTtmlPlayback();
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({
@@ -285,6 +306,13 @@ const progressPercent = computed(() =>
   duration.value ? (currentTime.value / duration.value) * 100 : 0
 );
 const isInClimax = computed(() => styleEngine.isInClimax);
+const showWordDrop = computed(
+  () =>
+    !showFullLyrics.value &&
+    isInClimax.value &&
+    effects.value.wordDrop &&
+    ttmlPlayback.available.value
+);
 
 // ==================== 响应式配置 ====================
 const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
@@ -311,7 +339,6 @@ watch(
   (songId) => {
     if (songId) {
       setCurrentSongId(String(songId));
-      styleEngine.loadClimaxData(String(songId));
     }
   },
   { immediate: true }
@@ -321,9 +348,6 @@ onMounted(() => {
   window.addEventListener('music-full-config-updated', handleConfigUpdate);
   styleEngine.syncFromPlayerStore();
   styleEngine.syncCoverColors();
-  if (playerStore.currentSong?.id) {
-    styleEngine.loadClimaxData(String(playerStore.currentSong.id));
-  }
 });
 
 onUnmounted(() => {

@@ -1,3 +1,5 @@
+import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from './playerStyle';
+
 export interface LyricConfig {
   hideCover: boolean;
   centerLyrics: boolean;
@@ -12,17 +14,7 @@ export interface LyricConfig {
   hideMiniPlayBar: boolean;
   hideLyrics: boolean;
   contentWidth: number; // 内容区域宽度百分比
-  playerStyle:
-    | 'default'
-    | 'classic'
-    | 'stage'
-    | 'starChart'
-    | 'magazine'
-    | 'frenzy'
-    | 'eerie'
-    | 'neon'
-    | 'rain'
-    | 'flash';
+  playerStyle: MobilePlayerStyleKey | 'classic';
   animationIntensity: 'soft' | 'normal' | 'power'; // 舞台模式歌词动画幅度
   // 移动端配置
   mobileLayout: 'default' | 'ios' | 'android';
@@ -41,6 +33,7 @@ export interface LyricConfig {
   imageBrightness: number; // 图片明暗度 (0-200%, 100为正常)
   customCss?: string; // 自定义 CSS 样式
   lyricColor: string; // 所有播放器样式的歌词颜色
+  styleCustomConfig?: Partial<Record<MobilePlayerStyleKey, PlayerStyleCustomConfig>>;
   // 杂志样式配置
   gridRhythmClimaxBoost: boolean; // 高潮闪烁增强
   gridRhythmSize: string; // 网格密度

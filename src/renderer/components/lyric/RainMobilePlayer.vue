@@ -4,6 +4,10 @@
       <div
         v-if="isVisible"
         class="rain-mobile-player player-style-surface"
+        :class="{
+          'player-style-customized': isCustom,
+          'player-style-custom-background': customBackgroundActive
+        }"
         :style="styleVars"
         @click="handleTapToggle"
         @touchstart="onSwipeCloseTouchStart"
@@ -205,7 +209,7 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 
 // 海报分享
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
-const { styleVars } = usePlayerStyleAppearance();
+const { styleVars, isCustom, customBackgroundActive } = usePlayerStyleAppearance('rain');
 
 const isVisible = computed({
   get: () => props.modelValue,

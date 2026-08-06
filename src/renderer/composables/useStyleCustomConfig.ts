@@ -1,32 +1,56 @@
-/**
- * useStyleCustomConfig — 读取当前播放器样式的自定义效果配置
- *
- * 从 localStorage 的 music-full-config.styleCustomConfig[styleKey] 读取参数。
- * 监听 music-full-config-updated 事件自动刷新。
- */
-import { ref, onUnmounted } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 
-export function useStyleCustomConfig(styleKey: string) {
-  const config = ref<Record<string, any>>({});
+import {
+  createPlayerStyleConfig,
+  resolvePlayerStyleConfig,
+  resolvePlayerStyleEffects
+} from '@/config/playerStyleConfig';
+import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from '@/types/playerStyle';
+
+export function useStyleCustomConfig(styleKey: MobilePlayerStyleKey) {
+  const savedConfig = ref<PlayerStyleCustomConfig>(resolvePlayerStyleConfig(styleKey));
 
   function load() {
     try {
       const saved = localStorage.getItem('music-full-config');
-      if (!saved) return;
-      const parsed = JSON.parse(saved);
-      config.value = parsed.styleCustomConfig?.[styleKey] || {};
+      const parsed = saved ? JSON.parse(saved) : {};
+      savedConfig.value = resolvePlayerStyleConfig(styleKey, parsed.styleCustomConfig?.[styleKey]);
+      installCustomFont(styleKey, savedConfig.value);
     } catch {
-      // ignore
+      savedConfig.value = resolvePlayerStyleConfig(styleKey);
     }
   }
 
   load();
 
-  function handler() {
-    load();
-  }
+  const handler = () => load();
   window.addEventListener('music-full-config-updated', handler);
-  onUnmounted(() => window.removeEventListener('music-full-config-updated', handler));
+  window.addEventListener('storage', handler);
+  onUnmounted(() => {
+    window.removeEventListener('music-full-config-updated', handler);
+    window.removeEventListener('storage', handler);
+  });
 
-  return { config };
+  const isCustom = computed(() => savedConfig.value.mode === 'custom');
+  const config = computed(() =>
+    isCustom.value ? savedConfig.value : createPlayerStyleConfig(styleKey)
+  );
+  const effects = computed(() => resolvePlayerStyleEffects(styleKey, savedConfig.value));
+
+  return { config, effects, isCustom, reload: load };
+}
+
+function installCustomFont(styleKey: MobilePlayerStyleKey, config: PlayerStyleCustomConfig) {
+  const elementId = `user-style-font-${styleKey}`;
+  document.getElementById(elementId)?.remove();
+  if (
+    config.mode !== 'custom' ||
+    !config.customFontFamily ||
+    !config.customFontData?.startsWith('data:')
+  )
+    return;
+  const style = document.createElement('style');
+  style.id = elementId;
+  style.textContent = `@font-face { font-family: '${config.customFontFamily}'; src: url('${config.customFontData}'); font-display: swap; }`;
+  document.head.appendChild(style);
 }

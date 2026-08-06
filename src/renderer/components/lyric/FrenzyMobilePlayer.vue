@@ -4,10 +4,15 @@
       <div
         v-if="isVisible"
         class="frenzy-mobile-player player-style-surface"
+        :class="{
+          'player-style-customized': isCustom,
+          'player-style-custom-background': customBackgroundActive
+        }"
         :style="{
           ...styleVars,
           '--text-dark': textColorDark,
           '--text-gray': textColorGray,
+          '--player-style-resolved-font': frenzyFontFamily,
           background: backgroundColor
         }"
         @click="handleTapToggle"
@@ -21,11 +26,11 @@
           :intensity="glitchIntensity"
           :crtIntensity="crtIntensity"
           :speed="0.8"
-          :showScanlines="true"
+          :showScanlines="effects.crt"
         />
 
         <!-- 高潮过渡闪光 -->
-        <div class="climax-flash" :style="climaxFlashStyle"></div>
+        <div v-if="effects.crt" class="climax-flash" :style="climaxFlashStyle"></div>
 
         <!-- 四角装饰圆点 -->
         <div class="corner-dot tl"></div>
@@ -33,8 +38,15 @@
         <div class="corner-dot bl"></div>
         <div class="corner-dot br"></div>
 
+        <ttml-word-effect-layer
+          v-if="!showFullLyrics"
+          :auxiliary-tokens="ttmlPlayback.auxiliaryTokens.value"
+          :main-token="ttmlPlayback.currentMainToken.value"
+          :show-drop="showWordDrop"
+        />
+
         <!-- 巨字歌词（点击切换滚动歌词） -->
-        <div class="giant-text-container" v-show="!showFullLyrics">
+        <div class="giant-text-container" v-show="!showFullLyrics && !showWordDrop">
           <div
             class="giant-text line-1"
             :style="{
@@ -119,13 +131,14 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import GlitchBackground from '@/components/lyric/GlitchBackground.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
+import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
-import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
+import { useTtmlPlayback } from '@/composables/useTtmlPlayback';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drumDetector } from '@/services/drumDetector';
@@ -164,25 +177,18 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 // 海报分享
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
 const controlsRef = ref();
-const { config: styleCfg } = useStyleCustomConfig('frenzy');
-const { styleVars } = usePlayerStyleAppearance();
-
-// ==================== 高潮数据加载 ====================
-// 狂躁样式需要 styleEngine 持有 climax segments 来驱动 isInClimax + 进度条高潮段落标注。
-watch(
-  () => playerStore.currentSong?.id,
-  (songId) => {
-    if (songId) styleEngine.loadClimaxData(String(songId));
-  },
-  { immediate: true }
-);
+const {
+  config: styleCfg,
+  effects,
+  styleVars,
+  isCustom,
+  customBackgroundActive
+} = usePlayerStyleAppearance('frenzy');
+const ttmlPlayback = useTtmlPlayback();
 
 onMounted(() => {
   styleEngine.syncFromPlayerStore();
   styleEngine.syncCoverColors();
-  if (playerStore.currentSong?.id) {
-    styleEngine.loadClimaxData(String(playerStore.currentSong.id));
-  }
 });
 
 // ==================== 鼓点检测 ====================
@@ -235,16 +241,18 @@ function crtAnimate() {
 }
 
 const crtIntensity = computed(() => {
+  if (!effects.value.crt) return 0;
   const beatBoost = styleEngine.isInClimax ? beatSpike.value * 0.4 : 0;
   return Math.min(1.0, crtIntensityCurrent.value + beatBoost);
 });
 
 watch(
-  () => styleEngine.isInClimax,
-  (inClimax) => {
-    crtTarget = inClimax ? 0.6 : 0;
+  () => [styleEngine.isInClimax, effects.value.crt] as const,
+  ([inClimax, enabled]) => {
+    crtTarget = inClimax && enabled ? 0.6 : 0;
     if (!crtRafId) crtRafId = requestAnimationFrame(crtAnimate);
-  }
+  },
+  { immediate: true }
 );
 
 // ==================== 高潮过渡闪光 ====================
@@ -256,7 +264,7 @@ let flashTimer2: ReturnType<typeof setTimeout> | null = null;
 const climaxFlashStyle = computed(() => ({
   opacity: climaxFlashOpacity.value,
   filter: `hue-rotate(${climaxFlashHue.value}deg)`,
-  mixBlendMode: 'overlay'
+  mixBlendMode: 'overlay' as const
 }));
 
 watch(
@@ -320,6 +328,16 @@ const progressPercent = computed(() => {
   if (!duration.value) return 0;
   return (currentTime.value / duration.value) * 100;
 });
+const frenzyFontFamily = computed(
+  () => styleCfg.value.customFontFamily || "var(--m-font-art, 'Inter', sans-serif)"
+);
+const showWordDrop = computed(
+  () =>
+    !showFullLyrics.value &&
+    styleEngine.isInClimax &&
+    effects.value.wordDrop &&
+    ttmlPlayback.available.value
+);
 
 // ==================== 巨字歌词拆分 ====================
 
@@ -371,12 +389,12 @@ const fontSizePx = computed(() => {
  * 颜色：高潮时切换为强调色
  */
 const textColorDark = computed(() => {
-  if (styleEngine.isInClimax) return primaryColor.value;
+  if (styleEngine.isInClimax && effects.value.lyricColor) return primaryColor.value;
   return '#1a1a1a';
 });
 
 const textColorGray = computed(() => {
-  if (styleEngine.isInClimax) return averageColor.value;
+  if (styleEngine.isInClimax && effects.value.lyricColor) return averageColor.value;
   return '#6b6b6b';
 });
 

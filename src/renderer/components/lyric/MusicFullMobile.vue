@@ -19,7 +19,11 @@
         config.theme,
         `cover-style-${config.mobileCoverStyle}`,
         { 'is-landscape': isLandscape },
-        { 'is-dark': isDark }
+        { 'is-dark': isDark },
+        {
+          'player-style-customized': isCustom,
+          'player-style-custom-background': customBackgroundActive
+        }
       ]"
     >
       <!-- 顶部控制按钮 -->
@@ -439,7 +443,7 @@ import { showBottomToast } from '@/utils/shortcutToast';
 const { t } = useI18n();
 const playerStore = usePlayerStore();
 const transitionStore = useTransitionStore();
-const { styleVars } = usePlayerStyleAppearance();
+const { styleVars, isCustom, customBackgroundActive } = usePlayerStyleAppearance('default');
 
 // ==================== Crossfade 进度条动画 ====================
 

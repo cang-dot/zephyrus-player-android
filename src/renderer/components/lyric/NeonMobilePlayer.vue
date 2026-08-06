@@ -4,6 +4,10 @@
       <div
         v-if="isVisible"
         class="neon-mobile-player player-style-surface"
+        :class="{
+          'player-style-customized': isCustom,
+          'player-style-custom-background': customBackgroundActive
+        }"
         :style="{
           ...styleVars,
           '--neon-color': neonColor,
@@ -136,7 +140,8 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
 const controlsRef = ref();
 const { config: styleCfg } = useStyleCustomConfig('neon');
-const { styleVars } = usePlayerStyleAppearance();
+const { styleVars, isCustom, customBackgroundActive, climaxColors } =
+  usePlayerStyleAppearance('neon');
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({
@@ -155,7 +160,9 @@ const progressPercent = computed(() =>
   duration.value ? (currentTime.value / duration.value) * 100 : 0
 );
 
-const neonColor = computed(() => primaryColor.value || '#c9a96e');
+const neonColor = computed(() =>
+  isCustom.value ? climaxColors.value.main : primaryColor.value || '#c9a96e'
+);
 const neonBright = computed(() => {
   const rgb = neonColor.value.match(/\d+/g);
   if (!rgb) return '#e8d5a8';
@@ -215,7 +222,6 @@ watch(
   (songId) => {
     if (songId) {
       setCurrentSongId(String(songId));
-      styleEngine.loadClimaxData(String(songId));
     }
   },
   { immediate: true }
@@ -225,9 +231,6 @@ onMounted(() => {
   checkStrokes();
   styleEngine.syncFromPlayerStore();
   styleEngine.syncCoverColors();
-  if (playerStore.currentSong?.id) {
-    styleEngine.loadClimaxData(String(playerStore.currentSong.id));
-  }
   subscribeDrumDetector();
 });
 

@@ -4,6 +4,10 @@
       <div
         v-if="isVisible"
         class="star-chart-player player-style-surface"
+        :class="{
+          'player-style-customized': isCustom,
+          'player-style-custom-background': customBackgroundActive
+        }"
         :style="{
           ...styleVars,
           '--accent-color': accentColor,
@@ -138,7 +142,7 @@ const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor, primaryColorRgb } = useCoverColor();
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
-const { styleVars } = usePlayerStyleAppearance();
+const { styleVars, isCustom, customBackgroundActive } = usePlayerStyleAppearance('starChart');
 const showFullLyrics = ref(false);
 const chartFrame = ref<HTMLElement>();
 const chartCanvas = ref<HTMLCanvasElement>();
@@ -400,14 +404,6 @@ watch(showFullLyrics, async (visible) => {
     stopSpectrumLoop();
   }
 });
-
-watch(
-  () => playerStore.currentSong?.id,
-  (songId) => {
-    if (songId) styleEngine.loadClimaxData(String(songId));
-  },
-  { immediate: true }
-);
 
 onMounted(() => {
   styleEngine.syncFromPlayerStore();

@@ -4,6 +4,10 @@
       <div
         v-if="isVisible"
         class="magazine-mobile-player player-style-surface"
+        :class="{
+          'player-style-customized': isCustom,
+          'player-style-custom-background': customBackgroundActive
+        }"
         :style="{
           ...styleVars,
           '--block-color-0': blockColors[0] || accentColor,
@@ -167,7 +171,7 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
 const controlsRef = ref();
 const { config: styleCfg } = useStyleCustomConfig('magazine');
-const { styleVars } = usePlayerStyleAppearance();
+const { styleVars, isCustom, customBackgroundActive } = usePlayerStyleAppearance('magazine');
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({
@@ -310,19 +314,7 @@ onMounted(() => {
   // 非移动端也支持，但默认隐藏控件
   styleEngine.syncFromPlayerStore();
   styleEngine.syncCoverColors();
-  if (playerStore.currentSong?.id) {
-    styleEngine.loadClimaxData(String(playerStore.currentSong.id));
-  }
 });
-
-// 切歌时重新加载高潮段落数据，使进度条高潮标注和 isInClimax 正常工作
-watch(
-  () => playerStore.currentSong?.id,
-  (songId) => {
-    if (songId) styleEngine.loadClimaxData(String(songId));
-  },
-  { immediate: true }
-);
 
 onBeforeUnmount(() => {
   // 清理

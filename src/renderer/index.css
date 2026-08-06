@@ -818,11 +818,9 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: var(--player-style-fallback, #111) !important;
-  color: var(--player-style-lyric-color);
 }
 
-.player-style-surface::before {
+.player-style-surface.player-style-custom-background::before {
   position: absolute;
   inset: 0;
   z-index: -1;
@@ -834,21 +832,49 @@
   pointer-events: none;
 }
 
-.player-style-surface .lyrics-main,
-.player-style-surface .lyric-main,
-.player-style-surface .lyric-line,
-.player-style-surface .current-lyric,
-.player-style-surface .current-lyric-text {
+.player-style-surface.player-style-customized .lyrics-main,
+.player-style-surface.player-style-customized .lyric-main,
+.player-style-surface.player-style-customized .lyric-line,
+.player-style-surface.player-style-customized .current-lyric,
+.player-style-surface.player-style-customized .current-lyric-text {
   color: var(--player-style-lyric-color) !important;
+  font-family: var(--player-style-font-family, inherit) !important;
 }
 
-.player-style-surface .giant-text,
-.player-style-surface .neon-lyrics,
-.player-style-surface .fallback-lyrics,
-.player-style-surface .lyrics-center,
-.player-style-surface .lyrics-area,
-.player-style-surface .lyrics-layer,
-.player-style-surface .lyrics-main,
-.player-style-surface .lyric-main {
+.player-style-surface.player-style-customized {
+  font-family: var(--player-style-font-family, inherit);
+}
+
+.player-style-surface.player-style-custom-background {
+  background: var(--player-style-background, transparent) !important;
+}
+
+.player-style-surface.player-style-custom-background .background-layer,
+.player-style-surface.player-style-custom-background .concrete-bg,
+.player-style-surface.player-style-custom-background .aged-overlay,
+.player-style-surface.player-style-custom-background .bg-canvas {
+  opacity: 0.25;
+}
+
+.player-style-surface.player-style-custom-background :is(.glitch-bg-container) {
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+}
+
+.player-style-surface.player-style-customized .giant-text,
+.player-style-surface.player-style-customized .neon-lyrics,
+.player-style-surface.player-style-customized .fallback-lyrics,
+.player-style-surface.player-style-customized .lyrics-center,
+.player-style-surface.player-style-customized .lyrics-area,
+.player-style-surface.player-style-customized .lyrics-layer,
+.player-style-surface.player-style-customized .lyrics-main,
+.player-style-surface.player-style-customized .lyric-main {
   color: var(--player-style-lyric-color) !important;
+  font-family: var(--player-style-font-family, inherit) !important;
+}
+
+.player-style-surface.player-style-customized .translation,
+.player-style-surface.player-style-customized .lyrics-translation,
+.player-style-surface.player-style-customized .lyric-translation {
+  color: var(--player-style-translation-color) !important;
 }

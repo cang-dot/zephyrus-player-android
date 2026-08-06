@@ -4,10 +4,15 @@
       <div
         v-if="isVisible"
         class="stage-mobile-player player-style-surface"
+        :class="{
+          'player-style-customized': isCustom,
+          'player-style-custom-background': customBackgroundActive
+        }"
         :style="{
           ...styleVars,
           '--accent-color': accentColor,
           '--accent-color-rgb': accentColorRgb,
+          '--player-style-resolved-font': stageFontFamily,
           background: backgroundColor
         }"
         @click="handleTapToggle"
@@ -16,6 +21,13 @@
       >
         <!-- 鼓点闪白（高潮时段） -->
         <beat-flash-layer />
+
+        <ttml-word-effect-layer
+          v-if="!showFullLyrics"
+          :auxiliary-tokens="ttmlPlayback.auxiliaryTokens.value"
+          :main-token="ttmlPlayback.currentMainToken.value"
+          :show-drop="showWordDrop"
+        />
 
         <!-- 顶部：歌名 + 歌手 -->
         <div class="song-header" :class="{ 'song-header-visible': controlsVisible }">
@@ -28,7 +40,7 @@
         </div>
 
         <!-- 中央：歌词 + 翻译（点击切换滚动歌词） -->
-        <div class="lyrics-center" v-show="!showFullLyrics">
+        <div class="lyrics-center" v-show="!showFullLyrics && !showWordDrop">
           <transition name="lyric-change" mode="out-in">
             <div :key="nowIndex" class="lyrics-main" :style="lyricStyle">
               {{ currentLyricText }}
@@ -99,18 +111,19 @@
  * - 音频响应：高潮时文字使用强调色
  */
 import tinycolor from 'tinycolor2';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import BeatFlashLayer from '@/components/lyric/BeatFlashLayer.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
+import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
-import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
+import { useTtmlPlayback } from '@/composables/useTtmlPlayback';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { usePlayerStore } from '@/store/modules/player';
@@ -149,26 +162,18 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 // 海报分享
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
 const controlsRef = ref();
-const { config: styleCfg } = useStyleCustomConfig('stage');
-const { styleVars } = usePlayerStyleAppearance();
-
-// ==================== 高潮数据加载 ====================
-// 舞台样式需要 styleEngine 持有 climax segments 才能驱动 isInClimax + 进度条高潮段落标注。
-// 不在此处加载会导致进度条上没有高潮背景颜色，且 isInClimax 永远为 false。
-watch(
-  () => playerStore.currentSong?.id,
-  (songId) => {
-    if (songId) styleEngine.loadClimaxData(String(songId));
-  },
-  { immediate: true }
-);
+const {
+  config: styleCfg,
+  effects,
+  styleVars,
+  isCustom,
+  customBackgroundActive
+} = usePlayerStyleAppearance('stage');
+const ttmlPlayback = useTtmlPlayback();
 
 onMounted(() => {
   styleEngine.syncFromPlayerStore();
   styleEngine.syncCoverColors();
-  if (playerStore.currentSong?.id) {
-    styleEngine.loadClimaxData(String(playerStore.currentSong.id));
-  }
 });
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
@@ -197,6 +202,18 @@ const progressPercent = computed(() => {
 const songTitle = computed(() => playMusic.value?.name || '');
 const accentColor = computed(() => primaryColor.value || '#888888');
 const accentColorRgb = computed(() => primaryColorRgb.value || '136, 136, 136');
+const stageFontFamily = computed(
+  () =>
+    styleCfg.value.customFontFamily ||
+    "'Noto Serif SC', 'STSong', 'SimSun', var(--m-font-serif, 'Cormorant Garamond'), serif"
+);
+const showWordDrop = computed(
+  () =>
+    !showFullLyrics.value &&
+    styleEngine.isInClimax &&
+    effects.value.wordDrop &&
+    ttmlPlayback.available.value
+);
 
 // ==================== 歌词 ====================
 
@@ -218,7 +235,7 @@ const currentTranslation = computed(() => {
  * 歌词颜色：高潮时切换为强调色
  */
 const lyricColor = computed(() => {
-  if (styleEngine.isInClimax) return accentColor.value;
+  if (styleEngine.isInClimax && effects.value.lyricColor) return accentColor.value;
   return '#f0ece4';
 });
 
@@ -229,7 +246,7 @@ const lyricColor = computed(() => {
 const lyricStyle = computed(() => ({
   color: lyricColor.value,
   fontSize: 'clamp(32px, 5vw, 56px)',
-  ...(styleCfg.value.customFontFamily ? { fontFamily: styleCfg.value.customFontFamily } : {})
+  fontFamily: stageFontFamily.value
 }));
 
 /**
@@ -295,6 +312,7 @@ function formatTime(seconds: number): string {
 /* 顶部：歌名 + 歌手 */
 .song-header {
   position: absolute;
+  z-index: 3;
   top: calc(var(--safe-area-inset-top, 0px) + 24px);
   left: 50%;
   transform: translateX(-50%);
@@ -322,6 +340,8 @@ function formatTime(seconds: number): string {
 
 /* 中央：歌词 + 翻译 */
 .lyrics-center {
+  position: relative;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -349,6 +369,7 @@ function formatTime(seconds: number): string {
 /* 顶部控件 */
 .top-controls {
   position: absolute;
+  z-index: 10;
   top: 0;
   left: 0;
   right: 0;
