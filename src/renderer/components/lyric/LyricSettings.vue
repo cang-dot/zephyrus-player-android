@@ -1,7 +1,5 @@
 <template>
-  <div
-    class="lyric-settings-panel w-80 rounded-d-2xl border shadow-d-xl overflow-hidden d-glass"
-  >
+  <div class="lyric-settings-panel w-80 rounded-d-2xl border shadow-d-xl overflow-hidden d-glass">
     <!-- 标题栏 -->
     <div class="px-6 py-4 d-border-bottom">
       <div class="flex items-center gap-3">
@@ -33,43 +31,50 @@
         <!-- ==================== 选中样式的自定义选项（内联显示） ==================== -->
         <div class="radio-group-divider"></div>
 
+        <div class="color-picker-group">
+          <label class="color-picker-label">{{
+            tr('settings.lyricSettings.lyricColor', '歌词颜色')
+          }}</label>
+          <input type="color" v-model="config.lyricColor" class="color-picker" />
+        </div>
+
         <!-- 默认/经典样式设置（硬编码 UI，比 settings.json 更完整） -->
         <template v-if="config.playerStyle === 'default' || config.playerStyle === 'classic'">
           <!-- 基础设置 -->
           <div class="setting-item">
             <span>{{ t('settings.lyricSettings.hideCover') }}</span>
-            <input 
-              type="checkbox" 
-              :checked="config.hideCover" 
+            <input
+              type="checkbox"
+              :checked="config.hideCover"
               @change="config.hideCover = ($event.target as HTMLInputElement).checked"
-              class="toggle-switch" 
+              class="toggle-switch"
             />
           </div>
           <div class="setting-item">
             <span>{{ t('settings.lyricSettings.centerDisplay') }}</span>
-            <input 
-              type="checkbox" 
-              :checked="config.centerLyrics" 
+            <input
+              type="checkbox"
+              :checked="config.centerLyrics"
               @change="config.centerLyrics = ($event.target as HTMLInputElement).checked"
-              class="toggle-switch" 
+              class="toggle-switch"
             />
           </div>
           <div class="setting-item">
             <span>{{ t('settings.lyricSettings.showTranslation') }}</span>
-            <input 
-              type="checkbox" 
-              :checked="config.showTranslation" 
+            <input
+              type="checkbox"
+              :checked="config.showTranslation"
               @change="config.showTranslation = ($event.target as HTMLInputElement).checked"
-              class="toggle-switch" 
+              class="toggle-switch"
             />
           </div>
           <div class="setting-item">
             <span>{{ t('settings.lyricSettings.hideLyrics') }}</span>
-            <input 
-              type="checkbox" 
-              :checked="config.hideLyrics" 
+            <input
+              type="checkbox"
+              :checked="config.hideLyrics"
               @change="config.hideLyrics = ($event.target as HTMLInputElement).checked"
-              class="toggle-switch" 
+              class="toggle-switch"
             />
           </div>
 
@@ -78,11 +83,11 @@
           <!-- 界面设置 -->
           <div class="setting-item">
             <span>{{ t('settings.lyricSettings.showMiniPlayBar') }}</span>
-            <input 
-              type="checkbox" 
-              :checked="showMiniPlayBar" 
+            <input
+              type="checkbox"
+              :checked="showMiniPlayBar"
               @change="showMiniPlayBar = ($event.target as HTMLInputElement).checked"
-              class="toggle-switch" 
+              class="toggle-switch"
             />
           </div>
           <div class="slider-group">
@@ -436,6 +441,10 @@ const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
 const emit = defineEmits(['themeChange']);
 const message = window.$message;
 const fileInput = ref<HTMLInputElement>();
+const tr = (key: string, fallback: string) => {
+  const value = t(key);
+  return value === key ? fallback : value;
+};
 
 function sliderPct(val: number, min: number, max: number): string {
   return `${((val - min) / (max - min)) * 100}%`;
@@ -500,9 +509,10 @@ const playerStyles = computed(() => {
       if (s.key === 'eerie') return isFeatureEnabled('eerie-style');
       if (s.key === 'neon') return isFeatureEnabled('neon-style');
       if (s.key === 'rain') return isFeatureEnabled('rain-style');
+      if (s.key === 'flash') return true;
       return false;
     })
-    .map((s) => ({ key: s.key, label: s.label }));
+    .map((s) => ({ key: s.key as LyricConfig['playerStyle'], label: s.label }));
 });
 
 // 当前选中模式的设置项（基于 config.playerStyle 而非导航视图）
@@ -892,7 +902,9 @@ defineExpose({
   font-size: 28px;
   font-weight: 700;
   color: #b08040;
-  text-shadow: 0 0 4px #b08040, 0 0 1px #fff;
+  text-shadow:
+    0 0 4px #b08040,
+    0 0 1px #fff;
   opacity: 0.85;
 }
 .preview-eerie::after {
@@ -905,8 +917,8 @@ defineExpose({
   background: rgba(255, 255, 255, 0.15);
   transform: rotate(-15deg);
   box-shadow:
-    0 12px 0 rgba(255,255,255,0.08),
-    0 24px 0 rgba(255,255,255,0.05);
+    0 12px 0 rgba(255, 255, 255, 0.08),
+    0 24px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* 陈旧样式预览：老旧墙面背景 + 泛黄褪色文字 */
@@ -934,8 +946,8 @@ defineExpose({
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 30% 40%, rgba(201,169,110,0.1) 0%, transparent 60%),
-    radial-gradient(ellipse at center, transparent 40%, rgba(92,74,46,0.3) 100%);
+    radial-gradient(ellipse at 30% 40%, rgba(201, 169, 110, 0.1) 0%, transparent 60%),
+    radial-gradient(ellipse at center, transparent 40%, rgba(92, 74, 46, 0.3) 100%);
 }
 
 /* 雨夜样式预览：深色背景 + 雨滴效果 */
@@ -948,8 +960,7 @@ defineExpose({
   content: '';
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(180deg, transparent 0%, rgba(100, 120, 140, 0.1) 100%);
+  background: linear-gradient(180deg, transparent 0%, rgba(100, 120, 140, 0.1) 100%);
 }
 .preview-rain::after {
   content: '雨';

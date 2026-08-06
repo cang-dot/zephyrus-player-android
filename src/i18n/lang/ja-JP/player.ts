@@ -119,7 +119,8 @@ export default {
     magazine: 'マガジン',
     frenzy: 'フレンジー',
     eerie: '不気味',
-    neon: '雨上がり'
+    neon: '雨上がり',
+    flash: 'フラッシュ'
   },
   // タイマー機能関連
   sleepTimer: {

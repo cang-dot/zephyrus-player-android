@@ -3,8 +3,9 @@
     <transition name="eerie-fade">
       <div
         v-if="isVisible"
-        class="eerie-mobile-player"
+        class="eerie-mobile-player player-style-surface"
         :style="{
+          ...styleVars,
           '--accent-color': accentColor,
           '--accent-dark': accentDark,
           '--bg-color': bgColor
@@ -113,10 +114,11 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
-import { useTapToggle } from '@/composables/useTapToggle';
 import { useSwipeClose } from '@/composables/useSwipeClose';
+import { useTapToggle } from '@/composables/useTapToggle';
 import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drawCracks } from '@/lib/crackRenderer';
@@ -264,6 +266,7 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
 const controlsRef = ref();
 const { config: styleCfg } = useStyleCustomConfig('eerie');
+const { styleVars } = usePlayerStyleAppearance();
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({

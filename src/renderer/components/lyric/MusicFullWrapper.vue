@@ -20,9 +20,10 @@
 
 <script setup lang="ts">
 import { useWindowSize } from '@vueuse/core';
-import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, markRaw, onMounted, onUnmounted, ref } from 'vue';
 
 import EerieMobilePlayer from '@/components/lyric/EerieMobilePlayer.vue';
+import FlashPlayer from '@/components/lyric/FlashPlayer.vue';
 import FrenzyMobilePlayer from '@/components/lyric/FrenzyMobilePlayer.vue';
 import MagazineMobilePlayer from '@/components/lyric/MagazineMobilePlayer.vue';
 import MusicFull from '@/components/lyric/MusicFull.vue';
@@ -96,7 +97,8 @@ const mobileStyleComponents: Record<string, any> = {
   frenzy: markRaw(FrenzyMobilePlayer),
   eerie: markRaw(EerieMobilePlayer),
   neon: markRaw(NeonMobilePlayer),
-  rain: markRaw(RainMobilePlayer)
+  rain: markRaw(RainMobilePlayer),
+  flash: markRaw(FlashPlayer)
 };
 
 const componentToUse = computed(() => {

@@ -208,13 +208,13 @@
   --d-font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
 
   /* ── 字号 ── */
-  --d-text-xs: 0.75rem;    /* 12px */
-  --d-text-sm: 0.875rem;   /* 14px */
-  --d-text-base: 1rem;     /* 16px */
-  --d-text-lg: 1.125rem;   /* 18px */
-  --d-text-xl: 1.25rem;    /* 20px */
-  --d-text-2xl: 1.5rem;    /* 24px */
-  --d-text-3xl: 1.875rem;  /* 30px */
+  --d-text-xs: 0.75rem; /* 12px */
+  --d-text-sm: 0.875rem; /* 14px */
+  --d-text-base: 1rem; /* 16px */
+  --d-text-lg: 1.125rem; /* 18px */
+  --d-text-xl: 1.25rem; /* 20px */
+  --d-text-2xl: 1.5rem; /* 24px */
+  --d-text-3xl: 1.875rem; /* 30px */
 
   /* ── 字重 ── */
   --d-font-normal: 400;
@@ -266,9 +266,10 @@
   --d-space-16: 64px;
 
   /* ── 过渡（预设组合） ── */
-  --d-transition-colors: color var(--d-duration-fast) var(--d-ease-out),
-                         background-color var(--d-duration-fast) var(--d-ease-out),
-                         border-color var(--d-duration-fast) var(--d-ease-out);
+  --d-transition-colors:
+    color var(--d-duration-fast) var(--d-ease-out),
+    background-color var(--d-duration-fast) var(--d-ease-out),
+    border-color var(--d-duration-fast) var(--d-ease-out);
   --d-transition-opacity: opacity var(--d-duration-fast) var(--d-ease-out);
   --d-transition-transform: transform var(--d-duration-normal) var(--d-ease-out);
   --d-transition-all: all var(--d-duration-normal) var(--d-ease-out);
@@ -591,7 +592,9 @@
   font-weight: var(--d-font-semibold);
   border: none;
   cursor: pointer;
-  transition: var(--d-transition-colors), transform var(--d-duration-fast) var(--d-ease-out);
+  transition:
+    var(--d-transition-colors),
+    transform var(--d-duration-fast) var(--d-ease-out);
   box-shadow: var(--d-shadow-sm);
 }
 
@@ -615,7 +618,9 @@
   color: var(--d-text-secondary);
   border: none;
   cursor: pointer;
-  transition: var(--d-transition-colors), transform var(--d-duration-fast) var(--d-ease-out);
+  transition:
+    var(--d-transition-colors),
+    transform var(--d-duration-fast) var(--d-ease-out);
   flex-shrink: 0;
 }
 
@@ -664,9 +669,10 @@
   font-size: var(--d-text-sm);
   color: var(--d-text-primary);
   outline: none;
-  transition: border-color var(--d-duration-fast) var(--d-ease-out),
-              background var(--d-duration-fast) var(--d-ease-out),
-              box-shadow var(--d-duration-fast) var(--d-ease-out);
+  transition:
+    border-color var(--d-duration-fast) var(--d-ease-out),
+    background var(--d-duration-fast) var(--d-ease-out),
+    box-shadow var(--d-duration-fast) var(--d-ease-out);
 }
 
 .d-input::placeholder {
@@ -733,8 +739,10 @@
   border: 1px solid var(--d-border-light);
   background: var(--d-card);
   cursor: pointer;
-  transition: var(--d-transition-colors), transform var(--d-duration-fast) var(--d-ease-out),
-              box-shadow var(--d-duration-fast) var(--d-ease-out);
+  transition:
+    var(--d-transition-colors),
+    transform var(--d-duration-fast) var(--d-ease-out),
+    box-shadow var(--d-duration-fast) var(--d-ease-out);
   margin-bottom: var(--d-space-2);
 }
 
@@ -802,4 +810,45 @@
   font-weight: var(--d-font-medium);
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+/* Shared appearance layer for every full-screen player style. */
+.player-style-surface {
+  --player-style-lyric-color: #fff;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--player-style-fallback, #111) !important;
+  color: var(--player-style-lyric-color);
+}
+
+.player-style-surface::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: '';
+  background: var(--player-style-background, transparent);
+  filter: blur(var(--player-style-background-blur, 0px))
+    brightness(var(--player-style-background-brightness, 1));
+  transform: scale(1.04);
+  pointer-events: none;
+}
+
+.player-style-surface .lyrics-main,
+.player-style-surface .lyric-main,
+.player-style-surface .lyric-line,
+.player-style-surface .current-lyric,
+.player-style-surface .current-lyric-text {
+  color: var(--player-style-lyric-color) !important;
+}
+
+.player-style-surface .giant-text,
+.player-style-surface .neon-lyrics,
+.player-style-surface .fallback-lyrics,
+.player-style-surface .lyrics-center,
+.player-style-surface .lyrics-area,
+.player-style-surface .lyrics-layer,
+.player-style-surface .lyrics-main,
+.player-style-surface .lyric-main {
+  color: var(--player-style-lyric-color) !important;
 }

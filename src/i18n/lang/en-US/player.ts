@@ -119,7 +119,8 @@ export default {
     magazine: 'Magazine',
     frenzy: 'Frenzy',
     eerie: 'Eerie',
-    neon: 'Aged'
+    neon: 'Aged',
+    flash: 'Flash'
   },
   // Sleep timer related
   sleepTimer: {

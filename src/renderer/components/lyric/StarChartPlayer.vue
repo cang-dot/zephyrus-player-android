@@ -3,8 +3,9 @@
     <transition name="star-chart-page">
       <div
         v-if="isVisible"
-        class="star-chart-player"
+        class="star-chart-player player-style-surface"
         :style="{
+          ...styleVars,
           '--accent-color': accentColor,
           '--accent-color-rgb': accentColorRgb
         }"
@@ -114,6 +115,7 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
@@ -136,6 +138,7 @@ const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor, primaryColorRgb } = useCoverColor();
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
+const { styleVars } = usePlayerStyleAppearance();
 const showFullLyrics = ref(false);
 const chartFrame = ref<HTMLElement>();
 const chartCanvas = ref<HTMLCanvasElement>();

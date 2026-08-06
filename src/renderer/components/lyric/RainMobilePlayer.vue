@@ -1,7 +1,14 @@
 <template>
   <teleport to="body">
     <transition name="rain-mobile-fade">
-      <div v-if="isVisible" class="rain-mobile-player" @click="handleTapToggle" @touchstart="onSwipeCloseTouchStart" @touchend="onSwipeCloseTouchEnd">
+      <div
+        v-if="isVisible"
+        class="rain-mobile-player player-style-surface"
+        :style="styleVars"
+        @click="handleTapToggle"
+        @touchstart="onSwipeCloseTouchStart"
+        @touchend="onSwipeCloseTouchEnd"
+      >
         <!-- 背景层：封面模糊 + 暗化 -->
         <div class="background-layer">
           <div v-if="playMusic?.picUrl" class="background-cover" :style="backgroundCoverStyle" />
@@ -166,9 +173,10 @@ import RainCanvas from '@/components/lyric/RainCanvas.vue';
 import SplitLyrics from '@/components/lyric/SplitLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
-import { useTapToggle } from '@/composables/useTapToggle';
 import { useSwipeClose } from '@/composables/useSwipeClose';
+import { useTapToggle } from '@/composables/useTapToggle';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
@@ -197,6 +205,7 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 
 // 海报分享
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
+const { styleVars } = usePlayerStyleAppearance();
 
 const isVisible = computed({
   get: () => props.modelValue,

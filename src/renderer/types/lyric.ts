@@ -21,7 +21,8 @@ export interface LyricConfig {
     | 'frenzy'
     | 'eerie'
     | 'neon'
-    | 'rain';
+    | 'rain'
+    | 'flash';
   animationIntensity: 'soft' | 'normal' | 'power'; // 舞台模式歌词动画幅度
   // 移动端配置
   mobileLayout: 'default' | 'ios' | 'android';
@@ -39,6 +40,7 @@ export interface LyricConfig {
   imageBlur: number; // 图片模糊度 (0-20px)
   imageBrightness: number; // 图片明暗度 (0-200%, 100为正常)
   customCss?: string; // 自定义 CSS 样式
+  lyricColor: string; // 所有播放器样式的歌词颜色
   // 杂志样式配置
   gridRhythmClimaxBoost: boolean; // 高潮闪烁增强
   gridRhythmSize: string; // 网格密度
@@ -110,6 +112,7 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   imageBlur: 0,
   imageBrightness: 100,
   customCss: undefined,
+  lyricColor: '#ffffff',
   // 杂志样式默认值
   gridRhythmClimaxBoost: false,
   gridRhythmSize: 'medium',

@@ -3,8 +3,9 @@
     <transition name="magazine-mobile-fade">
       <div
         v-if="isVisible"
-        class="magazine-mobile-player"
+        class="magazine-mobile-player player-style-surface"
         :style="{
+          ...styleVars,
           '--block-color-0': blockColors[0] || accentColor,
           '--block-color-1': blockColors[1] || accentColor,
           '--block-color-2': blockColors[2] || averageColor,
@@ -123,10 +124,11 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
-import { useTapToggle } from '@/composables/useTapToggle';
 import { useSwipeClose } from '@/composables/useSwipeClose';
+import { useTapToggle } from '@/composables/useTapToggle';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { extractRegionalColors, useCoverColor } from '@/hooks/useCoverColor';
 import { usePlayerStore } from '@/store/modules/player';
@@ -165,6 +167,7 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
 const controlsRef = ref();
 const { config: styleCfg } = useStyleCustomConfig('magazine');
+const { styleVars } = usePlayerStyleAppearance();
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({

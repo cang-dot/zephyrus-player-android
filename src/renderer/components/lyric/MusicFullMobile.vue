@@ -9,6 +9,8 @@
   >
     <div
       id="mobile-drawer-target"
+      class="player-style-surface"
+      :style="styleVars"
       ref="drawerTargetRef"
       @click="handleTapToggle"
       @touchstart="onDrawerTouchStart"
@@ -410,6 +412,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n';
 
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
+import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import {
   allTime,
@@ -436,6 +439,7 @@ import { showBottomToast } from '@/utils/shortcutToast';
 const { t } = useI18n();
 const playerStore = usePlayerStore();
 const transitionStore = useTransitionStore();
+const { styleVars } = usePlayerStyleAppearance();
 
 // ==================== Crossfade 进度条动画 ====================
 
@@ -450,7 +454,7 @@ const nextFillStyle = computed(() => {
   return {
     width: `${transitionStore.nextProgress}%`,
     background: color,
-    boxShadow: `0 0 8px ${color}80`,
+    boxShadow: `0 0 8px ${color}80`
   };
 });
 
@@ -1302,7 +1306,9 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
         &.fading-out {
           background: rgba(255, 255, 255, 0.15) !important;
           box-shadow: none;
-          transition: background 0.6s ease, box-shadow 0.6s ease;
+          transition:
+            background 0.6s ease,
+            box-shadow 0.6s ease;
         }
       }
 

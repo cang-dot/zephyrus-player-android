@@ -118,7 +118,8 @@ export default {
     magazine: '杂志',
     frenzy: '狂热',
     eerie: '诡谲',
-    neon: '陈旧'
+    neon: '陈旧',
+    flash: '快闪'
   },
   // 定时关闭功能相关
   sleepTimer: {

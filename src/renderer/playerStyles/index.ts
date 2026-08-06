@@ -7,6 +7,7 @@ import './frenzy';
 import './eerie';
 import './neon';
 import './rain';
+import './flash';
 
 // 导出注册表 API
 export type { PlayerStyleDefinition, SettingItem } from './registry';

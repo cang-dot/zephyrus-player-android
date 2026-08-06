@@ -31,8 +31,30 @@
             </button>
           </div>
 
+          <div class="px-5 pb-4 flex-shrink-0">
+            <div class="grid grid-cols-2 gap-1 rounded-xl bg-white/5 p-1">
+              <button
+                type="button"
+                class="rounded-lg py-2 text-sm transition-colors"
+                :class="activeTab === 'song' ? 'bg-white/15 text-white' : 'text-white/50'"
+                @click="activeTab = 'song'"
+              >
+                <i class="ri-music-2-line mr-1"></i>歌曲
+              </button>
+              <button
+                type="button"
+                class="rounded-lg py-2 text-sm transition-colors"
+                :class="activeTab === 'control' ? 'bg-white/15 text-white' : 'text-white/50'"
+                @click="activeTab = 'control'"
+              >
+                <i class="ri-sliders-3-line mr-1"></i>控制
+              </button>
+            </div>
+          </div>
+
           <!-- 内容区域 -->
           <div
+            v-if="activeTab === 'control'"
             class="flex-1 overflow-y-auto px-5 pb-6"
             :style="{ paddingBottom: `calc(24px + var(--safe-area-inset-bottom, 0px))` }"
           >
@@ -63,6 +85,101 @@
                     {{ style.label }}
                   </span>
                 </button>
+              </div>
+            </div>
+
+            <div class="mb-6 rounded-2xl bg-white/5 p-4">
+              <div class="mb-3 text-sm font-medium text-white/80">外观</div>
+              <div class="flex items-center justify-between py-2">
+                <span class="text-xs text-white/60">歌词颜色</span>
+                <input
+                  v-model="lyricConfig.lyricColor"
+                  type="color"
+                  class="h-8 w-12 rounded border-0 bg-transparent"
+                />
+              </div>
+              <div class="flex items-center justify-between py-2">
+                <span class="text-xs text-white/60">自定义背景</span>
+                <button
+                  class="share-toggle-switch"
+                  :class="{ on: lyricConfig.useCustomBackground }"
+                  @click="lyricConfig.useCustomBackground = !lyricConfig.useCustomBackground"
+                >
+                  <span class="share-toggle-knob"></span>
+                </button>
+              </div>
+              <div v-if="lyricConfig.useCustomBackground" class="mt-2 space-y-3">
+                <div class="grid grid-cols-3 gap-2">
+                  <button
+                    v-for="mode in ['solid', 'gradient', 'image']"
+                    :key="mode"
+                    class="rounded-lg px-2 py-2 text-xs"
+                    :class="
+                      lyricConfig.backgroundMode === mode
+                        ? 'bg-white/20 text-white'
+                        : 'bg-white/5 text-white/50'
+                    "
+                    @click="setBackgroundMode(mode)"
+                  >
+                    {{ mode === 'solid' ? '纯色' : mode === 'gradient' ? '渐变' : '图片' }}
+                  </button>
+                </div>
+                <input
+                  v-if="lyricConfig.backgroundMode === 'solid'"
+                  v-model="lyricConfig.solidColor"
+                  type="color"
+                  class="h-10 w-full rounded-lg border-0 bg-transparent"
+                />
+                <div v-if="lyricConfig.backgroundMode === 'gradient'" class="flex gap-2">
+                  <input
+                    v-model="lyricConfig.gradientColors.colors[0]"
+                    type="color"
+                    class="h-10 flex-1 rounded-lg border-0 bg-transparent"
+                  />
+                  <input
+                    v-model="lyricConfig.gradientColors.colors[1]"
+                    type="color"
+                    class="h-10 flex-1 rounded-lg border-0 bg-transparent"
+                  />
+                </div>
+                <div v-if="lyricConfig.backgroundMode === 'image'" class="space-y-2">
+                  <input
+                    ref="backgroundFileInput"
+                    type="file"
+                    accept="image/*"
+                    class="hidden"
+                    @change="handleBackgroundImageChange"
+                  />
+                  <button
+                    class="w-full rounded-xl bg-white/10 py-2 text-sm text-white/70"
+                    @click="backgroundFileInput?.click()"
+                  >
+                    <i class="ri-image-add-line mr-1"></i>选择背景图片
+                  </button>
+                  <img
+                    v-if="lyricConfig.backgroundImage"
+                    :src="lyricConfig.backgroundImage"
+                    class="max-h-32 w-full rounded-xl object-cover"
+                  />
+                  <div v-if="lyricConfig.backgroundImage" class="grid grid-cols-2 gap-2">
+                    <label class="text-xs text-white/50"
+                      >模糊 {{ lyricConfig.imageBlur }}px<input
+                        v-model.number="lyricConfig.imageBlur"
+                        type="range"
+                        min="0"
+                        max="20"
+                        class="w-full"
+                    /></label>
+                    <label class="text-xs text-white/50"
+                      >亮度 {{ lyricConfig.imageBrightness }}%<input
+                        v-model.number="lyricConfig.imageBrightness"
+                        type="range"
+                        min="0"
+                        max="200"
+                        class="w-full"
+                    /></label>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -192,6 +309,28 @@
                     />
                   </div>
                 </template>
+
+                <template v-if="currentPlayerStyle === 'flash'">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-white/60">巨字大小</span>
+                    <input
+                      type="range"
+                      min="72"
+                      max="320"
+                      step="4"
+                      v-model.number="styleConfig.flashFontSize"
+                      class="w-32 accent-[var(--accent-color)]"
+                    />
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-white/60">重点词颜色</span>
+                    <input
+                      v-model="styleConfig.flashKeywordColor"
+                      type="color"
+                      class="h-8 w-10 rounded border-0 bg-transparent"
+                    />
+                  </div>
+                </template>
               </div>
             </div>
 
@@ -211,7 +350,9 @@
               <!-- 当前播放时间显示 -->
               <div class="flex items-center justify-between mb-2 px-1">
                 <span class="text-xs text-white/50">在时间轴上拖动以标记高潮段落</span>
-                <span class="text-xs font-mono text-white/60">{{ formatTime(currentPlayTime) }} / {{ formatTime(songDuration) }}</span>
+                <span class="text-xs font-mono text-white/60"
+                  >{{ formatTime(currentPlayTime) }} / {{ formatTime(songDuration) }}</span
+                >
               </div>
 
               <!-- 时间轴 -->
@@ -223,7 +364,8 @@
                     :key="mark"
                     class="climax-time-mark"
                     :style="{ left: (mark / songDuration) * 100 + '%' }"
-                  >{{ formatTime(mark) }}</span>
+                    >{{ formatTime(mark) }}</span
+                  >
                 </div>
 
                 <!-- 时间轴主体 -->
@@ -239,7 +381,10 @@
                     v-for="(seg, i) in manualClimaxSegments"
                     :key="'seg-' + i"
                     class="climax-region"
-                    :class="{ 'climax-region-active': currentPlayTime >= seg.start && currentPlayTime <= seg.end }"
+                    :class="{
+                      'climax-region-active':
+                        currentPlayTime >= seg.start && currentPlayTime <= seg.end
+                    }"
                     :style="getClimaxRegionStyle(seg)"
                   >
                     <!-- 左侧拖拽手柄 -->
@@ -251,7 +396,17 @@
                     ></div>
                     <!-- 中间内容 -->
                     <div class="climax-region-content">
-                      <span class="climax-region-label">{{ formatTime(seg.start) }} - {{ formatTime(seg.end) }}</span>
+                      <span class="climax-region-label"
+                        >{{ formatTime(seg.start) }} - {{ formatTime(seg.end) }}</span
+                      >
+                      <button
+                        type="button"
+                        class="climax-region-remove"
+                        aria-label="删除高潮段落"
+                        @click.stop="removeClimaxSegment(i)"
+                      >
+                        <i class="ri-close-line"></i>
+                      </button>
                     </div>
                     <!-- 右侧拖拽手柄 -->
                     <div
@@ -263,10 +418,17 @@
                   </div>
 
                   <!-- 拖拽预览选区 -->
-                  <div v-if="isClimaxDragging" class="climax-preview" :style="getClimaxPreviewStyle()"></div>
+                  <div
+                    v-if="isClimaxDragging"
+                    class="climax-preview"
+                    :style="getClimaxPreviewStyle()"
+                  ></div>
 
                   <!-- 当前播放位置 -->
-                  <div class="climax-playhead" :style="{ left: (currentPlayTime / songDuration) * 100 + '%' }"></div>
+                  <div
+                    class="climax-playhead"
+                    :style="{ left: (currentPlayTime / songDuration) * 100 + '%' }"
+                  ></div>
                 </div>
               </div>
 
@@ -294,11 +456,24 @@
                   <i v-else class="ri-cloud-line mr-1"></i>
                   {{ cloudClimaxLoading ? '查询中...' : '查询云端' }}
                 </button>
+                <button
+                  @click="uploadManualClimax"
+                  :disabled="
+                    manualClimaxSegments.length === 0 || uploadingClimax || isLocalSong(playMusic)
+                  "
+                  class="flex-1 py-2 rounded-xl text-sm bg-emerald-400/15 text-emerald-300 active:scale-95 transition-transform disabled:opacity-40"
+                >
+                  <i v-if="uploadingClimax" class="ri-loader-4-line animate-spin mr-1"></i>
+                  <i v-else class="ri-upload-cloud-2-line mr-1"></i>
+                  {{ uploadingClimax ? '上传中...' : '上传服务器' }}
+                </button>
               </div>
 
               <!-- 云端查询结果 -->
               <div v-if="cloudClimaxResults.length > 0" class="mt-3 space-y-2">
-                <div class="text-xs text-white/50 px-1">找到 {{ cloudClimaxResults.length }} 条云端高潮数据，点击覆盖到本地</div>
+                <div class="text-xs text-white/50 px-1">
+                  找到 {{ cloudClimaxResults.length }} 条云端高潮数据，点击覆盖到本地
+                </div>
                 <div
                   v-for="(result, i) in cloudClimaxResults"
                   :key="'cloud-' + i"
@@ -309,7 +484,8 @@
                   <div class="flex-1 min-w-0">
                     <div class="text-sm text-white/80 truncate">{{ result.songName }}</div>
                     <div class="text-xs text-white/40 truncate">
-                      {{ result.artist || '未知艺术家' }} · {{ result.segments.length }}段 · 贡献者: {{ result.contributor || '云端' }}
+                      {{ result.artist || '未知艺术家' }} · {{ result.segments.length }}段 · 贡献者:
+                      {{ result.contributor || '云端' }}
                     </div>
                   </div>
                   <i class="ri-download-2-line text-[var(--accent-color)] flex-shrink-0"></i>
@@ -317,13 +493,19 @@
               </div>
 
               <!-- 云端查询无结果 -->
-              <div v-if="cloudClimaxSearched && cloudClimaxResults.length === 0" class="mt-3 flex flex-col items-center justify-center py-3 text-white/30">
+              <div
+                v-if="cloudClimaxSearched && cloudClimaxResults.length === 0"
+                class="mt-3 flex flex-col items-center justify-center py-3 text-white/30"
+              >
                 <i class="ri-cloud-off-line text-3xl mb-1"></i>
                 <p class="text-xs">未找到同名歌曲的云端高潮数据</p>
               </div>
 
               <!-- 空状态提示 -->
-              <div v-if="manualClimaxSegments.length === 0 && !cloudClimaxSearched" class="flex flex-col items-center justify-center py-3 text-white/30">
+              <div
+                v-if="manualClimaxSegments.length === 0 && !cloudClimaxSearched"
+                class="flex flex-col items-center justify-center py-3 text-white/30"
+              >
                 <i class="ri-fire-line text-3xl mb-1"></i>
                 <p class="text-xs">在时间轴上左右拖动来创建高潮段落</p>
               </div>
@@ -639,6 +821,68 @@
             <!-- 分隔线 -->
             <div class="h-px bg-white/10 my-5"></div>
           </div>
+
+          <div
+            v-else
+            class="flex-1 overflow-y-auto px-5 pb-6"
+            :style="{ paddingBottom: `calc(24px + var(--safe-area-inset-bottom, 0px))` }"
+          >
+            <div v-if="currentSong" class="space-y-4">
+              <div class="flex items-center gap-4 rounded-2xl bg-white/5 p-4">
+                <img
+                  :src="getImgUrl(currentSong.picUrl || currentSong.al?.picUrl, '200y200')"
+                  class="h-16 w-16 rounded-xl object-cover"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-base font-semibold text-white">
+                    {{ currentSong.name }}
+                  </div>
+                  <div class="mt-1 truncate text-sm text-white/50">
+                    {{ currentArtistText || '未知艺术家' }}
+                  </div>
+                  <div v-if="currentAlbum?.name" class="mt-1 truncate text-xs text-white/35">
+                    {{ currentAlbum.name }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="overflow-hidden rounded-2xl bg-white/5">
+                <button class="song-setting-action" @click="playCurrentSong">
+                  <i class="ri-play-circle-line"></i><span>播放</span>
+                </button>
+                <button class="song-setting-action" @click="playCurrentNext">
+                  <i class="ri-play-list-2-line"></i><span>下一首播放</span>
+                </button>
+                <button
+                  v-if="currentArtistId"
+                  class="song-setting-action"
+                  @click="openCurrentArtist"
+                >
+                  <i class="ri-user-line"></i><span>歌手：{{ currentArtistText }}</span
+                  ><i class="ri-arrow-right-s-line ml-auto"></i>
+                </button>
+                <button
+                  v-if="currentAlbum?.name"
+                  class="song-setting-action"
+                  @click="openCurrentAlbum"
+                >
+                  <i class="ri-disc-line"></i><span>专辑：{{ currentAlbum.name }}</span
+                  ><i class="ri-arrow-right-s-line ml-auto"></i>
+                </button>
+                <button class="song-setting-action" @click="addCurrentToPlaylist">
+                  <i class="ri-folder-add-line"></i><span>添加到歌单</span>
+                </button>
+                <button class="song-setting-action" @click="toggleCurrentFavorite">
+                  <i :class="currentIsFavorite ? 'ri-heart-fill text-red-400' : 'ri-heart-line'"></i
+                  ><span>{{ currentIsFavorite ? '取消收藏' : '收藏' }}</span>
+                </button>
+              </div>
+            </div>
+            <div v-else class="flex flex-col items-center justify-center py-16 text-white/40">
+              <i class="ri-music-2-line text-4xl"></i>
+              <p class="mt-3 text-sm">当前没有播放歌曲</p>
+            </div>
+          </div>
         </div>
       </div>
     </Transition>
@@ -649,27 +893,126 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { storeToRefs } from 'pinia';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 
+import { loadClimaxForSong, normalizeClimaxSegments, uploadClimax } from '@/api/climax';
+import { searchServerSongs } from '@/api/serverSongs';
+import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import { useMetaphor } from '@/features/lyric-metaphor/useMetaphor';
-import { isLocalSong, lrcArray, nowTime, playMusic, sound } from '@/hooks/MusicHook';
+import { lrcArray, nowTime, playMusic, sound } from '@/hooks/MusicHook';
+import { useArtist } from '@/hooks/useArtist';
+import { isLocalSong } from '@/hooks/useLocalMusic';
+import { getLocalClimax, saveLocalClimax } from '@/services/cacheService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
-import { saveLocalClimax, getLocalClimax } from '@/services/cacheService';
-import { searchServerSongs, type ServerSong } from '@/api/serverSongs';
-import { loadClimaxForSong, normalizeClimaxSegments, type ClimaxSegment } from '@/api/climax';
+import { useUserStore } from '@/store/modules/user';
 import type { LyricConfig } from '@/types/lyric';
 import { DEFAULT_LYRIC_CONFIG } from '@/types/lyric';
-import { secondToMinute } from '@/utils';
+import type { SongResult } from '@/types/music';
+import { getImgUrl, secondToMinute } from '@/utils';
 
 const { t } = useI18n();
+const router = useRouter();
 const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
+const userStore = useUserStore();
+const { navigateToArtist } = useArtist();
+const message = window.$message;
+const activeTab = ref<'song' | 'control'>('control');
+const backgroundFileInput = ref<HTMLInputElement | null>(null);
+const openPlaylistDrawer = inject<(songOrId: number | SongResult) => void>('openPlaylistDrawer');
+
+const currentSong = computed(() => playMusic.value || null);
+const currentArtists = computed(() => currentSong.value?.ar || currentSong.value?.artists || []);
+const currentArtistText = computed(() =>
+  Array.isArray(currentArtists.value)
+    ? currentArtists.value
+        .map((artist: any) => artist.name)
+        .filter(Boolean)
+        .join(' / ')
+    : String(currentArtists.value || '')
+);
+const currentArtistId = computed(() =>
+  Array.isArray(currentArtists.value) ? currentArtists.value[0]?.id : undefined
+);
+const currentAlbum = computed(
+  () => currentSong.value?.al || currentSong.value?.album || currentSong.value?.song?.album || null
+);
+const currentIsFavorite = computed(() => {
+  const id = currentSong.value?.id;
+  return (
+    id !== undefined &&
+    playerStore.favoriteList.some((favoriteId) => String(favoriteId) === String(id))
+  );
+});
+
+function playCurrentSong() {
+  if (currentSong.value) void playerStore.setPlayMusic(true);
+}
+
+function playCurrentNext() {
+  if (!currentSong.value) return;
+  playerStore.addToNextPlay(currentSong.value);
+  message?.success('已添加到下一首播放');
+}
+
+function openCurrentArtist() {
+  if (!currentArtistId.value) return;
+  navigateToArtist(Number(currentArtistId.value));
+  close();
+}
+
+function openCurrentAlbum() {
+  const album = currentAlbum.value;
+  if (!album?.id || !album?.name) return;
+  navigateToMusicList(router, {
+    id: album.id,
+    type: 'album',
+    name: album.name,
+    listInfo: album
+  });
+  close();
+}
+
+function addCurrentToPlaylist() {
+  if (!currentSong.value) return;
+  openPlaylistDrawer?.(currentSong.value);
+}
+
+async function toggleCurrentFavorite() {
+  const id = currentSong.value?.id;
+  if (id === undefined) return;
+  if (currentIsFavorite.value) await playerStore.removeFromFavorite(id);
+  else await playerStore.addToFavorite(id);
+}
+
+function setBackgroundMode(mode: string) {
+  if (mode === 'solid' || mode === 'gradient' || mode === 'image' || mode === 'css') {
+    lyricConfig.value.backgroundMode = mode;
+  }
+}
+
+function handleBackgroundImageChange(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  if (file.size > 20 * 1024 * 1024) {
+    message?.error('背景图片不能超过 20MB');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    lyricConfig.value.backgroundImage = String(reader.result || '');
+  };
+  reader.readAsDataURL(file);
+}
 
 // ==================== 手动高潮段落标记（时间轴拖拽） ====================
 const currentPlayTime = computed(() => nowTime.value);
-const songDuration = computed(() => (playMusic.value?.dt || playMusic.value?.duration || 0) / 1000 || 1);
+const songDuration = computed(
+  () => (playMusic.value?.dt || playMusic.value?.duration || 0) / 1000 || 1
+);
 const manualClimaxSegments = ref<{ start: number; end: number }[]>([]);
 const climaxTimelineRef = ref<HTMLElement | null>(null);
 
@@ -771,7 +1114,10 @@ function onEdgeTouchMove(e: TouchEvent) {
   if (climaxEdgeDrag.value.edge === 'start') {
     seg.start = Math.max(0, Math.min(seg.end - 0.5, climaxEdgeDrag.value.origStart + delta));
   } else {
-    seg.end = Math.min(songDuration.value, Math.max(seg.start + 0.5, climaxEdgeDrag.value.origEnd + delta));
+    seg.end = Math.min(
+      songDuration.value,
+      Math.max(seg.start + 0.5, climaxEdgeDrag.value.origEnd + delta)
+    );
   }
   segs[climaxEdgeDrag.value.segIndex] = seg;
   manualClimaxSegments.value = segs;
@@ -819,9 +1165,34 @@ async function saveManualClimax() {
   const song = playMusic.value;
   if (!song) return;
   const songId = String(song.id);
-  const segments = manualClimaxSegments.value.map(s => ({ start: s.start, end: s.end }));
+  const segments = manualClimaxSegments.value.map((s) => ({ start: s.start, end: s.end }));
   await saveLocalClimax(songId, { segments, contributor: '手动标记' });
   styleEngine.climaxSegments = segments as any;
+}
+
+const uploadingClimax = ref(false);
+
+async function uploadManualClimax() {
+  const song = playMusic.value;
+  if (!song || manualClimaxSegments.value.length === 0 || isLocalSong(song)) return;
+  uploadingClimax.value = true;
+  try {
+    await uploadClimax({
+      songId: String(song.platformId || song.id),
+      songName: song.name || '',
+      artist: song.ar?.map((artist) => artist.name).join('/') || '',
+      album: song.al?.name || '',
+      duration: songDuration.value,
+      segments: manualClimaxSegments.value,
+      contributorName: userStore.user?.nickname || 'Anonymous'
+    });
+    message?.success('高潮标注已上传到服务器');
+  } catch (error) {
+    console.error('[MobileClimax] 上传高潮标注失败:', error);
+    message?.error('上传失败，请稍后重试');
+  } finally {
+    uploadingClimax.value = false;
+  }
 }
 
 async function loadManualClimax() {
@@ -830,9 +1201,12 @@ async function loadManualClimax() {
   const songId = String(song.id);
   const data = await getLocalClimax(songId);
   if (data?.segments?.length) {
-    manualClimaxSegments.value = data.segments.map(s => ({ start: s.start, end: s.end }));
+    manualClimaxSegments.value = data.segments.map((s) => ({ start: s.start, end: s.end }));
   } else {
-    manualClimaxSegments.value = styleEngine.climaxSegments.map(s => ({ start: s.start, end: s.end }));
+    manualClimaxSegments.value = styleEngine.climaxSegments.map((s) => ({
+      start: s.start,
+      end: s.end
+    }));
   }
 }
 
@@ -860,7 +1234,7 @@ async function queryCloudClimax() {
   try {
     const songName = song.name.trim();
     const serverSongs = await searchServerSongs(songName, 10);
-    const matched = serverSongs.filter(s => s.name === songName);
+    const matched = serverSongs.filter((s) => s.name === songName);
     const results: CloudClimaxResult[] = [];
 
     // 1. 收集 songs.json 中自带的高潮数据
@@ -871,7 +1245,7 @@ async function queryCloudClimax() {
           results.push({
             songName: ss.name,
             artist: ss.artists.join(' / '),
-            segments: normalized.map(s => ({ start: s.start, end: s.end })),
+            segments: normalized.map((s) => ({ start: s.start, end: s.end })),
             contributor: 'Zephyrus 云端',
             source: 'songs.json'
           });
@@ -884,7 +1258,7 @@ async function queryCloudClimax() {
         results.push({
           songName: ss.name,
           artist: ss.artists.join(' / '),
-          segments: communityResult.segments.map(s => ({ start: s.start, end: s.end })),
+          segments: communityResult.segments.map((s) => ({ start: s.start, end: s.end })),
           contributor: communityResult.contributor || '社区用户',
           source: 'community'
         });
@@ -902,17 +1276,21 @@ async function queryCloudClimax() {
 }
 
 function applyCloudClimax(result: CloudClimaxResult) {
-  manualClimaxSegments.value = result.segments.map(s => ({ start: s.start, end: s.end }));
+  manualClimaxSegments.value = result.segments.map((s) => ({ start: s.start, end: s.end }));
   saveManualClimax();
   cloudClimaxResults.value = [];
   cloudClimaxSearched.value = false;
 }
 
-watch(() => playMusic.value?.id, () => {
-  cloudClimaxSearched.value = false;
-  cloudClimaxResults.value = [];
-  loadManualClimax();
-}, { immediate: true });
+watch(
+  () => playMusic.value?.id,
+  () => {
+    cloudClimaxSearched.value = false;
+    cloudClimaxResults.value = [];
+    loadManualClimax();
+  },
+  { immediate: true }
+);
 
 // 安全的 i18n 翻译：当 vue-i18n 找不到键时返回键路径本身（而非空字符串），
 // 因此 `t(key) || fallback` 会因键路径为真值而失效。这里显式比对返回值。
@@ -928,8 +1306,7 @@ const {
   error: metaphorError,
   result: metaphorResult,
   cached: metaphorCached,
-  analyze: metaphorAnalyze,
-  clear: metaphorClear
+  analyze: metaphorAnalyze
 } = useMetaphor();
 
 const sanitizedMetaphorResult = computed(() => {
@@ -970,54 +1347,71 @@ const analyzeLyrics = async () => {
 // 播放器样式配置
 const lyricConfig = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
 
-const playerStyles = computed(() => [
+watch(
+  lyricConfig,
+  (value) => {
+    localStorage.setItem('music-full-config', JSON.stringify(value));
+    window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  },
+  { deep: true }
+);
+
+const playerStyles = computed<
+  Array<{ key: LyricConfig['playerStyle']; label: string; icon: string; color: string }>
+>(() => [
   {
-    key: 'default',
+    key: 'default' as const,
     label: tr('player.styles.default', '默认'),
     icon: 'ri-music-2-line',
     color: '#6366f1'
   },
   {
-    key: 'stage',
+    key: 'stage' as const,
     label: tr('player.styles.stage', '舞台'),
     icon: 'ri-spotify-line',
     color: '#ec4899'
   },
   {
-    key: 'starChart',
+    key: 'starChart' as const,
     label: tr('player.styles.starChart', '星盘'),
     icon: 'ri-record-circle-line',
     color: 'var(--accent-color, #a0a0a0)'
   },
   {
-    key: 'magazine',
+    key: 'magazine' as const,
     label: tr('player.styles.magazine', '杂志'),
     icon: 'ri-layout-grid-line',
     color: '#f59e0b'
   },
   {
-    key: 'frenzy',
+    key: 'frenzy' as const,
     label: tr('player.styles.frenzy', '狂热'),
     icon: 'ri-fire-line',
     color: '#ef4444'
   },
   {
-    key: 'eerie',
+    key: 'eerie' as const,
     label: tr('player.styles.eerie', '诡谲'),
     icon: 'ri-ghost-line',
     color: '#8b5cf6'
   },
   {
-    key: 'neon',
+    key: 'neon' as const,
     label: tr('player.styles.neon', '陈旧'),
     icon: 'ri-lightbulb-flash-line',
     color: '#c9a96e'
   },
   {
-    key: 'rain',
+    key: 'rain' as const,
     label: tr('player.styles.rain', '雨夜'),
     icon: 'ri-rainy-line',
     color: '#3b82f6'
+  },
+  {
+    key: 'flash' as const,
+    label: tr('player.styles.flash', '快闪'),
+    icon: 'ri-flashlight-line',
+    color: '#ffcf4a'
   }
 ]);
 
@@ -1035,7 +1429,8 @@ const styleConfigDefaults: Record<string, any> = {
   eerie: { newspaperFreq: 500, keywordSize: 32 },
   neon: { glowRadius: 12, pulseSpeed: 1.5 },
   frenzy: { giantSize: 80 },
-  magazine: { flipSpeed: 400 }
+  magazine: { flipSpeed: 400 },
+  flash: { flashFontSize: 180, flashKeywordColor: '#ffcf4a' }
 };
 
 const styleConfig = ref<any>({});
@@ -1322,6 +1717,35 @@ onUnmounted(() => {
   transform: scale(0.96);
 }
 
+.song-setting-action {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  color: rgba(255, 255, 255, 0.82);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  transition: background-color 150ms ease;
+}
+
+.song-setting-action + .song-setting-action {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.song-setting-action:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.song-setting-action > i:first-child {
+  width: 24px;
+  color: var(--accent-color-light, rgba(255, 255, 255, 0.7));
+  font-size: 20px;
+  text-align: center;
+}
+
 /* 分享功能开关 */
 .share-toggle-switch {
   width: 44px;
@@ -1434,7 +1858,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .climax-region-label {
@@ -1442,6 +1866,21 @@ onUnmounted(() => {
   color: rgba(255, 255, 255, 0.7);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.climax-region-remove {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(15, 15, 15, 0.86);
+  font-size: 12px;
 }
 
 .climax-preview {

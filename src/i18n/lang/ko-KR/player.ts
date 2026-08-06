@@ -119,7 +119,8 @@ export default {
     magazine: '매거진',
     frenzy: '프렌지',
     eerie: '기이',
-    neon: '노후화'
+    neon: '노후화',
+    flash: '플래시'
   },
   sleepTimer: {
     title: '타이머 종료',
