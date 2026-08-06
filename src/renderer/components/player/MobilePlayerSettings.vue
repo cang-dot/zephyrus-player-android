@@ -287,13 +287,46 @@
               <!-- 显示翻译 -->
               <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
                 <div>
-                  <div class="text-sm text-white/80">显示翻译</div>
-                  <div class="text-xs text-white/40 mt-1">在歌词下方显示翻译文本</div>
+                  <div class="text-sm text-white/80">
+                    {{ tr('settings.lyricSettings.showTranslation', '显示翻译') }}
+                  </div>
+                  <div class="text-xs text-white/40 mt-1">
+                    {{
+                      tr(
+                        'settings.lyricSettings.showTranslationDescription',
+                        '在歌词下方显示翻译文本'
+                      )
+                    }}
+                  </div>
                 </div>
                 <button
                   class="share-toggle-switch"
                   :class="{ on: lyricConfig.showTranslation }"
                   @click="toggleShowTranslation"
+                >
+                  <span class="share-toggle-knob"></span>
+                </button>
+              </div>
+
+              <!-- 显示罗马音 -->
+              <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                <div>
+                  <div class="text-sm text-white/80">
+                    {{ tr('settings.lyricSettings.showRomanization', '显示罗马音') }}
+                  </div>
+                  <div class="text-xs text-white/40 mt-1">
+                    {{
+                      tr(
+                        'settings.lyricSettings.showRomanizationDescription',
+                        '在歌词下方显示罗马音文本'
+                      )
+                    }}
+                  </div>
+                </div>
+                <button
+                  class="share-toggle-switch"
+                  :class="{ on: lyricConfig.showRomanization }"
+                  @click="toggleShowRomanization"
                 >
                   <span class="share-toggle-knob"></span>
                 </button>
@@ -1233,6 +1266,12 @@ loadStyleConfig();
 // ==================== 歌词设置 ====================
 function toggleShowTranslation() {
   lyricConfig.value.showTranslation = !lyricConfig.value.showTranslation;
+  localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
+  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+}
+
+function toggleShowRomanization() {
+  lyricConfig.value.showRomanization = !lyricConfig.value.showRomanization;
   localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
   window.dispatchEvent(new CustomEvent('music-full-config-updated'));
 }

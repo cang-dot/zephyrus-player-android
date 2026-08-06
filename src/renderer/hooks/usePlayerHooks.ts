@@ -3,15 +3,17 @@ import { createDiscreteApi } from 'naive-ui';
 
 import i18n from '@/../i18n/renderer';
 import { isCrossPlatformSong } from '@/api/crossPlatformSearch';
-import { getLyricByPlatform, searchFromGDMusic } from '@/api/gdmusic';
+import { type GDMusicLyricResponse, getLyricByPlatform, searchFromGDMusic } from '@/api/gdmusic';
 import { resolveKugouNeteaseMatch } from '@/api/kugouPlayback';
 import { getMusicLrc, getMusicUrl, getParsingMusicUrl } from '@/api/music';
+import { fetchQqLyric } from '@/api/platformQrApi';
+import { readProviderLyricCache, writeProviderLyricCache } from '@/api/providerLyricCache';
 import { playbackRequestManager } from '@/services/playbackRequestManager';
 import { SongSourceConfigManager } from '@/services/SongSourceConfigManager';
-import type { ILyric, ILyricText, IWordData, SongResult } from '@/types/music';
+import type { ILyric, ILyricText, LyricFormat, LyricSource, SongResult } from '@/types/music';
 import { getImgUrl, isElectron } from '@/utils';
 import { getImageLinearBackground } from '@/utils/linearColor';
-import { parseLyrics as parseYrcLyrics } from '@/utils/yrcParser';
+import { mergeAuxiliaryLyrics, parseTimedLyrics } from '@/utils/timedLyrics';
 
 const { message } = createDiscreteApi(['message']);
 
@@ -19,6 +21,12 @@ type DiskCacheResolveResult = {
   url?: string;
   cached?: boolean;
   queued?: boolean;
+};
+
+/** 保持 useLyrics().parseLyrics 的旧返回结构，底层统一走新解析器。 */
+const parseLyrics = (lyricsString: string): { lyrics: ILyricText[]; times: number[] } => {
+  const parsed = parseTimedLyrics(lyricsString);
+  return { lyrics: parsed.lrcArray, times: parsed.lrcTimeArray };
 };
 
 const getSongArtistText = (songData: SongResult): string => {
@@ -240,49 +248,38 @@ export const useSongUrl = () => {
   return { getSongUrl };
 };
 
-/**
- * 使用新的yrcParser解析歌词（独立函数）
- */
-const parseLyrics = (lyricsString: string): { lyrics: ILyricText[]; times: number[] } => {
-  if (!lyricsString || typeof lyricsString !== 'string') {
-    return { lyrics: [], times: [] };
-  }
+async function loadQqProviderLyric(platformId: string): Promise<ILyric | null> {
+  const cacheKey = `qq:${platformId}`;
+  const cached = await readProviderLyricCache(cacheKey);
+  if (cached?.fresh) return cached.lyric;
 
   try {
-    const parseResult = parseYrcLyrics(lyricsString);
-
-    if (!parseResult.success) {
-      console.error('歌词解析失败:', parseResult.error.message);
-      return { lyrics: [], times: [] };
-    }
-
-    const { lyrics: parsedLyrics } = parseResult.data;
-    const lyrics: ILyricText[] = [];
-    const times: number[] = [];
-
-    for (const line of parsedLyrics) {
-      // 检查是否有逐字歌词
-      const hasWords = line.words && line.words.length > 0;
-
-      lyrics.push({
-        text: line.fullText,
-        trText: '', // 翻译文本稍后处理
-        words: hasWords ? (line.words as IWordData[]) : undefined,
-        hasWordByWord: hasWords,
-        startTime: line.startTime,
-        duration: line.duration
-      });
-
-      // 时间数组使用秒为单位（与原有逻辑保持一致）
-      times.push(line.startTime / 1000);
-    }
-
-    return { lyrics, times };
+    const payload = await fetchQqLyric(platformId);
+    if (!payload) return cached?.lyric || null;
+    const lyric = parseTimedLyrics(payload.lyric, { format: payload.format, source: 'qq' });
+    mergeAuxiliaryLyrics(lyric, payload.translation, 'trText', payload.format);
+    mergeAuxiliaryLyrics(lyric, payload.romanization, 'romaText', payload.format);
+    if (!lyric.lrcArray.length) return cached?.lyric || null;
+    await writeProviderLyricCache(cacheKey, lyric);
+    return lyric;
   } catch (error) {
-    console.error('解析歌词时发生错误:', error);
-    return { lyrics: [], times: [] };
+    console.warn('[loadCrossPlatformLyric] QQ QRC 加载失败，使用后备歌词:', error);
+    return cached?.lyric || null;
   }
-};
+}
+
+function createProviderLyric(
+  lyric: string,
+  translation: string | undefined,
+  romanization: string | undefined,
+  format: LyricFormat,
+  source: LyricSource
+): ILyric {
+  const result = parseTimedLyrics(lyric, { format, source });
+  mergeAuxiliaryLyrics(result, translation, 'trText', format);
+  mergeAuxiliaryLyrics(result, romanization, 'romaText', format);
+  return result;
+}
 
 /**
  * 加载跨平台歌曲歌词
@@ -312,7 +309,12 @@ export const loadCrossPlatformLyric = async (song: SongResult): Promise<ILyric> 
   const GD_SUPPORTED = ['joox', 'kuwo', 'netease'];
 
   try {
-    let lyricData = null;
+    let lyricData: GDMusicLyricResponse | null = null;
+
+    if (platform === 'qq') {
+      const qqLyric = await loadQqProviderLyric(platformId);
+      if (qqLyric?.lrcArray.length) return qqLyric;
+    }
 
     // 1. 直接用 platformId 获取歌词（仅限 GD 支持的平台）
     if (GD_SUPPORTED.includes(platform)) {
@@ -369,31 +371,14 @@ export const loadCrossPlatformLyric = async (song: SongResult): Promise<ILyric> 
     }
 
     // 解析歌词（复用现有解析逻辑）
-    const { lyrics, times } = parseLyrics(lyricData.yrc || lyricData.lyric || '');
-
-    let hasWordByWord = false;
-    for (const lyric of lyrics) {
-      if (lyric.hasWordByWord) {
-        hasWordByWord = true;
-        break;
-      }
-    }
-
-    // 处理翻译歌词
-    if (lyricData.tlyric) {
-      const { lyrics: tLyrics } = parseLyrics(lyricData.tlyric);
-      if (tLyrics.length === lyrics.length) {
-        lyrics.forEach((item, index) => {
-          item.trText = item.text && tLyrics[index] ? tLyrics[index].text : '';
-        });
-      }
-    }
-
-    return {
-      lrcTimeArray: times,
-      lrcArray: lyrics,
-      hasWordByWord
-    };
+    const providerFormat: LyricFormat = lyricData.yrc ? 'yrc' : 'lrc';
+    return createProviderLyric(
+      lyricData.yrc || lyricData.lyric || '',
+      lyricData.tlyric,
+      lyricData.yromrc,
+      providerFormat,
+      'fallback'
+    );
   } catch (error) {
     console.error('[loadCrossPlatformLyric] 加载失败:', error);
     return emptyLyric;
@@ -434,71 +419,14 @@ export const loadLrc = async (id: string | number): Promise<ILyric> => {
     }
 
     const data = lyricData ?? {};
-    const { lyrics, times } = parseLyrics(data?.yrc?.lyric || data?.lrc?.lyric);
-
-    // 检查是否有逐字歌词
-    let hasWordByWord = false;
-    for (const lyric of lyrics) {
-      if (lyric.hasWordByWord) {
-        hasWordByWord = true;
-        break;
-      }
-    }
-
-    if (data.tlyric && data.tlyric.lyric) {
-      const { lyrics: tLyrics } = parseLyrics(data.tlyric.lyric);
-
-      // 按索引顺序一一对应翻译歌词
-      if (tLyrics.length === lyrics.length) {
-        // 数量相同，直接按索引对应
-        lyrics.forEach((item, index) => {
-          item.trText = item.text && tLyrics[index] ? tLyrics[index].text : '';
-        });
-      } else {
-        // 数量不同，构建时间戳映射并尝试匹配
-        const tLyricMap = new Map<number, string>();
-        tLyrics.forEach((lyric) => {
-          if (lyric.text && lyric.startTime !== undefined) {
-            const timeInSeconds = lyric.startTime / 1000;
-            tLyricMap.set(timeInSeconds, lyric.text);
-          }
-        });
-
-        // 为每句歌词查找最接近的翻译
-        lyrics.forEach((item, index) => {
-          if (!item.text) {
-            item.trText = '';
-            return;
-          }
-
-          const currentTime = times[index];
-          let closestTime = -1;
-          let minDiff = 2.0; // 最大允许差异2秒
-
-          // 查找最接近的时间戳
-          for (const [tTime] of tLyricMap.entries()) {
-            const diff = Math.abs(tTime - currentTime);
-            if (diff < minDiff) {
-              minDiff = diff;
-              closestTime = tTime;
-            }
-          }
-
-          item.trText = closestTime !== -1 ? tLyricMap.get(closestTime) || '' : '';
-        });
-      }
-    } else {
-      // 没有翻译歌词，清空 trText
-      lyrics.forEach((item) => {
-        item.trText = '';
-      });
-    }
-
-    return {
-      lrcTimeArray: times,
-      lrcArray: lyrics,
-      hasWordByWord
-    };
+    const hasYrc = Boolean(data?.yrc?.lyric);
+    return createProviderLyric(
+      hasYrc ? data.yrc.lyric : data?.lrc?.lyric || '',
+      data?.ytlrc?.lyric || data?.tlyric?.lyric,
+      data?.yromalrc?.lyric || data?.romalrc?.lyric,
+      hasYrc ? 'yrc' : 'lrc',
+      'netease'
+    );
   } catch (err) {
     console.error('Error loading lyrics:', err);
     return {

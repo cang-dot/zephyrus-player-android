@@ -20,6 +20,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { decryptQrc } = require('qrc-decoder');
 
 const router = express.Router();
 
@@ -49,9 +50,7 @@ async function syncReleaseNote() {
     const response = await axios.get(RELEASE_NOTE_API, {
       headers: {
         'User-Agent': 'Zephyrus-Player-Gateway',
-        ...(process.env.GITHUB_TOKEN
-          ? { Authorization: `token ${process.env.GITHUB_TOKEN}` }
-          : {})
+        ...(process.env.GITHUB_TOKEN ? { Authorization: `token ${process.env.GITHUB_TOKEN}` } : {})
       },
       timeout: 15000,
       validateStatus: () => true
@@ -60,9 +59,7 @@ async function syncReleaseNote() {
     if (!release?.tag_name || response.status >= 400) {
       throw new Error(`GitHub 返回异常 ${response.status}`);
     }
-    const apk = (release.assets || []).find((asset) =>
-      String(asset?.name || '').endsWith('.apk')
-    );
+    const apk = (release.assets || []).find((asset) => String(asset?.name || '').endsWith('.apk'));
     const payload = {
       tag_name: release.tag_name,
       body: release.body || '',
@@ -88,16 +85,24 @@ async function syncReleaseNote() {
 // GET /platform/release-note/sync — 手动触发同步
 router.get('/release-note/sync', async (req, res) => {
   const ok = await syncReleaseNote();
-  res.json({ code: ok ? 200 : 500, msg: ok ? 'RELEASE_NOTE 已同步' : '同步失败，请查看服务器日志' });
+  res.json({
+    code: ok ? 200 : 500,
+    msg: ok ? 'RELEASE_NOTE 已同步' : '同步失败，请查看服务器日志'
+  });
 });
 
 // 启动后自动同步一次，之后每 30 分钟自动同步
-setTimeout(() => {
+const releaseNoteInitialTimer = setTimeout(() => {
   syncReleaseNote();
 }, 3000);
-setInterval(() => {
-  syncReleaseNote();
-}, 30 * 60 * 1000);
+releaseNoteInitialTimer.unref?.();
+const releaseNoteSyncTimer = setInterval(
+  () => {
+    syncReleaseNote();
+  },
+  30 * 60 * 1000
+);
+releaseNoteSyncTimer.unref?.();
 
 // ==================== 工具函数 ====================
 
@@ -364,6 +369,89 @@ const QQ_MUSIC_REDIRECT =
 const QQ_JS_VER = '20102616';
 const QQ_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const QQ_LYRIC_CACHE_TTL = 6 * 60 * 60 * 1000;
+const QQ_LYRIC_MISS_TTL = 5 * 60 * 1000;
+const QQ_LYRIC_CACHE_LIMIT = 500;
+const QQ_LYRIC_RATE_WINDOW = 60 * 1000;
+const QQ_LYRIC_RATE_LIMIT = 30;
+
+const qqLyricCache = new Map();
+const qqLyricRateWindows = new Map();
+
+function requestClientIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '')
+    .split(',')[0]
+    .trim();
+  return forwarded || req.socket?.remoteAddress || 'unknown';
+}
+
+function enforceQqLyricRateLimit(req, res) {
+  const now = Date.now();
+  const key = requestClientIp(req);
+  let windowState = qqLyricRateWindows.get(key);
+  if (!windowState || now >= windowState.resetAt) {
+    windowState = { count: 0, resetAt: now + QQ_LYRIC_RATE_WINDOW };
+  }
+  windowState.count += 1;
+  qqLyricRateWindows.set(key, windowState);
+  if (windowState.count <= QQ_LYRIC_RATE_LIMIT) return true;
+  res.setHeader('Retry-After', String(Math.max(1, Math.ceil((windowState.resetAt - now) / 1000))));
+  res.status(429).json({ code: 429, msg: 'QQ 歌词请求过于频繁，请稍后重试' });
+  return false;
+}
+
+function getCachedQqLyric(mid) {
+  const entry = qqLyricCache.get(mid);
+  if (!entry) return undefined;
+  if (Date.now() >= entry.expiresAt) {
+    qqLyricCache.delete(mid);
+    return undefined;
+  }
+  qqLyricCache.delete(mid);
+  qqLyricCache.set(mid, entry);
+  return entry.value;
+}
+
+function setCachedQqLyric(mid, value) {
+  qqLyricCache.delete(mid);
+  qqLyricCache.set(mid, {
+    value,
+    expiresAt: Date.now() + (value ? QQ_LYRIC_CACHE_TTL : QQ_LYRIC_MISS_TTL)
+  });
+  while (qqLyricCache.size > QQ_LYRIC_CACHE_LIMIT) {
+    qqLyricCache.delete(qqLyricCache.keys().next().value);
+  }
+}
+
+function decodeBase64Lyric(value) {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length % 4 !== 0) return '';
+  const decoded = Buffer.from(value, 'base64')
+    .toString('utf8')
+    .replace(/^\uFEFF/, '');
+  return /(?:^|\n)\s*(?:<|\[)/.test(decoded) ? decoded : '';
+}
+
+function decodeQqLyricField(value, encrypted = false) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const looksEncryptedHex = text.length % 2 === 0 && /^[\da-f]+$/i.test(text);
+  if (encrypted || looksEncryptedHex) return decryptQrc(text);
+  if (/^(?:<|\[)/.test(text)) return text;
+  return decodeBase64Lyric(text) || text;
+}
+
+function cleanupQqLyricState() {
+  const now = Date.now();
+  for (const [key, entry] of qqLyricCache) {
+    if (now >= entry.expiresAt) qqLyricCache.delete(key);
+  }
+  for (const [key, windowState] of qqLyricRateWindows) {
+    if (now >= windowState.resetAt) qqLyricRateWindows.delete(key);
+  }
+}
+
+const qqLyricCleanupTimer = setInterval(cleanupQqLyricState, 5 * 60 * 1000);
+qqLyricCleanupTimer.unref?.();
 
 let spotifyAccessToken = '';
 let spotifyAccessTokenExpiresAt = 0;
@@ -564,8 +652,7 @@ async function fetchQqUserInfo(cookie) {
       if (nickname) {
         return {
           nickname,
-          avatarUrl:
-            firstDeepValue(data, ['avatarUrl', 'avatar_url', 'headpic', 'head_pic']) || '',
+          avatarUrl: firstDeepValue(data, ['avatarUrl', 'avatar_url', 'headpic', 'head_pic']) || '',
           vip: Boolean(firstDeepValue(data, ['vip', 'is_vip']))
         };
       }
@@ -1534,11 +1621,7 @@ const QQ_SIGN_SCRAMBLE = [
 ];
 
 function zzcSign(data) {
-  const hash = crypto
-    .createHash('sha1')
-    .update(JSON.stringify(data))
-    .digest('hex')
-    .toUpperCase();
+  const hash = crypto.createHash('sha1').update(JSON.stringify(data)).digest('hex').toUpperCase();
 
   let part1 = '';
   for (const i of QQ_SIGN_PART1_INDEXES) {
@@ -1554,7 +1637,7 @@ function zzcSign(data) {
     const hexValue = parseInt(hash.substring(i * 2, i * 2 + 2), 16);
     part3Buffer[i] = QQ_SIGN_SCRAMBLE[i] ^ hexValue;
   }
-  const b64Part = part3Buffer.toString('base64').replace(/[\/\\+=]/g, '');
+  const b64Part = part3Buffer.toString('base64').replace(/[/\\+=]/g, '');
   return `zzc${part1}${b64Part}${part2}`.toLowerCase();
 }
 
@@ -1662,8 +1745,7 @@ function normalizeQqSong(item) {
         .split(/[,，、/&|]/)
         .map((artist) => artist.trim())
         .filter(Boolean);
-  const albumRaw =
-    typeof item.album === 'object' && item.album !== null ? item.album : null;
+  const albumRaw = typeof item.album === 'object' && item.album !== null ? item.album : null;
   const albumMid =
     firstOwnValue(item, ['albummid', 'album_mid']) ||
     (albumRaw ? firstOwnValue(albumRaw, ['mid', 'albummid', 'album_mid']) : '') ||
@@ -1675,9 +1757,7 @@ function normalizeQqSong(item) {
   const album = {
     id: albumMid || '0',
     name: albumName || '未知专辑',
-    picUrl: albumMid
-      ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg`
-      : ''
+    picUrl: albumMid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg` : ''
   };
   const rawDuration = Number(firstOwnValue(item, ['interval', 'duration', 'dt']));
   const duration = rawDuration > 0 && rawDuration < 1000 ? rawDuration * 1000 : rawDuration;
@@ -1804,9 +1884,7 @@ router.get('/qq/account/data', async (req, res) => {
 
   const avatarUin = userId.replace(/^o/i, '');
   let nickname = values.nickname || values.nick || 'QQ音乐用户';
-  let avatarUrl = /^\d+$/.test(avatarUin)
-    ? `https://q1.qlogo.cn/g?b=qq&nk=${avatarUin}&s=100`
-    : '';
+  let avatarUrl = /^\d+$/.test(avatarUin) ? `https://q1.qlogo.cn/g?b=qq&nk=${avatarUin}&s=100` : '';
   let vip = false;
   let playlists = [];
   let favorites = [];
@@ -1903,6 +1981,71 @@ router.get('/qq/search', async (req, res) => {
 });
 
 // GET /platform/kugou/search?keyword=xxx&limit=20
+// GET /platform/qq/lyric?mid=xxx
+router.get('/qq/lyric', async (req, res) => {
+  if (!enforceQqLyricRateLimit(req, res)) return;
+  const mid = String(req.query.mid || '').trim();
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(mid)) {
+    return res.status(400).json({ code: 400, msg: 'QQ songMID 无效' });
+  }
+
+  const cached = getCachedQqLyric(mid);
+  if (cached !== undefined) {
+    return cached
+      ? res.json({ code: 200, data: cached })
+      : res.status(404).json({ code: 404, msg: '未找到 QQ 歌词' });
+  }
+
+  try {
+    const data = await qqSignedApi(
+      getPlatformCookieFromRequest(req),
+      'music.musichallSong.PlayLyricInfo',
+      'GetPlayLyricInfo',
+      {
+        crypt: 1,
+        qrc: 1,
+        trans: 1,
+        roma: 1,
+        type: -1,
+        songID: 0,
+        songMID: mid
+      }
+    );
+    const encrypted = Number(data.crypt) === 1;
+    const rawLyric = firstOwnValue(data, ['lyric', 'lyricContent']);
+    if (!rawLyric) {
+      setCachedQqLyric(mid, null);
+      return res.status(404).json({ code: 404, msg: '未找到 QQ 歌词' });
+    }
+
+    const lyric = decodeQqLyricField(rawLyric, encrypted);
+    if (!lyric || !/(?:^|\n)\s*(?:<|\[)/.test(lyric)) {
+      throw new Error('QQ 主歌词解密结果无效');
+    }
+    const decodeOptional = (keys) => {
+      const raw = firstOwnValue(data, keys);
+      if (!raw) return '';
+      try {
+        return decodeQqLyricField(raw, encrypted);
+      } catch {
+        return '';
+      }
+    };
+    const payload = {
+      platform: 'qq',
+      format: Number(data.qrc) === 1 || /^\s*<QrcInfos/i.test(lyric) ? 'qrc' : 'lrc',
+      lyric,
+      translation: decodeOptional(['trans', 'translation', 'transLyric']),
+      romanization: decodeOptional(['roma', 'romanization', 'romaLyric'])
+    };
+    setCachedQqLyric(mid, payload);
+    return res.json({ code: 200, data: payload });
+  } catch (error) {
+    console.error('[platformLogin] QQ lyric error:', error.message);
+    return res.status(502).json({ code: 502, msg: 'QQ 歌词服务暂时不可用，请稍后重试' });
+  }
+});
+
 router.get('/kugou/search', async (req, res) => {
   const keyword = String(req.query.keyword || req.query.q || '').trim();
   const limit = Math.min(30, Math.max(1, Number(req.query.limit) || 20));
@@ -1940,9 +2083,7 @@ router.get('/kugou/search', async (req, res) => {
         const album = {
           id: albumId || '0',
           name: albumName || '未知专辑',
-          picUrl: albumId
-            ? `https://imgessl.kugou.com/stdmusic/150/${albumId}.jpg`
-            : ''
+          picUrl: albumId ? `https://imgessl.kugou.com/stdmusic/150/${albumId}.jpg` : ''
         };
         return {
           id: `kugou:${hash}`,
@@ -2339,6 +2480,8 @@ module.exports.readQqSession = readQqSession;
 module.exports.deleteQqSession = deleteQqSession;
 module.exports.mergeCookieParts = mergeCookieParts;
 module.exports.extractQQOAuthCode = extractQQOAuthCode;
+module.exports.decodeQqLyricField = decodeQqLyricField;
+module.exports.enforceQqLyricRateLimit = enforceQqLyricRateLimit;
 
 if (require.main === module) {
   const port = Number(process.env.PORT || process.env.ZEPHYRUS_GATEWAY_PORT || 3050);

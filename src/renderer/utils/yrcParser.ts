@@ -70,7 +70,8 @@ export type ParseResult<T> =
 const METADATA_PATTERN = /^\{("t":|"c":)/; // 匹配 {"t": 或 {"c":
 const LINE_TIME_PATTERN = /^\[(\d+),(\d+)\](.+)$/; // 逐字歌词格式: [92260,4740]...
 const LRC_TIME_PATTERN = /^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)$/; // 标准LRC格式: [00:25.47]...
-const WORD_PATTERN = /\((\d+),(\d+),\d+\)([^(]*?)(?=\(|$)/g;
+// 网易云 YRC 使用三个时间字段，QQ QRC 通常只有两个。
+const WORD_PATTERN = /\((\d+),(\d+)(?:,\d+)?\)([^(]*?)(?=\(|$)/g;
 
 /**
  * 时间格式化函数
@@ -231,7 +232,14 @@ const parseWordByWordLine = (line: string): ParseResult<LyricLine> => {
     const wordText = rawWordText.trim(); // 去除首尾空格的文本
 
     // 验证单词数据
-    if (isNaN(wordStartTime) || isNaN(wordDuration)) {
+    const lineEndTime = startTime + duration;
+    if (
+      isNaN(wordStartTime) ||
+      isNaN(wordDuration) ||
+      wordStartTime < startTime ||
+      wordStartTime >= lineEndTime ||
+      wordDuration < 0
+    ) {
       continue; // 跳过无效的单词数据
     }
 
@@ -239,7 +247,7 @@ const parseWordByWordLine = (line: string): ParseResult<LyricLine> => {
       tempWords.push({
         text: wordText,
         startTime: wordStartTime,
-        duration: wordDuration
+        duration: Math.min(wordDuration, lineEndTime - wordStartTime)
       });
       rawTextParts.push(rawWordText); // 保留原始格式用于分析空格
     }

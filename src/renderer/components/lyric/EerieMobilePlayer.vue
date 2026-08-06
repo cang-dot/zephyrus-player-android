@@ -32,8 +32,8 @@
 
         <ttml-word-effect-layer
           v-if="!showFullLyrics"
-          :auxiliary-tokens="ttmlPlayback.auxiliaryTokens.value"
-          :main-token="ttmlPlayback.currentMainToken.value"
+          :auxiliary-tokens="wordPlayback.auxiliaryTokens.value"
+          :main-token="wordPlayback.currentMainToken.value"
           :show-drop="showWordDrop"
         />
 
@@ -133,7 +133,7 @@ import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
-import { useTtmlPlayback } from '@/composables/useTtmlPlayback';
+import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drawCracks } from '@/lib/crackRenderer';
@@ -287,7 +287,7 @@ const {
   isCustom,
   customBackgroundActive
 } = usePlayerStyleAppearance('eerie');
-const ttmlPlayback = useTtmlPlayback();
+const wordPlayback = useWordTimedPlayback();
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({
@@ -311,7 +311,7 @@ const showWordDrop = computed(
     !showFullLyrics.value &&
     isInClimax.value &&
     effects.value.wordDrop &&
-    ttmlPlayback.available.value
+    wordPlayback.available.value
 );
 
 // ==================== 响应式配置 ====================

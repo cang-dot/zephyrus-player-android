@@ -113,6 +113,9 @@
               <div v-if="config.showTranslation && item.trText" class="translation">
                 {{ item.trText }}
               </div>
+              <div v-if="config.showRomanization && item.romaText" class="romanization">
+                {{ item.romaText }}
+              </div>
             </div>
             <div class="lyrics-padding-bottom"></div>
           </div>
@@ -321,6 +324,9 @@
               <span v-else :style="getLrcStyle(index)">{{ item.text }}</span>
               <div v-if="config.showTranslation && item.trText" class="translation">
                 {{ item.trText }}
+              </div>
+              <div v-if="config.showRomanization && item.romaText" class="romanization">
+                {{ item.romaText }}
               </div>
             </div>
             <div class="lyrics-padding-bottom"></div>
@@ -1867,7 +1873,8 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
     animation: clickPulse 0.3s ease-in-out;
   }
 
-  .translation {
+  .translation,
+  .romanization {
     @apply font-normal opacity-70 mt-1 text-base;
   }
 
@@ -2046,7 +2053,8 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
             color: var(--text-color-active);
           }
 
-          .translation {
+          .translation,
+          .romanization {
             @apply text-sm opacity-60 mt-1;
           }
         }

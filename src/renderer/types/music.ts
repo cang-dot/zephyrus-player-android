@@ -29,6 +29,7 @@ export interface IWordData {
 export interface ILyricText {
   text: string;
   trText: string;
+  romaText?: string;
   words?: IWordData[];
   hasWordByWord?: boolean;
   startTime?: number;
@@ -36,11 +37,16 @@ export interface ILyricText {
   isBG?: boolean;
 }
 
+export type LyricFormat = 'ttml' | 'yrc' | 'qrc' | 'lrc';
+export type LyricSource = 'zephyrus-ttml' | 'amll-ttml' | 'netease' | 'qq' | 'fallback';
+
 export interface ILyric {
   lrcTimeArray: number[];
   lrcArray: ILyricText[];
   // 新增字段标识是否包含逐字歌词
   hasWordByWord?: boolean;
+  format?: LyricFormat;
+  source?: LyricSource;
 }
 
 export interface SongResult {

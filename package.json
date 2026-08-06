@@ -18,6 +18,7 @@
     "dev:web": "vite dev",
     "dev:gateway": "node server-platform-login.js",
     "test:gateway": "node scripts/test-platform-gateway.mjs",
+    "test:lyrics": "vitest run --config vitest.config.ts tests/lyrics",
     "build:plugins": "node scripts/build-plugins.mjs --in-place",
     "build": "electron-vite build",
     "postinstall": "electron-builder install-app-deps",
@@ -67,6 +68,7 @@
     "node-machine-id": "^1.1.12",
     "ogl": "^1.0.11",
     "pinia-plugin-persistedstate": "^4.7.1",
+    "qrc-decoder": "1.0.2",
     "qrcode": "^1.5.4",
     "vue-i18n": "^11.2.2"
   },
@@ -129,6 +131,7 @@
     "vite": "^6.4.1",
     "vite-plugin-compression": "^0.5.1",
     "vite-plugin-vue-devtools": "7.7.2",
+    "vitest": "4.1.10",
     "vue": "^3.5.25",
     "vue-eslint-parser": "^10.2.0",
     "vue-router": "^4.6.4",

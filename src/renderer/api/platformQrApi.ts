@@ -246,6 +246,14 @@ export async function fetchPlatformPlaylistTracks(
   }
 }
 
+export interface QqLyricPayload {
+  platform: 'qq';
+  format: 'qrc' | 'lrc';
+  lyric: string;
+  translation: string;
+  romanization: string;
+}
+
 /**
  * 搜索已登录平台（QQ/酷狗）的音乐，返回可直接播放的 SongResult 列表
  */
@@ -274,5 +282,32 @@ export async function searchPlatformMusic(
     return Array.isArray(json.data.songs) ? (json.data.songs as SongResult[]) : [];
   } catch (error) {
     throw gatewayError(error, `${platform} 搜索`);
+  }
+}
+
+/** 获取网关已解密的 QQ 逐字歌词。未找到歌词时返回 null。 */
+export async function fetchQqLyric(mid: string): Promise<QqLyricPayload | null> {
+  const songMid = String(mid || '').trim();
+  if (!songMid) return null;
+  const cookie = localStorage.getItem('platform-cookie-qq') || '';
+
+  try {
+    const response = await gatewayRequest.get('/platform/qq/lyric', {
+      headers: cookie ? { 'X-Platform-Cookie': cookie } : undefined,
+      params: { mid: songMid },
+      timeout: 12000
+    });
+    const data = response.data?.data;
+    if (response.data?.code !== 200 || !data?.lyric) return null;
+    return {
+      platform: 'qq',
+      format: data.format === 'qrc' ? 'qrc' : 'lrc',
+      lyric: String(data.lyric || ''),
+      translation: String(data.translation || ''),
+      romanization: String(data.romanization || '')
+    };
+  } catch (error) {
+    if ((error as AxiosError).response?.status === 404) return null;
+    throw gatewayError(error, 'QQ 歌词加载');
   }
 }

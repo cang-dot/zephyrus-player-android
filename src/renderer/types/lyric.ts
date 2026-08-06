@@ -8,6 +8,7 @@ export interface LyricConfig {
   fontWeight: number;
   lineHeight: number;
   showTranslation: boolean;
+  showRomanization: boolean;
   theme: 'default' | 'light' | 'dark';
   hidePlayBar: boolean;
   translationEngine?: 'none' | 'opencc';
@@ -80,6 +81,7 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   fontWeight: 500,
   lineHeight: 2,
   showTranslation: true,
+  showRomanization: false,
   theme: 'default',
   hidePlayBar: true,
   hideMiniPlayBar: false,

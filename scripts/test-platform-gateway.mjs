@@ -10,8 +10,10 @@ const {
   normalizeKugouPlaylists,
   normalizeKugouSongs,
   normalizeKugouUserInfo,
-  extractQQOAuthCode
+  extractQQOAuthCode,
+  decodeQqLyricField
 } = require('../server-platform-login.js');
+const { encryptQrc } = require('qrc-decoder');
 
 function verifyQqCallbackParsing() {
   const redirectUrl =
@@ -46,13 +48,25 @@ function verifyQqOAuthCodeParsing() {
     data: encodeURIComponent('https://y.qq.com/?code=encoded-code')
   });
 
-  if (locationCode !== 'location-code' || bodyCode !== 'body-code' || encodedCode !== 'encoded-code') {
+  if (
+    locationCode !== 'location-code' ||
+    bodyCode !== 'body-code' ||
+    encodedCode !== 'encoded-code'
+  ) {
     throw new Error(
       `QQ OAuth code parsing failed: ${JSON.stringify({ locationCode, bodyCode, encodedCode })}`
     );
   }
 
   return { locationCode, bodyCode, encodedCode };
+}
+
+function verifyQqLyricDecoding() {
+  const plaintext = '[0,1000](0,400)synthetic (400,600)lyrics';
+  const encrypted = encryptQrc(plaintext);
+  const decoded = decodeQqLyricField(encrypted, true);
+  if (decoded !== plaintext) throw new Error('QQ QRC decryption failed');
+  return { encryptedLength: encrypted.length, decodedLength: decoded.length };
 }
 
 const app = createPlatformGatewayApp();
@@ -239,6 +253,17 @@ async function verifySpotifyRoute() {
   return response.status;
 }
 
+async function verifyQqLyricGuards() {
+  let lastResponse;
+  for (let index = 0; index <= 30; index++) {
+    lastResponse = await readResponse('/platform/qq/lyric?mid=%2A%2A%2A');
+  }
+  if (lastResponse.status !== 429 || lastResponse.body.code !== 429) {
+    throw new Error(`QQ lyric rate limit failed: ${JSON.stringify(lastResponse)}`);
+  }
+  return lastResponse.status;
+}
+
 try {
   const health = await readJson('/platform/health');
   if (!health.platforms.includes('spotify')) {
@@ -246,12 +271,14 @@ try {
   }
   const qqCallback = verifyQqCallbackParsing();
   const qqOAuthCode = verifyQqOAuthCodeParsing();
+  const qqLyricDecode = verifyQqLyricDecoding();
   const qq = await verifyPlatform('qq');
   const kugou = await verifyPlatform('kugou');
   const normalization = verifyKugouNormalization();
   const invalidKugouStatus = await verifyInvalidKugouAccount();
   const invalidKugouPlaylistStatus = await verifyInvalidKugouPlaylist();
   const spotifyRoute = await verifySpotifyRoute();
+  const qqLyricRateLimit = await verifyQqLyricGuards();
   console.log(
     JSON.stringify(
       {
@@ -259,11 +286,13 @@ try {
         qq,
         qqCallback,
         qqOAuthCode,
+        qqLyricDecode,
         kugou,
         normalization,
         invalidKugouStatus,
         invalidKugouPlaylistStatus,
-        spotifyRoute
+        spotifyRoute,
+        qqLyricRateLimit
       },
       null,
       2

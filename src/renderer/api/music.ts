@@ -65,13 +65,15 @@ export const getMusicUrl = async (id: number, isDownloaded: boolean = false) => 
     if (unlockResult.url) {
       return {
         data: {
-          data: [{
-            url: unlockResult.url,
-            br: unlockResult.br || 0,
-            size: unlockResult.size || 0,
-            type: 'unlock',
-            level: quality
-          }]
+          data: [
+            {
+              url: unlockResult.url,
+              br: unlockResult.br || 0,
+              size: unlockResult.size || 0,
+              type: 'unlock',
+              level: quality
+            }
+          ]
         }
       };
     }
@@ -111,6 +113,11 @@ export const getMusicLrc = async (id: number) => {
     return res;
   } catch (error) {
     console.error('获取歌词失败:', error);
+    const staleLyric = await db.getData('music_lyric', id).catch(() => null);
+    if (staleLyric?.data) {
+      console.info(`网络不可用，使用过期歌词缓存: ${id}`);
+      return { ...staleLyric };
+    }
     throw error; // 向上抛出错误，让调用者处理
   }
 };

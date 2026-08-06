@@ -174,8 +174,27 @@ export async function getAmllLyric(
   const cached = await getCached(cacheKey);
   if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) return cached.lyric;
 
-  for (const endpoint of sourceUrls(source)) {
-    const xml = await fetchText(endpoint.url, endpoint.timeoutMs);
+  const endpoints = sourceUrls(source);
+  const ownedEndpoint = ZEPHYRUS_DB_BASE ? endpoints.shift() : undefined;
+  if (ownedEndpoint) {
+    const xml = await fetchText(ownedEndpoint.url, ownedEndpoint.timeoutMs);
+    if (xml) {
+      const parsed = parseTtml(xml);
+      if (parsed?.lines.length) {
+        parsed.source = ownedEndpoint.url;
+        await setCached(cacheKey, parsed);
+        return parsed;
+      }
+    }
+  }
+
+  const fallbackResults = await Promise.all(
+    endpoints.map(async (endpoint) => ({
+      endpoint,
+      xml: await fetchText(endpoint.url, endpoint.timeoutMs)
+    }))
+  );
+  for (const { endpoint, xml } of fallbackResults) {
     if (!xml) continue;
     const parsed = parseTtml(xml);
     if (!parsed || parsed.lines.length === 0) continue;

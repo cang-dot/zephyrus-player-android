@@ -19,11 +19,11 @@
 </template>
 
 <script setup lang="ts">
-import type { TtmlAuxiliaryToken, TtmlPlaybackToken } from '@/composables/useTtmlPlayback';
+import type { WordAuxiliaryToken, WordPlaybackToken } from '@/composables/useWordTimedPlayback';
 
 defineProps<{
-  auxiliaryTokens: TtmlAuxiliaryToken[];
-  mainToken: TtmlPlaybackToken | null;
+  auxiliaryTokens: WordAuxiliaryToken[];
+  mainToken: WordPlaybackToken | null;
   showDrop: boolean;
 }>();
 </script>

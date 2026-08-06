@@ -33,6 +33,7 @@ export const useAmllStore = defineStore('amll', () => {
     loading.value = true;
     error.value = null;
     currentSource.value = sourceKey;
+    ttmlLyric.value = null;
     try {
       const result = await getAmllLyricForSong(song!);
       if (activeRequest !== requestId) return;

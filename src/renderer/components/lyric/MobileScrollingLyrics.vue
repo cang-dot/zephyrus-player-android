@@ -85,6 +85,9 @@
         <div v-if="config.showTranslation && item.trText" class="translation">
           {{ item.trText }}
         </div>
+        <div v-if="config.showRomanization && item.romaText" class="romanization">
+          {{ item.romaText }}
+        </div>
       </div>
       <div class="lyrics-padding-bottom"></div>
     </div>
@@ -270,6 +273,9 @@ function handleCopyLyrics() {
       if (config.value.showTranslation && item.trText) {
         lines.push(item.trText);
       }
+      if (config.value.showRomanization && item.romaText) {
+        lines.push(item.romaText);
+      }
     }
   }
   const text = lines.join('\n');
@@ -314,9 +320,7 @@ function handleGeneratePoster() {
     // 提示用户已截断
     if (navigator.vibrate) navigator.vibrate([20, 50, 20]);
     // 使用 toast 提示（通过 emit interact 保持选择模式，然后退出）
-    showToast(
-      t('player.share.lyricsTruncated') || `选中内容过长，已截断至${POSTER_MAX_LYRICS}句`
-    );
+    showToast(t('player.share.lyricsTruncated') || `选中内容过长，已截断至${POSTER_MAX_LYRICS}句`);
   } else {
     emit('generatePoster', lyrics);
   }
@@ -632,7 +636,8 @@ onBeforeUnmount(() => {
   }
 }
 
-.translation {
+.translation,
+.romanization {
   font-size: 14px;
   opacity: 0.6;
   margin-top: 4px;

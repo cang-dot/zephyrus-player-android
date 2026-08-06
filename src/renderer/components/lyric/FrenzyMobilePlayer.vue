@@ -40,8 +40,8 @@
 
         <ttml-word-effect-layer
           v-if="!showFullLyrics"
-          :auxiliary-tokens="ttmlPlayback.auxiliaryTokens.value"
-          :main-token="ttmlPlayback.currentMainToken.value"
+          :auxiliary-tokens="wordPlayback.auxiliaryTokens.value"
+          :main-token="wordPlayback.currentMainToken.value"
           :show-drop="showWordDrop"
         />
 
@@ -138,7 +138,7 @@ import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
-import { useTtmlPlayback } from '@/composables/useTtmlPlayback';
+import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drumDetector } from '@/services/drumDetector';
@@ -184,7 +184,7 @@ const {
   isCustom,
   customBackgroundActive
 } = usePlayerStyleAppearance('frenzy');
-const ttmlPlayback = useTtmlPlayback();
+const wordPlayback = useWordTimedPlayback();
 
 onMounted(() => {
   styleEngine.syncFromPlayerStore();
@@ -336,7 +336,7 @@ const showWordDrop = computed(
     !showFullLyrics.value &&
     styleEngine.isInClimax &&
     effects.value.wordDrop &&
-    ttmlPlayback.available.value
+    wordPlayback.available.value
 );
 
 // ==================== 巨字歌词拆分 ====================

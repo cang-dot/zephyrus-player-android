@@ -24,8 +24,8 @@
 
         <ttml-word-effect-layer
           v-if="!showFullLyrics"
-          :auxiliary-tokens="ttmlPlayback.auxiliaryTokens.value"
-          :main-token="ttmlPlayback.currentMainToken.value"
+          :auxiliary-tokens="wordPlayback.auxiliaryTokens.value"
+          :main-token="wordPlayback.currentMainToken.value"
           :show-drop="showWordDrop"
         />
 
@@ -47,8 +47,19 @@
             </div>
           </transition>
           <transition name="translation-fade">
-            <div v-if="currentTranslation" class="lyrics-translation">
+            <div
+              v-if="lyricDisplayConfig.showTranslation && currentTranslation"
+              class="lyrics-translation"
+            >
               {{ currentTranslation }}
+            </div>
+          </transition>
+          <transition name="translation-fade">
+            <div
+              v-if="lyricDisplayConfig.showRomanization && currentRomanization"
+              class="lyrics-romanization"
+            >
+              {{ currentRomanization }}
             </div>
           </transition>
         </div>
@@ -111,7 +122,7 @@
  * - 音频响应：高潮时文字使用强调色
  */
 import tinycolor from 'tinycolor2';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import BeatFlashLayer from '@/components/lyric/BeatFlashLayer.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
@@ -123,7 +134,7 @@ import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
-import { useTtmlPlayback } from '@/composables/useTtmlPlayback';
+import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { usePlayerStore } from '@/store/modules/player';
@@ -169,11 +180,30 @@ const {
   isCustom,
   customBackgroundActive
 } = usePlayerStyleAppearance('stage');
-const ttmlPlayback = useTtmlPlayback();
+const wordPlayback = useWordTimedPlayback();
+const lyricDisplayConfig = ref({ showTranslation: true, showRomanization: false });
+
+function loadLyricDisplayConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('music-full-config') || '{}');
+    lyricDisplayConfig.value = {
+      showTranslation: saved.showTranslation ?? true,
+      showRomanization: saved.showRomanization ?? false
+    };
+  } catch {
+    lyricDisplayConfig.value = { showTranslation: true, showRomanization: false };
+  }
+}
 
 onMounted(() => {
+  loadLyricDisplayConfig();
+  window.addEventListener('music-full-config-updated', loadLyricDisplayConfig);
   styleEngine.syncFromPlayerStore();
   styleEngine.syncCoverColors();
+});
+
+onUnmounted(() => {
+  window.removeEventListener('music-full-config-updated', loadLyricDisplayConfig);
 });
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
@@ -212,7 +242,7 @@ const showWordDrop = computed(
     !showFullLyrics.value &&
     styleEngine.isInClimax &&
     effects.value.wordDrop &&
-    ttmlPlayback.available.value
+    wordPlayback.available.value
 );
 
 // ==================== 歌词 ====================
@@ -226,7 +256,13 @@ const currentLyricText = computed(() => {
 const currentTranslation = computed(() => {
   const idx = nowIndex.value;
   if (idx < 0 || idx >= lrcArray.value.length) return '';
-  return (lrcArray.value[idx] as any)?.trText || '';
+  return lrcArray.value[idx]?.trText || '';
+});
+
+const currentRomanization = computed(() => {
+  const idx = nowIndex.value;
+  if (idx < 0 || idx >= lrcArray.value.length) return '';
+  return lrcArray.value[idx]?.romaText || '';
 });
 
 // ==================== 音频响应 ====================
@@ -359,7 +395,8 @@ function formatTime(seconds: number): string {
   will-change: color;
 }
 
-.lyrics-translation {
+.lyrics-translation,
+.lyrics-romanization {
   font-size: clamp(14px, 2vw, 18px);
   color: #666;
   margin-top: 16px;
