@@ -115,7 +115,7 @@ export function parseTtmlTime(value: string | null | undefined): number {
 }
 
 function elementChildren(element: Element): Element[] {
-  return Array.from(element.children).filter((child): child is Element => child.nodeType === 1);
+  return Array.from(element.childNodes).filter((child): child is Element => child.nodeType === 1);
 }
 
 function roleOf(element: Element): string | undefined {
@@ -178,8 +178,12 @@ function parseTimedWords(
   }
 
   if (words.length === 0) {
-    const text = element.children.length === 0 ? timedWordText(element) : mainText(element);
-    if (text) words.push({ text, begin: fallbackBegin, end: fallbackEnd, role });
+    const text = elementChildren(element).length === 0 ? timedWordText(element) : mainText(element);
+    if (text) {
+      const begin = parseTtmlTime(attr(element, 'begin') || String(fallbackBegin));
+      const end = parseTtmlTime(attr(element, 'end') || String(fallbackEnd));
+      words.push({ text, begin, end: Math.max(begin, end), role });
+    }
   }
   return words;
 }
@@ -286,7 +290,7 @@ function parseAgents(root: Element): TtmlAgent[] {
   for (const element of Array.from(elements)) {
     const id = attr(element, 'id', XML_NS) || element.getAttribute('xml:id');
     if (!id) continue;
-    const nameElement = Array.from(element.children).find((child) => child.localName === 'name');
+    const nameElement = elementChildren(element).find((child) => child.localName === 'name');
     agents.push({
       id,
       type: element.getAttribute('type') || undefined,
@@ -324,8 +328,7 @@ export function parseTtml(xmlString: string): TtmlLyric | null {
   if (!xmlString.trim()) return null;
   try {
     const document = new DOMParser().parseFromString(xmlString, 'application/xml');
-    const parseError = document.querySelector('parsererror');
-    if (parseError) return null;
+    if (document.getElementsByTagName('parsererror').length > 0) return null;
 
     const root = document.documentElement;
     if (!root || (root.localName || root.tagName).toLowerCase() !== 'tt') return null;

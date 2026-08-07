@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { DOMParser as XmlDomParser } from '@xmldom/xmldom';
+import { describe, expect, it, vi } from 'vitest';
 
-import { type TtmlLyric, ttmlToTimedLines } from '../../src/renderer/services/ttmlParser';
+import {
+  parseTtml,
+  type TtmlLyric,
+  ttmlToTimedLines
+} from '../../src/renderer/services/ttmlParser';
 import { extractQrcLyricContent, parseQrcLyrics } from '../../src/renderer/utils/qrcParser';
+import { getTimedLyricLineProgress } from '../../src/renderer/utils/timedLyricProgress';
 import { mergeAuxiliaryLyrics, parseTimedLyrics } from '../../src/renderer/utils/timedLyrics';
 
 describe('timed lyric parsing', () => {
@@ -120,5 +126,44 @@ describe('timed lyric parsing', () => {
       { text: '我', startTime: 1160, duration: 80, space: true },
       { text: 'world', startTime: 1240, duration: 240, space: false }
     ]);
+  });
+
+  it('keeps timing from direct TTML word spans used by AMLL lyrics', () => {
+    let lyric: ReturnType<typeof parseTtml>;
+    vi.stubGlobal('DOMParser', XmlDomParser);
+    try {
+      lyric = parseTtml(
+        '<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="00:04.233" end="00:05.642"><span begin="00:04.233" end="00:04.362">Start</span> <span begin="00:04.362" end="00:04.832">my</span> <span begin="00:04.832" end="00:05.642">car</span></p></div></body></tt>'
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(lyric?.timingMode).toBe('word');
+    expect(lyric?.lines[0].words).toEqual([
+      { text: 'Start ', begin: 4.233, end: 4.362, role: 'main' },
+      { text: 'my ', begin: 4.362, end: 4.832, role: 'main' },
+      { text: 'car', begin: 4.832, end: 5.642, role: 'main' }
+    ]);
+    expect(ttmlToTimedLines(lyric!)[0].words).toEqual([
+      { text: 'Start', startTime: 4233, duration: 129, space: true },
+      { text: 'my', startTime: 4362, duration: 470, space: true },
+      { text: 'car', startTime: 4832, duration: 810, space: false }
+    ]);
+  });
+
+  it('maps word timings to one continuous line progress', () => {
+    const words = [
+      { text: '人', startTime: 1000, duration: 200 },
+      { text: '民', startTime: 1200, duration: 200, space: true },
+      { text: 'artist', startTime: 1600, duration: 600 }
+    ];
+
+    expect(getTimedLyricLineProgress(words, 900)).toBe(0);
+    expect(getTimedLyricLineProgress(words, 1100)).toBeCloseTo(0.5 / 9);
+    expect(getTimedLyricLineProgress(words, 1300)).toBeCloseTo(2 / 9);
+    expect(getTimedLyricLineProgress(words, 1500)).toBeCloseTo(3 / 9);
+    expect(getTimedLyricLineProgress(words, 1900)).toBeCloseTo(6 / 9);
+    expect(getTimedLyricLineProgress(words, 2300)).toBe(1);
   });
 });

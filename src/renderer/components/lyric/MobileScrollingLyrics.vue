@@ -71,16 +71,18 @@
           ></i>
         </div>
 
-        <div
+        <span
           v-if="item.hasWordByWord && item.words && item.words.length > 0"
-          class="word-by-word-lyric"
+          class="timed-lyric-line"
         >
-          <template v-for="(word, wordIndex) in item.words" :key="wordIndex">
-            <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)">
-              {{ word.text }} </span
-            ><span class="lyric-word" v-if="word.space">&nbsp;</span></template
+          <span class="timed-lyric-base" :style="getTimedLineBaseStyle()">{{ item.text }}</span>
+          <span
+            class="timed-lyric-active"
+            aria-hidden="true"
+            :style="getTimedLineActiveStyle(index, item)"
+            >{{ item.text }}</span
           >
-        </div>
+        </span>
         <span v-else :style="getLineStyle(index)">{{ item.text }}</span>
         <div v-if="config.showTranslation && item.trText" class="translation">
           {{ item.trText }}
@@ -136,6 +138,7 @@ import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import type { ILyricText } from '@/types/music';
 import type { SelectedLyric } from '@/types/share';
 import { getTextColors } from '@/utils/linearColor';
+import { getTimedLyricLineProgress } from '@/utils/timedLyricProgress';
 
 const { t } = useI18n();
 const wordPlayback = useWordTimedPlayback();
@@ -481,43 +484,23 @@ function updateTimeIndicator() {
   currentTimeText.value = formatTime(closestTime);
 }
 
-// 逐字歌词样式
-const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
+const getTimedLineBaseStyle = () => {
   const colors = textColors.value || getTextColors();
-  if (lineIndex !== displayIndex.value) {
-    return {
-      color: colors.primary,
-      transition: 'color 0.3s ease',
-      backgroundImage: 'none',
-      WebkitTextFillColor: 'initial'
-    };
-  }
-  const currentTime = correctedTime.value * 1000;
-  const wordStartTime = word.startTime;
-  const wordEndTime = word.startTime + word.duration;
+  return { color: colors.primary };
+};
 
-  if (currentTime >= wordStartTime && currentTime < wordEndTime) {
-    const progress = Math.min((currentTime - wordStartTime) / word.duration, 1);
-    const progressPercent = Math.round(progress * 100);
-    return {
-      backgroundImage: `linear-gradient(to right, ${colors.active} 0%, ${colors.active} ${progressPercent}%, ${colors.primary} ${progressPercent}%, ${colors.primary} 100%)`,
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      textShadow: `0 0 8px ${colors.active}40`,
-      transition: 'all 0.1s ease'
-    };
-  } else if (currentTime >= wordEndTime) {
-    return {
-      color: colors.active,
-      WebkitTextFillColor: 'initial',
-      transition: 'none'
-    };
-  }
+const getTimedLineActiveStyle = (lineIndex: number, item: ILyricText) => {
+  const colors = textColors.value || getTextColors();
+  const progress =
+    lineIndex === displayIndex.value && item.words
+      ? getTimedLyricLineProgress(item.words, correctedTime.value * 1000)
+      : 0;
+  const hiddenPercent = Math.max(0, 100 - progress * 100);
   return {
-    color: colors.primary,
-    WebkitTextFillColor: 'initial',
-    transition: 'none'
+    color: colors.active,
+    clipPath: `inset(0 ${hiddenPercent}% 0 0)`,
+    WebkitClipPath: `inset(0 ${hiddenPercent}% 0 0)`,
+    textShadow: `0 0 8px ${colors.active}40`
   };
 };
 
@@ -662,14 +645,26 @@ onBeforeUnmount(() => {
   margin-top: 4px;
 }
 
-.word-by-word-lyric {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+.timed-lyric-line {
+  position: relative;
+  display: inline-grid;
+  max-width: 100%;
+  place-items: center;
+  text-align: center;
+}
 
-  .lyric-word {
-    transition: all 0.1s ease;
-  }
+.timed-lyric-base,
+.timed-lyric-active {
+  grid-area: 1 / 1;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.timed-lyric-active {
+  pointer-events: none;
+  transition: clip-path 50ms linear;
+  will-change: clip-path;
 }
 
 .no-scroll-tip {

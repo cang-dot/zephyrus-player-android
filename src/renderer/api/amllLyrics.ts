@@ -11,7 +11,7 @@ export interface AmllSongSource {
 }
 
 interface CachedTtmlLyric {
-  schemaVersion: 1;
+  schemaVersion: 2;
   cachedAt: number;
   lyric: TtmlLyric;
 }
@@ -30,7 +30,7 @@ const ZEPHYRUS_DB_BASE = String(import.meta.env.VITE_TTML_DB_BASE_URL || '')
 const DB_NAME = 'zephyrus-cache';
 const STORE_NAME = 'amll-ttml';
 const DB_VERSION = 2;
-const CACHE_SCHEMA_VERSION = 1;
+const CACHE_SCHEMA_VERSION = 2;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const OWNED_SOURCE_TIMEOUT_MS = 2500;
 const FALLBACK_SOURCE_TIMEOUT_MS = 8000;

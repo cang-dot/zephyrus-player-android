@@ -10,13 +10,17 @@
       >
     </TransitionGroup>
 
-    <Transition name="ttml-drop" :mode="dropTransitionMode">
-      <div
-        v-if="showDrop && mainToken"
-        :key="mainToken.key"
-        class="ttml-drop-token"
-        :style="dropTokenStyle"
-      >
+    <div
+      v-if="showDrop && mainToken && isTtmlToken"
+      :key="mainToken.key"
+      class="ttml-drop-token ttml-drop-token--ttml"
+      :style="ttmlDropTokenStyle"
+    >
+      {{ mainToken.text }}
+    </div>
+
+    <Transition v-else name="ttml-drop" mode="out-in">
+      <div v-if="showDrop && mainToken" :key="mainToken.key" class="ttml-drop-token">
         {{ mainToken.text }}
       </div>
     </Transition>
@@ -35,14 +39,11 @@ const props = defineProps<{
 }>();
 
 const isTtmlToken = computed(() => props.mainToken?.key.startsWith('ttml:') === true);
-const dropTransitionMode = computed(() => (isTtmlToken.value ? undefined : 'out-in'));
-const dropTokenStyle = computed(() => {
+const ttmlDropTokenStyle = computed(() => {
   const tokenDuration = props.mainToken
     ? Math.max(0, props.mainToken.end - props.mainToken.begin) * 1000
     : 300;
-  const animationDuration = isTtmlToken.value
-    ? Math.min(300, Math.max(70, tokenDuration * 0.72))
-    : 300;
+  const animationDuration = Math.min(120, Math.max(56, tokenDuration * 0.35));
   return { '--ttml-drop-duration': `${animationDuration}ms` };
 });
 </script>
@@ -107,7 +108,11 @@ const dropTokenStyle = computed(() => {
 }
 
 .ttml-drop-enter-active {
-  animation: ttml-word-impact var(--ttml-drop-duration, 300ms) cubic-bezier(0.16, 0.84, 0.34, 1);
+  animation: ttml-word-impact 300ms cubic-bezier(0.16, 0.84, 0.34, 1);
+}
+.ttml-drop-token--ttml {
+  animation: ttml-word-impact-ttml var(--ttml-drop-duration, 80ms) cubic-bezier(0.12, 0.72, 0.2, 1)
+    both;
 }
 .ttml-drop-leave-active {
   transition: opacity 70ms linear;
@@ -141,6 +146,23 @@ const dropTokenStyle = computed(() => {
     transform: translateY(0) scale(1);
   }
 }
+@keyframes ttml-word-impact-ttml {
+  0% {
+    opacity: 0.35;
+    transform: translateY(-38vh) scale(0.9);
+  }
+  42% {
+    opacity: 1;
+    transform: translateY(2.5vh) scale(1.04, 0.96);
+  }
+  72% {
+    transform: translateY(-0.8vh) scale(0.985, 1.015);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 @keyframes ttml-aux-in {
   from {
     opacity: 0;
@@ -150,6 +172,7 @@ const dropTokenStyle = computed(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .ttml-drop-enter-active,
+  .ttml-drop-token--ttml,
   .ttml-auxiliary-enter-active {
     animation: none;
     transition: opacity 140ms linear;
