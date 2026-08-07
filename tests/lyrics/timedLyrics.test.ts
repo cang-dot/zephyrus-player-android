@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { type TtmlLyric, ttmlToTimedLines } from '../../src/renderer/services/ttmlParser';
 import { extractQrcLyricContent, parseQrcLyrics } from '../../src/renderer/utils/qrcParser';
 import { mergeAuxiliaryLyrics, parseTimedLyrics } from '../../src/renderer/utils/timedLyrics';
 
@@ -64,5 +65,60 @@ describe('timed lyric parsing', () => {
     const differentLength = parseTimedLyrics('[00:01.00]one\n[00:02.00]two');
     mergeAuxiliaryLyrics(differentLength, '[00:10.00]uno', 'trText', 'lrc');
     expect(differentLength.lrcArray.map((line) => line.trText)).toEqual(['', '']);
+  });
+
+  it('keeps every TTML word when adapting lines for scrolling lyrics', () => {
+    const lyric: TtmlLyric = {
+      lines: [
+        {
+          begin: 1,
+          end: 1.48,
+          text: '歌颂我 world',
+          words: [
+            { text: '歌', begin: 1, end: 1.08 },
+            { text: '颂', begin: 1.08, end: 1.16 },
+            { text: '我 ', begin: 1.16, end: 1.24 },
+            { text: 'world', begin: 1.24, end: 1.48 }
+          ],
+          isBackground: false,
+          background: [],
+          translations: [{ text: 'Praise me, world', role: 'translation' }],
+          romanizations: [{ text: 'ge song wo', role: 'roman' }]
+        },
+        {
+          begin: 1.1,
+          end: 1.3,
+          text: '和声',
+          words: [{ text: '和声', begin: 1.1, end: 1.3 }],
+          isBackground: true,
+          background: [],
+          translations: [],
+          romanizations: []
+        }
+      ],
+      duration: 1.48,
+      timingMode: 'word',
+      agents: [],
+      parts: [],
+      meta: {}
+    };
+
+    const lines = ttmlToTimedLines(lyric);
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      text: '歌颂我 world',
+      trText: 'Praise me, world',
+      romaText: 'ge song wo',
+      hasWordByWord: true,
+      startTime: 1000,
+      duration: 480
+    });
+    expect(lines[0].words).toEqual([
+      { text: '歌', startTime: 1000, duration: 80, space: false },
+      { text: '颂', startTime: 1080, duration: 80, space: false },
+      { text: '我', startTime: 1160, duration: 80, space: true },
+      { text: 'world', startTime: 1240, duration: 240, space: false }
+    ]);
   });
 });

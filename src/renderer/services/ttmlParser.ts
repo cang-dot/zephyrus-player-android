@@ -6,6 +6,8 @@
  * presentation without reparsing XML or relying on LRC-specific fields.
  */
 
+import type { ILyricText } from '@/types/music';
+
 const TTM_NS = 'http://www.w3.org/ns/ttml#metadata';
 const ITUNES_NS = 'http://music.apple.com/lyric-ttml-internal';
 const XML_NS = 'http://www.w3.org/XML/1998/namespace';
@@ -381,6 +383,32 @@ export function findTtmlLineIndex(lyric: TtmlLyric, currentTime: number): number
     else break;
   }
   return result;
+}
+
+/** Convert primary TTML lines to the shared timed-lyric shape used by scrolling lyrics. */
+export function ttmlToTimedLines(lyric: TtmlLyric): ILyricText[] {
+  return lyric.lines
+    .filter((line) => !line.isBackground)
+    .map((line) => {
+      const words = line.words
+        .map((word) => ({
+          text: word.text.trim(),
+          startTime: Math.round(word.begin * 1000),
+          duration: Math.max(0, Math.round((word.end - word.begin) * 1000)),
+          space: /\s$/.test(word.text)
+        }))
+        .filter((word) => Boolean(word.text));
+
+      return {
+        text: line.text,
+        trText: line.translations[0]?.text || '',
+        romaText: line.romanizations[0]?.text || '',
+        words,
+        hasWordByWord: lyric.timingMode === 'word' && words.length > 0,
+        startTime: Math.round(line.begin * 1000),
+        duration: Math.max(0, Math.round((line.end - line.begin) * 1000))
+      };
+    });
 }
 
 export function findTtmlWordIndex(line: TtmlLine, currentTime: number): number {

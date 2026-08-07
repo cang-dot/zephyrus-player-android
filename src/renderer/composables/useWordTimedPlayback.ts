@@ -1,15 +1,23 @@
 import { computed, ref, watch } from 'vue';
 
 import { resolveAmllSource } from '@/api/amllLyrics';
-import { correctionTime, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
+import {
+  correctionTime,
+  lrcArray,
+  lrcTimeArray,
+  nowIndex,
+  nowTime,
+  playMusic
+} from '@/hooks/MusicHook';
 import {
   getTtmlBackgroundLines,
   type TtmlBackgroundLine,
   type TtmlLine,
+  ttmlToTimedLines,
   type TtmlWord
 } from '@/services/ttmlParser';
 import { useAmllStore } from '@/store/modules/amll';
-import type { IWordData, LyricFormat } from '@/types/music';
+import type { ILyricText, IWordData, LyricFormat } from '@/types/music';
 
 export interface WordPlaybackToken {
   text: string;
@@ -54,6 +62,19 @@ function currentProviderWord(words: IWordData[], timeMs: number): IWordData | nu
 function auxiliarySourceKey(line: TtmlBackgroundLine): string {
   return `${line.agent || 'nested'}:${line.begin}:${line.end}:${line.text}`;
 }
+
+function findStartedLineIndex(startTimes: number[], time: number): number {
+  let result = -1;
+  for (let index = 0; index < startTimes.length; index += 1) {
+    if (time >= startTimes[index]) result = index;
+    else break;
+  }
+  return result;
+}
+
+// Player styles and the scrolling overlay must switch to TTML at the same line boundary.
+const activeTtmlSource = ref<string | null>(null);
+const pendingTtmlSource = ref<string | null>(null);
 
 export function useWordTimedPlayback() {
   const amllStore = useAmllStore();
@@ -104,36 +125,35 @@ export function useWordTimedPlayback() {
     };
   });
 
-  const useTtmlMain = ref(false);
-  const pendingTtmlSwitch = ref(false);
-
   watch(expectedTtmlSource, () => {
-    useTtmlMain.value = false;
-    pendingTtmlSwitch.value = false;
+    activeTtmlSource.value = null;
+    pendingTtmlSource.value = null;
   });
   watch(
     [ttmlMatchesSong, providerHasWordTiming],
     ([hasTtml, hasProviderTiming]) => {
       if (!hasTtml) {
-        useTtmlMain.value = false;
-        pendingTtmlSwitch.value = false;
+        if (activeTtmlSource.value === expectedTtmlSource.value) activeTtmlSource.value = null;
+        if (pendingTtmlSource.value === expectedTtmlSource.value) pendingTtmlSource.value = null;
       } else if (!hasProviderTiming) {
-        useTtmlMain.value = true;
-        pendingTtmlSwitch.value = false;
-      } else if (!useTtmlMain.value) {
-        pendingTtmlSwitch.value = true;
+        activeTtmlSource.value = expectedTtmlSource.value;
+        pendingTtmlSource.value = null;
+      } else if (activeTtmlSource.value !== expectedTtmlSource.value) {
+        pendingTtmlSource.value = expectedTtmlSource.value;
       }
     },
     { immediate: true }
   );
   watch(nowIndex, (_current, previous) => {
-    if (pendingTtmlSwitch.value && previous !== undefined) {
-      useTtmlMain.value = true;
-      pendingTtmlSwitch.value = false;
+    if (pendingTtmlSource.value === expectedTtmlSource.value && previous !== undefined) {
+      activeTtmlSource.value = pendingTtmlSource.value;
+      pendingTtmlSource.value = null;
     }
   });
 
-  const usingTtml = computed(() => useTtmlMain.value && ttmlMatchesSong.value);
+  const usingTtml = computed(
+    () => activeTtmlSource.value === expectedTtmlSource.value && ttmlMatchesSong.value
+  );
   const currentMainToken = computed(() =>
     usingTtml.value ? ttmlMainToken.value : providerMainToken.value
   );
@@ -174,6 +194,18 @@ export function useWordTimedPlayback() {
   const stableAnimationKey = computed(
     () => currentMainToken.value?.key || `${source.value}-unavailable`
   );
+  const ttmlDisplayLines = computed<ILyricText[]>(() =>
+    lyric.value ? ttmlToTimedLines(lyric.value) : []
+  );
+  const displayLines = computed(() => (usingTtml.value ? ttmlDisplayLines.value : lrcArray.value));
+  const displayTimes = computed(() =>
+    usingTtml.value
+      ? ttmlDisplayLines.value.map((line) => (line.startTime || 0) / 1000)
+      : lrcTimeArray.value
+  );
+  const displayIndex = computed(() =>
+    usingTtml.value ? findStartedLineIndex(displayTimes.value, correctedTime.value) : nowIndex.value
+  );
 
   return {
     lyric,
@@ -185,6 +217,10 @@ export function useWordTimedPlayback() {
     currentLine,
     currentMainToken,
     auxiliaryTokens,
-    stableAnimationKey
+    stableAnimationKey,
+    displayLines,
+    displayTimes,
+    displayIndex,
+    correctedTime
   };
 }

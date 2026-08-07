@@ -10,8 +10,13 @@
       >
     </TransitionGroup>
 
-    <Transition name="ttml-drop" mode="out-in">
-      <div v-if="showDrop && mainToken" :key="mainToken.key" class="ttml-drop-token">
+    <Transition name="ttml-drop" :mode="dropTransitionMode">
+      <div
+        v-if="showDrop && mainToken"
+        :key="mainToken.key"
+        class="ttml-drop-token"
+        :style="dropTokenStyle"
+      >
         {{ mainToken.text }}
       </div>
     </Transition>
@@ -19,13 +24,27 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+
 import type { WordAuxiliaryToken, WordPlaybackToken } from '@/composables/useWordTimedPlayback';
 
-defineProps<{
+const props = defineProps<{
   auxiliaryTokens: WordAuxiliaryToken[];
   mainToken: WordPlaybackToken | null;
   showDrop: boolean;
 }>();
+
+const isTtmlToken = computed(() => props.mainToken?.key.startsWith('ttml:') === true);
+const dropTransitionMode = computed(() => (isTtmlToken.value ? undefined : 'out-in'));
+const dropTokenStyle = computed(() => {
+  const tokenDuration = props.mainToken
+    ? Math.max(0, props.mainToken.end - props.mainToken.begin) * 1000
+    : 300;
+  const animationDuration = isTtmlToken.value
+    ? Math.min(300, Math.max(70, tokenDuration * 0.72))
+    : 300;
+  return { '--ttml-drop-duration': `${animationDuration}ms` };
+});
 </script>
 
 <style scoped>
@@ -88,7 +107,7 @@ defineProps<{
 }
 
 .ttml-drop-enter-active {
-  animation: ttml-word-impact 300ms cubic-bezier(0.16, 0.84, 0.34, 1);
+  animation: ttml-word-impact var(--ttml-drop-duration, 300ms) cubic-bezier(0.16, 0.84, 0.34, 1);
 }
 .ttml-drop-leave-active {
   transition: opacity 70ms linear;

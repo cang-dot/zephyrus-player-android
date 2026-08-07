@@ -47,12 +47,12 @@
         <span>{{ t('player.lrc.noAutoScroll') }}</span>
       </div>
       <div
-        v-for="(item, index) in lrcArray"
+        v-for="(item, index) in displayLyrics"
         :key="index"
         :id="`msl-lyric-${index}`"
         class="lyric-line"
         :class="{
-          'now-text': index === nowIndex,
+          'now-text': index === displayIndex,
           'hover-text': item.text && item.startTime !== -1,
           selected: selectedSet.has(index),
           selectable: selectMode && item.text && item.text.trim()
@@ -81,7 +81,7 @@
             ><span class="lyric-word" v-if="word.space">&nbsp;</span></template
           >
         </div>
-        <span v-else :style="getLrcStyle(index)">{{ item.text }}</span>
+        <span v-else :style="getLineStyle(index)">{{ item.text }}</span>
         <div v-if="config.showTranslation && item.trText" class="translation">
           {{ item.trText }}
         </div>
@@ -130,20 +130,19 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import {
-  correctionTime,
-  lrcArray,
-  lrcTimeArray,
-  nowIndex,
-  nowTime,
-  setAudioTime,
-  textColors
-} from '@/hooks/MusicHook';
+import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
+import { sound, textColors } from '@/hooks/MusicHook';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
+import type { ILyricText } from '@/types/music';
 import type { SelectedLyric } from '@/types/share';
 import { getTextColors } from '@/utils/linearColor';
 
 const { t } = useI18n();
+const wordPlayback = useWordTimedPlayback();
+const displayLyrics = wordPlayback.displayLines;
+const displayTimes = wordPlayback.displayTimes;
+const displayIndex = wordPlayback.displayIndex;
+const correctedTime = wordPlayback.correctedTime;
 
 const emit = defineEmits<{ close: []; interact: []; generatePoster: [lyrics: SelectedLyric[]] }>();
 
@@ -155,7 +154,6 @@ const selectedSet = ref<Set<number>>(new Set());
 // 长按检测
 let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 const longPressThreshold = 500; // 500ms
-let longPressTriggered = false;
 let longPressStartX = 0;
 let longPressStartY = 0;
 
@@ -188,7 +186,7 @@ function toggleSelection(index: number) {
 
 /** 全选/取消全选 */
 const isAllSelected = computed(() => {
-  const validLines = lrcArray.value.filter((l) => l.text && l.text.trim());
+  const validLines = displayLyrics.value.filter((l) => l.text && l.text.trim());
   return validLines.length > 0 && selectedSet.value.size >= validLines.length;
 });
 
@@ -197,8 +195,8 @@ function toggleSelectAll() {
     selectedSet.value = new Set();
   } else {
     const indices: number[] = [];
-    for (let i = 0; i < lrcArray.value.length; i++) {
-      if (lrcArray.value[i].text && lrcArray.value[i].text.trim()) {
+    for (let i = 0; i < displayLyrics.value.length; i++) {
+      if (displayLyrics.value[i].text && displayLyrics.value[i].text.trim()) {
         indices.push(i);
       }
     }
@@ -207,7 +205,15 @@ function toggleSelectAll() {
 }
 
 /** 处理歌词点击 */
-function handleLyricClick(index: number, item: any) {
+function seekToLyric(index: number) {
+  const currentSound = sound.value;
+  const seekTime = displayTimes.value[index];
+  if (!currentSound || !Number.isFinite(seekTime)) return;
+  currentSound.seek(seekTime);
+  currentSound.play();
+}
+
+function handleLyricClick(index: number, item: ILyricText) {
   if (selectMode.value) {
     if (item.text && item.text.trim()) {
       toggleSelection(index);
@@ -216,22 +222,20 @@ function handleLyricClick(index: number, item: any) {
   }
   // 非选择模式：点击跳转播放
   if (item.startTime !== -1) {
-    setAudioTime(index);
+    seekToLyric(index);
   }
 }
 
 /** 歌词行触摸开始 - 检测长按 */
-function handleLyricTouchStart(index: number, item: any, e: TouchEvent) {
+function handleLyricTouchStart(index: number, item: ILyricText, e: TouchEvent) {
   if (selectMode.value) return;
   if (!item.text || !item.text.trim()) return;
 
-  longPressTriggered = false;
   longPressStartX = e.touches[0].clientX;
   longPressStartY = e.touches[0].clientY;
 
   if (longPressTimer) clearTimeout(longPressTimer);
   longPressTimer = setTimeout(() => {
-    longPressTriggered = true;
     // 震动反馈
     if (navigator.vibrate) navigator.vibrate(30);
     enterSelectMode(index);
@@ -267,7 +271,7 @@ function handleCopyLyrics() {
   const sortedIndices = Array.from(selectedSet.value).sort((a, b) => a - b);
   const lines: string[] = [];
   for (const index of sortedIndices) {
-    const item = lrcArray.value[index];
+    const item = displayLyrics.value[index];
     if (item) {
       lines.push(item.text);
       if (config.value.showTranslation && item.trText) {
@@ -304,7 +308,7 @@ function handleGeneratePoster() {
   // 按索引排序
   const sortedIndices = Array.from(selectedSet.value).sort((a, b) => a - b);
   for (const index of sortedIndices) {
-    const item = lrcArray.value[index];
+    const item = displayLyrics.value[index];
     if (item) {
       lyrics.push({
         index,
@@ -353,7 +357,7 @@ function formatTime(seconds: number): string {
 // 点击时间指示器跳转
 function handleTimeIndicatorClick() {
   if (closestIndex.value >= 0) {
-    setAudioTime(closestIndex.value);
+    seekToLyric(closestIndex.value);
   }
 }
 
@@ -389,14 +393,14 @@ const touchStartY = ref(0);
 let autoScrollTimer: ReturnType<typeof setTimeout> | null = null;
 
 const supportAutoScroll = computed(() => {
-  return lrcArray.value.length > 0 && lrcArray.value[0].startTime !== -1;
+  return displayLyrics.value.length > 0 && Number.isFinite(displayTimes.value[0]);
 });
 
 // 自动滚动到当前歌词
 function scrollToCurrentLyric(immediate = false) {
   if (!isAutoScrollEnabled.value || !scrollerRef.value) return;
 
-  const el = document.getElementById(`msl-lyric-${nowIndex.value}`);
+  const el = document.getElementById(`msl-lyric-${displayIndex.value}`);
   if (!el) return;
 
   const container = scrollerRef.value;
@@ -413,7 +417,7 @@ function scrollToCurrentLyric(immediate = false) {
 }
 
 // 监听歌词索引变化
-watch(nowIndex, () => {
+watch(displayIndex, () => {
   if (isAutoScrollEnabled.value && !selectMode.value) {
     nextTick(() => scrollToCurrentLyric());
   }
@@ -463,7 +467,7 @@ function updateTimeIndicator() {
   let closestTime = 0;
   let closestDist = Infinity;
   closestIndex.value = -1;
-  for (let i = 0; i < lrcArray.value.length; i++) {
+  for (let i = 0; i < displayLyrics.value.length; i++) {
     const el = document.getElementById(`msl-lyric-${i}`);
     if (!el) continue;
     const elCenter = el.offsetTop + el.offsetHeight / 2;
@@ -471,8 +475,7 @@ function updateTimeIndicator() {
     if (dist < closestDist) {
       closestDist = dist;
       closestIndex.value = i;
-      // lrcTimeArray 是秒，formatTime 需要秒
-      closestTime = lrcTimeArray.value[i] || 0;
+      closestTime = displayTimes.value[i] || 0;
     }
   }
   currentTimeText.value = formatTime(closestTime);
@@ -481,7 +484,7 @@ function updateTimeIndicator() {
 // 逐字歌词样式
 const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
   const colors = textColors.value || getTextColors();
-  if (lineIndex !== nowIndex.value) {
+  if (lineIndex !== displayIndex.value) {
     return {
       color: colors.primary,
       transition: 'color 0.3s ease',
@@ -489,7 +492,7 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
       WebkitTextFillColor: 'initial'
     };
   }
-  const currentTime = (nowTime.value + correctionTime.value) * 1000;
+  const currentTime = correctedTime.value * 1000;
   const wordStartTime = word.startTime;
   const wordEndTime = word.startTime + word.duration;
 
@@ -518,8 +521,24 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
   };
 };
 
-// 从 MusicHook 获取 getLrcStyle
-import { getLrcStyle } from '@/hooks/MusicHook';
+const getLineStyle = (lineIndex: number) => {
+  if (lineIndex !== displayIndex.value) return {};
+  const colors = textColors.value || getTextColors();
+  const start = displayTimes.value[lineIndex] || 0;
+  const itemDuration = (displayLyrics.value[lineIndex]?.duration || 0) / 1000;
+  const end = displayTimes.value[lineIndex + 1] ?? start + Math.max(itemDuration, 1);
+  const progress = Math.min(
+    Math.max((correctedTime.value - start) / Math.max(end - start, 0.001), 0),
+    1
+  );
+  const progressPercent = Math.round(progress * 100);
+  return {
+    backgroundImage: `linear-gradient(to right, ${colors.active} ${progressPercent}%, ${colors.primary} ${progressPercent}%)`,
+    backgroundClip: 'text',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent'
+  };
+};
 
 onBeforeUnmount(() => {
   if (autoScrollTimer) clearTimeout(autoScrollTimer);
