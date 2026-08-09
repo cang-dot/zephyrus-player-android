@@ -2,28 +2,6 @@
   <div class="user-page">
     <template v-if="infoLoading">
       <div class="skeleton-wrap">
-        <!-- Hero card skeleton -->
-        <div class="skel-hero-card">
-          <div class="skel-hero-top">
-            <div class="skel-avatar">
-              <i class="ri-loader-4-line skel-spin" />
-            </div>
-            <div class="skel-profile">
-              <div class="skel-text-mask skel-name" />
-              <div class="skel-text-mask skel-sig" />
-            </div>
-          </div>
-          <div class="skel-stats-row">
-            <div class="skel-text-mask skel-stat" />
-            <div class="skel-text-mask skel-stat" />
-            <div class="skel-text-mask skel-stat" />
-          </div>
-          <div class="skel-tab-bar">
-            <div class="skel-text-mask skel-tab" />
-            <div class="skel-text-mask skel-tab" />
-            <div class="skel-text-mask skel-tab" />
-          </div>
-        </div>
         <!-- Playlist grid skeleton -->
         <div class="skel-grid">
           <div v-for="i in 4" :key="i" class="skel-playlist-card">
@@ -37,172 +15,94 @@
       </div>
     </template>
     <template v-else>
-      <div ref="scrollRef" class="user-scroll" :class="{ 'picker-open': showAccountOverlay }" @scroll.passive="onScroll">
-        <!-- Sticky morphing hero card -->
-        <div
-          v-if="user"
-          class="hero-card"
-          :class="{ compact: isCompact, 'account-picker-open': showAccountOverlay }"
-        >
-          <div class="hero-bg" />
-          <!-- Profile row: avatar + name + signature (stays sharp) -->
-          <div class="hero-top">
-            <div
-              class="avatar-wrap"
-              :class="{ 'is-long-pressing': isLongPressing }"
-              @pointerdown="startAvatarPress"
-              @pointermove="moveAvatarPress"
-              @pointerup="finishAvatarPress"
-              @pointercancel="finishAvatarPress"
-            >
-              <img
-                v-if="user.avatarUrl"
-                class="avatar-img"
-                :src="getImgUrl(user.avatarUrl, '72y72')"
-                alt=""
-              />
-              <div v-else class="avatar-placeholder">
-                <i class="ri-user-3-line" />
-              </div>
-              <div v-if="loginBadgeText" class="login-badge">
-                {{ loginBadgeText }}
-              </div>
-              <!-- 长按提示 -->
-              <div v-if="accounts.length > 1" class="long-press-hint">
-                <i class="ri-arrow-up-s-line" />
-              </div>
-            </div>
-            <div class="profile-info">
-              <h1 class="profile-name">{{ user.nickname }}</h1>
-              <p class="profile-signature">
-                {{ userDetail?.profile?.signature || '这个人很懒，什么都没有留下' }}
-              </p>
-            </div>
-          </div>
+      <div class="user-scroll">
+        <glow-tabs
+          v-model="currentTab"
+          :tabs="visibleTabs.map((tab) => ({ key: tab.key, label: t(tab.label) }))"
+          full-width
+          class="tab-bar-glow"
+        />
 
-          <!-- 内联账号切换列表：长按后从下方渐显，卡片向下拉长 -->
-          <div class="account-picker-inline" :class="{ open: showAccountOverlay }">
-            <button
-              v-for="account in otherAccounts"
-              :key="account.accountId"
-              type="button"
-              class="account-picker-row"
-              @click="selectAccountInline(account)"
-            >
-              <div class="account-picker-avatar-wrap">
+        <!-- Personal center: profile, listening statistics and connected platforms. -->
+        <div v-if="user" class="content-area" :class="setAnimationClass('animate__fadeIn')">
+          <template v-if="currentTab === 'overview'">
+            <section class="profile-glass">
+              <div class="profile-main">
                 <img
-                  v-if="account.avatarUrl"
-                  :src="account.avatarUrl"
-                  alt=""
-                  class="account-picker-avatar"
+                  v-if="user.avatarUrl"
+                  class="profile-avatar"
+                  :src="getImgUrl(user.avatarUrl, '144y144')"
+                  :alt="user.nickname"
                 />
-                <div v-else class="account-picker-avatar-placeholder">
+                <div v-else class="profile-avatar profile-avatar-placeholder">
                   <i class="ri-user-3-line" />
                 </div>
-                <span class="account-picker-badge">
-                  <platform-logo :platform="account.platform" :size="12" />
-                </span>
+                <div class="profile-copy">
+                  <h1>{{ user.nickname }}</h1>
+                  <p>{{ userDetail?.profile?.signature || t('user.detail.noSignature') }}</p>
+                  <span class="platform-badge">{{ activePlatformLabel }}</span>
+                </div>
               </div>
-              <div class="account-picker-info">
-                <span class="account-picker-name">{{ account.nickname }}</span>
-                <span class="account-picker-desc">{{ platformName(account.platform) }}{{ account.vip ? ' · ' + (account.vipLabel || 'VIP') : '' }}</span>
+              <div class="profile-stats">
+                <div>
+                  <strong>{{ userDetail?.profile?.followeds || 0 }}</strong>
+                  <span>{{ t('user.profile.followers') }}</span>
+                </div>
+                <div>
+                  <strong>{{ userDetail?.profile?.follows || 0 }}</strong>
+                  <span>{{ t('user.profile.following') }}</span>
+                </div>
+                <div>
+                  <strong>{{ userDetail?.level || 0 }}</strong>
+                  <span>{{ t('user.profile.level') }}</span>
+                </div>
               </div>
-            </button>
-            <button type="button" class="account-picker-add" @click="goToLogin">
-              <i class="ri-add-line" />
-              <span>{{ t('user.accountSwitcher.addAccount') }}</span>
-            </button>
-          </div>
+            </section>
 
-          <!-- Stats row: collapses on scroll -->
-          <div class="stats-row">
-            <div class="stat-item">
-              <span class="stat-value">{{ userDetail?.profile?.followeds || 0 }}</span>
-              <span class="stat-label">{{ t('user.profile.followers') }}</span>
-            </div>
-            <div class="stat-divider" />
-            <div class="stat-item clickable" @click="showFollowList">
-              <span class="stat-value">{{ userDetail?.profile?.follows || 0 }}</span>
-              <span class="stat-label">{{ t('user.profile.following') }}</span>
-            </div>
-            <div class="stat-divider" />
-            <div class="stat-item">
-              <span class="stat-value">{{ userDetail?.level || 0 }}</span>
-              <span class="stat-label">{{ t('user.profile.level') }}</span>
-            </div>
-          </div>
-          <glow-tabs
-            v-model="currentTab"
-            :tabs="visibleTabs.map((tab) => ({ key: tab.key, label: t(tab.label) }))"
-            full-width
-            class="tab-bar-glow"
-          />
-        </div>
+            <section class="listening-overview">
+              <article>
+                <i class="ri-headphone-line" />
+                <strong>{{ totalPlayCount }}</strong>
+                <span>{{ t('user.statistics.plays') }}</span>
+              </article>
+              <article>
+                <i class="ri-bar-chart-box-line" />
+                <strong>{{ displayRecordList.length }}</strong>
+                <span>{{ t('user.statistics.rankedSongs') }}</span>
+              </article>
+              <article>
+                <i class="ri-links-line" />
+                <strong>{{ connectedPlatformCount }}</strong>
+                <span>{{ t('user.statistics.platforms') }}</span>
+              </article>
+            </section>
 
-        <!-- Content area -->
-        <div v-if="user" class="content-area" :class="setAnimationClass('animate__fadeIn')">
-          <!-- Playlist grid -->
-          <div v-if="currentTab !== 'platforms'" class="playlist-grid">
-            <button
-              v-if="isElectron && currentTab === 'created'"
-              class="import-card"
-              @click="goToImportPlaylist"
-            >
-              <div class="import-icon-wrap">
-                <i class="ri-add-line" />
+            <section class="ranking-section glass-section">
+              <h2 class="section-title">{{ t('user.ranking.title') }}</h2>
+              <div class="ranking-list">
+                <div
+                  v-for="(item, index) in displayRecordList.slice(0, 20)"
+                  :key="`${item.id}-${index}`"
+                  class="ranking-item"
+                >
+                  <span class="ranking-num">{{ index + 1 }}</span>
+                  <song-item class="ranking-song-item" :item="item" mini @play="handlePlayRecord" />
+                </div>
+                <div v-if="!displayRecordList.length" class="ranking-empty">
+                  {{ t('user.ranking.empty') }}
+                </div>
               </div>
-              <span class="import-label">{{ t('comp.playlist.import.button') }}</span>
-            </button>
-            <div
-              v-for="(item, index) in currentList"
-              :key="index"
-              class="playlist-card"
-              :class="{ 'is-opening': openingPlaylistId === String(item.id) }"
-              @click="handleItemClick(item)"
-            >
-              <div class="playlist-cover-wrap">
-                <n-image
-                  :src="getImgUrl(getCoverUrl(item), '200y200')"
-                  class="playlist-cover"
-                  lazy
-                  preview-disabled
-                />
-              </div>
-              <div class="playlist-info">
-                <div class="playlist-name truncate">{{ item.name }}</div>
-                <div class="playlist-desc truncate">{{ getItemDescription(item) }}</div>
-              </div>
-            </div>
-          </div>
+            </section>
+          </template>
 
-          <!-- Platform accounts -->
-          <platform-accounts v-if="currentTab === 'platforms'" />
-
-          <!-- Listen ranking -->
-          <div v-if="currentTab !== 'platforms'" class="ranking-section">
-            <h2 class="section-title">{{ t('user.ranking.title') }}</h2>
-            <div class="ranking-list">
-              <div v-for="(item, index) in displayRecordList" :key="item.id" class="ranking-item">
-                <span class="ranking-num">{{ index + 1 }}</span>
-                <song-item class="ranking-song-item" :item="item" mini @play="handlePlayRecord" />
-              </div>
-              <div v-if="!displayRecordList.length" class="ranking-empty">
-                {{ t('user.ranking.empty') || '暂无听歌记录' }}
-              </div>
-            </div>
-          </div>
+          <section v-else class="accounts-glass">
+            <platform-accounts />
+          </section>
         </div>
 
         <div class="bottom-spacer" />
         <play-bottom />
       </div>
-
-      <!-- 点击遮罩关闭账号选择 -->
-      <div
-        v-if="showAccountOverlay"
-        class="account-picker-backdrop"
-        @click="showAccountOverlay = false"
-      />
 
       <!-- Login prompt -->
       <div v-if="!isLoggedIn" class="login-container" :class="setAnimationClass('animate__fadeIn')">
@@ -215,25 +115,24 @@
 <script lang="ts" setup>
 import { useMessage } from 'naive-ui';
 import { storeToRefs } from 'pinia';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, getCurrentInstance, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
-import { resolveNeteaseMatch } from '@/api/kugouPlayback';
-import { fetchPlatformAccountData, fetchPlatformPlaylistTracks } from '@/api/platformQrApi';
-import { getUserAlbumSublist, getUserDetail, getUserPlaylist, getUserRecord } from '@/api/user';
-import playlistPlaceholder from '@/assets/icon_512.png';
+import { fetchPlatformAccountData } from '@/api/platformQrApi';
+import { getUserDetail, getUserPlaylist, getUserRecord } from '@/api/user';
 import GlowTabs from '@/components/common/GlowTabs.vue';
-import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
-import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import PlatformAccounts from '@/components/user/PlatformAccounts.vue';
-import { useMusicStore } from '@/store/modules/music';
-import { type MusicPlatform, type PlatformAccount, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
+import {
+  registerMobileTopbarAction,
+  unregisterMobileTopbarAction
+} from '@/composables/useMobileTopbarMenu';
+import { type PlatformAccount, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { useUserStore } from '@/store/modules/user';
-import { getImgUrl, isElectron, setAnimationClass } from '@/utils';
+import { getImgUrl, setAnimationClass } from '@/utils';
 import { checkLoginStatus as checkAuthStatus } from '@/utils/auth';
 import LoginComponent from '@/views/login/index.vue';
 
@@ -242,128 +141,28 @@ defineOptions({ name: 'User' });
 const { t } = useI18n();
 const userStore = useUserStore();
 const accountStore = usePlatformAccountsStore();
-const musicStore = useMusicStore();
 const playerStore = usePlayerStore();
 const router = useRouter();
+const route = useRoute();
 const { userDetail, recordList } = storeToRefs(userStore);
 const infoLoading = ref(false);
-const albumLoading = ref(false);
 const mounted = ref(true);
 const message = useMessage();
-
-const scrollRef = ref<HTMLElement | null>(null);
-const isCompact = ref(false);
-let rafId = 0;
-
-// ===== 长按头像弹出账号切换 =====
-const showAccountOverlay = ref(false);
-const isLongPressing = ref(false);
-let avatarPressTimer: ReturnType<typeof setTimeout> | null = null;
-let avatarPressStartX = 0;
-let avatarPressStartY = 0;
-let avatarPressMoved = false;
-
-const AVATAR_LONG_PRESS_MS = 500;
-const AVATAR_PRESS_THRESHOLD = 10;
-
-const clearAvatarPressTimer = () => {
-  if (avatarPressTimer) {
-    clearTimeout(avatarPressTimer);
-    avatarPressTimer = null;
-  }
-};
-
-const startAvatarPress = (event: PointerEvent) => {
-  if (event.pointerType === 'mouse' && event.button !== 0) return;
-  avatarPressStartX = event.clientX;
-  avatarPressStartY = event.clientY;
-  avatarPressMoved = false;
-  clearAvatarPressTimer();
-  avatarPressTimer = setTimeout(() => {
-    if (!avatarPressMoved && accounts.value.length > 1) {
-      isLongPressing.value = true;
-      // 触觉反馈
-      if (navigator.vibrate) navigator.vibrate(15);
-      showAccountOverlay.value = true;
-      // 阻止页面滚动
-      if (scrollRef.value) scrollRef.value.style.overflow = 'hidden';
-    }
-  }, AVATAR_LONG_PRESS_MS);
-};
-
-const moveAvatarPress = (event: PointerEvent) => {
-  if (Math.hypot(event.clientX - avatarPressStartX, event.clientY - avatarPressStartY) > AVATAR_PRESS_THRESHOLD) {
-    avatarPressMoved = true;
-    clearAvatarPressTimer();
-  }
-};
-
-const finishAvatarPress = () => {
-  clearAvatarPressTimer();
-  // 延迟重置以允许点击事件正常处理
-  setTimeout(() => {
-    isLongPressing.value = false;
-  }, 100);
-};
-
-// 关闭账号选择时恢复滚动
-watch(showAccountOverlay, (visible) => {
-  if (!visible && scrollRef.value) {
-    scrollRef.value.style.overflow = '';
-  }
-});
-
-const handleOverlaySelect = (account: PlatformAccount) => {
-  handleAccountChange(account);
-};
-
-const otherAccounts = computed(() =>
-  accounts.value.filter((a) => a.accountId !== activeAccountId.value)
-);
-
-const PLATFORM_NAMES: Record<MusicPlatform, string> = {
-  netease: '网易云',
-  qq: 'QQ 音乐',
-  kugou: '酷狗音乐',
-  spotify: 'Spotify'
-};
-
-const platformName = (platform: MusicPlatform) => PLATFORM_NAMES[platform] || platform;
-
-const selectAccountInline = (account: PlatformAccount) => {
-  showAccountOverlay.value = false;
-  handleAccountChange(account);
-};
+const topbarActionPrefix = `user-${getCurrentInstance()?.uid || 'view'}`;
 
 const goToLogin = () => {
-  showAccountOverlay.value = false;
   router.push('/login');
 };
 
-const onScroll = () => {
-  if (rafId) return;
-  rafId = requestAnimationFrame(() => {
-    const el = scrollRef.value;
-    if (el) {
-      isCompact.value = el.scrollTop > 10;
-    }
-    rafId = 0;
-  });
-};
-
 const tabs = [
-  { key: 'created', label: 'user.tabs.created' },
-  { key: 'favorite', label: 'user.tabs.favorite' },
-  { key: 'album', label: 'user.tabs.album' },
+  { key: 'overview', label: 'comp.my' },
   { key: 'platforms', label: 'user.tabs.platforms' }
 ];
-const currentTab = ref('created');
+const currentTab = ref('overview');
 
 const { accounts, activeAccountId, activeAccount, activeAccountCache } = storeToRefs(accountStore);
 const activePlatform = computed(() => activeAccount.value?.platform || 'netease');
-const visibleTabs = computed(() =>
-  tabs.filter((tab) => tab.key !== 'album' || activePlatform.value !== 'kugou')
-);
+const visibleTabs = computed(() => tabs);
 const user = computed(() => {
   if (activeAccount.value) {
     return {
@@ -376,72 +175,21 @@ const user = computed(() => {
   return userStore.user;
 });
 
-const cachedPlaylists = computed(() => (activeAccountCache.value?.playlists || []) as any[]);
-const cachedFavorites = computed(() => (activeAccountCache.value?.favorites || []) as any[]);
-const cachedAlbums = computed(() => (activeAccountCache.value?.albums || []) as any[]);
 const displayRecordList = computed(() => {
   if (activePlatform.value === 'netease') return recordList.value;
   return (activeAccountCache.value?.history || []) as any[];
 });
 
-const createdPlaylists = computed(() => {
-  if (!user.value) return [];
-  if (activePlatform.value !== 'netease') return cachedPlaylists.value;
-  return userStore.playList.filter((item) => item.creator?.userId === user.value!.userId);
-});
-
-const favoritePlaylists = computed(() => {
-  if (!user.value) return [];
-  if (activePlatform.value === 'kugou') {
-    const merged = [...cachedFavorites.value, ...cachedAlbums.value];
-    return merged.filter(
-      (item, index, list) =>
-        list.findIndex((candidate) => String(candidate.id) === String(item.id)) === index
-    );
-  }
-  if (activePlatform.value !== 'netease') return cachedFavorites.value;
-  return userStore.playList.filter((item) => item.creator?.userId !== user.value!.userId);
-});
-
-const currentList = computed(() => {
-  if (currentTab.value === 'created') {
-    return createdPlaylists.value;
-  }
-  if (currentTab.value === 'album') {
-    return activePlatform.value === 'netease' ? userStore.albumList : cachedAlbums.value;
-  }
-  return currentTab.value === 'created' ? createdPlaylists.value : favoritePlaylists.value;
-});
-
-const getCoverUrl = (item: any) => {
-  const coverUrl = item.coverImgUrl || item.picUrl || '';
-  if (coverUrl) return coverUrl;
-
-  const trackCount = Number(item.trackCount ?? item.songCount ?? item.count ?? 0);
-  return trackCount === 0 ? playlistPlaceholder : '';
-};
-
-const getItemDescription = (item: any) => {
-  if (currentTab.value === 'album') {
-    const artist = item.artist?.name || '';
-    const size = item.size ? ` · ${item.size}首` : '';
-    return `${artist}${size}`;
-  } else {
-    return `${t('user.playlist.trackCount', { count: item.trackCount })}，${t('user.playlist.playCount', { count: item.playCount })}`;
-  }
-};
-
-const handleItemClick = (item: any) => {
-  if (currentTab.value === 'album') {
-    openAlbum(item);
-  } else {
-    openPlaylist(item);
-  }
-};
-
-const goToImportPlaylist = () => {
-  router.push('/playlist/import');
-};
+const totalPlayCount = computed(() =>
+  displayRecordList.value.reduce(
+    (total, item) => total + Number(item.playCount || item.playCountScore || 0),
+    0
+  )
+);
+const connectedPlatformCount = computed(
+  () => new Set(accounts.value.map((account) => account.platform)).size
+);
+const activePlatformLabel = computed(() => activePlatform.value.toUpperCase());
 
 const handlePlayRecord = (item: any) => {
   const tracks = displayRecordList.value || [];
@@ -463,7 +211,7 @@ const handleAccountChange = async (account: PlatformAccount) => {
       avatarUrl: account.avatarUrl,
       vipType: account.vip ? 11 : 0
     });
-    userStore.setLoginType(account.loginMethod);
+    userStore.setLoginType(account.loginMethod as any);
   }
 
   await loadData();
@@ -471,7 +219,11 @@ const handleAccountChange = async (account: PlatformAccount) => {
 
 onBeforeUnmount(() => {
   mounted.value = false;
-  clearAvatarPressTimer();
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-settings`);
+  accounts.value.forEach((account) => {
+    unregisterMobileTopbarAction(`${topbarActionPrefix}-account-${account.accountId}`);
+  });
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-add-account`);
 });
 
 const checkLoginStatus = () => {
@@ -493,8 +245,6 @@ const loadPage = async () => {
 
 let platformDataRequestId = 0;
 const platformDataRequests = new Map<string, Promise<void>>();
-const platformPlaylistTracksCache = new Map<string, any[]>();
-const openingPlaylistId = ref<string | null>(null);
 
 const loadPlatformAccountData = async (account: PlatformAccount) => {
   const pendingRequest = platformDataRequests.get(account.accountId);
@@ -573,43 +323,6 @@ const loadPlatformAccountDataInternal = async (account: PlatformAccount) => {
   }
 };
 
-/**
- * QQ/酷狗歌曲没有封面时，用「歌手+歌名」匹配网易云并补上封面
- */
-const enrichSongsWithNeteaseCover = async (songs: any[]): Promise<any[]> => {
-  // 酷狗/QQ 的 CDN 封面不带 CORS 头，crossorigin 加载会变黑图，
-  // 因此只要有网易云匹配结果就用网易云封面（网易云 CDN 带 CORS）。
-  const needCover = songs.filter((song) => {
-    const pic = song?.picUrl || song?.al?.picUrl || '';
-    return !pic || /y\.gtimg\.cn|imgessl\.kugou\.com|imgcache\.qq\.com/.test(pic);
-  });
-  if (!needCover.length) return songs;
-  let cursor = 0;
-  const workers = Array.from({ length: 4 }, async () => {
-    while (cursor < needCover.length) {
-      const song = needCover[cursor++];
-      try {
-        const matched = await resolveNeteaseMatch(song);
-        if (matched?.picUrl) {
-          const index = songs.indexOf(song);
-          if (index !== -1) {
-            songs[index] = {
-              ...song,
-              picUrl: matched.picUrl,
-              al: { ...(song.al || {}), picUrl: matched.picUrl },
-              album: { ...(song.album || {}), picUrl: matched.picUrl }
-            };
-          }
-        }
-      } catch {
-        // 匹配失败时保持原样
-      }
-    }
-  });
-  await Promise.all(workers);
-  return songs;
-};
-
 const loadData = async () => {
   try {
     if (activePlatform.value === 'netease' && (!userDetail.value || !recordList.value?.length)) {
@@ -667,23 +380,6 @@ const loadData = async () => {
   }
 };
 
-const loadAlbumList = async () => {
-  if (userStore.albumList.length > 0) return;
-  try {
-    albumLoading.value = true;
-    const res = await getUserAlbumSublist({ limit: 100, offset: 0 });
-    if (!mounted.value) return;
-    userStore.albumList = res.data.data || [];
-  } catch (error: any) {
-    console.error('加载专辑列表失败:', error);
-    message.error('加载专辑列表失败');
-  } finally {
-    if (mounted.value) {
-      albumLoading.value = false;
-    }
-  }
-};
-
 watch(
   () => activeAccountId.value,
   (accountId, previousAccountId) => {
@@ -714,130 +410,32 @@ watch(
   }
 );
 
-watch(currentTab, async (newTab) => {
-  if (newTab === 'album' && activePlatform.value === 'netease') {
-    await userStore.initializeCollectedAlbums();
-    if (userStore.albumList.length === 0) {
-      loadAlbumList();
-    }
-  }
-});
-
 onMounted(() => {
   checkLoginStatus() && loadData();
-  // 默认往下滚动一点，让内容区直接呈现而不是停在 Hero 顶部
-  nextTick(() => {
-    nextTick(() => {
-      if (scrollRef.value) {
-        scrollRef.value.scrollTop = 52;
-      }
+  registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-settings`,
+    routePath: route.path,
+    label: t('common.settings'),
+    icon: 'ri-settings-3-line',
+    run: () => router.push('/set')
+  });
+  accounts.value.forEach((account) => {
+    registerMobileTopbarAction({
+      id: `${topbarActionPrefix}-account-${account.accountId}`,
+      routePath: route.path,
+      label: account.nickname,
+      icon: account.accountId === activeAccountId.value ? 'ri-radio-button-line' : 'ri-user-line',
+      run: () => handleAccountChange(account)
     });
   });
+  registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-add-account`,
+    routePath: route.path,
+    label: t('user.accountSwitcher.addAccount'),
+    icon: 'ri-user-add-line',
+    run: goToLogin
+  });
 });
-
-const openPlaylist = async (item: any) => {
-  const account = activeAccount.value;
-  if (account?.platform === 'qq' && account.cookie) {
-    const listId = String(item.id || item.tid || item.dirId || item.dirid || '').trim();
-    const cacheKey = `${account.accountId}:${listId}`;
-    openingPlaylistId.value = String(item.id || listId);
-    try {
-      // 先进歌单页（显示加载中），再异步拉取曲目与封面
-      const cachedSongs = platformPlaylistTracksCache.get(cacheKey);
-      musicStore.setCurrentMusicList(cachedSongs || [], item.name, item, false);
-      router.push({
-        name: 'musicList',
-        params: { id: item.id },
-        query: { type: 'playlist', from: 'platform' }
-      });
-
-      if (!cachedSongs?.length) {
-        const result = await fetchPlatformPlaylistTracks('qq', account.cookie, listId);
-        let songs = result.songs;
-        songs = await enrichSongsWithNeteaseCover(songs);
-        platformPlaylistTracksCache.set(cacheKey, songs);
-        if (activeAccountId.value !== account.accountId) return;
-        if (!songs.length) {
-          message.warning('这个 QQ 歌单暂时没有可播放的歌曲');
-          return;
-        }
-        musicStore.setCurrentMusicList(songs, item.name, item, false);
-      }
-    } catch (error: any) {
-      console.error('加载 QQ 歌单失败:', error);
-      message.error(error?.message || 'QQ 歌单加载失败');
-    } finally {
-      openingPlaylistId.value = null;
-    }
-    return;
-  }
-  if (account?.platform === 'kugou' && account.cookie) {
-    const listId = String(
-      item.listId ||
-        item.list_id ||
-        item.globalCollectionId ||
-        item.global_collection_id ||
-        item.id ||
-        ''
-    ).trim();
-    const cacheKey = `${account.accountId}:${listId}`;
-    openingPlaylistId.value = String(item.id || listId);
-    try {
-      let songs = platformPlaylistTracksCache.get(cacheKey) || [];
-      if (!songs.length) {
-        const result = await fetchPlatformPlaylistTracks('kugou', account.cookie, listId);
-        songs = result.songs;
-        songs = await enrichSongsWithNeteaseCover(songs);
-        platformPlaylistTracksCache.set(cacheKey, songs);
-      }
-      if (activeAccountId.value !== account.accountId) return;
-      if (!songs.length) {
-        message.warning('这个酷狗歌单暂时没有可播放的歌曲');
-        return;
-      }
-      navigateToMusicList(router, {
-        id: item.id,
-        type: 'playlist',
-        name: item.name,
-        songList: songs,
-        listInfo: item,
-        canRemove: false
-      });
-    } catch (error: any) {
-      console.error('加载酷狗歌单失败:', error);
-      message.error(error?.message || '酷狗歌单加载失败');
-    } finally {
-      openingPlaylistId.value = null;
-    }
-    return;
-  }
-
-  navigateToMusicList(router, {
-    id: item.id,
-    type: 'playlist',
-    name: item.name,
-    listInfo: item,
-    canRemove: true
-  });
-};
-
-const openAlbum = async (item: any) => {
-  navigateToMusicList(router, {
-    id: item.id,
-    type: 'album',
-    name: item.name,
-    listInfo: {
-      ...item,
-      coverImgUrl: item.picUrl || item.coverImgUrl
-    },
-    canRemove: false
-  });
-};
-
-const showFollowList = () => {
-  if (!user.value) return;
-  router.push('/user/follows');
-};
 
 const handleLoginSuccess = () => {
   checkLoginStatus();
@@ -845,22 +443,6 @@ const handleLoginSuccess = () => {
 };
 
 const isLoggedIn = computed(() => accounts.value.length > 0 || userStore.user);
-const currentLoginType = computed(() => activeAccount.value?.loginMethod || userStore.loginType);
-const loginBadgeText = computed(() => {
-  if (!currentLoginType.value) return '';
-  if (activePlatform.value === 'netease') {
-    if (currentLoginType.value === 'uid') return 'UID 登录';
-    if (currentLoginType.value === 'qr') return '扫码登录';
-    return '网易云登录';
-  }
-  if (currentLoginType.value === 'qr') return '扫码登录';
-  if (currentLoginType.value === 'uid') return 'UID 登录';
-  return '账号登录';
-});
-
-watch(visibleTabs, (nextTabs) => {
-  if (!nextTabs.some((tab) => tab.key === currentTab.value)) currentTab.value = 'favorite';
-});
 </script>
 
 <style lang="scss" scoped>
@@ -879,8 +461,7 @@ watch(visibleTabs, (nextTabs) => {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  /* 为固定悬浮卡片留出空间 */
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 336px);
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 68px);
   &::-webkit-scrollbar {
     display: none;
   }
@@ -1287,6 +868,153 @@ watch(visibleTabs, (nextTabs) => {
 /* Content area */
 .content-area {
   padding: 0 16px;
+}
+
+.profile-glass,
+.glass-section,
+.listening-overview article {
+  border: 1px solid color-mix(in srgb, var(--m-white, #fff) 24%, transparent);
+  background: color-mix(in srgb, var(--m-surface, #eae6df) 62%, transparent);
+  box-shadow:
+    0 14px 34px color-mix(in srgb, var(--m-shadow, #000) 44%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(26px) saturate(165%);
+  -webkit-backdrop-filter: blur(26px) saturate(165%);
+}
+
+.profile-glass {
+  padding: 20px;
+  border-radius: 28px;
+}
+
+.profile-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-radius: 24px;
+  object-fit: cover;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+}
+
+.profile-avatar-placeholder {
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--m-surface-alt) 72%, transparent);
+  color: var(--m-text-muted);
+  font-size: 28px;
+}
+
+.profile-copy {
+  min-width: 0;
+}
+
+.profile-copy h1 {
+  margin: 0;
+  color: var(--m-text-primary);
+  font-size: 24px;
+  font-weight: 760;
+  line-height: 1.15;
+}
+
+.profile-copy p {
+  display: -webkit-box;
+  margin: 5px 0 8px;
+  overflow: hidden;
+  color: var(--m-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.platform-badge {
+  display: inline-flex;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent-color) 34%, transparent);
+  border-radius: 999px;
+  color: var(--accent-color);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--m-border) 58%, transparent);
+}
+
+.profile-stats div {
+  display: grid;
+  gap: 2px;
+  text-align: center;
+}
+
+.profile-stats div + div {
+  border-left: 1px solid color-mix(in srgb, var(--m-border) 58%, transparent);
+}
+
+.profile-stats strong,
+.listening-overview strong {
+  color: var(--m-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-stats span,
+.listening-overview span {
+  color: var(--m-text-muted);
+  font-size: 11px;
+}
+
+.listening-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.listening-overview article {
+  display: grid;
+  min-width: 0;
+  min-height: 104px;
+  align-content: end;
+  gap: 3px;
+  padding: 13px;
+  border-radius: 22px;
+}
+
+.listening-overview i {
+  margin-bottom: auto;
+  color: var(--accent-color);
+  font-size: 20px;
+}
+
+.listening-overview strong {
+  overflow: hidden;
+  font-size: 21px;
+  text-overflow: ellipsis;
+}
+
+.glass-section {
+  margin-top: 10px;
+  padding: 16px;
+  border-radius: 28px;
+}
+
+.accounts-glass {
+  margin-top: 4px;
+}
+
+.accounts-glass :deep(.platform-accounts) {
+  padding: 0;
 }
 
 /* Playlist grid */

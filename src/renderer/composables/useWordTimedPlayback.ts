@@ -18,6 +18,8 @@ import {
 } from '@/services/ttmlParser';
 import { useAmllStore } from '@/store/modules/amll';
 import type { ILyricText, IWordData, LyricFormat } from '@/types/music';
+import { findStartedTimedLineIndex } from '@/utils/timedLyricProgress';
+import { resolveTtmlInterludeState } from '@/utils/ttmlInterlude';
 
 export interface WordPlaybackToken {
   text: string;
@@ -61,15 +63,6 @@ function currentProviderWord(words: IWordData[], timeMs: number): IWordData | nu
 
 function auxiliarySourceKey(line: TtmlBackgroundLine): string {
   return `${line.agent || 'nested'}:${line.begin}:${line.end}:${line.text}`;
-}
-
-function findStartedLineIndex(startTimes: number[], time: number): number {
-  let result = -1;
-  for (let index = 0; index < startTimes.length; index += 1) {
-    if (time >= startTimes[index]) result = index;
-    else break;
-  }
-  return result;
 }
 
 // Player styles and the scrolling overlay must switch to TTML at the same line boundary.
@@ -204,7 +197,27 @@ export function useWordTimedPlayback() {
       : lrcTimeArray.value
   );
   const displayIndex = computed(() =>
-    usingTtml.value ? findStartedLineIndex(displayTimes.value, correctedTime.value) : nowIndex.value
+    usingTtml.value
+      ? findStartedTimedLineIndex(displayTimes.value, correctedTime.value)
+      : nowIndex.value
+  );
+  const currentDisplayLine = computed<ILyricText | null>(
+    () => displayLines.value[displayIndex.value] || null
+  );
+  const displayLineKey = computed(
+    () =>
+      `${source.value}:${displayIndex.value}:${currentDisplayLine.value?.startTime ?? 'unavailable'}`
+  );
+
+  const interludeState = computed(() =>
+    usingTtml.value
+      ? resolveTtmlInterludeState({
+          lines: primaryLines.value,
+          time: correctedTime.value,
+          coverUrl: playMusic.value?.picUrl || playMusic.value?.al?.picUrl || '',
+          title: playMusic.value?.name || ''
+        })
+      : { active: false, outro: false, coverUrl: '', title: '', key: 'inactive' }
   );
 
   return {
@@ -221,6 +234,9 @@ export function useWordTimedPlayback() {
     displayLines,
     displayTimes,
     displayIndex,
-    correctedTime
+    currentDisplayLine,
+    displayLineKey,
+    correctedTime,
+    interludeState
   };
 }

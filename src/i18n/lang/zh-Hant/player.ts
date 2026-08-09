@@ -120,7 +120,8 @@ export default {
     frenzy: '狂熱',
     eerie: '詭譎',
     neon: '陳舊',
-    rain: '雨夜'
+    rain: '雨夜',
+    smoke: '煙霧'
   },
   styleCustomization: {
     title: '樣式設定',
@@ -130,6 +131,8 @@ export default {
     appearance: '外觀',
     lyricColor: '基礎歌詞顏色',
     font: '字體',
+    styleDefaultFont: '樣式預設',
+    fontWeight: '字體粗細',
     importFont: '匯入字體',
     customBackground: '自訂背景',
     solid: '純色',
@@ -145,11 +148,13 @@ export default {
     customColor: '自訂色',
     mainLyric: '主歌詞',
     auxiliary: '背景 / 對唱詞',
+    auxiliaryCenterDisplay: '背景 / 對唱詞中央巨字',
     translation: '翻譯',
     climaxEffects: '高潮效果',
     lyricRecolor: '歌詞變色',
     keyword: '重點字',
     wordDrop: '逐字砸下',
+    staggered: '錯落',
     styleEffects: '樣式參數',
     beatFlash: '鼓點閃白',
     newspaperFrequency: '報紙閃現頻率',
@@ -157,7 +162,18 @@ export default {
     glowRadius: '光暈半徑',
     pulseSpeed: '脈衝速度',
     giantSize: '巨字字號',
-    flipSpeed: '翻頁速度'
+    wordDropFontWeight: '砸下巨字粗細',
+    flipSpeed: '翻頁速度',
+    staggeredSize: '錯落字號',
+    staggeredRowGap: '錯落行距',
+    staggeredOffset: 'Y 軸偏移',
+    staggeredRotation: '旋轉偏移',
+    smokeDensity: '煙霧密度',
+    smokeChaos: '煙霧混亂度',
+    smokeLoudnessResponse: '響度響應',
+    smokeOpacity: '煙霧透明度',
+    smokeVignette: '高潮暗角',
+    smokeFontStretch: '字體拉伸'
   },
   // 定時關閉功能相關
   sleepTimer: {

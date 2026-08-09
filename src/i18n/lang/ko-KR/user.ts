@@ -10,15 +10,21 @@ export default {
     trackCount: '{count}곡',
     playCount: '{count}회 재생'
   },
-tabs: {
-created: '생성',
-favorite: '즐겨찾기',
-album: '앨범',
-platforms: '플랫폼'
-},
+  tabs: {
+    created: '생성',
+    favorite: '즐겨찾기',
+    album: '앨범',
+    platforms: '플랫폼'
+  },
   ranking: {
     title: '음악 청취 순위',
-    playCount: '{count}회'
+    playCount: '{count}회',
+    empty: '재생 기록이 없습니다'
+  },
+  statistics: {
+    plays: '누적 재생',
+    rankedSongs: '순위 곡',
+    platforms: '연결 플랫폼'
   },
   follow: {
     title: '팔로잉 목록',

@@ -29,6 +29,7 @@ import MusicFull from '@/components/lyric/MusicFull.vue';
 import MusicFullMobile from '@/components/lyric/MusicFullMobile.vue';
 import NeonMobilePlayer from '@/components/lyric/NeonMobilePlayer.vue';
 import RainMobilePlayer from '@/components/lyric/RainMobilePlayer.vue';
+import SmokeMobilePlayer from '@/components/lyric/SmokeMobilePlayer.vue';
 import StageMobilePlayer from '@/components/lyric/StageMobilePlayer.vue';
 import StarChartPlayer from '@/components/lyric/StarChartPlayer.vue';
 import { getStyle } from '@/playerStyles';
@@ -108,7 +109,8 @@ const mobileStyleComponents: Record<string, any> = {
   frenzy: markRaw(FrenzyMobilePlayer),
   eerie: markRaw(EerieMobilePlayer),
   neon: markRaw(NeonMobilePlayer),
-  rain: markRaw(RainMobilePlayer)
+  rain: markRaw(RainMobilePlayer),
+  smoke: markRaw(SmokeMobilePlayer)
 };
 
 const playerStore = usePlayerStore();

@@ -7,6 +7,9 @@ export default {
   playAll: '播放全部',
   search: '搜尋本地音樂',
   emptyState: '暫無本地音樂，請先選擇資料夾進行掃描',
+  desktopOnly: '本地音樂目前僅支援桌面端，行動端敬請期待',
+  mobilePickHint: '點擊右上角按鈕選擇本地音樂檔案',
+  selectFiles: '選擇音樂檔案',
   fileNotFound: '檔案不存在或已被移動',
   rescan: '重新掃描',
   songCount: '{count} 首歌曲',
@@ -25,5 +28,7 @@ export default {
   backToList: '返回列表',
   showAll: '全部',
   filterArtist: '按歌手篩選',
-  filterAlbum: '按專輯篩選'
+  filterAlbum: '按專輯篩選',
+  folderNotSelected: '未選擇資料夾',
+  scanningFiles: '正在掃描 {count} 個檔案'
 };

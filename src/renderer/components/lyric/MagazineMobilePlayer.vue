@@ -6,6 +6,7 @@
         class="magazine-mobile-player player-style-surface"
         :class="{
           'player-style-customized': isCustom,
+          'player-style-custom-font': customFontActive,
           'player-style-custom-background': customBackgroundActive
         }"
         :style="{
@@ -63,7 +64,7 @@
             class="lyrics-area"
             ref="lyricsScrollRef"
             v-show="!showFullLyrics"
-            :style="{ fontFamily: styleCfg.customFontFamily || undefined }"
+            :style="{ fontFamily: selectedFontFamily || undefined }"
           >
             <div
               v-for="(line, index) in visibleLyrics"
@@ -130,7 +131,6 @@ import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
-import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
@@ -170,8 +170,8 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 // 海报分享
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
 const controlsRef = ref();
-const { config: styleCfg } = useStyleCustomConfig('magazine');
-const { styleVars, isCustom, customBackgroundActive } = usePlayerStyleAppearance('magazine');
+const { styleVars, isCustom, customBackgroundActive, selectedFontFamily, customFontActive } =
+  usePlayerStyleAppearance('magazine');
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({

@@ -10,15 +10,21 @@ export default {
     trackCount: '{count}首',
     playCount: '播放{count}次'
   },
-tabs: {
-created: '建立',
-favorite: '收藏',
-album: '專輯',
-platforms: '平台帳號'
-},
+  tabs: {
+    created: '建立',
+    favorite: '收藏',
+    album: '專輯',
+    platforms: '平台帳號'
+  },
   ranking: {
     title: '聽歌排行',
-    playCount: '{count}次'
+    playCount: '{count}次',
+    empty: '暫無聽歌記錄'
+  },
+  statistics: {
+    plays: '累計播放',
+    rankedSongs: '排行歌曲',
+    platforms: '已連平台'
   },
   follow: {
     title: '關注列表',

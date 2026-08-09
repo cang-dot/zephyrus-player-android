@@ -1,14 +1,45 @@
 <template>
   <div class="floating-topbar" :class="{ 'safe-area-top': hasSafeArea, 'is-search': isSearchPage }">
-    <!-- 页面名 / 返回按钮 -->
-    <div
-      class="topbar-pill topbar-title-pill"
-      :class="{ collapsed: isSearchPage || hasPageHero }"
-      @click="onTitleClick"
+    <button v-if="showBack" type="button" class="topbar-pill topbar-back" @click="onTitleClick">
+      <i class="ri-arrow-left-s-line" />
+    </button>
+
+    <section
+      class="topbar-pill topbar-morph"
+      :class="{ expanded: topbarMenu.expanded.value, 'has-menu': hasMorphMenu }"
+      @click="toggleMorphMenu"
     >
-      <i class="ri-arrow-left-s-line title-back-icon"></i>
-      <span class="topbar-title-text">{{ displayTitle }}</span>
-    </div>
+      <header class="morph-trigger">
+        <span>{{ topbarMenu.activeLabel.value || displayTitle }}</span>
+        <i v-if="hasMorphMenu" class="ri-arrow-down-s-line" />
+      </header>
+      <div class="morph-content" @click.stop>
+        <div v-for="group in topbarMenu.groups.value" :key="group.id" class="morph-group">
+          <button
+            v-for="option in group.options"
+            :key="option.key"
+            type="button"
+            :class="{ active: String(option.key) === String(group.value) }"
+            @click="selectMorphOption(group, option.key)"
+          >
+            <i v-if="option.icon" :class="option.icon" />
+            <span>{{ option.label }}</span>
+            <i v-if="String(option.key) === String(group.value)" class="ri-check-line" />
+          </button>
+        </div>
+        <div v-if="topbarMenu.actions.value.length" class="morph-actions">
+          <button
+            v-for="action in topbarMenu.actions.value"
+            :key="action.id"
+            type="button"
+            @click="runMorphAction(action)"
+          >
+            <i :class="action.icon" />
+            <span>{{ action.label }}</span>
+          </button>
+        </div>
+      </div>
+    </section>
 
     <!-- 搜索框（非搜索页：点击跳转；搜索页：真实输入框） -->
     <div class="topbar-pill topbar-search-pill" @click="!isSearchPage && openSearch()">
@@ -35,6 +66,7 @@
 
     <!-- 头像 / 搜索按钮 -->
     <div
+      v-if="route.path !== '/user'"
       class="topbar-pill topbar-action-pill"
       :class="{ 'search-btn': isSearchPage }"
       @click="isSearchPage ? handleSearchSubmit() : goToUser()"
@@ -48,6 +80,12 @@
       </template>
     </div>
   </div>
+
+  <div
+    v-if="topbarMenu.expanded.value"
+    class="morph-dismiss-layer"
+    @pointerdown="topbarMenu.close"
+  />
 
   <Teleport to="body">
     <Transition name="search-assist">
@@ -109,8 +147,9 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import { getSearchSuggestions } from '@/api/search';
-import { useSearchStore } from '@/store/modules/search';
+import { useMobileTopbarMenu } from '@/composables/useMobileTopbarMenu';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
+import { useSearchStore } from '@/store/modules/search';
 import { useUserStore } from '@/store/modules/user';
 import { getImgUrl } from '@/utils';
 
@@ -130,10 +169,10 @@ const isSearchPage = computed(
 );
 const isSearchResultPage = computed(() => route.path === '/mobile-search-result');
 
-// 页面自身有 Hero Card（含标题）时，隐藏顶栏标题防止重复
-const hasPageHero = computed(() => {
-  return ['/list', '/local-music', '/set', '/user'].includes(route.path);
-});
+const topbarMenu = useMobileTopbarMenu(() => route.path);
+const hasMorphMenu = computed(
+  () => topbarMenu.groups.value.length > 0 || topbarMenu.actions.value.length > 0
+);
 
 const displayTitle = computed(() => {
   if (route.path === '/') return t('comp.home');
@@ -238,7 +277,10 @@ watch(
 
 watch(
   () => route.path,
-  () => closeSearchAssist()
+  () => {
+    closeSearchAssist();
+    topbarMenu.close();
+  }
 );
 
 const onTitleClick = () => {
@@ -249,6 +291,20 @@ const onTitleClick = () => {
     }
     router.back();
   }
+};
+
+const toggleMorphMenu = () => {
+  if (hasMorphMenu.value) topbarMenu.expanded.value = !topbarMenu.expanded.value;
+};
+
+const selectMorphOption = (group: any, value: string | number) => {
+  group.select(value);
+  topbarMenu.close();
+};
+
+const runMorphAction = (action: any) => {
+  topbarMenu.close();
+  action.run();
 };
 
 const openSearch = () => router.push('/mobile-search');
@@ -337,10 +393,11 @@ const handleSearchSubmit = () => {
   align-items: center;
   height: 40px;
   border-radius: 20px;
-  background: var(--cover-surface, rgba(255, 255, 255, 0.08));
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--cover-border, rgba(255, 255, 255, 0.06));
+  background: color-mix(in srgb, var(--m-surface, #eae6df) 62%, transparent);
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+  border: 1px solid color-mix(in srgb, var(--m-white, #fff) 25%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
   cursor: pointer;
   pointer-events: auto;
   transition:
@@ -359,6 +416,166 @@ const handleSearchSubmit = () => {
   &:active {
     transform: scale(0.95);
   }
+}
+
+.topbar-back {
+  flex: 0 0 40px;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  border-color: var(--cover-border, rgba(128, 128, 128, 0.14));
+  color: var(--cover-text-primary, var(--text-color));
+  font-size: 22px;
+}
+
+.topbar-morph {
+  position: relative;
+  z-index: 3;
+  flex: 0 0 auto;
+  width: 92px;
+  height: auto;
+  min-width: 84px;
+  max-width: 104px;
+  min-height: 40px;
+  max-height: 40px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  border-radius: 20px;
+  overflow: hidden;
+  transform-origin: top left;
+  transition:
+    width 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    max-width 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    max-height 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    min-height 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 240ms ease,
+    box-shadow 360ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  &.expanded {
+    position: fixed;
+    top: calc(var(--safe-area-inset-top, 0px) + 8px);
+    left: 12px;
+    width: min(78vw, 320px);
+    max-width: min(78vw, 320px);
+    max-height: min(52dvh, 420px);
+    min-height: 40px;
+    border-radius: 18px;
+    background: var(--cover-surface, rgba(255, 255, 255, 0.94));
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+  }
+}
+
+.topbar-back + .topbar-morph.expanded {
+  left: 60px;
+}
+
+.morph-trigger {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  color: var(--cover-text-primary, var(--text-color));
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  i {
+    flex: 0 0 auto;
+    color: var(--cover-text-muted, #9a9590);
+    font-size: 16px;
+  }
+}
+
+.morph-content {
+  display: grid;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  padding: 0;
+  transition:
+    max-height 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 180ms ease,
+    padding 360ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  .topbar-morph.expanded & {
+    max-height: min(52dvh, 420px);
+    overflow-y: auto;
+    opacity: 1;
+    padding: 6px;
+  }
+}
+
+.morph-group,
+.morph-actions {
+  display: grid;
+  gap: 2px;
+}
+
+.morph-group + .morph-group,
+.morph-actions {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--cover-border, rgba(128, 128, 128, 0.12));
+}
+
+.morph-group button,
+.morph-actions button {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--cover-text-primary, var(--text-color));
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+
+  i:first-child {
+    color: var(--cover-text-muted, #9a9590);
+    font-size: 17px;
+  }
+
+  i:last-child {
+    margin-left: auto;
+    color: var(--accent-color);
+    font-size: 18px;
+  }
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &:active,
+  &.active {
+    background: var(--cover-surface-hover, rgba(128, 128, 128, 0.1));
+    color: var(--accent-color);
+  }
+}
+
+.morph-dismiss-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: transparent;
 }
 
 /* 页面名 */

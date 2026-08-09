@@ -6,7 +6,8 @@ const layoutRouter = [
       title: 'comp.home',
       icon: 'icon-Home',
       keepAlive: true,
-      isMobile: true
+      isMobile: true,
+      bottomNav: true
     },
     component: () => import('@/views/home/index.vue')
   },
@@ -28,9 +29,22 @@ const layoutRouter = [
       title: 'comp.list',
       icon: 'icon-Paper',
       keepAlive: true,
-      isMobile: true
+      isMobile: true,
+      bottomNav: true
     },
     component: () => import('@/views/list/index.vue')
+  },
+  {
+    path: '/discover',
+    name: 'discover',
+    meta: {
+      title: 'comp.discover',
+      icon: 'ri-compass-3-fill',
+      keepAlive: true,
+      isMobile: true,
+      bottomNav: true
+    },
+    component: () => import('@/views/discover/index.vue')
   },
   {
     path: '/album',
@@ -97,9 +111,10 @@ const layoutRouter = [
       title: 'comp.localMusic',
       icon: 'ri-folder-music-fill',
       keepAlive: true,
-      isMobile: true
+      isMobile: true,
+      hideInSidebar: true
     },
-    component: () => import('@/views/local-music/index.vue')
+    redirect: { path: '/list', query: { source: 'local', localTab: 'songs' } }
   },
   {
     path: '/user',
@@ -109,7 +124,8 @@ const layoutRouter = [
       icon: 'icon-Profile',
       keepAlive: true,
       noScroll: true,
-      isMobile: true
+      isMobile: true,
+      bottomNav: true
     },
     component: () => import('@/views/user/index.vue')
   },

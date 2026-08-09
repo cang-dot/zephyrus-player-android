@@ -6,7 +6,8 @@ export const MOBILE_PLAYER_STYLE_KEYS = [
   'frenzy',
   'eerie',
   'neon',
-  'rain'
+  'rain',
+  'smoke'
 ] as const;
 
 export type MobilePlayerStyleKey = (typeof MOBILE_PLAYER_STYLE_KEYS)[number];
@@ -38,9 +39,12 @@ export interface PlayerStyleCustomConfig {
   imageBlur: number;
   imageBrightness: number;
   lyricColor: string;
+  builtinFontId?: string;
   customFontFamily?: string;
   customFontName?: string;
   customFontData?: string;
+  /** Font weight used when a built-in or imported custom font is selected. */
+  fontWeight?: number;
   climaxUseThemeColor: boolean;
   climaxSplitColors: boolean;
   climaxColors: PlayerStyleClimaxColors;
@@ -48,6 +52,7 @@ export interface PlayerStyleCustomConfig {
   effectLyricColor?: boolean;
   effectWordDrop?: boolean;
   effectKeyword?: boolean;
+  effectStaggered?: boolean;
   auroraSpeed?: number;
   beatFlashIntensity?: number;
   newspaperFreq?: number;
@@ -55,7 +60,19 @@ export interface PlayerStyleCustomConfig {
   glowRadius?: number;
   pulseSpeed?: number;
   giantSize?: number;
+  wordDropFontWeight?: number;
+  auxiliaryCenterDisplay?: boolean;
+  staggeredSize?: number;
+  staggeredRowGap?: number;
+  staggeredOffset?: number;
+  staggeredRotation?: number;
   flipSpeed?: number;
+  smokeDensity?: number;
+  smokeChaos?: number;
+  smokeLoudnessResponse?: number;
+  smokeOpacity?: number;
+  smokeVignette?: number;
+  smokeFontStretch?: number;
   [key: string]: unknown;
 }
 
@@ -64,6 +81,7 @@ export interface PlayerStyleEffects {
   lyricColor: boolean;
   wordDrop: boolean;
   keyword: boolean;
+  staggered: boolean;
 }
 
 export function isMobilePlayerStyleKey(value: unknown): value is MobilePlayerStyleKey {

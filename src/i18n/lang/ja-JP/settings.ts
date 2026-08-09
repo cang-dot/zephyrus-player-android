@@ -5,12 +5,14 @@ export default {
   logout: 'ログアウト',
   sections: {
     basic: '基本設定',
+    interface: 'インターフェース設定',
     playback: '再生設定',
     application: 'アプリケーション設定',
     network: 'ネットワーク設定',
     system: 'システム管理',
     keepAlive: 'バックグラウンド維持',
     plugins: '追加機能',
+    spotify: 'Spotify',
     about: 'について'
   },
   basic: {
@@ -62,6 +64,12 @@ export default {
     tabletMode: 'タブレットモード',
     tabletModeDesc:
       'タブレットモードを有効にすると、モバイルデバイスでPCスタイルのインターフェースを使用できます'
+  },
+  interface: {
+    defaultPage: '起動時のページ',
+    defaultPageDesc: 'アプリ起動時に表示するページを選択',
+    sidebarOrder: 'サイドバーのカスタマイズ',
+    sidebarOrderDesc: 'サイドバー項目の順序と表示を調整'
   },
   playback: {
     quality: '音質設定',

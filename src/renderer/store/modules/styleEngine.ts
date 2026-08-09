@@ -12,9 +12,8 @@ import type { KeywordLine } from '@/api/keywords';
 import { nowTime } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { climaxDetector } from '@/services/climaxDetector';
-import { type BeatInfo,drumDetector } from '@/services/drumDetector';
+import { type BeatInfo, drumDetector } from '@/services/drumDetector';
 
-import { useClimaxStore } from './climax';
 import { useCommunityDataStore } from './communityData';
 import { usePlayerStore } from './player';
 
@@ -71,7 +70,7 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
 
     // 启动高潮检测
     climaxDetector.start();
-    climaxUnsubscribe = climaxDetector.onClimax((energy) => {
+    climaxUnsubscribe = climaxDetector.onClimax((_energy) => {
       // 高潮检测器的回调
     });
   }
@@ -96,9 +95,21 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
     () => useCommunityDataStore().climaxSegments,
     (newSegments) => {
       climaxSegments.value = newSegments;
+      refreshClimaxState(nowTime.value);
     },
     { immediate: true }
   );
+
+  function refreshClimaxState(time: number) {
+    isInClimax.value = climaxSegments.value.some(
+      (segment) => time >= segment.start && time <= segment.end
+    );
+  }
+
+  function setClimaxSegments(segments: { start: number; end: number }[]) {
+    climaxSegments.value = segments;
+    refreshClimaxState(nowTime.value);
+  }
 
   async function loadClimaxData(songId: string) {
     const communityData = useCommunityDataStore();
@@ -118,15 +129,7 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
     spectrumCoverage.value = climaxDetector.spectrumCoverage;
 
     // 使用后端高潮时段数据判断是否在高潮段
-    const segments = climaxSegments.value;
-    let inClimax = false;
-    for (const seg of segments) {
-      if (time >= seg.start && time <= seg.end) {
-        inClimax = true;
-        break;
-      }
-    }
-    isInClimax.value = inClimax;
+    refreshClimaxState(time);
 
     // 更新当前行的重点词（由外部传入歌词行索引）
     // 注意：这里需要外部组件在切换行时调用 updateCurrentLineKeywords
@@ -153,12 +156,12 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
     if (lineIndex === currentLineIndex.value) return;
     currentLineIndex.value = lineIndex;
 
-    const line = keywordLines.value.find(l => l.lineIndex === lineIndex);
+    const line = keywordLines.value.find((l) => l.lineIndex === lineIndex);
     currentLineKeywords.value = line?.words ?? [];
   }
 
   function getWordEmphasis(wordIndex: number): 'strong' | 'medium' | 'light' | null {
-    const word = currentLineKeywords.value.find(w => w.wordIndex === wordIndex);
+    const word = currentLineKeywords.value.find((w) => w.wordIndex === wordIndex);
     return (word?.emphasis as 'strong') ?? null;
   }
 
@@ -204,9 +207,10 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
     startAudioAnalysis,
     stopAudioAnalysis,
     loadClimaxData,
+    setClimaxSegments,
     syncFromPlayerStore,
     syncCoverColors,
     updateCurrentLineKeywords,
-    getWordEmphasis,
+    getWordEmphasis
   };
 });

@@ -35,11 +35,26 @@
 
       <div class="setting-row">
         <span>{{ tr('player.styleCustomization.font', '字体') }}</span>
-        <button type="button" class="command-button" @click="importFont">
-          <i class="ri-font-line"></i>
-          {{ local.customFontName || tr('player.styleCustomization.importFont', '导入字体') }}
-        </button>
+        <div class="font-actions">
+          <button type="button" class="command-button" @click="showFontSelector = true">
+            <i class="ri-font-size-2"></i>
+            {{ selectedBuiltinFontName }}
+          </button>
+          <button type="button" class="command-button icon-command" @click="importFont">
+            <i class="ri-upload-2-line"></i>
+            <span>{{
+              local.customFontName || tr('player.styleCustomization.importFont', '导入')
+            }}</span>
+          </button>
+        </div>
       </div>
+
+      <label v-if="customFontSelected" class="range-row">
+        <span
+          >{{ tr('player.styleCustomization.fontWeight', '字体粗细') }} {{ local.fontWeight }}</span
+        >
+        <input v-model.number="local.fontWeight" type="range" min="100" max="900" step="50" />
+      </label>
 
       <label class="setting-row">
         <span>{{ tr('player.styleCustomization.customBackground', '自定义背景') }}</span>
@@ -174,7 +189,15 @@
           <span>{{ tr('player.styleCustomization.lyricRecolor', '歌词变色') }}</span>
           <input v-model="local.effectLyricColor" type="checkbox" />
         </label>
-        <label v-if="styleKey === 'eerie'" class="setting-row">
+        <label v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)" class="setting-row">
+          <span>{{ tr('player.styleCustomization.staggered', '错落') }}</span>
+          <input
+            :checked="local.effectStaggered === true"
+            type="checkbox"
+            @change="setStaggeredEffect($event)"
+          />
+        </label>
+        <label v-if="styleKey === 'eerie' || styleKey === 'smoke'" class="setting-row">
           <span>{{ tr('player.styleCustomization.keyword', '重点字') }}</span>
           <input
             :checked="local.effectKeyword === true"
@@ -182,19 +205,39 @@
             @change="setEerieEffect('keyword', $event)"
           />
         </label>
-        <label class="setting-row">
+        <label
+          v-if="
+            styleKey === 'frenzy' ||
+            styleKey === 'eerie' ||
+            styleKey === 'stage' ||
+            styleKey === 'smoke'
+          "
+          class="setting-row"
+        >
           <span>{{ tr('player.styleCustomization.wordDrop', '逐字砸下') }}</span>
           <input
             :checked="local.effectWordDrop === true"
             type="checkbox"
-            @change="
-              styleKey === 'eerie'
-                ? setEerieEffect('drop', $event)
-                : (local.effectWordDrop = checked($event))
-            "
+            @change="styleKey === 'eerie' ? setEerieEffect('drop', $event) : setWordDrop($event)"
           />
         </label>
       </template>
+
+      <label v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)" class="setting-row">
+        <span>{{
+          tr('player.styleCustomization.auxiliaryCenterDisplay', '背景 / 对唱词中央巨字')
+        }}</span>
+        <button
+          type="button"
+          class="toggle-switch"
+          :class="{ on: local.auxiliaryCenterDisplay }"
+          role="switch"
+          :aria-checked="local.auxiliaryCenterDisplay === true"
+          @click="local.auxiliaryCenterDisplay = !local.auxiliaryCenterDisplay"
+        >
+          <span></span>
+        </button>
+      </label>
 
       <div v-if="hasStyleSpecificSettings" class="section-label">
         {{ tr('player.styleCustomization.styleEffects', '样式参数') }}
@@ -242,6 +285,97 @@
         >
         <input v-model.number="local.giantSize" type="range" min="40" max="120" step="5" />
       </label>
+      <label v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)" class="range-row">
+        <span
+          >{{ tr('player.styleCustomization.wordDropFontWeight', '砸下巨字粗细') }}
+          {{ local.wordDropFontWeight }}</span
+        >
+        <input
+          v-model.number="local.wordDropFontWeight"
+          type="range"
+          min="100"
+          max="900"
+          step="50"
+        />
+      </label>
+      <template v-if="['frenzy', 'eerie', 'stage'].includes(styleKey)">
+        <label class="range-row">
+          <span
+            >{{ tr('player.styleCustomization.staggeredSize', '错落字号') }}
+            {{ local.staggeredSize }}</span
+          >
+          <input v-model.number="local.staggeredSize" type="range" min="24" max="96" step="2" />
+        </label>
+        <label class="range-row">
+          <span
+            >{{ tr('player.styleCustomization.staggeredRowGap', '错落行距') }}
+            {{ local.staggeredRowGap }}px</span
+          >
+          <input v-model.number="local.staggeredRowGap" type="range" min="8" max="48" step="2" />
+        </label>
+        <label class="range-row">
+          <span
+            >{{ tr('player.styleCustomization.staggeredOffset', 'Y 轴偏移') }}
+            {{ local.staggeredOffset }}px</span
+          >
+          <input v-model.number="local.staggeredOffset" type="range" min="0" max="30" step="1" />
+        </label>
+        <label class="range-row">
+          <span
+            >{{ tr('player.styleCustomization.staggeredRotation', '旋转偏移') }}
+            {{ local.staggeredRotation }}°</span
+          >
+          <input v-model.number="local.staggeredRotation" type="range" min="0" max="12" step="1" />
+        </label>
+      </template>
+      <template v-if="styleKey === 'smoke'">
+        <label class="range-row"
+          ><span
+            >{{ tr('player.styleCustomization.smokeDensity', '烟雾密度') }}
+            {{ local.smokeDensity }}</span
+          ><input v-model.number="local.smokeDensity" type="range" min="0.05" max="1" step="0.01"
+        /></label>
+        <label class="range-row"
+          ><span
+            >{{ tr('player.styleCustomization.smokeChaos', '烟雾混乱度') }}
+            {{ local.smokeChaos }}</span
+          ><input v-model.number="local.smokeChaos" type="range" min="0" max="1" step="0.01"
+        /></label>
+        <label class="range-row"
+          ><span
+            >{{ tr('player.styleCustomization.smokeLoudnessResponse', '响度响应') }}
+            {{ local.smokeLoudnessResponse }}</span
+          ><input
+            v-model.number="local.smokeLoudnessResponse"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+        /></label>
+        <label class="range-row"
+          ><span
+            >{{ tr('player.styleCustomization.smokeOpacity', '烟雾透明度') }}
+            {{ local.smokeOpacity }}</span
+          ><input v-model.number="local.smokeOpacity" type="range" min="0.05" max="1" step="0.01"
+        /></label>
+        <label class="range-row"
+          ><span
+            >{{ tr('player.styleCustomization.smokeVignette', '高潮暗角') }}
+            {{ local.smokeVignette }}</span
+          ><input v-model.number="local.smokeVignette" type="range" min="0" max="1" step="0.01"
+        /></label>
+        <label class="range-row"
+          ><span
+            >{{ tr('player.styleCustomization.smokeFontStretch', '字体拉伸') }}
+            {{ local.smokeFontStretch }}</span
+          ><input
+            v-model.number="local.smokeFontStretch"
+            type="range"
+            min="0.75"
+            max="1.8"
+            step="0.01"
+        /></label>
+      </template>
       <label v-if="styleKey === 'magazine'" class="range-row">
         <span
           >{{ tr('player.styleCustomization.flipSpeed', '翻页速度') }} {{ local.flipSpeed }}ms</span
@@ -250,18 +384,30 @@
       </label>
     </div>
   </section>
+
+  <font-selector
+    v-if="showFontSelector"
+    :selected-id="local.builtinFontId || ''"
+    allow-default
+    default-label="样式默认"
+    @select="selectBuiltinFont"
+    @close="showFontSelector = false"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import FontSelector from '@/components/share/FontSelector.vue';
 import { resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
 import type {
   MobilePlayerStyleKey,
   PlayerStyleCustomConfig,
   PlayerStyleMode
 } from '@/types/playerStyle';
+import { BUILTIN_FONTS } from '@/types/share';
+import { ensureFontLoaded } from '@/utils/fontLoader';
 
 const props = defineProps<{
   styleKey: MobilePlayerStyleKey;
@@ -313,11 +459,33 @@ const colorLayers = computed(() => [
   { key: 'auxiliary' as const, label: tr('player.styleCustomization.auxiliary', '背景 / 对唱词') },
   { key: 'translation' as const, label: tr('player.styleCustomization.translation', '翻译') }
 ]);
-const hasClimaxEffects = computed(() => ['stage', 'eerie', 'frenzy'].includes(props.styleKey));
+const hasClimaxEffects = computed(() =>
+  ['stage', 'eerie', 'frenzy', 'smoke'].includes(props.styleKey)
+);
 const hasStyleSpecificSettings = computed(() =>
-  ['stage', 'eerie', 'neon', 'frenzy', 'magazine'].includes(props.styleKey)
+  ['stage', 'eerie', 'neon', 'frenzy', 'magazine', 'smoke'].includes(props.styleKey)
+);
+const customFontSelected = computed(() =>
+  Boolean(local.value.builtinFontId || local.value.customFontData)
 );
 const backgroundInput = ref<HTMLInputElement | null>(null);
+const showFontSelector = ref(false);
+const selectedBuiltinFontName = computed(() => {
+  if (local.value.customFontName) return '内置字体';
+  return (
+    BUILTIN_FONTS.find((font) => font.id === local.value.builtinFontId)?.name ||
+    tr('player.styleCustomization.styleDefaultFont', '样式默认')
+  );
+});
+
+async function selectBuiltinFont(fontId: string) {
+  local.value.builtinFontId = fontId || undefined;
+  local.value.customFontFamily = undefined;
+  local.value.customFontName = undefined;
+  local.value.customFontData = undefined;
+  showFontSelector.value = false;
+  if (fontId) await ensureFontLoaded(fontId);
+}
 
 function checked(event: Event): boolean {
   return (event.target as HTMLInputElement).checked;
@@ -327,11 +495,31 @@ function setEerieEffect(effect: 'keyword' | 'drop', event: Event) {
   const enabled = checked(event);
   if (effect === 'keyword') {
     local.value.effectKeyword = enabled;
-    if (enabled) local.value.effectWordDrop = false;
+    if (enabled) {
+      local.value.effectWordDrop = false;
+      local.value.effectStaggered = false;
+    }
   } else {
     local.value.effectWordDrop = enabled;
-    if (enabled) local.value.effectKeyword = false;
+    if (enabled) {
+      local.value.effectKeyword = false;
+      local.value.effectStaggered = false;
+    }
   }
+}
+
+function setWordDrop(event: Event) {
+  const enabled = checked(event);
+  local.value.effectWordDrop = enabled;
+  if (enabled) local.value.effectStaggered = false;
+}
+
+function setStaggeredEffect(event: Event) {
+  const enabled = checked(event);
+  local.value.effectStaggered = enabled;
+  if (!enabled) return;
+  local.value.effectWordDrop = false;
+  if (props.styleKey === 'eerie') local.value.effectKeyword = false;
 }
 
 function importBackground(event: Event) {
@@ -351,6 +539,7 @@ function importFont() {
     if (!file || file.size > 20 * 1024 * 1024) return;
     const reader = new FileReader();
     reader.onload = () => {
+      local.value.builtinFontId = undefined;
       local.value.customFontName = file.name;
       local.value.customFontFamily = `ZephyrusStyleFont-${props.styleKey}`;
       local.value.customFontData = String(reader.result || '');
@@ -437,6 +626,20 @@ function importFont() {
   min-height: 36px;
   color: rgba(255, 255, 255, 0.65);
   font-size: 12px;
+}
+.font-actions {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.font-actions .command-button {
+  max-width: 148px;
+}
+.font-actions .command-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 input[type='color'] {
   width: 44px;

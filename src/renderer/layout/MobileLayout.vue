@@ -9,16 +9,22 @@
     <!-- 浮动顶栏（所有页面统一显示） -->
     <mobile-header />
 
-    <!-- 共享悬浮卡片 — 所有页面复用同一元素 -->
-    <floating-hero-card />
-
     <!-- 主内容区域（铺满全屏，顶栏透明叠加） -->
     <div
       class="mobile-content"
       :class="{ 'has-bottom-menu': shouldShowBottomMenu, 'has-player': isPlay }"
+      :style="pageSwipeStyle"
+      @click.capture="onPageClickCapture"
+      @pointerdown="onContentPointerDown"
+      @pointermove="onContentPointerMove"
+      @pointerup="onContentPointerUp"
+      @pointercancel="onContentPointerCancel"
     >
       <router-view v-slot="{ Component }" class="mobile-page">
-        <Transition name="page-fade" mode="out-in">
+        <Transition
+          :name="pageTransitionName"
+          :mode="pageTransitionDirection ? undefined : 'out-in'"
+        >
           <keep-alive :include="keepAliveInclude">
             <component :is="Component" />
           </keep-alive>
@@ -26,41 +32,53 @@
       </router-view>
     </div>
 
-    <!-- 底部播放条 -->
-    <mobile-play-bar v-if="isPlay" />
+    <div
+      class="mobile-bottom-dock"
+      :class="{
+        visible: shouldShowBottomMenu,
+        'has-player': isPlay,
+        'player-collapsed': isPlay && miniPlayerIdleCollapsed,
+        'player-open': isPlay && !miniPlayerIdleCollapsed
+      }"
+    >
+      <!-- 播放条与导航共用同一个 Dock 玻璃表面。 -->
+      <mobile-play-bar v-if="isPlay" @idle-collapse-change="miniPlayerIdleCollapsed = $event" />
 
-    <!-- 底部导航菜单 — glow-menu 浮动风格 -->
-    <Transition name="glow-nav-in">
-      <div
-        v-if="shouldShowBottomMenu"
-        class="mobile-glow-nav-wrap"
-        :class="{ 'compact-mode': isCompactNav }"
-      >
-        <div class="mobile-glow-nav-glow" :style="{ background: navGlowStyle }" />
-        <div class="mobile-glow-nav">
-          <router-link
-            v-for="item in menuStore.menus"
-            :key="item.path"
-            :to="item.path"
-            class="glow-nav-item"
-            :class="{ active: isActive(item.path) }"
-          >
-            <div
-              class="glow-item-radial"
-              :style="isActive(item.path) ? { background: activeGlowStyle } : {}"
-            />
-            <div class="glow-item-content">
-              <i class="iconfont glow-item-icon" :class="item.meta.icon" />
-              <Transition name="label-pop">
-                <span v-if="isActive(item.path)" class="glow-item-label">{{
-                  t(item.meta.title)
-                }}</span>
-              </Transition>
-            </div>
-          </router-link>
+      <Transition name="glow-nav-in">
+        <div
+          v-if="shouldShowBottomMenu"
+          class="mobile-glow-nav-wrap"
+          :class="{
+            'compact-mode': isCompactNav,
+            'has-player-slot': isPlay && miniPlayerIdleCollapsed
+          }"
+        >
+          <div class="mobile-glow-nav">
+            <router-link
+              v-for="item in menuStore.menus"
+              :key="item.path"
+              :to="item.path"
+              class="glow-nav-item"
+              :class="{ active: isActive(item.path) }"
+              @click="prepareMenuTransition(item.path)"
+            >
+              <div
+                class="glow-item-radial"
+                :style="isActive(item.path) ? { background: activeGlowStyle } : {}"
+              />
+              <div class="glow-item-content">
+                <i class="iconfont glow-item-icon" :class="item.meta.icon" />
+                <Transition name="label-pop">
+                  <span v-if="isActive(item.path)" class="glow-item-label">{{
+                    t(item.meta.title)
+                  }}</span>
+                </Transition>
+              </div>
+            </router-link>
+          </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </div>
     <!-- 其他弹窗/抽屉 -->
     <playlist-drawer v-model="showPlaylistDrawer" :song="currentSong" :song-id="currentSongId" />
     <playing-list-drawer />
@@ -68,12 +86,10 @@
 </template>
 
 <script setup lang="ts">
-import { useWindowSize } from '@vueuse/core';
-import { computed, defineAsyncComponent, onMounted, provide, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
-import { useHeroCard } from '@/composables/useHeroCard';
 import homeRouter from '@/router/home';
 import otherRouter from '@/router/other';
 import { useMenuStore } from '@/store/modules/menu';
@@ -81,7 +97,6 @@ import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import type { SongResult } from '@/types/music';
 
-import FloatingHeroCard from './components/FloatingHeroCard.vue';
 import MobileHeader from './components/MobileHeader.vue';
 const MobilePlayBar = defineAsyncComponent(() => import('@/components/player/MobilePlayBar.vue'));
 const PlayingListDrawer = defineAsyncComponent(
@@ -94,33 +109,221 @@ const props = defineProps<{
 }>();
 
 const route = useRoute();
+const router = useRouter();
 const playerStore = usePlayerStore();
 const menuStore = useMenuStore();
 const settingsStore = useSettingsStore();
 const { t } = useI18n();
-const { hideHeroCard } = useHeroCard();
+
+type PageTransitionDirection = 'next' | 'prev';
+
+const pageTransitionDirection = ref<PageTransitionDirection | null>(null);
+const miniPlayerIdleCollapsed = ref(false);
+const pageSwipeOffset = ref(0);
+const pageSwipeAnimating = ref(false);
+const pageTransitionName = computed(() =>
+  pageTransitionDirection.value ? `page-slide-${pageTransitionDirection.value}` : 'page-fade'
+);
+const pageSwipeStyle = computed(() => ({
+  transform: pageSwipeOffset.value ? `translate3d(${pageSwipeOffset.value}px, 0, 0)` : undefined,
+  transition: pageSwipeAnimating.value
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ? 'transform 160ms ease-out'
+      : 'transform 250ms cubic-bezier(0.22, 0.84, 0.24, 1.08)'
+    : 'none',
+  willChange: pageSwipeOffset.value || pageSwipeAnimating.value ? 'transform' : undefined
+}));
+
+let pageTransitionTimer: ReturnType<typeof setTimeout> | undefined;
+let pageSwipeResetTimer: ReturnType<typeof setTimeout> | undefined;
+
+const schedulePageTransitionReset = () => {
+  if (pageTransitionTimer) clearTimeout(pageTransitionTimer);
+  pageTransitionTimer = setTimeout(() => {
+    pageTransitionDirection.value = null;
+    pageTransitionTimer = undefined;
+  }, 320);
+};
+
+const prepareMenuTransition = (targetPath: string) => {
+  const currentIndex = menuStore.menus.findIndex((item: any) => item.path === route.path);
+  const targetIndex = menuStore.menus.findIndex((item: any) => item.path === targetPath);
+  if (currentIndex === -1 || targetIndex === -1 || currentIndex === targetIndex) return;
+  pageTransitionDirection.value = targetIndex > currentIndex ? 'next' : 'prev';
+  schedulePageTransitionReset();
+};
+
+const inferMenuTransition = (targetPath: string, fromPath: string) => {
+  const currentIndex = menuStore.menus.findIndex((item: any) => item.path === fromPath);
+  const targetIndex = menuStore.menus.findIndex((item: any) => item.path === targetPath);
+  if (currentIndex === -1 || targetIndex === -1 || currentIndex === targetIndex) return;
+  pageTransitionDirection.value = targetIndex > currentIndex ? 'next' : 'prev';
+  schedulePageTransitionReset();
+};
+
+watch(
+  () => route.path,
+  (path, previousPath) => {
+    if (path !== previousPath && !pageTransitionDirection.value) {
+      inferMenuTransition(path, previousPath);
+    }
+  }
+);
+
+// 页面横滑：只有在底栏页面且明确判断为横向意图后才接管手势，垂直滚动保持原生行为。
+let pagePointerStartX = 0;
+let pagePointerStartY = 0;
+let pagePointerStartTime = 0;
+let pagePointerAxis: 'none' | 'horizontal' | 'vertical' = 'none';
+let pagePointerActive = false;
+let pagePointerId: number | null = null;
+const suppressPageClick = ref(false);
+let pageClickTimer: ReturnType<typeof setTimeout> | undefined;
+
+const setPageClickSuppressed = () => {
+  suppressPageClick.value = true;
+  if (pageClickTimer) clearTimeout(pageClickTimer);
+  pageClickTimer = setTimeout(() => {
+    suppressPageClick.value = false;
+    pageClickTimer = undefined;
+  }, 360);
+};
+
+const onPageClickCapture = (event: MouseEvent) => {
+  if (!suppressPageClick.value) return;
+  event.preventDefault();
+  event.stopPropagation();
+  suppressPageClick.value = false;
+};
+
+const isPageSwipeTarget = (target: EventTarget | null) => {
+  if (!(target instanceof Element)) return true;
+  return !target.closest('button, input, textarea, select, [role="button"], [data-no-page-swipe]');
+};
+
+const onContentPointerDown = (event: PointerEvent) => {
+  if (
+    !event.isPrimary ||
+    (event.button !== 0 && event.pointerType === 'mouse') ||
+    !shouldShowBottomMenu.value ||
+    playerStore.musicFull ||
+    !isPageSwipeTarget(event.target)
+  ) {
+    pagePointerAxis = 'none';
+    pagePointerActive = false;
+    return;
+  }
+  pagePointerStartX = event.clientX;
+  pagePointerStartY = event.clientY;
+  pagePointerStartTime = Date.now();
+  pagePointerAxis = 'none';
+  pagePointerActive = true;
+  pagePointerId = event.pointerId;
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  pageSwipeAnimating.value = false;
+};
+
+const onContentPointerMove = (event: PointerEvent) => {
+  if (!pagePointerActive || event.pointerId !== pagePointerId) return;
+  const deltaX = event.clientX - pagePointerStartX;
+  const deltaY = event.clientY - pagePointerStartY;
+
+  if (pagePointerAxis === 'none' && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 10) {
+    pagePointerAxis = Math.abs(deltaX) > Math.abs(deltaY) ? 'horizontal' : 'vertical';
+  }
+  if (pagePointerAxis !== 'horizontal') return;
+
+  event.preventDefault();
+  if (Math.abs(deltaX) >= 16) setPageClickSuppressed();
+
+  const currentIndex = menuStore.menus.findIndex((item: any) => item.path === route.path);
+  const movingToNext = deltaX < 0;
+  const hasAdjacent = movingToNext ? currentIndex < menuStore.menus.length - 1 : currentIndex > 0;
+  pageSwipeOffset.value = hasAdjacent ? deltaX : deltaX * 0.24;
+};
+
+const resetPageSwipe = () => {
+  pageSwipeAnimating.value = true;
+  pageSwipeOffset.value = 0;
+  if (pageSwipeResetTimer) clearTimeout(pageSwipeResetTimer);
+  pageSwipeResetTimer = setTimeout(() => {
+    pageSwipeAnimating.value = false;
+    pageSwipeResetTimer = undefined;
+  }, 280);
+};
+
+const triggerPageHaptic = () => {
+  if (typeof navigator.vibrate === 'function') navigator.vibrate(12);
+};
+
+const releasePagePointer = (event: PointerEvent) => {
+  const target = event.currentTarget as HTMLElement;
+  if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+  pagePointerId = null;
+};
+
+const onContentPointerUp = (event: PointerEvent) => {
+  if (!pagePointerActive || event.pointerId !== pagePointerId) return;
+  const deltaX = event.clientX - pagePointerStartX;
+  const elapsed = Math.max(1, Date.now() - pagePointerStartTime);
+  const projectedX = deltaX + (deltaX / elapsed) * 140;
+  const currentIndex = menuStore.menus.findIndex((item: any) => item.path === route.path);
+  const direction = deltaX < 0 ? 'next' : 'prev';
+  const targetIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+  const target = menuStore.menus[targetIndex];
+  const swipeThreshold = Math.min(62, Math.max(42, window.innerWidth * 0.15));
+  const projectedThreshold = Math.min(92, Math.max(64, window.innerWidth * 0.22));
+  const commit =
+    pagePointerAxis === 'horizontal' &&
+    Boolean(target) &&
+    (Math.abs(deltaX) >= swipeThreshold || Math.abs(projectedX) >= projectedThreshold);
+
+  releasePagePointer(event);
+  pagePointerActive = false;
+  pagePointerAxis = 'none';
+  if (!commit) {
+    resetPageSwipe();
+    return;
+  }
+
+  prepareMenuTransition(target.path);
+  triggerPageHaptic();
+  resetPageSwipe();
+  void router.push(target.path);
+};
+
+const onContentPointerCancel = (event: PointerEvent) => {
+  if (!pagePointerActive || event.pointerId !== pagePointerId) return;
+  const deltaX = pageSwipeOffset.value;
+  const currentIndex = menuStore.menus.findIndex((item: any) => item.path === route.path);
+  const direction = deltaX < 0 ? 'next' : 'prev';
+  const targetIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+  const target = menuStore.menus[targetIndex];
+  const swipeThreshold = Math.min(62, Math.max(42, window.innerWidth * 0.15));
+  const commit =
+    pagePointerAxis === 'horizontal' && Boolean(target) && Math.abs(deltaX) >= swipeThreshold;
+  releasePagePointer(event);
+  pagePointerActive = false;
+  pagePointerAxis = 'none';
+  if (commit) {
+    prepareMenuTransition(target.path);
+    triggerPageHaptic();
+    resetPageSwipe();
+    void router.push(target.path);
+    return;
+  }
+  resetPageSwipe();
+};
+
+onBeforeUnmount(() => {
+  if (pageTransitionTimer) clearTimeout(pageTransitionTimer);
+  if (pageSwipeResetTimer) clearTimeout(pageSwipeResetTimer);
+  if (pageClickTimer) clearTimeout(pageClickTimer);
+});
 
 // 底栏布局模式：default | compact
 const navLayoutMode = computed(() => settingsStore.setData?.bottomNavLayout || 'default');
 const isCompactNav = computed(() => navLayoutMode.value === 'compact');
-
-// 路由切换时默认隐藏共享悬浮卡片（list 页面会自行显示）
-watch(
-  () => route.path,
-  () => {
-    if (route.path !== '/list') {
-      hideHeroCard();
-    }
-  },
-  { immediate: true }
-);
-
-// 横竖屏检测
-const { width, height } = useWindowSize();
-const isLandscape = computed(() => width.value > height.value);
-
-// 首页使用模块化设计，不显示顶栏
-const isHomePage = computed(() => route.path === '/');
 
 // safe-area-inset-top 完全由 CSS env() 驱动，无需 JS 测量或动态切换
 // WebView 自动根据系统栏状态计算：
@@ -171,13 +374,6 @@ const shouldShowBottomMenu = computed(() => {
 });
 
 const isActive = (itemPath: string) => route.path === itemPath;
-
-// 动态强调色辉光 — 根据当前路由的 accent-color 生成径向渐变
-const navGlowStyle = computed(() => {
-  const c = 'var(--accent-color, #888)';
-  const rgb = 'var(--accent-color-rgb, 136, 136, 136)';
-  return `radial-gradient(ellipse at 50% 50%, rgba(${rgb}, 0.25) 0%, rgba(${rgb}, 0.08) 40%, transparent 70%)`;
-});
 
 const activeGlowStyle = computed(() => {
   const rgb = 'var(--accent-color-rgb, 136, 136, 136)';
@@ -234,6 +430,9 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 .mobile-content {
   @apply flex-1 overflow-auto;
   height: 100%;
+  touch-action: pan-y;
+  overscroll-behavior-x: contain;
+  transform: translate3d(0, 0, 0);
 
   /* 内容铺满全屏 — 顶栏透明叠加在上面 */
   padding-top: 0;
@@ -244,6 +443,66 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   }
 
   /* 底部不做 padding — 内容延伸到最底下，浮动导航叠加在上 */
+}
+
+.mobile-bottom-dock {
+  position: fixed;
+  right: 12px;
+  bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
+  left: 12px;
+  z-index: 199;
+  height: 0;
+  border: 1px solid transparent;
+  border-radius: 30px;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+  transition:
+    height 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 240ms ease,
+    box-shadow 320ms ease;
+
+  &.visible {
+    height: 54px;
+    border-color: color-mix(in srgb, var(--m-white, #fff) 24%, transparent);
+    background: color-mix(in srgb, var(--m-surface, #eae6df) 65%, transparent);
+    box-shadow:
+      0 14px 34px rgba(0, 0, 0, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(30px) saturate(175%);
+    -webkit-backdrop-filter: blur(30px) saturate(175%);
+    pointer-events: auto;
+  }
+
+  &.visible.player-open {
+    height: 112px;
+    border-radius: 32px;
+  }
+
+  :deep(.mobile-play-bar.play-bar-mini.is-menu-show) {
+    position: absolute !important;
+    top: 4px;
+    right: 0;
+    bottom: auto !important;
+    left: 0 !important;
+    width: 100% !important;
+  }
+
+  &.player-collapsed :deep(.mobile-play-bar.play-bar-mini.idle-collapsed) {
+    top: 2px;
+    right: 2px !important;
+    left: auto !important;
+    width: 50px !important;
+  }
+
+  &:not(.visible) {
+    position: static;
+  }
+
+  :deep(.mobile-play-bar) {
+    pointer-events: auto;
+  }
 }
 
 .mobile-page {
@@ -274,6 +533,11 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
     max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+.mobile-bottom-dock .mobile-glow-nav-wrap {
+  position: absolute;
+  bottom: 4px;
+}
+
 /* 外层径向辉光 — 动态强调色 */
 .mobile-glow-nav-glow {
   position: absolute;
@@ -293,14 +557,9 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   gap: 2px;
   padding: 4px 6px;
   border-radius: 9999px;
-  background: var(--cover-surface, rgba(20, 20, 22, 0.72));
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid var(--cover-border, rgba(255, 255, 255, 0.08));
-  box-shadow:
-    0 6px 24px rgba(0, 0, 0, 0.25),
-    0 1px 4px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   position: relative;
   z-index: 1;
 }
@@ -460,6 +719,36 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   transform: translateY(-10px) scale(1.02);
 }
 
+/* 底栏页面之间的横向切换，方向与手指移动一致。 */
+.page-slide-next-enter-active,
+.page-slide-next-leave-active,
+.page-slide-prev-enter-active,
+.page-slide-prev-leave-active {
+  transition:
+    transform 280ms cubic-bezier(0.22, 0.84, 0.24, 1.08),
+    opacity 220ms ease;
+}
+
+.page-slide-next-enter-from {
+  opacity: 0.7;
+  transform: translate3d(100%, 0, 0);
+}
+
+.page-slide-next-leave-to {
+  opacity: 0.45;
+  transform: translate3d(-24%, 0, 0);
+}
+
+.page-slide-prev-enter-from {
+  opacity: 0.7;
+  transform: translate3d(-100%, 0, 0);
+}
+
+.page-slide-prev-leave-to {
+  opacity: 0.45;
+  transform: translate3d(24%, 0, 0);
+}
+
 /* ═══════════════════════════════════════════════════
    底栏布局模式
    ═══════════════════════════════════════════════════ */
@@ -480,6 +769,33 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   flex: 1;
 }
 
+/* The circular player is adjacent to navigation, but never becomes a fifth route. */
+.mobile-glow-nav-wrap.has-player-slot {
+  left: 12px;
+  right: 74px;
+  width: auto;
+  max-width: none;
+  transform: none;
+  align-items: stretch;
+}
+
+.mobile-bottom-dock.player-open .mobile-glow-nav-wrap {
+  left: 12px;
+  right: 12px;
+  width: auto;
+  max-width: none;
+  transform: none;
+}
+
+.mobile-glow-nav-wrap.has-player-slot .mobile-glow-nav {
+  width: 100%;
+  justify-content: space-around;
+}
+
+.mobile-glow-nav-wrap.has-player-slot .glow-nav-item {
+  flex: 1 1 0;
+}
+
 /* —— 紧凑模式：底栏靠右，左侧为精简播放栏 ——
    通过同一元素的 left/right/transform/width 变化实现平滑过渡，不创建新 DOM
 */
@@ -491,6 +807,15 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   max-width: 55vw;
   /* 右对齐：当导航项显示文字导致宽度变化时，向左扩展而非向右溢出 */
   align-items: flex-end;
+}
+
+.nav-compact .mobile-glow-nav-wrap.compact-mode.has-player-slot {
+  left: 12px;
+  right: 74px;
+  width: auto;
+  max-width: none;
+  transform: none;
+  align-items: stretch;
 }
 
 .nav-compact .mobile-glow-nav-wrap.compact-mode .mobile-glow-nav-glow {
@@ -510,6 +835,21 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   }
   .page-fade-enter-from,
   .page-fade-leave-to {
+    transform: none;
+  }
+
+  .page-slide-next-enter-active,
+  .page-slide-next-leave-active,
+  .page-slide-prev-enter-active,
+  .page-slide-prev-leave-active {
+    transition: opacity 0.2s ease;
+    transform: none;
+  }
+
+  .page-slide-next-enter-from,
+  .page-slide-next-leave-to,
+  .page-slide-prev-enter-from,
+  .page-slide-prev-leave-to {
     transform: none;
   }
 }

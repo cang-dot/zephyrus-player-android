@@ -6,6 +6,7 @@
         class="frenzy-mobile-player player-style-surface"
         :class="{
           'player-style-customized': isCustom,
+          'player-style-custom-font': customFontActive,
           'player-style-custom-background': customBackgroundActive
         }"
         :style="{
@@ -39,20 +40,31 @@
         <div class="corner-dot br"></div>
 
         <ttml-word-effect-layer
-          v-if="!showFullLyrics"
+          v-if="!showFullLyrics && !wordPlayback.interludeState.value.active"
           :auxiliary-tokens="wordPlayback.auxiliaryTokens.value"
           :main-token="wordPlayback.currentMainToken.value"
           :show-drop="showWordDrop"
+          :center-auxiliary="isCustom && styleCfg.auxiliaryCenterDisplay === true"
         />
 
+        <climax-interlude-overlay :state="wordPlayback.interludeState.value" />
+
         <!-- 巨字歌词（点击切换滚动歌词） -->
-        <div class="giant-text-container" v-show="!showFullLyrics && !showWordDrop">
+        <div
+          class="giant-text-container"
+          v-show="
+            !showFullLyrics &&
+            !wordPlayback.interludeState.value.active &&
+            !showWordDrop &&
+            !showStaggered
+          "
+        >
           <div
             class="giant-text line-1"
             :style="{
               fontSize: fontSizePx,
               color: 'var(--text-dark)',
-              fontFamily: styleCfg.customFontFamily || undefined
+              fontFamily: frenzyFontFamily
             }"
           >
             {{ lyricPart1 }}
@@ -62,12 +74,25 @@
             :style="{
               fontSize: fontSizePx,
               color: 'var(--text-gray)',
-              fontFamily: styleCfg.customFontFamily || undefined
+              fontFamily: frenzyFontFamily
             }"
           >
             {{ lyricPart2 }}
           </div>
         </div>
+
+        <staggered-climax-lyrics
+          v-if="showStaggered && !wordPlayback.interludeState.value.active"
+          :line="wordPlayback.currentDisplayLine.value"
+          :line-key="wordPlayback.displayLineKey.value"
+          :corrected-time="wordPlayback.correctedTime.value"
+          :font-family="frenzyFontFamily"
+          :font-size="styleCfg.staggeredSize"
+          :row-gap="styleCfg.staggeredRowGap"
+          :offset="styleCfg.staggeredOffset"
+          :rotation="styleCfg.staggeredRotation"
+          :color="textColorDark"
+        />
 
         <!-- 顶部控件（tap 弹出） -->
         <transition name="ctrl-fade">
@@ -128,9 +153,11 @@
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
+import ClimaxInterludeOverlay from '@/components/lyric/ClimaxInterludeOverlay.vue';
 import GlitchBackground from '@/components/lyric/GlitchBackground.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
+import StaggeredClimaxLyrics from '@/components/lyric/StaggeredClimaxLyrics.vue';
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
@@ -139,7 +166,7 @@ import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
-import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
+import { artistList, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drumDetector } from '@/services/drumDetector';
 import { usePlayerStore } from '@/store/modules/player';
@@ -182,7 +209,9 @@ const {
   effects,
   styleVars,
   isCustom,
-  customBackgroundActive
+  customBackgroundActive,
+  selectedFontFamily,
+  customFontActive
 } = usePlayerStyleAppearance('frenzy');
 const wordPlayback = useWordTimedPlayback();
 
@@ -329,7 +358,7 @@ const progressPercent = computed(() => {
   return (currentTime.value / duration.value) * 100;
 });
 const frenzyFontFamily = computed(
-  () => styleCfg.value.customFontFamily || "var(--m-font-art, 'Inter', sans-serif)"
+  () => selectedFontFamily.value || "var(--m-font-art, 'Inter', sans-serif)"
 );
 const showWordDrop = computed(
   () =>
@@ -337,6 +366,14 @@ const showWordDrop = computed(
     styleEngine.isInClimax &&
     effects.value.wordDrop &&
     wordPlayback.available.value
+);
+const showStaggered = computed(
+  () =>
+    !showFullLyrics.value &&
+    !showWordDrop.value &&
+    styleEngine.isInClimax &&
+    effects.value.staggered &&
+    Boolean(wordPlayback.currentDisplayLine.value?.words?.length)
 );
 
 // ==================== 巨字歌词拆分 ====================
@@ -349,10 +386,7 @@ const showWordDrop = computed(
  * 3. 只有一部分时，第二行为空
  */
 const currentLyricParts = computed(() => {
-  const idx = nowIndex.value;
-  if (idx < 0 || idx >= lrcArray.value.length) return ['', ''];
-
-  const text = lrcArray.value[idx]?.text || '';
+  const text = wordPlayback.currentDisplayLine.value?.text || '';
   if (!text) return ['', ''];
 
   // 尝试在自然分隔处拆分

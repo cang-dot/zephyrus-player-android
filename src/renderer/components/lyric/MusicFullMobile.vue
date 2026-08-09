@@ -22,6 +22,7 @@
         { 'is-dark': isDark },
         {
           'player-style-customized': isCustom,
+          'player-style-custom-font': customFontActive,
           'player-style-custom-background': customBackgroundActive
         }
       ]"
@@ -238,6 +239,12 @@
             >
               <div class="progress-track">
                 <div
+                  v-for="(marker, index) in climaxMarkerStyles"
+                  :key="`landscape-climax-${index}`"
+                  class="climax-progress-marker"
+                  :style="marker"
+                ></div>
+                <div
                   v-if="!transitionStore.isCrossfadingUI || !transitionStore.currentSongEnded"
                   class="progress-fill"
                   :class="{ 'fading-out': transitionStore.currentSongEnded }"
@@ -366,6 +373,12 @@
           >
             <div class="progress-track">
               <div
+                v-for="(marker, index) in climaxMarkerStyles"
+                :key="`portrait-climax-${index}`"
+                class="climax-progress-marker"
+                :style="marker"
+              ></div>
+              <div
                 v-if="!transitionStore.isCrossfadingUI || !transitionStore.currentSongEnded"
                 class="progress-fill"
                 :class="{ 'fading-out': transitionStore.currentSongEnded }"
@@ -440,6 +453,7 @@ import {
 import { useArtist } from '@/hooks/useArtist';
 import { usePlayMode } from '@/hooks/usePlayMode';
 import { usePlayerStore } from '@/store/modules/player';
+import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useTransitionStore } from '@/store/modules/transition';
 import { DEFAULT_LYRIC_CONFIG, LyricConfig } from '@/types/lyric';
 import { getImgUrl, secondToMinute } from '@/utils';
@@ -448,8 +462,10 @@ import { showBottomToast } from '@/utils/shortcutToast';
 
 const { t } = useI18n();
 const playerStore = usePlayerStore();
+const styleEngine = useStyleEngineStore();
 const transitionStore = useTransitionStore();
-const { styleVars, isCustom, customBackgroundActive } = usePlayerStyleAppearance('default');
+const { styleVars, isCustom, customBackgroundActive, customFontActive } =
+  usePlayerStyleAppearance('default');
 
 // ==================== Crossfade 进度条动画 ====================
 
@@ -474,6 +490,19 @@ const thumbPosition = computed(() => {
     return `${transitionStore.nextProgress}%`;
   }
   return `${(nowTime.value / Math.max(1, allTime.value)) * 100}%`;
+});
+
+const climaxMarkerStyles = computed(() => {
+  const duration = Math.max(0, allTime.value);
+  if (!duration) return [];
+  return styleEngine.climaxSegments.map((segment) => {
+    const start = Math.max(0, Math.min(duration, segment.start));
+    const end = Math.max(start, Math.min(duration, segment.end));
+    return {
+      left: `${(start / duration) * 100}%`,
+      width: `${Math.max(0.5, ((end - start) / duration) * 100)}%`
+    };
+  });
 });
 
 // 播放控制相关
@@ -1306,6 +1335,19 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
     .progress-track {
       @apply relative w-full h-2 bg-white bg-opacity-20 rounded-full;
 
+      .climax-progress-marker {
+        position: absolute;
+        top: -2px;
+        z-index: 2;
+        height: calc(100% + 4px);
+        min-width: 2px;
+        border-radius: 999px;
+        background: var(--accent-color, #ff7068);
+        box-shadow: 0 0 7px color-mix(in srgb, var(--accent-color, #ff7068) 70%, transparent);
+        opacity: 0.85;
+        pointer-events: none;
+      }
+
       .progress-fill {
         @apply absolute top-0 left-0 h-full bg-white rounded-full;
         box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
@@ -1332,7 +1374,7 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
       .progress-thumb {
         @apply absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-white;
         box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
-        z-index: 2;
+        z-index: 3;
         transition: transform 0.15s ease-out;
 
         &.active {

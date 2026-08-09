@@ -6,6 +6,7 @@ import {
   resolvePlayerStyleEffects
 } from '@/config/playerStyleConfig';
 import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from '@/types/playerStyle';
+import { ensureFontLoaded } from '@/utils/fontLoader';
 
 export function useStyleCustomConfig(styleKey: MobilePlayerStyleKey) {
   const savedConfig = ref<PlayerStyleCustomConfig>(resolvePlayerStyleConfig(styleKey));
@@ -16,6 +17,9 @@ export function useStyleCustomConfig(styleKey: MobilePlayerStyleKey) {
       const parsed = saved ? JSON.parse(saved) : {};
       savedConfig.value = resolvePlayerStyleConfig(styleKey, parsed.styleCustomConfig?.[styleKey]);
       installCustomFont(styleKey, savedConfig.value);
+      if (savedConfig.value.mode === 'custom' && savedConfig.value.builtinFontId) {
+        void ensureFontLoaded(savedConfig.value.builtinFontId);
+      }
     } catch {
       savedConfig.value = resolvePlayerStyleConfig(styleKey);
     }

@@ -838,11 +838,11 @@
 .player-style-surface.player-style-customized .current-lyric,
 .player-style-surface.player-style-customized .current-lyric-text {
   color: var(--player-style-lyric-color) !important;
-  font-family: var(--player-style-font-family, inherit) !important;
 }
 
-.player-style-surface.player-style-customized {
-  font-family: var(--player-style-font-family, inherit);
+.player-style-surface.player-style-custom-font {
+  font-family: var(--player-style-font-family, var(--player-style-resolved-font, inherit));
+  font-weight: var(--player-style-font-weight, 600);
 }
 
 .player-style-surface.player-style-custom-background {
@@ -861,7 +861,6 @@
   mix-blend-mode: multiply;
 }
 
-.player-style-surface.player-style-customized .giant-text,
 .player-style-surface.player-style-customized .neon-lyrics,
 .player-style-surface.player-style-customized .fallback-lyrics,
 .player-style-surface.player-style-customized .lyrics-center,
@@ -870,7 +869,24 @@
 .player-style-surface.player-style-customized .lyrics-main,
 .player-style-surface.player-style-customized .lyric-main {
   color: var(--player-style-lyric-color) !important;
-  font-family: var(--player-style-font-family, inherit) !important;
+}
+
+.player-style-surface.player-style-custom-font .lyrics-main,
+.player-style-surface.player-style-custom-font .lyric-main,
+.player-style-surface.player-style-custom-font .lyric-line,
+.player-style-surface.player-style-custom-font .current-lyric,
+.player-style-surface.player-style-custom-font .current-lyric-text,
+.player-style-surface.player-style-custom-font .giant-text,
+.player-style-surface.player-style-custom-font .neon-lyrics,
+.player-style-surface.player-style-custom-font .fallback-lyrics,
+.player-style-surface.player-style-custom-font .lyrics-center,
+.player-style-surface.player-style-custom-font .lyrics-area,
+.player-style-surface.player-style-custom-font .lyrics-layer {
+  font-family: var(
+    --player-style-font-family,
+    var(--player-style-resolved-font, inherit)
+  ) !important;
+  font-weight: var(--player-style-font-weight, 600) !important;
 }
 
 .player-style-surface.player-style-customized .translation,

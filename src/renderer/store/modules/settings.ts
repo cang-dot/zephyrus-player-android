@@ -226,7 +226,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
     // 更新store状态
     if (shouldUseMobileStyle) {
-      menuStore.setMenus(homeRouter.filter((item) => item.meta.isMobile));
+      menuStore.setMenus(homeRouter.filter((item) => item.meta.bottomNav));
     } else {
       menuStore.setMenus(homeRouter);
     }

@@ -10,19 +10,23 @@ const loadedFonts = new Map<string, FontFace>();
 
 /** 正在加载中的字体 Promise (防止重复加载) */
 const loadingPromises = new Map<string, Promise<FontFace>>();
+const fontAssetUrls = import.meta.glob('../assets/fonts/*.{ttf,otf,woff,woff2}', {
+  eager: true,
+  query: '?url',
+  import: 'default'
+}) as Record<string, string>;
+const fontLicenseUrls = import.meta.glob('../assets/fonts/licenses/*.txt', {
+  eager: true,
+  query: '?url',
+  import: 'default'
+}) as Record<string, string>;
 
 /**
  * 获取字体文件的 URL
  * 使用 Vite 的 import.meta.url 模式，确保 dev 和 build 环境下路径正确
  */
 function getFontUrl(fontDef: FontDef): string {
-  try {
-    // Vite 会正确处理 new URL + import.meta.url 模式
-    return new URL(`../assets/fonts/${fontDef.file}`, import.meta.url).href;
-  } catch {
-    // 降级：使用相对路径
-    return `./assets/fonts/${fontDef.file}`;
-  }
+  return fontAssetUrls[`../assets/fonts/${fontDef.file}`] || `./assets/fonts/${fontDef.file}`;
 }
 
 /**
@@ -42,7 +46,7 @@ export async function loadFont(fontDef: FontDef): Promise<FontFace> {
   const url = getFontUrl(fontDef);
   const fontFace = new FontFace(fontDef.family, `url("${url}")`, {
     style: 'normal',
-    weight: 'normal'
+    weight: fontDef.weight || 'normal'
   });
 
   const promise = fontFace
@@ -94,10 +98,20 @@ export async function preloadAllFonts(): Promise<void> {
  */
 export function getFontFamily(fontId: string): string {
   const fontDef = BUILTIN_FONTS.find((f) => f.id === fontId);
-  if (fontDef && loadedFonts.has(fontDef.id)) {
+  if (fontDef) {
     return `'${fontDef.family}', sans-serif`;
   }
   return `'HengShanMaoXing', 'PingFang SC', sans-serif`;
+}
+
+export function getFontDefinition(fontId: string): FontDef | undefined {
+  return BUILTIN_FONTS.find((font) => font.id === fontId);
+}
+
+export function getFontLicenseUrl(fontId: string): string | undefined {
+  const font = getFontDefinition(fontId);
+  if (!font?.licenseFile) return undefined;
+  return fontLicenseUrls[`../assets/fonts/licenses/${font.licenseFile}`];
 }
 
 /**

@@ -63,13 +63,7 @@ jobs:
           alias: ${{ secrets.ANDROID_KEY_ALIAS }}
           keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        continue-on-error: true
-
-      - name: Fallback to unsigned if signing fails
-        if: steps.sign_apk.outcome == 'failure'
-        run: |
-          echo "Signing failed, using unsigned release APK"
-          cp android/app/build/outputs/apk/release/*.apk android/app/build/outputs/apk/release/zephyrus-player.apk
+        continue-on-error: false
 
       - name: Rename APK
         run: |
@@ -77,14 +71,9 @@ jobs:
           # r0adkll/sign-android-release@v1 固定输出 app-release-unsigned-signed.apk
           # （其 SIGNED_RELEASE_FILE 输出使用废弃的 set-output，当前 runner 上不可靠）
           SIGNED="$APK_DIR/app-release-unsigned-signed.apk"
-          if [ -f "$SIGNED" ]; then
-            cp "$SIGNED" "zephyrus-player-${{ github.ref_name }}.apk"
-            echo "Using signed APK: $SIGNED"
-          else
-            cp "$APK_DIR/app-release-unsigned.apk" "zephyrus-player-${{ github.ref_name }}.apk" 2>/dev/null || \
-            cp "$APK_DIR"/*.apk "zephyrus-player-${{ github.ref_name }}.apk"
-            echo "WARNING: signing output not found, using unsigned APK"
-          fi
+          test -f "$SIGNED"
+          cp "$SIGNED" "zephyrus-player-${{ github.ref_name }}.apk"
+          echo "Using signed APK: $SIGNED"
           ls -la "zephyrus-player-${{ github.ref_name }}.apk"
 
       - name: Upload artifact

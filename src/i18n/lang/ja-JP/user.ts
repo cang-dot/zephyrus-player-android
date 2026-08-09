@@ -18,7 +18,13 @@ export default {
   },
   ranking: {
     title: '聴取ランキング',
-    playCount: '{count}回'
+    playCount: '{count}回',
+    empty: '再生履歴はありません'
+  },
+  statistics: {
+    plays: '総再生数',
+    rankedSongs: 'ランキング曲',
+    platforms: '連携サービス'
   },
   follow: {
     title: 'フォローリスト',

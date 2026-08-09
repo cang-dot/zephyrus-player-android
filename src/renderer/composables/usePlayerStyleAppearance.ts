@@ -4,6 +4,7 @@ import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { playMusic } from '@/hooks/MusicHook';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import type { MobilePlayerStyleKey, PlayerStyleColorChoice } from '@/types/playerStyle';
+import { getFontFamily } from '@/utils/fontLoader';
 
 type PlayerAppearanceVars = Record<string, string>;
 
@@ -17,6 +18,19 @@ function resolveChoice(choice: PlayerStyleColorChoice, themeColor: string): stri
   return choice.source === 'theme' ? themeColor : choice.customColor;
 }
 
+function saturateHex(color: string): string {
+  const match = color.match(/^#([0-9a-f]{6})$/i);
+  if (!match) return color;
+  const values = [0, 1, 2].map((i) => Number.parseInt(match[1].slice(i * 2, i * 2 + 2), 16));
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const spread = Math.max(1, max - min);
+  return `#${values
+    .map((value) => Math.min(255, Math.round(min + ((value - min) * 1.55 * 255) / spread)))
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
 export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
   const { config, effects, isCustom } = useStyleCustomConfig(styleKey);
   const styleEngine = useStyleEngineStore();
@@ -27,6 +41,7 @@ export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
       playMusic.value?.backgroundColor ||
       'var(--accent-color, #ffffff)'
   );
+  const saturatedThemeColor = computed(() => saturateHex(themeColor.value));
   const customBackgroundActive = computed(() => isCustom.value && config.value.useCustomBackground);
   const background = computed(() => {
     if (!customBackgroundActive.value) return 'transparent';
@@ -44,6 +59,12 @@ export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
   });
 
   const baseLyricColor = computed(() => config.value.lyricColor || '#ffffff');
+  const selectedFontFamily = computed(() => {
+    if (!isCustom.value) return '';
+    if (config.value.builtinFontId) return getFontFamily(config.value.builtinFontId);
+    return config.value.customFontFamily || '';
+  });
+  const customFontActive = computed(() => Boolean(selectedFontFamily.value));
   const climaxColors = computed(() => {
     const base = baseLyricColor.value;
     const mainThemeEnabled = !['stage', 'frenzy'].includes(styleKey) || effects.value.lyricColor;
@@ -81,7 +102,13 @@ export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
     '--player-style-lyric-color': climaxColors.value.main,
     '--player-style-auxiliary-color': climaxColors.value.auxiliary,
     '--player-style-translation-color': climaxColors.value.translation,
-    '--player-style-font-family': config.value.customFontFamily || 'inherit'
+    '--player-style-font-family':
+      selectedFontFamily.value || 'var(--player-style-resolved-font, inherit)',
+    '--player-style-font-weight': String(config.value.fontWeight || 600),
+    '--player-style-drop-font-weight': String(
+      isCustom.value ? config.value.wordDropFontWeight || 900 : 900
+    ),
+    '--player-style-font-stretch': String(config.value.smokeFontStretch || 1)
   }));
 
   return {
@@ -93,6 +120,9 @@ export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
     baseLyricColor,
     climaxColors,
     themeColor,
+    saturatedThemeColor,
+    selectedFontFamily,
+    customFontActive,
     styleVars
   };
 }

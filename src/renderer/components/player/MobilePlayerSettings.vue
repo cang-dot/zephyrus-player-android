@@ -691,7 +691,13 @@ import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from '
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
-import { loadClimaxForSong, normalizeClimaxSegments, uploadClimax } from '@/api/climax';
+import {
+  type ClimaxEntry,
+  loadClimaxForSong,
+  normalizeClimaxSegments,
+  queryClimax,
+  uploadClimax
+} from '@/api/climax';
 import { searchServerSongs } from '@/api/serverSongs';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
@@ -700,7 +706,9 @@ import { useMetaphor } from '@/features/lyric-metaphor/useMetaphor';
 import { lrcArray, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
 import { isLocalSong } from '@/hooks/useLocalMusic';
-import { getLocalClimax, saveLocalClimax } from '@/services/cacheService';
+import { deleteClimaxCache, getLocalClimax, saveLocalClimax } from '@/services/cacheService';
+import { useClimaxStore } from '@/store/modules/climax';
+import { useCommunityDataStore } from '@/store/modules/communityData';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useUserStore } from '@/store/modules/user';
@@ -715,6 +723,8 @@ const { t } = useI18n();
 const router = useRouter();
 const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
+const climaxStore = useClimaxStore();
+const communityDataStore = useCommunityDataStore();
 const userStore = useUserStore();
 const { navigateToArtist } = useArtist();
 const message = window.$message;
@@ -942,10 +952,21 @@ async function saveManualClimax() {
   const song = playMusic.value;
   if (!song) return;
   const songId = String(song.id);
-  const segments = manualClimaxSegments.value.map((s) => ({ start: s.start, end: s.end }));
-  await saveLocalClimax(songId, { segments, contributor: '手动标记' });
-  styleEngine.climaxSegments = segments as any;
+  const segments = normalizeClimaxSegments(manualClimaxSegments.value, songDuration.value);
+  manualClimaxSegments.value = segments.map((segment) => ({ ...segment }));
+  manualClimaxSaveQueue = manualClimaxSaveQueue
+    .catch(() => undefined)
+    .then(() => saveLocalClimax(songId, { segments, contributor: '手动标记' }));
+  await manualClimaxSaveQueue;
+  if (String(playMusic.value?.id || '') !== songId) return;
+  communityDataStore.currentSongId = songId;
+  communityDataStore.climaxSegments = segments;
+  communityDataStore.climaxContributor = '手动标记';
+  climaxStore.updateSegments(segments, songId, '手动标记');
+  styleEngine.setClimaxSegments(segments);
 }
+
+let manualClimaxSaveQueue: Promise<void> = Promise.resolve();
 
 const uploadingClimax = ref(false);
 
@@ -954,8 +975,9 @@ async function uploadManualClimax() {
   if (!song || manualClimaxSegments.value.length === 0 || isLocalSong(song)) return;
   uploadingClimax.value = true;
   try {
-    await uploadClimax({
-      songId: String(song.platformId || song.id),
+    const remoteSongId = String(song.platformId || song.id);
+    const response = await uploadClimax({
+      songId: remoteSongId,
       songName: song.name || '',
       artist: song.ar?.map((artist) => artist.name).join('/') || '',
       album: song.al?.name || '',
@@ -963,6 +985,12 @@ async function uploadManualClimax() {
       segments: manualClimaxSegments.value,
       contributorName: userStore.user?.nickname || 'Anonymous'
     });
+    await Promise.all([
+      deleteClimaxCache(remoteSongId),
+      remoteSongId === String(song.id) ? Promise.resolve() : deleteClimaxCache(String(song.id))
+    ]);
+    cloudClimaxResults.value = [cloudResultFromEntry(response.entry, '刚刚上传')];
+    cloudClimaxSearched.value = true;
     message?.success('高潮标注已上传到服务器');
   } catch (error) {
     console.error('[MobileClimax] 上传高潮标注失败:', error);
@@ -977,8 +1005,11 @@ async function loadManualClimax() {
   if (!song) return;
   const songId = String(song.id);
   const data = await getLocalClimax(songId);
-  if (data?.segments?.length) {
-    manualClimaxSegments.value = data.segments.map((s) => ({ start: s.start, end: s.end }));
+  if (String(playMusic.value?.id || '') !== songId) return;
+  if (data != null) {
+    manualClimaxSegments.value = normalizeClimaxSegments(data.segments, songDuration.value).map(
+      (segment) => ({ ...segment })
+    );
   } else {
     manualClimaxSegments.value = styleEngine.climaxSegments.map((s) => ({
       start: s.start,
@@ -1000,6 +1031,16 @@ const cloudClimaxLoading = ref(false);
 const cloudClimaxSearched = ref(false);
 const cloudClimaxResults = ref<CloudClimaxResult[]>([]);
 
+function cloudResultFromEntry(entry: ClimaxEntry, source = 'community'): CloudClimaxResult {
+  return {
+    songName: entry.song_name,
+    artist: entry.artist,
+    segments: normalizeClimaxSegments(entry.segments, entry.duration),
+    contributor: entry.contributor_name || '社区用户',
+    source
+  };
+}
+
 async function queryCloudClimax() {
   const song = playMusic.value;
   if (!song?.name) return;
@@ -1010,16 +1051,41 @@ async function queryCloudClimax() {
 
   try {
     const songName = song.name.trim();
-    const serverSongs = await searchServerSongs(songName, 10);
+    const remoteSongId = String(song.platformId || song.id);
+    const [directResult, serverSongs] = await Promise.all([
+      queryClimax(remoteSongId).catch((error) => {
+        console.warn('[MobileClimax] 按歌曲 ID 查询失败:', error);
+        return { entries: [], activeEntryId: null };
+      }),
+      searchServerSongs(songName, 10).catch((error) => {
+        console.warn('[MobileClimax] 自有曲库搜索失败:', error);
+        return [];
+      })
+    ]);
     const matched = serverSongs.filter((s) => s.name === songName);
     const results: CloudClimaxResult[] = [];
+    const seen = new Set<string>();
+    const pushResult = (result: CloudClimaxResult) => {
+      if (result.segments.length === 0) return;
+      const key = `${result.songName}|${result.artist}|${result.segments
+        .map((segment) => `${segment.start}-${segment.end}`)
+        .join(',')}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      results.push(result);
+    };
 
-    // 1. 收集 songs.json 中自带的高潮数据
+    // 1. 普通网易云 / QQ 歌曲按平台歌曲 ID 直接查询。
+    for (const entry of directResult.entries) {
+      pushResult(cloudResultFromEntry(entry));
+    }
+
+    // 2. 补充自有曲库 songs.json 中的高潮数据。
     for (const ss of matched) {
       if (ss.climax && ss.climax.length > 0) {
         const normalized = normalizeClimaxSegments(ss.climax, ss.duration);
         if (normalized.length > 0) {
-          results.push({
+          pushResult({
             songName: ss.name,
             artist: ss.artists.join(' / '),
             segments: normalized.map((s) => ({ start: s.start, end: s.end })),
@@ -1029,10 +1095,10 @@ async function queryCloudClimax() {
         }
       }
 
-      // 2. 查询社区标注的高潮数据
+      // 3. 查询自有曲库歌曲 ID 对应的社区标注。
       const communityResult = await loadClimaxForSong(ss.id);
       if (communityResult.segments && communityResult.segments.length > 0) {
-        results.push({
+        pushResult({
           songName: ss.name,
           artist: ss.artists.join(' / '),
           segments: communityResult.segments.map((s) => ({ start: s.start, end: s.end })),
@@ -1197,6 +1263,12 @@ const playerStyles = computed<
     label: tr('player.styles.rain', '雨夜'),
     icon: 'ri-rainy-line',
     color: '#3b82f6'
+  },
+  {
+    key: 'smoke' as const,
+    label: tr('player.styles.smoke', '烟雾'),
+    icon: 'ri-cloudy-line',
+    color: '#14b8a6'
   }
 ]);
 

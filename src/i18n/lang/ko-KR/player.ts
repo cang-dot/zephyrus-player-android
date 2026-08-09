@@ -121,7 +121,8 @@ export default {
     frenzy: '프렌지',
     eerie: '기이',
     neon: '노후화',
-    rain: '비 오는 밤'
+    rain: '비 오는 밤',
+    smoke: '연무'
   },
   styleCustomization: {
     title: '스타일 설정',
@@ -131,6 +132,8 @@ export default {
     appearance: '외관',
     lyricColor: '기본 가사 색상',
     font: '글꼴',
+    styleDefaultFont: '스타일 기본값',
+    fontWeight: '글꼴 굵기',
     importFont: '글꼴 가져오기',
     customBackground: '사용자 배경',
     solid: '단색',
@@ -146,11 +149,13 @@ export default {
     customColor: '사용자 색상',
     mainLyric: '메인 가사',
     auxiliary: '배경 / 듀엣',
+    auxiliaryCenterDisplay: '배경 / 듀엣 단어 중앙 크게 표시',
     translation: '번역',
     climaxEffects: '클라이맥스 효과',
     lyricRecolor: '가사 색상 변경',
     keyword: '강조 글자',
     wordDrop: '단어 낙하',
+    staggered: '엇갈림',
     styleEffects: '스타일 매개변수',
     beatFlash: '비트 플래시',
     newspaperFrequency: '신문 표시 빈도',
@@ -158,7 +163,18 @@ export default {
     glowRadius: '광원 반경',
     pulseSpeed: '펄스 속도',
     giantSize: '대형 글자 크기',
-    flipSpeed: '페이지 전환 속도'
+    wordDropFontWeight: '낙하 글자 굵기',
+    flipSpeed: '페이지 전환 속도',
+    staggeredSize: '단어 크기',
+    staggeredRowGap: '행 간격',
+    staggeredOffset: 'Y축 오프셋',
+    staggeredRotation: '회전 오프셋',
+    smokeDensity: '연무 밀도',
+    smokeChaos: '연무 혼란도',
+    smokeLoudnessResponse: '음량 반응',
+    smokeOpacity: '연무 불투명도',
+    smokeVignette: '클라이맥스 비네트',
+    smokeFontStretch: '글꼴 늘이기'
   },
   sleepTimer: {
     title: '타이머 종료',

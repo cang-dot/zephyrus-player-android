@@ -1,5 +1,6 @@
 export default {
   more: '더 보기',
+  discover: '발견',
   homeListItem: {
     loading: '로딩 중...'
   },
@@ -152,6 +153,20 @@ export default {
       playHistory: '재생 기록',
       myProfile: '내 프로필',
       toplist: '순위'
+    }
+  },
+  modularHome: {
+    done: '완료',
+    addBlock: '기능 추가',
+    loginToUnlock: '로그인하여 잠금 해제',
+    viewProfile: '프로필 보기',
+    tapToExplore: '탭하여 탐색',
+    dropAsCard: '여기에 놓아 카드로 만들기',
+    dropAsBlock: '여기에 놓아 기능 블록으로 만들기',
+    dailyAlbumDesc: '즐겨찾는 앨범에서 무작위 추천',
+    blocks: {
+      user: '내 정보',
+      dailyAlbum: '오늘의 앨범'
     }
   },
   searchBar: {

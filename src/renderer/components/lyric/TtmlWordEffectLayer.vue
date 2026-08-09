@@ -1,8 +1,13 @@
 <template>
   <div class="ttml-word-effect-layer" aria-hidden="true">
-    <TransitionGroup name="ttml-auxiliary" tag="div" class="ttml-auxiliary-layer">
+    <TransitionGroup
+      name="ttml-auxiliary"
+      tag="div"
+      class="ttml-auxiliary-layer"
+      :class="{ 'is-centered': centerAuxiliary }"
+    >
       <span
-        v-for="token in auxiliaryTokens"
+        v-for="token in visibleAuxiliaryTokens"
         :key="token.key"
         class="ttml-auxiliary-token"
         :class="`slot-${token.slot}`"
@@ -32,11 +37,24 @@ import { computed } from 'vue';
 
 import type { WordAuxiliaryToken, WordPlaybackToken } from '@/composables/useWordTimedPlayback';
 
-const props = defineProps<{
-  auxiliaryTokens: WordAuxiliaryToken[];
-  mainToken: WordPlaybackToken | null;
-  showDrop: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    auxiliaryTokens: WordAuxiliaryToken[];
+    mainToken: WordPlaybackToken | null;
+    showDrop: boolean;
+    centerAuxiliary?: boolean;
+  }>(),
+  { centerAuxiliary: false }
+);
+
+const visibleAuxiliaryTokens = computed(() => {
+  if (!props.centerAuxiliary) return props.auxiliaryTokens;
+  const latest = props.auxiliaryTokens.reduce<WordAuxiliaryToken | null>(
+    (selected, token) => (!selected || token.begin >= selected.begin ? token : selected),
+    null
+  );
+  return latest ? [{ ...latest, slot: 0 }] : [];
+});
 
 const isTtmlToken = computed(() => props.mainToken?.key.startsWith('ttml:') === true);
 const ttmlDropTokenStyle = computed(() => {
@@ -90,6 +108,19 @@ const ttmlDropTokenStyle = computed(() => {
   left: 17%;
   transform: rotate(-2deg);
 }
+.ttml-auxiliary-layer.is-centered {
+  display: grid;
+  place-items: center;
+  padding: 8vw;
+}
+.ttml-auxiliary-layer.is-centered .ttml-auxiliary-token {
+  position: static;
+  max-width: 84vw;
+  font-size: clamp(112px, 40vw, 420px);
+  line-height: 0.86;
+  opacity: 0.16;
+  transform: none;
+}
 
 .ttml-drop-token {
   position: absolute;
@@ -100,7 +131,7 @@ const ttmlDropTokenStyle = computed(() => {
   padding: 10vw;
   color: var(--player-style-lyric-color, currentColor);
   font-size: clamp(112px, 42vw, 420px);
-  font-weight: 900;
+  font-weight: var(--player-style-drop-font-weight, 900);
   line-height: 0.82;
   text-align: center;
   overflow-wrap: anywhere;
@@ -167,6 +198,17 @@ const ttmlDropTokenStyle = computed(() => {
   from {
     opacity: 0;
     filter: blur(7px);
+  }
+}
+
+@media (orientation: landscape) {
+  .ttml-auxiliary-layer.is-centered .ttml-auxiliary-token {
+    font-size: clamp(104px, 58vh, 300px);
+  }
+  .ttml-drop-token {
+    inset: 0 0 clamp(24px, 12vh, 64px);
+    padding: clamp(16px, 4vh, 36px) 10vw;
+    font-size: clamp(104px, 60vh, 280px);
   }
 }
 

@@ -1,12 +1,12 @@
 <template>
   <div
-    ref="playBarRef"
     class="mobile-play-bar"
     :class="[
       setAnimationClass('animate__fadeInUp'),
       playerStore.musicFull ? 'play-bar-expanded' : 'play-bar-mini',
       shouldShowMobileMenu ? 'is-menu-show' : 'is-menu-hide',
-      isCompactNav && shouldShowMobileMenu ? 'compact-nav' : ''
+      isCompactNav && shouldShowMobileMenu ? 'compact-nav' : '',
+      idleCollapsed && !playerStore.musicFull ? 'idle-collapsed' : ''
     ]"
     :style="{
       color: playerStore.musicFull
@@ -19,9 +19,22 @@
     }"
   >
     <!-- 迷你模式 - musicFull 为 false 时显示 -->
-    <div v-if="!playerStore.musicFull" class="mobile-mini-controls">
+    <div
+      v-if="!playerStore.musicFull"
+      class="mobile-mini-controls"
+      :class="{
+        'is-swipe-active': miniSwipeAxis === 'horizontal' || miniSwipeSwitching,
+        'is-swipe-animating': miniSwipeAnimating
+      }"
+      :style="miniSwipeStyle"
+      @click.capture="onMiniClickCapture"
+      @pointerdown="onMiniPointerDown"
+      @pointermove="onMiniPointerMove"
+      @pointerup="onMiniPointerUp"
+      @pointercancel="onMiniPointerCancel"
+    >
       <!-- 歌曲信息 -->
-      <div class="mini-song-info" @click="setMusicFull">
+      <div class="mini-song-info" @click="onMiniSongInfoClick">
         <n-image
           :src="getImgUrl(playMusic?.picUrl, '100y100')"
           class="mini-song-cover"
@@ -61,21 +74,53 @@
 </template>
 
 <script lang="ts" setup>
-import { useSwipe } from '@vueuse/core';
 import type { Ref } from 'vue';
-import { computed, inject, onMounted, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl, setAnimationClass } from '@/utils';
+import { shouldRestartMiniPlayerIdleTimer } from '@/utils/miniPlayerIdle';
 
 const shouldShowMobileMenu = inject('shouldShowMobileMenu') as Ref<boolean>;
 const isCompactNav = inject('isCompactNav', ref(false)) as Ref<boolean>;
+const emit = defineEmits<{
+  (event: 'idle-collapse-change', collapsed: boolean): void;
+}>();
 
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
+const route = useRoute();
+const idleCollapsed = ref(false);
+let idleTimer: ReturnType<typeof setTimeout> | undefined;
+let miniLongPressTimer: ReturnType<typeof setTimeout> | undefined;
+let miniLongPressTriggered = false;
+let miniPointerStartedCollapsed = false;
+
+const clearIdleTimer = () => {
+  if (!idleTimer) return;
+  clearTimeout(idleTimer);
+  idleTimer = undefined;
+};
+
+const scheduleIdleCollapse = () => {
+  clearIdleTimer();
+  if (playerStore.musicFull) return;
+  idleTimer = setTimeout(() => {
+    if (!playerStore.musicFull && !miniPointerActive && !miniSwipeSwitching.value) {
+      idleCollapsed.value = true;
+    }
+    idleTimer = undefined;
+  }, 3000);
+};
+
+const resetIdleTimer = () => {
+  idleCollapsed.value = false;
+  scheduleIdleCollapse();
+};
 
 // 是否播放
 const play = computed(() => playerStore.isPlay);
@@ -84,11 +129,11 @@ const background = ref('#000');
 
 // 播放控制
 function handleNext() {
-  playerStore.nextPlay();
+  return playerStore.nextPlay();
 }
 
 function handlePrev() {
-  playerStore.prevPlay();
+  return playerStore.prevPlay();
 }
 
 // 全屏播放器引用
@@ -96,10 +141,25 @@ const MusicFullRef = ref<any>(null);
 
 // 设置 musicFull
 const setMusicFull = () => {
+  clearIdleTimer();
+  idleCollapsed.value = false;
   playerStore.setMusicFull(!playerStore.musicFull);
   if (playerStore.musicFull) {
     settingsStore.showArtistDrawer = false;
   }
+};
+
+const onMiniSongInfoClick = () => {
+  if (miniLongPressTriggered) {
+    miniLongPressTriggered = false;
+    return;
+  }
+  if (miniPointerStartedCollapsed || idleCollapsed.value) {
+    miniPointerStartedCollapsed = false;
+    resetIdleTimer();
+    return;
+  }
+  setMusicFull();
 };
 
 watch(
@@ -111,11 +171,13 @@ watch(
 
 // 打开播放列表抽屉
 const openPlayListDrawer = () => {
+  resetIdleTimer();
   playerStore.setPlayListDrawerVisible(true);
 };
 
 // 播放暂停按钮事件
 const playMusicEvent = async () => {
+  resetIdleTimer();
   try {
     playerStore.setPlay(playMusic.value);
   } catch (error) {
@@ -124,24 +186,217 @@ const playMusicEvent = async () => {
   }
 };
 
-// 滑动切歌
-const playBarRef = ref<HTMLElement | null>(null);
-onMounted(() => {
-  if (playBarRef.value) {
-    const { direction } = useSwipe(playBarRef, {
-      onSwipeEnd: () => {
-        if (direction.value === 'left') handleNext();
-        if (direction.value === 'right') handlePrev();
-      },
-      threshold: 30
-    });
+// 迷你播放栏滑动切歌：先跟手移动，提交后旧内容滑出、新内容从反方向滑入。
+const miniSwipeOffset = ref(0);
+const miniSwipeAnimating = ref(false);
+const miniSwipeSwitching = ref(false);
+const miniSwipeAxis = ref<'none' | 'horizontal' | 'vertical'>('none');
+const suppressMiniClick = ref(false);
+// Keep the gesture compact so a track change reads as a nudge, not a displaced bar.
+const getMiniSwipeLimit = () => Math.min(36, Math.max(28, window.innerWidth * 0.085));
+const miniSwipeProgress = computed(() =>
+  Math.min(Math.abs(miniSwipeOffset.value) / getMiniSwipeLimit(), 1)
+);
+const miniSwipeStyle = computed(() => ({
+  transform: `translate3d(${miniSwipeOffset.value}px, 0, 0) scale(${1 - miniSwipeProgress.value * 0.012})`,
+  opacity: String(1 - miniSwipeProgress.value * 0.12),
+  '--mini-swipe-rotation': `${miniSwipeOffset.value * 0.018}deg`,
+  '--mini-swipe-content-shift': `${miniSwipeOffset.value * 0.05}px`
+}));
+
+let miniPointerStartX = 0;
+let miniPointerStartY = 0;
+let miniPointerStartTime = 0;
+let miniPointerActive = false;
+let miniPointerId: number | null = null;
+let miniSwipeTimer: ReturnType<typeof setTimeout> | undefined;
+let miniClickTimer: ReturnType<typeof setTimeout> | undefined;
+
+const setMiniClickSuppressed = () => {
+  suppressMiniClick.value = true;
+  if (miniClickTimer) clearTimeout(miniClickTimer);
+  miniClickTimer = setTimeout(() => {
+    suppressMiniClick.value = false;
+    miniClickTimer = undefined;
+  }, 360);
+};
+
+const onMiniClickCapture = (event: MouseEvent) => {
+  if (!suppressMiniClick.value) return;
+  event.preventDefault();
+  event.stopPropagation();
+  suppressMiniClick.value = false;
+};
+
+const onMiniPointerDown = (event: PointerEvent) => {
+  if (
+    miniSwipeSwitching.value ||
+    !event.isPrimary ||
+    (event.button !== 0 && event.pointerType === 'mouse')
+  ) {
+    return;
   }
+  miniPointerStartX = event.clientX;
+  miniPointerStartY = event.clientY;
+  miniPointerStartTime = Date.now();
+  miniPointerActive = true;
+  miniPointerId = event.pointerId;
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  miniSwipeAxis.value = 'none';
+  miniSwipeAnimating.value = false;
+  miniPointerStartedCollapsed = idleCollapsed.value;
+  clearIdleTimer();
+  miniLongPressTriggered = false;
+  if (idleCollapsed.value) {
+    miniLongPressTimer = setTimeout(() => {
+      if (!miniPointerActive || miniSwipeAxis.value !== 'none') return;
+      miniLongPressTriggered = true;
+      setMiniClickSuppressed();
+      playerStore.setMusicFull(true);
+      idleCollapsed.value = false;
+      if (navigator.vibrate) navigator.vibrate(8);
+    }, 520);
+  }
+};
+
+const onMiniPointerMove = (event: PointerEvent) => {
+  if (!miniPointerActive || miniSwipeSwitching.value || event.pointerId !== miniPointerId) return;
+  const deltaX = event.clientX - miniPointerStartX;
+  const deltaY = event.clientY - miniPointerStartY;
+
+  if (miniSwipeAxis.value === 'none' && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
+    miniSwipeAxis.value = Math.abs(deltaX) > Math.abs(deltaY) * 1.08 ? 'horizontal' : 'vertical';
+    if (miniLongPressTimer) {
+      clearTimeout(miniLongPressTimer);
+      miniLongPressTimer = undefined;
+    }
+  }
+  if (miniSwipeAxis.value !== 'horizontal') return;
+
+  event.preventDefault();
+  setMiniClickSuppressed();
+  const maxDrag = getMiniSwipeLimit();
+  miniSwipeOffset.value = maxDrag * Math.tanh(deltaX / maxDrag);
+};
+
+const finishMiniSwipeAnimation = () => {
+  miniSwipeAnimating.value = true;
+  miniSwipeOffset.value = 0;
+  if (miniSwipeTimer) clearTimeout(miniSwipeTimer);
+  miniSwipeTimer = setTimeout(() => {
+    miniSwipeAnimating.value = false;
+    miniSwipeSwitching.value = false;
+    miniSwipeAxis.value = 'none';
+    miniSwipeTimer = undefined;
+  }, 280);
+};
+
+const switchTrackWithAnimation = (direction: 'left' | 'right') => {
+  setMiniClickSuppressed();
+  miniSwipeSwitching.value = true;
+  miniSwipeAnimating.value = true;
+
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (direction === 'left') handleNext();
+    else handlePrev();
+    finishMiniSwipeAnimation();
+    return;
+  }
+
+  const travel = Math.min(getMiniSwipeLimit() * 1.2, 44);
+  const exitOffset = direction === 'left' ? -travel : travel;
+  miniSwipeOffset.value = exitOffset;
+
+  if (miniSwipeTimer) clearTimeout(miniSwipeTimer);
+  miniSwipeTimer = setTimeout(() => {
+    if (direction === 'left') handleNext();
+    else handlePrev();
+
+    miniSwipeAnimating.value = false;
+    miniSwipeOffset.value = -exitOffset * 0.42;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => finishMiniSwipeAnimation());
+    });
+  }, 150);
+};
+
+const releaseMiniPointer = (event: PointerEvent) => {
+  const target = event.currentTarget as HTMLElement;
+  if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+  miniPointerId = null;
+};
+
+const onMiniPointerUp = (event: PointerEvent) => {
+  if (!miniPointerActive || event.pointerId !== miniPointerId) return;
+  const deltaX = event.clientX - miniPointerStartX;
+  const elapsed = Math.max(1, Date.now() - miniPointerStartTime);
+  const projectedX = deltaX + (deltaX / elapsed) * 110;
+  const swipeLimit = getMiniSwipeLimit();
+  const commitThreshold = Math.min(40, Math.max(32, swipeLimit));
+  const projectedThreshold = Math.min(58, Math.max(48, swipeLimit * 1.45));
+  const commit =
+    miniSwipeAxis.value === 'horizontal' &&
+    (Math.abs(deltaX) >= commitThreshold || Math.abs(projectedX) >= projectedThreshold);
+
+  releaseMiniPointer(event);
+  miniPointerActive = false;
+  if (miniLongPressTimer) {
+    clearTimeout(miniLongPressTimer);
+    miniLongPressTimer = undefined;
+  }
+  if (commit) switchTrackWithAnimation(deltaX < 0 ? 'left' : 'right');
+  else finishMiniSwipeAnimation();
+  if (!miniLongPressTriggered) resetIdleTimer();
+};
+
+const onMiniPointerCancel = (event: PointerEvent) => {
+  if (!miniPointerActive || event.pointerId !== miniPointerId) return;
+  releaseMiniPointer(event);
+  miniPointerActive = false;
+  if (miniLongPressTimer) {
+    clearTimeout(miniLongPressTimer);
+    miniLongPressTimer = undefined;
+  }
+  finishMiniSwipeAnimation();
+  resetIdleTimer();
+};
+
+onBeforeUnmount(() => {
+  if (miniSwipeTimer) clearTimeout(miniSwipeTimer);
+  if (miniClickTimer) clearTimeout(miniClickTimer);
+  if (miniLongPressTimer) clearTimeout(miniLongPressTimer);
+  clearIdleTimer();
 });
+
+onMounted(resetIdleTimer);
+
+watch(
+  () => playerStore.musicFull,
+  (isFull) => {
+    if (isFull) {
+      clearIdleTimer();
+      idleCollapsed.value = false;
+      return;
+    }
+    resetIdleTimer();
+  }
+);
+
+watch(
+  () => route.fullPath,
+  () => {
+    if (!shouldRestartMiniPlayerIdleTimer(idleCollapsed.value, playerStore.musicFull)) return;
+    scheduleIdleCollapse();
+  }
+);
+
+watch(idleCollapsed, (collapsed) => emit('idle-collapse-change', collapsed), { immediate: true });
 
 watch(
   () => playerStore.playMusic,
   async () => {
     background.value = playMusic.value.backgroundColor as string;
+    resetIdleTimer();
   },
   { immediate: true, deep: true }
 );
@@ -162,6 +417,14 @@ watch(
 
   &.is-menu-show {
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 60px);
+  }
+
+  &.is-menu-show .mobile-mini-controls {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   &.is-menu-hide {
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
@@ -281,15 +544,38 @@ watch(
   // 迷你模式样式
   .mobile-mini-controls {
     @apply flex items-center justify-between pr-4 mx-3 h-12 rounded-full shadow-lg;
-    background: var(--m-surface, #eae6df);
+    --mini-swipe-duration: 0ms;
+    --mini-swipe-opacity-duration: 0ms;
+    --mini-swipe-ease: cubic-bezier(0.22, 0.84, 0.24, 1.08);
+    background: color-mix(in srgb, var(--m-surface, #eae6df) 66%, transparent);
+    border: 1px solid color-mix(in srgb, var(--m-white, #fff) 22%, transparent);
+    backdrop-filter: blur(24px) saturate(165%);
+    -webkit-backdrop-filter: blur(24px) saturate(165%);
+    touch-action: pan-y;
+    user-select: none;
     /* 内部元素形变过渡 — 与外层同步 */
     transition:
+      transform var(--mini-swipe-duration) var(--mini-swipe-ease),
+      opacity var(--mini-swipe-opacity-duration) ease,
       margin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
       height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
       padding 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
       gap 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
       background 0.5s ease,
       border 0.5s ease;
+
+    &.is-swipe-animating {
+      --mini-swipe-duration: 250ms;
+      --mini-swipe-opacity-duration: 200ms;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      &.is-swipe-animating {
+        --mini-swipe-duration: 180ms;
+        --mini-swipe-opacity-duration: 180ms;
+        --mini-swipe-ease: ease-out;
+      }
+    }
 
     .mini-song-info {
       @apply flex items-center flex-1 min-w-0 cursor-pointer;
@@ -301,15 +587,19 @@ watch(
         transition:
           width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
           height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-          border-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+          border-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+          transform 180ms ease-out;
+        transform: rotate(var(--mini-swipe-rotation, 0deg));
       }
 
       .mini-song-text {
         @apply ml-3 min-w-0 flex-1 flex items-center;
+        overflow: hidden;
+        transform: translate3d(var(--mini-swipe-content-shift, 0px), 0, 0);
         transition:
           opacity 0.3s ease,
-          max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-        overflow: hidden;
+          max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+          transform 180ms ease-out;
 
         .mini-song-title {
           @apply text-sm font-medium;
@@ -426,6 +716,71 @@ watch(
     font-size: 18px !important;
     padding: 4px !important;
     color: var(--cover-text-muted, rgba(255, 255, 255, 0.5)) !important;
+  }
+
+  /* The same mini-player node contracts into the cover beside the bottom navigation. */
+  &.idle-collapsed {
+    left: auto !important;
+    right: 12px !important;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px) !important;
+    width: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+    height: 50px !important;
+    padding: 0 !important;
+  }
+
+  &.idle-collapsed .mobile-mini-controls {
+    width: 50px !important;
+    height: 50px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    overflow: hidden;
+    border-radius: 50%;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+
+  &.idle-collapsed .mobile-mini-controls .mini-song-info {
+    flex: 0 0 50px !important;
+    width: 50px !important;
+    height: 50px !important;
+  }
+
+  &.idle-collapsed .mobile-mini-controls .mini-song-info .mini-song-cover {
+    width: 44px !important;
+    height: 44px !important;
+    margin: 3px;
+    border-width: 1px !important;
+    border-color: transparent !important;
+  }
+
+  &.idle-collapsed .mini-song-text,
+  &.idle-collapsed .mini-playback-controls {
+    opacity: 0;
+    max-width: 0;
+    margin: 0 !important;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition:
+      opacity 160ms ease,
+      width 160ms ease,
+      left 160ms ease,
+      right 160ms ease !important;
+
+    .mobile-mini-controls,
+    .mini-song-info,
+    .mini-song-cover,
+    .mini-song-text,
+    .mini-playback-controls {
+      transition-duration: 160ms !important;
+      transition-timing-function: ease-out !important;
+    }
   }
 }
 

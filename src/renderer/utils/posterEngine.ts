@@ -4,7 +4,12 @@
  * 两种布局：撕纸纹理文艺风 / 全屏封面沉浸风
  */
 
-import type { PosterConfig, PosterSongInfo, SelectedLyric } from '@/types/share';
+import {
+  normalizePosterConfig,
+  type PosterConfig,
+  type PosterSongInfo,
+  type SelectedLyric
+} from '@/types/share';
 import { ensureFontLoaded, getFontFamily } from '@/utils/fontLoader';
 import { buildSongDeepLink, generateQRCodeImage, loadImage } from '@/utils/qrCodeUtil';
 
@@ -40,13 +45,6 @@ function extractDominantColor(img: HTMLImageElement): { r: number; g: number; b:
     count++;
   }
   return { r: Math.round(r / count), g: Math.round(g / count), b: Math.round(b / count) };
-}
-
-/**
- * 计算颜色的亮度 (0-255)
- */
-function getLuminance(r: number, g: number, b: number): number {
-  return 0.299 * r + 0.587 * g + 0.114 * b;
 }
 
 /**
@@ -135,32 +133,6 @@ function createTornPaperPath(
   ctx.closePath();
 }
 
-/**
- * 在撕纸区域上绘制纸张纹理
- */
-function drawPaperTexture(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number
-): void {
-  // 基础纸张色
-  ctx.fillStyle = '#f5f1eb';
-  ctx.fill();
-
-  // 添加噪点纹理
-  const imageData = ctx.getImageData(x, y, width, height);
-  const data = imageData.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const noise = (Math.random() - 0.5) * 20;
-    data[i] = Math.max(0, Math.min(255, data[i] + noise));
-    data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise));
-    data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise));
-  }
-  ctx.putImageData(imageData, x, y);
-}
-
 // ==================== 布局一：撕纸纹理文艺风 ====================
 
 /**
@@ -226,7 +198,7 @@ async function drawTornPaperLayout(
   const titleAlign = config.coverPosition === 'left' ? 'left' : 'right';
 
   ctx.save();
-  ctx.font = `bold 56px ${fontFamily}`;
+  ctx.font = `${config.fontWeight || 600} 56px ${fontFamily}`;
   ctx.fillStyle = titleColor;
   ctx.textAlign = titleAlign as CanvasTextAlign;
   ctx.textBaseline = 'top';
@@ -252,7 +224,7 @@ async function drawTornPaperLayout(
   ctx.stroke();
 
   // 歌手名
-  ctx.font = `36px ${fontFamily}`;
+  ctx.font = `${config.fontWeight || 600} 36px ${fontFamily}`;
   ctx.fillStyle = rgba(dominantColor.r, dominantColor.g, dominantColor.b, 0.7);
   ctx.fillText(songInfo.artists, titleX, lineY + 20);
   ctx.restore();
@@ -264,7 +236,7 @@ async function drawTornPaperLayout(
       : config.customLyricColor;
 
   ctx.save();
-  ctx.font = `42px ${fontFamily}`;
+  ctx.font = `${config.fontWeight || 600} 42px ${fontFamily}`;
   ctx.fillStyle = lyricColor;
   ctx.textBaseline = 'top';
 
@@ -418,7 +390,7 @@ async function drawImmersiveLayout(
   const textColor = config.textColor;
 
   ctx.save();
-  ctx.font = `bold 52px ${fontFamily}`;
+  ctx.font = `${config.fontWeight || 600} 52px ${fontFamily}`;
   ctx.fillStyle = textColor;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
@@ -437,7 +409,7 @@ async function drawImmersiveLayout(
 
   // 4. 歌手名
   ctx.save();
-  ctx.font = `38px ${fontFamily}`;
+  ctx.font = `${config.fontWeight || 600} 38px ${fontFamily}`;
   ctx.fillStyle = rgba(255, 255, 255, 0.75);
   ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
   ctx.shadowBlur = 15;
@@ -453,7 +425,7 @@ async function drawImmersiveLayout(
 
   // 5. 歌词逐行显示
   ctx.save();
-  ctx.font = `44px ${fontFamily}`;
+  ctx.font = `${config.fontWeight || 600} 44px ${fontFamily}`;
   ctx.fillStyle = textColor;
   ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
   ctx.shadowBlur = 12;
@@ -487,6 +459,205 @@ async function drawImmersiveLayout(
   drawWatermark(ctx, config, W, H);
 }
 
+function coverFilter(config: PosterConfig): string {
+  switch (config.imageFilter) {
+    case 'high-contrast':
+      return 'grayscale(0.35) contrast(1.65) saturate(0.85)';
+    case 'low-saturation':
+      return 'saturate(0.35) contrast(1.15)';
+    default:
+      return 'grayscale(1) contrast(1.25)';
+  }
+}
+
+function drawCoverFill(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): void {
+  const sourceRatio = image.naturalWidth / image.naturalHeight || 1;
+  const targetRatio = width / height;
+  let sourceX = 0;
+  let sourceY = 0;
+  let sourceWidth = image.naturalWidth;
+  let sourceHeight = image.naturalHeight;
+  if (sourceRatio > targetRatio) {
+    sourceWidth = image.naturalHeight * targetRatio;
+    sourceX = (image.naturalWidth - sourceWidth) / 2;
+  } else {
+    sourceHeight = image.naturalWidth / targetRatio;
+    sourceY = (image.naturalHeight - sourceHeight) / 2;
+  }
+  ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
+}
+
+function drawArchiveLyrics(
+  ctx: CanvasRenderingContext2D,
+  lyrics: SelectedLyric[],
+  family: string,
+  weight: number,
+  color: string,
+  startY: number,
+  maxY: number
+): void {
+  ctx.save();
+  ctx.font = `${weight} 60px ${family}`;
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+  let y = startY;
+  for (const lyric of lyrics) {
+    if (!lyric.text.trim()) continue;
+    for (const line of wrapText(ctx, lyric.text, POSTER_WIDTH - 150)) {
+      if (y + 78 > maxY) break;
+      ctx.fillText(line, 74, y);
+      y += 78;
+    }
+    y += 22;
+    if (y >= maxY) break;
+  }
+  ctx.restore();
+}
+
+/** 黑白影像、书法标题与档案信息构成的演出海报。 */
+async function drawPerformanceArchiveLayout(
+  ctx: CanvasRenderingContext2D,
+  config: PosterConfig,
+  songInfo: PosterSongInfo,
+  lyrics: SelectedLyric[]
+): Promise<void> {
+  const family = getFontFamily(config.fontId);
+  ctx.fillStyle = '#090909';
+  ctx.fillRect(0, 0, POSTER_WIDTH, POSTER_HEIGHT);
+
+  try {
+    const cover = await loadImage(songInfo.coverUrl);
+    ctx.save();
+    ctx.filter = coverFilter(config);
+    drawCoverFill(ctx, cover, 0, 0, POSTER_WIDTH, 1070);
+    ctx.restore();
+  } catch {
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 0, POSTER_WIDTH, 1070);
+  }
+
+  const fade = ctx.createLinearGradient(0, 650, 0, 1130);
+  fade.addColorStop(0, 'rgba(0,0,0,0)');
+  fade.addColorStop(1, '#090909');
+  ctx.fillStyle = fade;
+  ctx.fillRect(0, 620, POSTER_WIDTH, 520);
+
+  ctx.save();
+  ctx.fillStyle = config.accentColor;
+  ctx.font = `${config.fontWeight} 132px ${family}`;
+  ctx.textAlign = config.titleOrientation === 'vertical' ? 'right' : 'left';
+  ctx.textBaseline = 'top';
+  if (config.titleOrientation === 'vertical') {
+    Array.from(songInfo.songName)
+      .slice(0, 7)
+      .forEach((char, index) => ctx.fillText(char, 980, 90 + index * 140));
+  } else {
+    const lines = wrapText(ctx, songInfo.songName, 820);
+    lines.slice(0, 3).forEach((line, index) => {
+      const offset = config.titleOrientation === 'staggered' ? (index % 2) * 84 : 0;
+      ctx.fillText(line, 62 + offset, 82 + index * 142);
+    });
+  }
+  ctx.restore();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.font = `700 34px ${family}`;
+  ctx.textAlign = 'left';
+  ctx.fillText(songInfo.artists, 72, 930);
+  ctx.font = `500 24px ${family}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.62)';
+  ctx.fillText(config.eventVenue || 'ZEPHYRUS MUSIC ARCHIVE', 72, 978);
+  ctx.textAlign = 'right';
+  ctx.fillText(config.eventDate || new Date().toISOString().slice(0, 10), 1008, 978);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = config.accentColor;
+  ctx.fillRect(72, 1034, 936, 5);
+
+  drawArchiveLyrics(ctx, lyrics, family, config.fontWeight, '#ffffff', 1130, 1780);
+  if (config.showQRCode) await drawQRCode(ctx, songInfo, POSTER_WIDTH, POSTER_HEIGHT);
+  drawWatermark(ctx, config, POSTER_WIDTH, POSTER_HEIGHT);
+}
+
+/** 高对比图像、错位竖题与中央印章构成的巡演海报。 */
+async function drawSealTourLayout(
+  ctx: CanvasRenderingContext2D,
+  config: PosterConfig,
+  songInfo: PosterSongInfo,
+  lyrics: SelectedLyric[]
+): Promise<void> {
+  const family = getFontFamily(config.fontId);
+  ctx.fillStyle = '#f1eee8';
+  ctx.fillRect(0, 0, POSTER_WIDTH, POSTER_HEIGHT);
+  try {
+    const cover = await loadImage(songInfo.coverUrl);
+    ctx.save();
+    ctx.filter = coverFilter({ ...config, imageFilter: 'high-contrast' });
+    drawCoverFill(ctx, cover, 0, 0, 760, 1160);
+    ctx.restore();
+  } catch {
+    ctx.fillStyle = '#c9c2b7';
+    ctx.fillRect(0, 0, 760, 1160);
+  }
+
+  ctx.fillStyle = '#111';
+  ctx.font = `${config.fontWeight} 116px ${family}`;
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'center';
+  Array.from(songInfo.songName)
+    .slice(0, 7)
+    .forEach((char, index) => ctx.fillText(char, 910 + (index % 2) * 26, 96 + index * 132));
+
+  const sealX = 670;
+  const sealY = 760;
+  ctx.save();
+  ctx.strokeStyle = config.accentColor;
+  ctx.fillStyle = 'rgba(241,238,232,0.88)';
+  ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.arc(sealX, sealY, 116, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = config.accentColor;
+  ctx.font = `${config.fontWeight} 46px ${family}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const sealText = Array.from(songInfo.artists).slice(0, 4).join('');
+  ctx.fillText(sealText, sealX, sealY, 180);
+  ctx.restore();
+
+  ctx.fillStyle = '#121212';
+  ctx.font = `700 28px ${family}`;
+  ctx.textAlign = 'left';
+  const archiveRows = [
+    config.eventDate || new Date().toISOString().slice(0, 10),
+    config.eventVenue || songInfo.artists,
+    config.eventLabel || 'LIVE ARCHIVE'
+  ];
+  archiveRows.forEach((row, index) => {
+    const y = 1210 + index * 62;
+    ctx.fillStyle = index === 0 ? config.accentColor : '#121212';
+    ctx.fillText(row, 70, y);
+    ctx.strokeStyle = 'rgba(18,18,18,0.2)';
+    ctx.beginPath();
+    ctx.moveTo(70, y + 42);
+    ctx.lineTo(1010, y + 42);
+    ctx.stroke();
+  });
+
+  const shortLyrics = lyrics.slice(0, 3);
+  drawArchiveLyrics(ctx, shortLyrics, family, config.fontWeight, '#121212', 1430, 1790);
+  if (config.showQRCode) await drawQRCode(ctx, songInfo, POSTER_WIDTH, POSTER_HEIGHT);
+  drawWatermark(ctx, config, POSTER_WIDTH, POSTER_HEIGHT);
+}
+
 // ==================== 公共绘制函数 ====================
 
 /**
@@ -506,7 +677,6 @@ async function drawQRCode(
     const qrX = W - QR_CODE_SIZE - QR_MARGIN - 12;
     const qrY = H - QR_CODE_SIZE - QR_MARGIN - 12;
     const padding = 12;
-    const bgSize = QR_CODE_SIZE + padding * 2;
 
     ctx.save();
     // 圆角背景
@@ -560,6 +730,7 @@ function drawWatermark(
   W: number,
   H: number
 ): void {
+  void W;
   const opacity = config.watermarkOpacity / 100;
   if (opacity <= 0) return;
 
@@ -630,6 +801,7 @@ export async function generatePoster(
   songInfo: PosterSongInfo,
   lyrics: SelectedLyric[]
 ): Promise<HTMLCanvasElement> {
+  config = normalizePosterConfig(config);
   // 创建 Canvas
   const canvas = document.createElement('canvas');
   canvas.width = POSTER_WIDTH;
@@ -641,10 +813,18 @@ export async function generatePoster(
   await ensureFontLoaded(config.fontId);
 
   // 根据布局选择渲染函数
-  if (config.layout === 'torn-paper') {
-    await drawTornPaperLayout(ctx, config, songInfo, lyrics);
-  } else {
-    await drawImmersiveLayout(ctx, config, songInfo, lyrics);
+  switch (config.layout) {
+    case 'performance-archive':
+      await drawPerformanceArchiveLayout(ctx, config, songInfo, lyrics);
+      break;
+    case 'seal-tour':
+      await drawSealTourLayout(ctx, config, songInfo, lyrics);
+      break;
+    case 'immersive':
+      await drawImmersiveLayout(ctx, config, songInfo, lyrics);
+      break;
+    default:
+      await drawTornPaperLayout(ctx, config, songInfo, lyrics);
   }
 
   return canvas;

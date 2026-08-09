@@ -1,40 +1,31 @@
 <template>
   <div class="settings-page">
     <!-- Full-screen scrollable content -->
-    <div ref="contentRef" class="settings-scroll" @scroll.passive="onScroll">
-      <!-- Sticky morphing hero card: title + search + section chips -->
-      <div class="hero-card" :class="{ compact: isCompact }">
-        <div class="hero-bg" />
-        <!-- Title + Search row -->
-        <div class="hero-top">
-          <h1 class="hero-title">{{ t('common.settings') }}</h1>
-          <div class="search-wrap">
-            <i class="ri-search-line search-icon" />
-            <input
-              ref="searchInputRef"
-              v-model="searchQuery"
-              class="search-input"
-              :placeholder="t('comp.searchBar.searchPlaceholder')"
-              @input="onSearchInput"
-              @keydown.escape="clearSearch"
-            />
-            <button v-if="searchQuery" class="search-clear" @click="clearSearch">
-              <i class="ri-close-line" />
-            </button>
-          </div>
-        </div>
-        <!-- Section tabs: glow style, always visible inside the card -->
-        <glow-tabs
-          v-show="!isSearching"
-          v-model="currentSection"
-          :tabs="navSections.map((s) => ({ key: s.id, label: s.title }))"
-          scrollable
-          class="section-bar-glow"
-        />
-      </div>
+    <div ref="contentRef" class="settings-scroll">
+      <glow-tabs
+        v-show="!isSearching"
+        v-model="currentSection"
+        :tabs="navSections.map((s) => ({ key: s.id, label: s.title }))"
+        scrollable
+        class="section-bar-glow"
+      />
 
       <!-- Content -->
       <div class="settings-content">
+        <div class="settings-inline-search">
+          <i class="ri-search-line search-icon" />
+          <input
+            ref="searchInputRef"
+            v-model="searchQuery"
+            class="search-input"
+            :placeholder="t('comp.searchBar.searchPlaceholder')"
+            @input="onSearchInput"
+            @keydown.escape="clearSearch"
+          />
+          <button v-if="searchQuery" class="search-clear" @click="clearSearch">
+            <i class="ri-close-line" />
+          </button>
+        </div>
         <!-- Search results mode -->
         <template v-if="isSearching">
           <div v-if="searchResults.length > 0" class="animate-fade-in">
@@ -104,11 +95,25 @@
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core';
 import { useDialog, useMessage } from 'naive-ui';
-import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
+import {
+  computed,
+  getCurrentInstance,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  provide,
+  ref,
+  watch
+} from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute } from 'vue-router';
 
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
+import {
+  registerMobileTopbarAction,
+  unregisterMobileTopbarAction
+} from '@/composables/useMobileTopbarMenu';
 import { useSettingsStore } from '@/store/modules/settings';
 import { isElectron } from '@/utils';
 
@@ -128,22 +133,9 @@ const settingsStore = useSettingsStore();
 const message = useMessage();
 const dialog = useDialog();
 const { t } = useI18n();
-
-// ==================== Scroll compact state ====================
+const route = useRoute();
 const contentRef = ref<HTMLElement | null>(null);
-const isCompact = ref(false);
-let rafId = 0;
-
-const onScroll = () => {
-  if (rafId) return;
-  rafId = requestAnimationFrame(() => {
-    const el = contentRef.value;
-    if (el) {
-      isCompact.value = el.scrollTop > 10;
-    }
-    rafId = 0;
-  });
-};
+const topbarActionId = `settings-search-${getCurrentInstance()?.uid || 'view'}`;
 
 // ==================== Settings data ====================
 const saveSettings = useDebounceFn((data) => {
@@ -177,6 +169,7 @@ watch(
 
 onUnmounted(() => {
   settingsStore.setSetData(localSetData.value);
+  unregisterMobileTopbarAction(topbarActionId);
 });
 
 // ==================== Provide ====================
@@ -266,8 +259,8 @@ const settingIndex = computed<SearchResult[]>(() => {
     { title: t('settings.basic.language'), desc: t('settings.basic.languageDesc') },
     { title: t('settings.basic.font'), desc: t('settings.basic.fontDesc') },
     { title: t('settings.basic.animation'), desc: t('settings.basic.animationDesc') },
-    { title: t('settings.basic.animationSpeed'), desc: t('settings.basic.animationSpeedDesc') },
-    { title: t('settings.basic.defaultPage'), desc: t('settings.basic.defaultPageDesc') }
+    { title: t('settings.basic.animation'), desc: t('settings.basic.animationDesc') },
+    { title: t('settings.interface.defaultPage'), desc: t('settings.interface.defaultPageDesc') }
   ];
   basicItems.forEach((item) => {
     items.push({
@@ -308,9 +301,7 @@ const settingIndex = computed<SearchResult[]>(() => {
   const playbackItems = [
     { title: t('settings.playback.quality'), desc: t('settings.playback.qualityDesc') },
     { title: t('settings.playback.autoPlay'), desc: t('settings.playback.autoPlayDesc') },
-    { title: t('settings.playback.volume'), desc: t('settings.playback.volumeDesc') },
-    { title: t('settings.playback.crossfade'), desc: t('settings.playback.crossfadeDesc') },
-    { title: t('settings.playback.gapless'), desc: t('settings.playback.gaplessDesc') }
+    { title: t('settings.playback.audioDevice'), desc: t('settings.playback.audioDeviceDesc') }
   ];
   playbackItems.forEach((item) => {
     items.push({
@@ -324,9 +315,9 @@ const settingIndex = computed<SearchResult[]>(() => {
 
   if (isElectron) {
     const appItems = [
-      { title: t('settings.application.gpu'), desc: t('settings.application.gpuDesc') },
-      { title: t('settings.application.diskCache'), desc: t('settings.application.diskCacheDesc') },
-      { title: t('settings.application.cacheSize'), desc: t('settings.application.cacheSizeDesc') },
+      { title: t('settings.basic.gpuAcceleration'), desc: t('settings.basic.gpuAccelerationDesc') },
+      { title: t('settings.system.diskCache'), desc: t('settings.system.diskCacheDesc') },
+      { title: t('settings.system.cacheMaxSize'), desc: t('settings.system.cacheMaxSizeDesc') },
       {
         title: t('settings.application.downloadPath'),
         desc: t('settings.application.downloadPathDesc')
@@ -349,8 +340,11 @@ const settingIndex = computed<SearchResult[]>(() => {
     const networkItems = [
       { title: t('settings.network.proxy'), desc: t('settings.network.proxyDesc') },
       { title: t('settings.network.realIP'), desc: t('settings.network.realIPDesc') },
-      { title: t('settings.network.musicUnblock'), desc: t('settings.network.musicUnblockDesc') },
-      { title: t('settings.network.musicSources'), desc: t('settings.network.musicSourcesDesc') }
+      {
+        title: t('settings.playback.musicUnblockEnable'),
+        desc: t('settings.playback.musicUnblockEnableDesc')
+      },
+      { title: t('settings.playback.musicSources'), desc: t('settings.playback.musicSourcesDesc') }
     ];
     networkItems.forEach((item) => {
       items.push({
@@ -363,9 +357,9 @@ const settingIndex = computed<SearchResult[]>(() => {
     });
 
     const systemItems = [
-      { title: t('settings.system.update'), desc: t('settings.system.updateDesc') },
+      { title: t('settings.about.checkUpdate'), desc: t('settings.about.manualUpdate') },
       { title: t('settings.system.restart'), desc: t('settings.system.restartDesc') },
-      { title: t('settings.system.clearCache'), desc: t('settings.system.clearCacheDesc') }
+      { title: t('settings.system.cache'), desc: t('settings.system.cacheDesc') }
     ];
     systemItems.forEach((item) => {
       items.push({
@@ -379,9 +373,9 @@ const settingIndex = computed<SearchResult[]>(() => {
   }
 
   const aboutItems = [
-    { title: t('settings.about.version'), desc: t('settings.about.versionDesc') },
-    { title: t('settings.about.github'), desc: t('settings.about.githubDesc') },
-    { title: t('settings.about.feedback'), desc: t('settings.about.feedbackDesc') }
+    { title: t('settings.about.version'), desc: t('settings.about.authorDesc') },
+    { title: t('settings.about.gotoGithub'), desc: t('settings.about.manualUpdate') },
+    { title: t('settings.about.checkUpdate'), desc: t('settings.about.gotoUpdate') }
   ];
   aboutItems.forEach((item) => {
     items.push({
@@ -442,17 +436,16 @@ const jumpToResult = (result: SearchResult) => {
 
 // ==================== Init ====================
 onMounted(() => {
+  registerMobileTopbarAction({
+    id: topbarActionId,
+    routePath: route.path,
+    label: t('comp.searchBar.searchPlaceholder'),
+    icon: 'ri-search-line',
+    run: () => nextTick(() => searchInputRef.value?.focus())
+  });
   if (isElectron && settingsStore.appUpdateState.currentVersion === '') {
     settingsStore.setAppUpdateState(createDefaultAppUpdateState(config.version));
   }
-  // 默认向下滚动一点，让内容区直接呈现分区内容而不是停在 Hero 顶部
-  nextTick(() => {
-    nextTick(() => {
-      if (contentRef.value) {
-        contentRef.value.scrollTop = 250;
-      }
-    });
-  });
   if (setData.value.enableRealIP === undefined) {
     setData.value = { ...setData.value, enableRealIP: false };
   }
@@ -485,8 +478,7 @@ onMounted(() => {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  /* 为固定悬浮卡片留出空间 */
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 210px);
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 68px);
 }
 .settings-scroll::-webkit-scrollbar {
   display: none;
@@ -644,6 +636,13 @@ onMounted(() => {
 /* Settings content */
 .settings-content {
   padding: 0 20px;
+}
+
+.settings-inline-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
 }
 
 /* Search results */

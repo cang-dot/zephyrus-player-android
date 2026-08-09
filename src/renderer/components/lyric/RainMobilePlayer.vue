@@ -6,6 +6,7 @@
         class="rain-mobile-player player-style-surface"
         :class="{
           'player-style-customized': isCustom,
+          'player-style-custom-font': customFontActive,
           'player-style-custom-background': customBackgroundActive
         }"
         :style="styleVars"
@@ -209,7 +210,8 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 
 // 海报分享
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
-const { styleVars, isCustom, customBackgroundActive } = usePlayerStyleAppearance('rain');
+const { styleVars, isCustom, customBackgroundActive, customFontActive } =
+  usePlayerStyleAppearance('rain');
 
 const isVisible = computed({
   get: () => props.modelValue,

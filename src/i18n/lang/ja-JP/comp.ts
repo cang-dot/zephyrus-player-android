@@ -1,5 +1,6 @@
 export default {
   more: 'もっと見る',
+  discover: '発見',
   homeListItem: {
     loading: '読み込み中...'
   },
@@ -45,7 +46,8 @@ export default {
     nowUpdate: '今すぐ更新',
     installNow: '今すぐインストール',
     backgroundStart: 'バックグラウンドで更新パッケージをダウンロード中です',
-    backgroundDone: '更新パッケージのダウンロードが完了しました。設定→バージョン情報からインストールできます',
+    backgroundDone:
+      '更新パッケージのダウンロードが完了しました。設定→バージョン情報からインストールできます',
     downloadFailed: 'ダウンロードに失敗しました。再試行するか手動でダウンロードしてください',
     startFailed: 'ダウンロードの開始に失敗しました。再試行するか手動でダウンロードしてください',
     autoUpdateFailed: '自動更新に失敗しました',
@@ -153,6 +155,20 @@ export default {
       playHistory: '再生履歴',
       myProfile: 'マイページ',
       toplist: 'ランキング'
+    }
+  },
+  modularHome: {
+    done: '完了',
+    addBlock: '機能を追加',
+    loginToUnlock: 'ログインして解除',
+    viewProfile: 'プロフィールを見る',
+    tapToExplore: 'タップして探索',
+    dropAsCard: 'ここにドロップしてカードにする',
+    dropAsBlock: 'ここにドロップして機能ブロックにする',
+    dailyAlbumDesc: 'お気に入りのアルバムからランダムにおすすめ',
+    blocks: {
+      user: 'マイページ',
+      dailyAlbum: '今日のアルバム'
     }
   },
   searchBar: {

@@ -1,5 +1,6 @@
 export default {
   more: '更多',
+  discover: '發現',
   homeListItem: {
     loading: '載入中...'
   },
@@ -65,7 +66,8 @@ export default {
   },
   disclaimer: {
     title: '使用說明',
-    warning: '本程式為基於 AlgerMusicPlayer 的二次開發修改版，與原專案存在差異。原專案開發者不對本修改版承擔任何責任。',
+    warning:
+      '本程式為基於 AlgerMusicPlayer 的二次開發修改版，與原專案存在差異。原專案開發者不對本修改版承擔任何責任。',
     item1: '本程式僅供個人學習、研究及技術交流之目的，不得用於任何商業用途。',
     item2: '請在下載後 24 小時內刪除，若對您有所幫助，請支持正版音樂。',
     item3: '使用本程式即代表您已了解並同意相關風險，開發者對任何損失概不負責。',
@@ -146,6 +148,20 @@ export default {
       playHistory: '播放歷史',
       myProfile: '我的主頁',
       toplist: '排行榜'
+    }
+  },
+  modularHome: {
+    done: '完成',
+    addBlock: '新增功能',
+    loginToUnlock: '登入解鎖',
+    viewProfile: '查看個人主頁',
+    tapToExplore: '點擊探索',
+    dropAsCard: '拖到此處變為卡片',
+    dropAsBlock: '拖到此處變為功能區塊',
+    dailyAlbumDesc: '從收藏專輯隨機推薦',
+    blocks: {
+      user: '我的',
+      dailyAlbum: '每日專輯'
     }
   },
   searchBar: {

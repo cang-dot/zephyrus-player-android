@@ -10,15 +10,21 @@ export default {
     trackCount: '{count} tracks',
     playCount: 'Played {count} times'
   },
-tabs: {
-created: 'Created',
-favorite: 'Favorite',
-album: 'Album',
-platforms: 'Platforms'
-},
+  tabs: {
+    created: 'Created',
+    favorite: 'Favorite',
+    album: 'Album',
+    platforms: 'Platforms'
+  },
   ranking: {
     title: 'Listening History',
-    playCount: '{count} times'
+    playCount: '{count} times',
+    empty: 'No listening history'
+  },
+  statistics: {
+    plays: 'Total plays',
+    rankedSongs: 'Ranked songs',
+    platforms: 'Platforms'
   },
   follow: {
     title: 'Follow List',

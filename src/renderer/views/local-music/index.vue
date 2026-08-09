@@ -2,43 +2,13 @@
   <div class="local-music-page">
     <!-- ==================== 移动端（Capacitor） ==================== -->
     <div v-if="isMobileNative" ref="scrollRef" class="lm-scroll" @scroll.passive="onScroll">
-      <!-- Hero Card -->
-      <div class="hero-card" :class="{ compact: isCompact }">
-        <div class="hero-bg" />
-        <div class="hero-top">
-          <div class="cover-wrap">
-            <i class="ri-folder-music-fill cover-icon" />
-          </div>
-          <div class="hero-info">
-            <h1 class="hero-title">{{ t('localMusic.title') }}</h1>
-            <p class="hero-meta">
-              {{ t('localMusic.songCount', { count: localMusicStore.musicList.length }) }}
-            </p>
-          </div>
-          <div class="hero-actions">
-            <button class="action-btn" :disabled="localMusicStore.scanning" @click="handleScan">
-              <i class="ri-refresh-line" :class="{ 'animate-spin': localMusicStore.scanning }" />
-            </button>
-            <button class="action-btn" @click="handleAddFolder">
-              <i class="ri-folder-add-line" />
-            </button>
-            <button
-              v-if="localMusicStore.folderPaths.length > 0"
-              class="action-btn"
-              @click="showFolderManager = true"
-            >
-              <i class="ri-folder-settings-line" />
-            </button>
-          </div>
-        </div>
-        <glow-tabs
-          v-if="localMusicStore.musicList.length > 0"
-          v-model="activeTab"
-          :tabs="tabs.map((tab) => ({ key: tab.key, label: tab.label }))"
-          full-width
-          class="tab-bar-glow"
-        />
-      </div>
+      <glow-tabs
+        v-if="localMusicStore.musicList.length > 0"
+        v-model="activeTab"
+        :tabs="tabs.map((tab) => ({ key: tab.key, label: tab.label }))"
+        full-width
+        class="tab-bar-glow"
+      />
 
       <!-- Scanning progress -->
       <div v-if="localMusicStore.scanning" class="scan-progress">
@@ -462,11 +432,16 @@
 
 <script setup lang="ts">
 import { createDiscreteApi } from 'naive-ui';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, getCurrentInstance, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
 
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import SongItem from '@/components/common/SongItem.vue';
+import {
+  registerMobileTopbarAction,
+  unregisterMobileTopbarAction
+} from '@/composables/useMobileTopbarMenu';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { useLocalMusicStore } from '@/store/modules/localMusic';
 import { usePlayerStore } from '@/store/modules/player';
@@ -476,6 +451,9 @@ import { isElectron } from '@/utils';
 import type { SortKey } from '@/utils/localMusicUtils';
 import { filterByKeyword, sortMusicList, toSongResult } from '@/utils/localMusicUtils';
 
+const route = useRoute();
+const router = useRouter();
+
 // ==================== Stores ====================
 const { t } = useI18n();
 const { message } = createDiscreteApi(['message']);
@@ -484,7 +462,7 @@ const playerStore = usePlayerStore();
 const { confirmPlaylistReplace } = usePlaylistConfirm();
 
 // ==================== Platform detection ====================
-const isMobileNative = !isElectron && typeof (window as any).AndroidNative !== 'undefined';
+const isMobileNative = !isElectron;
 
 // ==================== State ====================
 const searchKeyword = ref('');
@@ -498,9 +476,6 @@ const detailName = ref('');
 // Mobile scroll compact state
 const scrollRef = ref<HTMLElement | null>(null);
 const isCompact = ref(false);
-let compactLocked = false;
-const COMPACT_ENTER = 80;
-const COMPACT_EXIT = 10;
 
 // ==================== Computed ====================
 type TabKey = 'songs' | 'artists' | 'albums';
@@ -511,6 +486,47 @@ const tabs = computed<{ key: TabKey; label: string }[]>(() => [
   { key: 'artists', label: t('localMusic.tabArtists') },
   { key: 'albums', label: t('localMusic.tabAlbums') }
 ]);
+
+watch(
+  () => route.query.localTab,
+  (tab) => {
+    if (tab === 'songs' || tab === 'artists' || tab === 'albums') activeTab.value = tab;
+  },
+  { immediate: true }
+);
+
+watch(activeTab, (tab) => {
+  if (route.path !== '/list' || route.query.localTab === tab) return;
+  void router.replace({ query: { ...route.query, source: 'local', localTab: tab } });
+});
+
+const topbarActionPrefix = `local-music-${getCurrentInstance()?.uid ?? 'view'}`;
+const syncTopbarActions = () => {
+  if (!isMobileNative) return;
+  registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-scan`,
+    routePath: route.path,
+    label: t('localMusic.scanFolder'),
+    icon: 'ri-folder-add-line',
+    run: () => void handleAddFolder()
+  });
+  registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-folders`,
+    routePath: route.path,
+    label: '管理文件夹',
+    icon: 'ri-folder-settings-line',
+    run: () => {
+      showFolderManager.value = true;
+    }
+  });
+  registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-refresh`,
+    routePath: route.path,
+    label: t('localMusic.scanComplete'),
+    icon: 'ri-refresh-line',
+    run: () => void handleScan()
+  });
+};
 
 const sortOptions = computed<SortOption[]>(() => [
   { label: t('localMusic.sortDefault'), value: 'default' },
@@ -582,20 +598,8 @@ const albumList = computed<{ name: string; artist: string; cover: string | null;
 
 // ==================== Mobile scroll handler ====================
 const onScroll = () => {
-  if (!isMobileNative) return;
-  const el = scrollRef.value;
-  if (!el) return;
-  const scrollTop = el.scrollTop;
-  const setCompact = (val: boolean) => {
-    if (val === isCompact.value || compactLocked) return;
-    isCompact.value = val;
-    compactLocked = true;
-    setTimeout(() => {
-      compactLocked = false;
-    }, 400);
-  };
-  if (scrollTop > COMPACT_ENTER) setCompact(true);
-  else if (scrollTop < COMPACT_EXIT) setCompact(false);
+  if (!isMobileNative || !scrollRef.value) return;
+  isCompact.value = scrollRef.value.scrollTop > 10;
 };
 
 // ==================== Watchers ====================
@@ -736,9 +740,13 @@ if (typeof window !== 'undefined') {
 onMounted(async () => {
   if (!isElectron && !isMobileNative) return;
   await localMusicStore.loadFromCache();
+  syncTopbarActions();
 });
 
 onBeforeUnmount(() => {
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-scan`);
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-folders`);
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-refresh`);
   if (typeof window !== 'undefined') {
     delete (window as any).__localMusicFolderPicked;
   }

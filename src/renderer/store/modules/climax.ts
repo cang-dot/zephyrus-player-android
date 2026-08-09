@@ -23,6 +23,7 @@ export const useClimaxStore = defineStore('climax', () => {
 
   // 加载状态
   const loading = ref(false);
+  let loadRequestId = 0;
 
   /**
    * 加载指定歌曲的高潮段落
@@ -30,16 +31,29 @@ export const useClimaxStore = defineStore('climax', () => {
   async function loadSegments(songId: string) {
     if (!songId || songId === currentSongId.value) return;
 
+    const requestId = ++loadRequestId;
+    const isCurrentRequest = () => requestId === loadRequestId && currentSongId.value === songId;
     loading.value = true;
     currentSongId.value = songId;
 
     try {
+      const { usePlayerStore } = await import('./player');
+      const song = usePlayerStore().playMusic;
+      const duration = song?.dt || song?.duration;
+      const applyLocalAnnotation = async (): Promise<boolean> => {
+        if (!isCurrentRequest()) return true;
+        const localData = await getLocalClimax(songId);
+        if (!isCurrentRequest()) return true;
+        if (localData == null) return false;
+        segments.value = normalizeClimaxSegments(localData.segments, duration);
+        contributor.value = localData.contributor || '手动标记';
+        return true;
+      };
+
+      if (await applyLocalAnnotation()) return;
+
       // 云端托管歌曲：从歌曲数据中的 serverMeta 获取高潮段落
       if (songId.startsWith('server:')) {
-        // 通过 playerStore 获取当前歌曲
-        const { usePlayerStore } = await import('./player');
-        const playerStore = usePlayerStore();
-        const song = playerStore.playMusic;
         const platformId = song?.platformId || songId.slice('server:'.length);
         let songDuration = song?.dt || song?.duration;
         let serverSegments = song?.climaxSegments;
@@ -66,6 +80,9 @@ export const useClimaxStore = defineStore('climax', () => {
           serverSegments = communityResult.segments;
         }
 
+        if (await applyLocalAnnotation()) return;
+        if (!isCurrentRequest()) return;
+
         segments.value = normalizeClimaxSegments(serverSegments, songDuration);
         contributor.value = segments.value.length
           ? communityResult.segments.length
@@ -75,25 +92,25 @@ export const useClimaxStore = defineStore('climax', () => {
         return;
       }
 
-      const { usePlayerStore } = await import('./player');
-      const song = usePlayerStore().playMusic;
-
       // 本地歌曲：按实际播放源识别，避免纯数字路径哈希被误当成在线歌曲。
       if (String(song?.id || '') === songId && isLocalSong(song)) {
-        const localData = await getLocalClimax(songId);
-        segments.value = normalizeClimaxSegments(localData?.segments, song?.dt || song?.duration);
-        contributor.value = localData?.contributor || null;
+        segments.value = [];
+        contributor.value = null;
       } else {
         const result = await loadClimaxForSong(songId);
+        if (await applyLocalAnnotation()) return;
+        if (!isCurrentRequest()) return;
         segments.value = result.segments || [];
         contributor.value = result.contributor || null;
       }
     } catch (err) {
       console.error('[ClimaxStore] 加载高潮数据失败:', err);
-      segments.value = [];
-      contributor.value = null;
+      if (isCurrentRequest()) {
+        segments.value = [];
+        contributor.value = null;
+      }
     } finally {
-      loading.value = false;
+      if (requestId === loadRequestId) loading.value = false;
     }
   }
 
@@ -115,6 +132,7 @@ export const useClimaxStore = defineStore('climax', () => {
    * 清空数据（切歌时调用）
    */
   function clear() {
+    loadRequestId += 1;
     segments.value = [];
     currentSongId.value = '';
     contributor.value = null;
@@ -123,8 +141,14 @@ export const useClimaxStore = defineStore('climax', () => {
   /**
    * 更新段落数据（编辑器保存后调用）
    */
-  function updateSegments(newSegments: ClimaxSegment[]) {
+  function updateSegments(
+    newSegments: ClimaxSegment[],
+    songId?: string,
+    nextContributor?: string | null
+  ) {
     segments.value = newSegments;
+    if (songId) currentSongId.value = songId;
+    if (nextContributor !== undefined) contributor.value = nextContributor;
   }
 
   // 计算属性

@@ -40,6 +40,7 @@ export const useCommunityDataStore = defineStore('communityData', () => {
   const loadingClimax = ref(false);
   const loadingKeywords = ref(false);
   const loadingLyric = ref(false);
+  let climaxRequestId = 0;
 
   // ==================== Actions ====================
 
@@ -61,6 +62,8 @@ export const useCommunityDataStore = defineStore('communityData', () => {
 
     await loadClimax(songId);
 
+    if (currentSongId.value !== songId) return;
+
     if (songId.startsWith('server:')) return;
 
     if (climaxSegments.value.length > 0) {
@@ -75,12 +78,30 @@ export const useCommunityDataStore = defineStore('communityData', () => {
    * 缓存包含空数组，避免重复请求不存在的数据
    */
   async function loadClimax(songId: string) {
+    const requestId = ++climaxRequestId;
+    const isCurrentRequest = () => requestId === climaxRequestId && currentSongId.value === songId;
     loadingClimax.value = true;
     try {
+      const { usePlayerStore } = await import('./player');
+      const song = usePlayerStore().playMusic;
+      const duration = song?.dt || song?.duration;
+
+      // Manual annotations are valid for every source, not only local audio files.
+      // They must win over a cache or an in-flight community request.
+      const applyLocalAnnotation = async (): Promise<boolean> => {
+        if (!isCurrentRequest()) return true;
+        const localData = await getLocalClimax(songId);
+        if (!isCurrentRequest()) return true;
+        if (localData == null) return false;
+        climaxSegments.value = normalizeClimaxSegments(localData.segments, duration);
+        climaxContributor.value = localData.contributor || '手动标记';
+        return true;
+      };
+
+      if (await applyLocalAnnotation()) return;
+
       if (songId.startsWith('server:')) {
-        const { usePlayerStore } = await import('./player');
-        const playerStore = usePlayerStore();
-        const currentSong = playerStore.playMusic;
+        const currentSong = song;
         const platformId = currentSong?.platformId || songId.slice('server:'.length);
         let songDuration = currentSong?.dt || currentSong?.duration;
         let serverSegments = currentSong?.climaxSegments;
@@ -107,6 +128,9 @@ export const useCommunityDataStore = defineStore('communityData', () => {
           serverSegments = communityResult.segments;
         }
 
+        if (await applyLocalAnnotation()) return;
+        if (!isCurrentRequest()) return;
+
         climaxSegments.value = normalizeClimaxSegments(serverSegments, songDuration);
         climaxContributor.value = climaxSegments.value.length
           ? communityResult.segments.length
@@ -117,32 +141,25 @@ export const useCommunityDataStore = defineStore('communityData', () => {
       }
 
       // 本地歌曲：从本地永久存储加载，不走服务器
-      const { usePlayerStore } = await import('./player');
-      const song = usePlayerStore().playMusic;
       if (String(song?.id || '') === songId && isLocalSong(song)) {
-        const localData = await getLocalClimax(songId);
-        if (localData) {
-          climaxSegments.value = normalizeClimaxSegments(
-            localData.segments,
-            song?.dt || song?.duration
-          );
-          climaxContributor.value = localData.contributor;
-        } else {
-          climaxSegments.value = [];
-          climaxContributor.value = null;
-        }
+        climaxSegments.value = [];
+        climaxContributor.value = null;
         return;
       }
 
       // 在线歌曲：缓存优先
       const cached = await getClimaxCache(songId);
       if (cached != null) {
+        if (await applyLocalAnnotation()) return;
+        if (!isCurrentRequest()) return;
         climaxSegments.value = cached.segments;
         climaxContributor.value = cached.contributor;
         return;
       }
 
       const result = await loadClimaxForSong(songId);
+      if (await applyLocalAnnotation()) return;
+      if (!isCurrentRequest()) return;
       climaxSegments.value = result.segments || [];
       climaxContributor.value = result.contributor || null;
 
@@ -152,10 +169,12 @@ export const useCommunityDataStore = defineStore('communityData', () => {
       });
     } catch (err) {
       console.error('[CommunityData] loadClimax error:', err);
-      climaxSegments.value = [];
-      climaxContributor.value = null;
+      if (isCurrentRequest()) {
+        climaxSegments.value = [];
+        climaxContributor.value = null;
+      }
     } finally {
-      loadingClimax.value = false;
+      if (requestId === climaxRequestId) loadingClimax.value = false;
     }
   }
 

@@ -121,7 +121,8 @@ export default {
     frenzy: 'Frenzy',
     eerie: 'Eerie',
     neon: 'Aged',
-    rain: 'Rainy Night'
+    rain: 'Rainy Night',
+    smoke: 'Smoke'
   },
   styleCustomization: {
     title: 'Style Settings',
@@ -131,6 +132,8 @@ export default {
     appearance: 'Appearance',
     lyricColor: 'Base Lyric Color',
     font: 'Font',
+    styleDefaultFont: 'Style Default',
+    fontWeight: 'Font Weight',
     importFont: 'Import Font',
     customBackground: 'Custom Background',
     solid: 'Solid',
@@ -146,11 +149,13 @@ export default {
     customColor: 'Custom Color',
     mainLyric: 'Main Lyric',
     auxiliary: 'Background / Duet',
+    auxiliaryCenterDisplay: 'Center Background / Duet Word',
     translation: 'Translation',
     climaxEffects: 'Climax Effects',
     lyricRecolor: 'Lyric Recolor',
     keyword: 'Emphasis Word',
     wordDrop: 'Word Drop',
+    staggered: 'Staggered',
     styleEffects: 'Style Parameters',
     beatFlash: 'Beat Flash',
     newspaperFrequency: 'Newspaper Frequency',
@@ -158,7 +163,18 @@ export default {
     glowRadius: 'Glow Radius',
     pulseSpeed: 'Pulse Speed',
     giantSize: 'Giant Type Size',
-    flipSpeed: 'Page Flip Speed'
+    wordDropFontWeight: 'Drop Type Weight',
+    flipSpeed: 'Page Flip Speed',
+    staggeredSize: 'Word Size',
+    staggeredRowGap: 'Row Gap',
+    staggeredOffset: 'Y Offset',
+    staggeredRotation: 'Rotation',
+    smokeDensity: 'Smoke density',
+    smokeChaos: 'Smoke chaos',
+    smokeLoudnessResponse: 'Loudness response',
+    smokeOpacity: 'Smoke opacity',
+    smokeVignette: 'Climax vignette',
+    smokeFontStretch: 'Font stretch'
   },
   // Sleep timer related
   sleepTimer: {

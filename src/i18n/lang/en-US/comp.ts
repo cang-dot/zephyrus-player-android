@@ -1,5 +1,6 @@
 export default {
   more: 'More',
+  discover: 'Discover',
   homeListItem: {
     loading: 'Loading...'
   },
@@ -166,8 +167,8 @@ export default {
     dailyAlbumDesc: 'Random from your albums',
     blocks: {
       user: 'Me',
-      dailyAlbum: 'Daily Album',
-    },
+      dailyAlbum: 'Daily Album'
+    }
   },
   searchBar: {
     login: 'Login',

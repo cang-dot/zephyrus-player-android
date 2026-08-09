@@ -17,12 +17,27 @@
           </div>
 
           <!-- 字体列表 -->
-          <div class="font-list">
+          <div ref="fontListRef" class="font-list">
+            <button
+              v-if="allowDefault"
+              class="font-item"
+              :class="{ active: !selectedId }"
+              @click="select('')"
+            >
+              <div class="font-preview default-font-preview">默认</div>
+              <div class="font-info">
+                <div class="font-name">{{ defaultLabel }}</div>
+                <div class="font-usage">保留当前播放器样式的内置字体</div>
+              </div>
+              <i v-if="!selectedId" class="ri-check-line font-check"></i>
+            </button>
             <button
               v-for="font in fonts"
               :key="font.id"
               class="font-item"
               :class="{ active: selectedId === font.id }"
+              :data-font-id="font.id"
+              :data-license-url="getFontLicenseUrl(font.id)"
               @click="select(font.id)"
             >
               <div class="font-preview" :style="getPreviewStyle(font)">
@@ -30,7 +45,7 @@
               </div>
               <div class="font-info">
                 <div class="font-name">{{ font.name }}</div>
-                <div class="font-usage">{{ font.usage }}</div>
+                <div class="font-usage">{{ font.usage }}{{ font.license ? ' · OFL' : '' }}</div>
               </div>
               <i v-if="selectedId === font.id" class="ri-check-line font-check"></i>
             </button>
@@ -42,14 +57,16 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { BUILTIN_FONTS, type FontDef } from '@/types/share';
-import { ensureFontLoaded, getFontFamily } from '@/utils/fontLoader';
+import { ensureFontLoaded, getFontFamily, getFontLicenseUrl } from '@/utils/fontLoader';
 
 // Props
 const props = defineProps<{
   selectedId: string;
+  allowDefault?: boolean;
+  defaultLabel?: string;
 }>();
 
 // Emits
@@ -61,11 +78,32 @@ const emit = defineEmits<{
 const visible = ref(true);
 const fonts = ref<FontDef[]>(BUILTIN_FONTS);
 const previewText = '雨夜听歌';
+const allowDefault = props.allowDefault ?? false;
+const defaultLabel = props.defaultLabel || '默认字体';
+const fontListRef = ref<HTMLElement | null>(null);
+let previewObserver: IntersectionObserver | null = null;
 
-// 预加载所有字体
+// Only decode visible previews. Loading every CJK font at once can exhaust a mobile WebView.
 onMounted(async () => {
-  await Promise.all(BUILTIN_FONTS.map((f) => ensureFontLoaded(f.id).catch(() => null)));
+  await nextTick();
+  if (props.selectedId) void ensureFontLoaded(props.selectedId);
+  previewObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const fontId = (entry.target as HTMLElement).dataset.fontId;
+        if (fontId) void ensureFontLoaded(fontId);
+        previewObserver?.unobserve(entry.target);
+      }
+    },
+    { root: fontListRef.value, rootMargin: '80px 0px' }
+  );
+  fontListRef.value?.querySelectorAll<HTMLElement>('[data-font-id]').forEach((element) => {
+    previewObserver?.observe(element);
+  });
 });
+
+onBeforeUnmount(() => previewObserver?.disconnect());
 
 function getPreviewStyle(font: FontDef): Record<string, string> {
   return {

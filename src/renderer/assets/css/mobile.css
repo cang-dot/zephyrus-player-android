@@ -24,6 +24,9 @@
   --m-border: var(--cover-border, #d5d0c9);
   --m-white: #ffffff;
   --m-shadow: rgba(0, 0, 0, 0.06);
+  --m-glass-bg: color-mix(in srgb, var(--m-surface) 64%, transparent);
+  --m-glass-border: color-mix(in srgb, var(--m-white) 24%, transparent);
+  --m-glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.16);
 
   /* ── 深色主题覆盖（封面取色注入，fallback 为硬编码值）── */
   &.dark,
@@ -142,8 +145,30 @@
 
 /* ── 卡片 ── */
 .mobile .m-card {
-  background: var(--m-card);
-  border-radius: var(--m-radius-md);
+  border: 1px solid var(--m-glass-border);
+  border-radius: 24px;
+  background: var(--m-glass-bg);
+  box-shadow: var(--m-glass-shadow);
+  backdrop-filter: blur(22px) saturate(165%);
+  -webkit-backdrop-filter: blur(22px) saturate(165%);
+}
+
+/* Shared glass surface for the common mobile component families. */
+.mobile
+  :is(
+    .n-card,
+    .settings-card,
+    .setting-section,
+    .list-card,
+    .playlist-card,
+    .platform-group,
+    .search-assist-panel
+  ) {
+  border-color: var(--m-glass-border) !important;
+  background: var(--m-glass-bg) !important;
+  box-shadow: var(--m-glass-shadow);
+  backdrop-filter: blur(22px) saturate(165%);
+  -webkit-backdrop-filter: blur(22px) saturate(165%);
 }
 
 /* ── 艺术过渡页 ── */
@@ -251,15 +276,33 @@
   animation: m-enter-stagger 300ms var(--m-ease-out) forwards;
 }
 
-.mobile .enter-stagger:nth-child(1) { animation-delay: 0ms; }
-.mobile .enter-stagger:nth-child(2) { animation-delay: 50ms; }
-.mobile .enter-stagger:nth-child(3) { animation-delay: 100ms; }
-.mobile .enter-stagger:nth-child(4) { animation-delay: 150ms; }
-.mobile .enter-stagger:nth-child(5) { animation-delay: 200ms; }
-.mobile .enter-stagger:nth-child(6) { animation-delay: 250ms; }
-.mobile .enter-stagger:nth-child(7) { animation-delay: 300ms; }
-.mobile .enter-stagger:nth-child(8) { animation-delay: 350ms; }
-.mobile .enter-stagger:nth-child(9) { animation-delay: 400ms; }
+.mobile .enter-stagger:nth-child(1) {
+  animation-delay: 0ms;
+}
+.mobile .enter-stagger:nth-child(2) {
+  animation-delay: 50ms;
+}
+.mobile .enter-stagger:nth-child(3) {
+  animation-delay: 100ms;
+}
+.mobile .enter-stagger:nth-child(4) {
+  animation-delay: 150ms;
+}
+.mobile .enter-stagger:nth-child(5) {
+  animation-delay: 200ms;
+}
+.mobile .enter-stagger:nth-child(6) {
+  animation-delay: 250ms;
+}
+.mobile .enter-stagger:nth-child(7) {
+  animation-delay: 300ms;
+}
+.mobile .enter-stagger:nth-child(8) {
+  animation-delay: 350ms;
+}
+.mobile .enter-stagger:nth-child(9) {
+  animation-delay: 400ms;
+}
 
 @keyframes m-enter-stagger {
   to {
@@ -342,7 +385,11 @@
 
 /* 成功消息 */
 .mobile .n-message--success-type {
-  background: linear-gradient(135deg, rgba(var(--accent-color-rgb), 0.95), rgba(var(--accent-color-rgb), 0.95)) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-color-rgb), 0.95),
+    rgba(var(--accent-color-rgb), 0.95)
+  ) !important;
   color: #fff !important;
 }
 

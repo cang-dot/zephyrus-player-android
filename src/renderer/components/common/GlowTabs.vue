@@ -1,5 +1,6 @@
 <template>
   <div
+    v-if="!useTopbar"
     class="glow-tabs"
     :class="{
       'glow-tabs--full': fullWidth,
@@ -23,13 +24,28 @@
 </template>
 
 <script setup lang="ts">
+import {
+  getCurrentInstance,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  onMounted,
+  watch
+} from 'vue';
+import { useRoute } from 'vue-router';
+
+import {
+  registerMobileTopbarGroup,
+  unregisterMobileTopbarGroup
+} from '@/composables/useMobileTopbarMenu';
+import { isMobile } from '@/utils';
 export interface GlowTabItem {
   key: string | number;
   label: string;
   icon?: string;
 }
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     tabs: GlowTabItem[];
     modelValue: string | number;
@@ -42,9 +58,37 @@ withDefaults(
   }
 );
 
-defineEmits<{
+const emit = defineEmits<{
   'update:modelValue': [value: string | number];
 }>();
+
+const route = useRoute();
+const instance = getCurrentInstance();
+const registryId = `glow-tabs-${instance?.uid ?? Math.random().toString(36).slice(2)}`;
+const ownerRoutePath = route.path;
+const useTopbar = isMobile;
+
+const syncTopbar = () => {
+  if (!useTopbar.value) {
+    unregisterMobileTopbarGroup(registryId);
+    return;
+  }
+  registerMobileTopbarGroup({
+    id: registryId,
+    routePath: ownerRoutePath,
+    options: props.tabs,
+    value: props.modelValue,
+    select: (value) => emit('update:modelValue', value)
+  });
+};
+
+watch(() => [props.tabs, props.modelValue, useTopbar.value], syncTopbar, {
+  deep: true
+});
+onMounted(syncTopbar);
+onActivated(syncTopbar);
+onDeactivated(() => unregisterMobileTopbarGroup(registryId));
+onBeforeUnmount(() => unregisterMobileTopbarGroup(registryId));
 </script>
 
 <style lang="scss" scoped>

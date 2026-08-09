@@ -7,6 +7,9 @@ export default {
   playAll: '모두 재생',
   search: '로컬 음악 검색',
   emptyState: '로컬 음악이 없습니다. 폴더를 선택하여 스캔하세요.',
+  desktopOnly: '로컬 음악은 현재 데스크톱에서만 지원됩니다',
+  mobilePickHint: '오른쪽 위 버튼을 눌러 로컬 음악 파일을 선택하세요',
+  selectFiles: '음악 파일 선택',
   fileNotFound: '파일을 찾을 수 없거나 이동되었습니다',
   rescan: '다시 스캔',
   songCount: '{count}곡',
@@ -25,5 +28,7 @@ export default {
   backToList: '뒤로',
   showAll: '전체',
   filterArtist: '아티스트별 필터',
-  filterAlbum: '앨범별 필터'
+  filterAlbum: '앨범별 필터',
+  folderNotSelected: '선택된 폴더 없음',
+  scanningFiles: '{count}개 파일 스캔 중'
 };

@@ -5,12 +5,14 @@ export default {
   logout: '로그아웃',
   sections: {
     basic: '기본 설정',
+    interface: '인터페이스 설정',
     playback: '재생 설정',
     application: '애플리케이션 설정',
     network: '네트워크 설정',
     system: '시스템 관리',
     keepAlive: '백그라운드 유지',
     plugins: '추가 기능',
+    spotify: 'Spotify',
     about: '정보'
   },
   basic: {
@@ -62,6 +64,12 @@ export default {
     tabletMode: '태블릿 모드',
     tabletModeDesc:
       '태블릿 모드를 사용하면 모바일 기기에서 PC 스타일의 인터페이스를 사용할 수 있습니다'
+  },
+  interface: {
+    defaultPage: '기본 시작 페이지',
+    defaultPageDesc: '앱 시작 시 표시할 페이지 선택',
+    sidebarOrder: '사이드바 사용자 지정',
+    sidebarOrderDesc: '사이드바 항목 순서와 표시 여부 조정'
   },
   playback: {
     quality: '음질 설정',

@@ -6,6 +6,7 @@
         class="eerie-mobile-player player-style-surface"
         :class="{
           'player-style-customized': isCustom,
+          'player-style-custom-font': customFontActive,
           'player-style-custom-background': customBackgroundActive
         }"
         :style="{
@@ -31,14 +32,25 @@
         </transition-group>
 
         <ttml-word-effect-layer
-          v-if="!showFullLyrics"
+          v-if="!showFullLyrics && !wordPlayback.interludeState.value.active"
           :auxiliary-tokens="wordPlayback.auxiliaryTokens.value"
           :main-token="wordPlayback.currentMainToken.value"
           :show-drop="showWordDrop"
+          :center-auxiliary="isCustom && styleCfg.auxiliaryCenterDisplay === true"
         />
 
+        <climax-interlude-overlay :state="wordPlayback.interludeState.value" />
+
         <!-- 歌词层（前奏阶段不显示歌词，只显示噪点背景，点击切换滚动歌词） -->
-        <div class="lyrics-layer" v-show="!showFullLyrics && !showWordDrop">
+        <div
+          class="lyrics-layer"
+          v-show="
+            !showFullLyrics &&
+            !wordPlayback.interludeState.value.active &&
+            !showWordDrop &&
+            !showStaggered
+          "
+        >
           <template
             v-if="!isIntro && isInClimax && effects.keyword && climaxDisplayKeywords.length > 0"
           >
@@ -75,6 +87,19 @@
           </template>
           <div v-else class="lyrics-empty"></div>
         </div>
+
+        <staggered-climax-lyrics
+          v-if="showStaggered && !wordPlayback.interludeState.value.active"
+          :line="wordPlayback.currentDisplayLine.value"
+          :line-key="wordPlayback.displayLineKey.value"
+          :corrected-time="wordPlayback.correctedTime.value"
+          :font-family="fontFamily"
+          :font-size="styleCfg.staggeredSize"
+          :row-gap="styleCfg.staggeredRowGap"
+          :offset="styleCfg.staggeredOffset"
+          :rotation="styleCfg.staggeredRotation"
+          :color="isCustom ? 'var(--player-style-lyric-color)' : accentColor"
+        />
 
         <!-- 半透明遮罩 + 滚动歌词（点击歌词时显示） -->
         <transition name="fade">
@@ -124,8 +149,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import newspaperManifest from '@/assets/textures/newspaper/manifest.json';
+import ClimaxInterludeOverlay from '@/components/lyric/ClimaxInterludeOverlay.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
+import StaggeredClimaxLyrics from '@/components/lyric/StaggeredClimaxLyrics.vue';
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
@@ -134,7 +161,7 @@ import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
-import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
+import { nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drawCracks } from '@/lib/crackRenderer';
 import { startVHSAnimation } from '@/lib/vhsEffect';
@@ -285,7 +312,9 @@ const {
   effects,
   styleVars,
   isCustom,
-  customBackgroundActive
+  customBackgroundActive,
+  selectedFontFamily,
+  customFontActive
 } = usePlayerStyleAppearance('eerie');
 const wordPlayback = useWordTimedPlayback();
 
@@ -312,6 +341,14 @@ const showWordDrop = computed(
     isInClimax.value &&
     effects.value.wordDrop &&
     wordPlayback.available.value
+);
+const showStaggered = computed(
+  () =>
+    !showFullLyrics.value &&
+    !showWordDrop.value &&
+    isInClimax.value &&
+    effects.value.staggered &&
+    Boolean(wordPlayback.currentDisplayLine.value?.words?.length)
 );
 
 // ==================== 响应式配置 ====================
@@ -361,10 +398,10 @@ const accentDark = computed(() => {
   return `rgb(${rgb.map((v: string) => Math.round(Number(v) * 0.4)).join(', ')})`;
 });
 const isIntro = computed(() => {
-  const idx = nowIndex.value;
+  const idx = wordPlayback.displayIndex.value;
   if (idx < 0) return true;
-  for (let i = 0; i <= idx && i < lrcArray.value.length; i++) {
-    const text = lrcArray.value[i]?.text || '';
+  for (let i = 0; i <= idx && i < wordPlayback.displayLines.value.length; i++) {
+    const text = wordPlayback.displayLines.value[i]?.text || '';
     if (!isAttributionLyric(text)) return false;
   }
   return true;
@@ -382,9 +419,7 @@ const eerieLyricScale = computed(() => ((config.value as any).eerieLyricScale ??
 const eerieFontWeightValue = computed(() => (config.value as any).eerieFontWeight ?? 700);
 
 const currentChars = computed(() => {
-  const idx = nowIndex.value;
-  if (idx < 0 || idx >= lrcArray.value.length) return [];
-  const text = lrcArray.value[idx]?.text || '';
+  const text = wordPlayback.currentDisplayLine.value?.text || '';
   if (!text) return [];
   const chars = Array.from(text);
   const n = chars.length;
@@ -400,7 +435,7 @@ const currentChars = computed(() => {
 });
 
 const fontFamily = computed(() => {
-  if (styleCfg.value.customFontFamily) return styleCfg.value.customFontFamily;
+  if (selectedFontFamily.value) return selectedFontFamily.value;
   const f = eerieFontFamily.value;
   const fallbacks: Record<string, string> = {
     KaiTi: "'KaiTi', 'STKaiti', 'Noto Serif SC', serif",
@@ -432,12 +467,7 @@ function updateClimaxDisplayKeywords() {
   }
 
   // 降级到本地情感词检测：获取全部候选词，选择第一个未使用的
-  const idx = nowIndex.value;
-  if (idx < 0 || idx >= lrcArray.value.length) {
-    climaxDisplayKeywords.value = [];
-    return;
-  }
-  const text = lrcArray.value[idx]?.text || '';
+  const text = wordPlayback.currentDisplayLine.value?.text || '';
   if (!text) {
     climaxDisplayKeywords.value = [];
     return;
@@ -472,7 +502,7 @@ watch(
 
 // 高潮状态下歌词行变化时，重新选择关键词
 watch(
-  [nowIndex, isInClimax],
+  [wordPlayback.displayIndex, isInClimax],
   () => {
     if (isInClimax.value) {
       updateClimaxDisplayKeywords();
@@ -485,7 +515,7 @@ watch(
 
 // 切歌词时同步重点词到 styleEngine
 watch(
-  nowIndex,
+  wordPlayback.displayIndex,
   (idx) => {
     styleEngine.updateCurrentLineKeywords(idx);
   },
@@ -544,7 +574,7 @@ function updateBackground() {
   }
 }
 
-watch(nowIndex, () => nextTick(() => updateBackground()));
+watch(wordPlayback.displayIndex, () => nextTick(() => updateBackground()));
 watch(isInClimax, () => nextTick(() => updateBackground()));
 watch(isVisible, (v) => {
   if (v) nextTick(() => updateBackground());
@@ -589,7 +619,7 @@ function stopClimaxNewspapers() {
 watch(isInClimax, (c) => {
   c ? startClimaxNewspapers() : stopClimaxNewspapers();
 });
-watch(nowIndex, () => {
+watch(wordPlayback.displayIndex, () => {
   if (!isInClimax.value && newspaperTextures.length > 0 && Math.random() < 0.1) {
     flashNewspaper(newspaperTextures[Math.floor(Math.random() * newspaperTextures.length)].src);
   }

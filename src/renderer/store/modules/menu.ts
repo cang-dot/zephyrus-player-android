@@ -10,16 +10,17 @@ export const useMenuStore = defineStore('menu', () => {
   const settingsStore = useSettingsStore();
 
   const menus = computed(() => {
+    if (settingsStore.isMobile) {
+      return allMenus.value.filter((item) => item.meta?.bottomNav === true);
+    }
+
     // 基础过滤：Electron 专属、侧边栏隐藏、移动端
     let filtered = allMenus.value.filter((item) => {
-      if (item.meta?.electronOnly && !isElectron) {
+      if ((item.meta as any)?.electronOnly && !isElectron) {
         return false;
       }
       if (item.meta?.hideInSidebar) {
         return false;
-      }
-      if (settingsStore.isMobile) {
-        return item.meta?.isMobile !== false;
       }
       return true;
     });

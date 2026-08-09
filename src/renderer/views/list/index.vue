@@ -1,27 +1,31 @@
 <template>
   <div class="list-page">
-    <div ref="scrollRef" class="list-scroll" @scroll.passive="onScroll">
+    <div class="list-scroll">
       <glow-tabs
-        v-if="playlistSourceTabs.length > 1"
         v-model="playlistSourceFilter"
         :tabs="playlistSourceTabs"
         scrollable
         class="playlist-source-tabs"
       />
 
+      <local-music-view v-if="playlistSourceFilter === 'local'" class="embedded-local-music" />
+
       <!-- Loading skeleton -->
-      <div v-if="isLoading" class="cover-grid">
+      <div v-if="playlistSourceFilter !== 'local' && isLoading" class="cover-grid">
         <div v-for="i in 6" :key="'skeleton-' + i" class="cover-card">
-          <div class="cover-wrap skeleton-shimmer" style="aspect-ratio: 1; border-radius: 16px;" />
+          <div class="cover-wrap skeleton-shimmer" style="aspect-ratio: 1; border-radius: 16px" />
           <div class="cover-text">
-            <div class="skeleton-shimmer" style="height: 14px; width: 80%; border-radius: 6px; margin-bottom: 6px;" />
-            <div class="skeleton-shimmer" style="height: 11px; width: 50px; border-radius: 6px;" />
+            <div
+              class="skeleton-shimmer"
+              style="height: 14px; width: 80%; border-radius: 6px; margin-bottom: 6px"
+            />
+            <div class="skeleton-shimmer" style="height: 11px; width: 50px; border-radius: 6px" />
           </div>
         </div>
       </div>
 
       <!-- Cover Grid -->
-      <div v-else-if="items.length > 0" class="cover-grid">
+      <div v-else-if="playlistSourceFilter !== 'local' && items.length > 0" class="cover-grid">
         <div
           v-for="item in items"
           :key="`${item.accountId}-${item.type}-${item.id}`"
@@ -54,7 +58,7 @@
       </div>
 
       <!-- Empty state -->
-      <div v-else class="empty-state">
+      <div v-else-if="playlistSourceFilter !== 'local'" class="empty-state">
         <i class="ri-disc-line"></i>
         <p>暂无歌单或专辑</p>
       </div>
@@ -66,33 +70,29 @@
 
 <script lang="ts" setup>
 import { useMessage } from 'naive-ui';
-import { computed, onActivated, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { computed, defineAsyncComponent } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { fetchPlatformPlaylistTracks } from '@/api/platformQrApi';
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
-import { useHeroCard } from '@/composables/useHeroCard';
 import { useUserStore } from '@/store';
-import {
-  type MusicPlatform,
-  usePlatformAccountsStore
-} from '@/store/modules/platformAccounts';
+import { type MusicPlatform, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { getImgUrl } from '@/utils';
 
 defineOptions({ name: 'MyMusic' });
 
-const { t } = useI18n();
 const router = useRouter();
+const route = useRoute();
 const message = useMessage();
 const userStore = useUserStore();
 const accountStore = usePlatformAccountsStore();
-const { setHeroCard, setCompact, showHeroCard, hideHeroCard } = useHeroCard();
+const LocalMusicView = defineAsyncComponent(() => import('@/views/local-music/index.vue'));
 
-const scrollRef = ref<HTMLElement | null>(null);
-let rafId = 0;
-const playlistSourceFilter = ref<'all' | MusicPlatform>('all');
+const playlistSourceFilter = computed<'all' | MusicPlatform | 'local'>({
+  get: () => (typeof route.query.source === 'string' ? route.query.source : 'all') as any,
+  set: (source) => void router.replace({ query: { ...route.query, source } })
+});
 const platformPlaylistTracksCache = new Map<string, any[]>();
 
 // 加载状态：用户未登录或歌单数据未加载完成
@@ -102,9 +102,10 @@ const isLoading = computed(() => {
 
 const playlistSourceTabs = computed(() => [
   { key: 'all', label: '全部' },
-  ...accountStore.accountsForPlatform('netease').length ? [{ key: 'netease', label: '网易云' }] : [],
-  ...accountStore.accountsForPlatform('qq').length ? [{ key: 'qq', label: 'QQ 音乐' }] : [],
-  ...accountStore.accountsForPlatform('kugou').length ? [{ key: 'kugou', label: '酷狗音乐' }] : []
+  { key: 'local', label: '本地' },
+  { key: 'netease', label: '网易云' },
+  { key: 'qq', label: 'QQ 音乐' },
+  { key: 'kugou', label: '酷狗音乐' }
 ]);
 
 const items = computed(() => {
@@ -152,27 +153,6 @@ const items = computed(() => {
 
   return result;
 });
-
-// 更新共享卡片内容
-const updateHeroCard = () => {
-  setHeroCard({
-    title: t('comp.list'),
-    subtitle: `${items.value.length} ${t('comp.musicList.songs')}`,
-    variant: 'simple',
-    visible: true,
-  });
-};
-
-const onScroll = () => {
-  if (rafId) return;
-  rafId = requestAnimationFrame(() => {
-    const el = scrollRef.value;
-    if (el) {
-      setCompact(el.scrollTop > 10);
-    }
-    rafId = 0;
-  });
-};
 
 const handleItemClick = async (item: any) => {
   const account = accountStore.accounts.find((candidate) => candidate.accountId === item.accountId);
@@ -231,23 +211,6 @@ const handleItemClick = async (item: any) => {
 };
 
 // 监听数据变化更新卡片
-watch([items, () => userStore.user], () => {
-  updateHeroCard();
-}, { immediate: true });
-
-onMounted(() => {
-  updateHeroCard();
-  showHeroCard();
-});
-
-onActivated(() => {
-  updateHeroCard();
-  showHeroCard();
-});
-
-onBeforeUnmount(() => {
-  hideHeroCard();
-});
 </script>
 
 <style lang="scss" scoped>
@@ -266,14 +229,19 @@ onBeforeUnmount(() => {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  /* 为固定悬浮卡片留出空间 */
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 140px);
-  &::-webkit-scrollbar { display: none; }
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 68px);
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .playlist-source-tabs {
   display: flex;
   margin: 0 16px 16px;
+}
+
+.embedded-local-music {
+  min-height: calc(100dvh - 140px);
 }
 
 /* Cover grid */
@@ -357,7 +325,9 @@ onBeforeUnmount(() => {
     color: #fff;
     opacity: 0;
     transform: scale(0.8);
-    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition:
+      opacity 0.3s ease,
+      transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 
@@ -449,11 +419,17 @@ onBeforeUnmount(() => {
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton-shimmer { animation: none; }
+  .skeleton-shimmer {
+    animation: none;
+  }
 }
 </style>

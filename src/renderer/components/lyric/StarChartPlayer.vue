@@ -6,6 +6,7 @@
         class="star-chart-player player-style-surface"
         :class="{
           'player-style-customized': isCustom,
+          'player-style-custom-font': customFontActive,
           'player-style-custom-background': customBackgroundActive
         }"
         :style="{
@@ -142,7 +143,8 @@ const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor, primaryColorRgb } = useCoverColor();
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
-const { styleVars, isCustom, customBackgroundActive } = usePlayerStyleAppearance('starChart');
+const { styleVars, isCustom, customBackgroundActive, customFontActive } =
+  usePlayerStyleAppearance('starChart');
 const showFullLyrics = ref(false);
 const chartFrame = ref<HTMLElement>();
 const chartCanvas = ref<HTMLCanvasElement>();

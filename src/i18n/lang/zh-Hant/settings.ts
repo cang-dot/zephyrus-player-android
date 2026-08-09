@@ -5,12 +5,14 @@ export default {
   logout: '登出',
   sections: {
     basic: '基礎設定',
+    interface: '介面設定',
     playback: '播放設定',
     application: '應用程式設定',
     network: '網路設定',
     system: '系統管理',
     keepAlive: '背景保活',
     plugins: '額外功能',
+    spotify: 'Spotify',
     about: '關於'
   },
   basic: {
@@ -59,6 +61,12 @@ export default {
     gpuAccelerationChangeError: 'GPU加速設定更新失敗',
     tabletMode: '平板模式',
     tabletModeDesc: '啟用後將在移動設備上使用PC樣式界面，適合平板等大屏設備'
+  },
+  interface: {
+    defaultPage: '啟動預設頁',
+    defaultPageDesc: '選擇應用程式啟動時預設顯示的頁面',
+    sidebarOrder: '側邊欄自訂',
+    sidebarOrderDesc: '調整側邊欄項目的顯示順序與可見性'
   },
   playback: {
     quality: '音質設定',

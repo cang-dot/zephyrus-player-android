@@ -105,7 +105,9 @@
             :style="{ background: fmCardBg }"
           >
             <!-- Content -->
-            <div class="relative flex h-full items-center gap-3 p-3 overflow-hidden min-w-0 sm:gap-4 sm:p-4">
+            <div
+              class="relative flex h-full items-center gap-3 p-3 overflow-hidden min-w-0 sm:gap-4 sm:p-4"
+            >
               <!-- Left: Cover -->
               <div class="flex-shrink-0">
                 <div
@@ -166,7 +168,7 @@
                   v-if="activeMode === 'intelligence'"
                   class="flex h-8 w-8 items-center justify-center rounded-full transition-colors sm:h-9 sm:w-9"
                   :class="isFavorite ? 'text-red-500' : 'text-white/50 hover:text-white'"
-                  :title="isFavorite ? t('comp.songItem.unfavorite') : t('comp.songItem.favorite')"
+                  :title="isFavorite ? t('common.cancel') : t('common.tray.favorite')"
                   @click.stop="toggleFavorite"
                 >
                   <i :class="isFavorite ? 'ri-heart-3-fill' : 'ri-heart-3-line'" class="text-lg" />

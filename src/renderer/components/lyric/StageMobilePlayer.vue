@@ -6,6 +6,7 @@
         class="stage-mobile-player player-style-surface"
         :class="{
           'player-style-customized': isCustom,
+          'player-style-custom-font': customFontActive,
           'player-style-custom-background': customBackgroundActive
         }"
         :style="{
@@ -23,11 +24,14 @@
         <beat-flash-layer />
 
         <ttml-word-effect-layer
-          v-if="!showFullLyrics"
+          v-if="!showFullLyrics && !wordPlayback.interludeState.value.active"
           :auxiliary-tokens="wordPlayback.auxiliaryTokens.value"
           :main-token="wordPlayback.currentMainToken.value"
           :show-drop="showWordDrop"
+          :center-auxiliary="isCustom && styleCfg.auxiliaryCenterDisplay === true"
         />
+
+        <climax-interlude-overlay :state="wordPlayback.interludeState.value" />
 
         <!-- 顶部：歌名 + 歌手 -->
         <div class="song-header" :class="{ 'song-header-visible': controlsVisible }">
@@ -40,9 +44,17 @@
         </div>
 
         <!-- 中央：歌词 + 翻译（点击切换滚动歌词） -->
-        <div class="lyrics-center" v-show="!showFullLyrics && !showWordDrop">
+        <div
+          class="lyrics-center"
+          v-show="
+            !showFullLyrics &&
+            !wordPlayback.interludeState.value.active &&
+            !showWordDrop &&
+            !showStaggered
+          "
+        >
           <transition name="lyric-change" mode="out-in">
-            <div :key="nowIndex" class="lyrics-main" :style="lyricStyle">
+            <div :key="wordPlayback.displayLineKey.value" class="lyrics-main" :style="lyricStyle">
               {{ currentLyricText }}
             </div>
           </transition>
@@ -63,6 +75,19 @@
             </div>
           </transition>
         </div>
+
+        <staggered-climax-lyrics
+          v-if="showStaggered && !wordPlayback.interludeState.value.active"
+          :line="wordPlayback.currentDisplayLine.value"
+          :line-key="wordPlayback.displayLineKey.value"
+          :corrected-time="wordPlayback.correctedTime.value"
+          :font-family="stageFontFamily"
+          :font-size="styleCfg.staggeredSize"
+          :row-gap="styleCfg.staggeredRowGap"
+          :offset="styleCfg.staggeredOffset"
+          :rotation="styleCfg.staggeredRotation"
+          :color="lyricColor"
+        />
 
         <!-- 半透明遮罩 + 滚动歌词（点击歌词时显示） -->
         <transition name="fade">
@@ -125,8 +150,10 @@ import tinycolor from 'tinycolor2';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import BeatFlashLayer from '@/components/lyric/BeatFlashLayer.vue';
+import ClimaxInterludeOverlay from '@/components/lyric/ClimaxInterludeOverlay.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
+import StaggeredClimaxLyrics from '@/components/lyric/StaggeredClimaxLyrics.vue';
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
@@ -135,7 +162,7 @@ import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
-import { artistList, lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
+import { artistList, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
@@ -178,7 +205,9 @@ const {
   effects,
   styleVars,
   isCustom,
-  customBackgroundActive
+  customBackgroundActive,
+  selectedFontFamily,
+  customFontActive
 } = usePlayerStyleAppearance('stage');
 const wordPlayback = useWordTimedPlayback();
 const lyricDisplayConfig = ref({ showTranslation: true, showRomanization: false });
@@ -234,7 +263,7 @@ const accentColor = computed(() => primaryColor.value || '#888888');
 const accentColorRgb = computed(() => primaryColorRgb.value || '136, 136, 136');
 const stageFontFamily = computed(
   () =>
-    styleCfg.value.customFontFamily ||
+    selectedFontFamily.value ||
     "'Noto Serif SC', 'STSong', 'SimSun', var(--m-font-serif, 'Cormorant Garamond'), serif"
 );
 const showWordDrop = computed(
@@ -244,25 +273,27 @@ const showWordDrop = computed(
     effects.value.wordDrop &&
     wordPlayback.available.value
 );
+const showStaggered = computed(
+  () =>
+    !showFullLyrics.value &&
+    !showWordDrop.value &&
+    styleEngine.isInClimax &&
+    effects.value.staggered &&
+    Boolean(wordPlayback.currentDisplayLine.value?.words?.length)
+);
 
 // ==================== 歌词 ====================
 
 const currentLyricText = computed(() => {
-  const idx = nowIndex.value;
-  if (idx < 0 || idx >= lrcArray.value.length) return '';
-  return lrcArray.value[idx]?.text || '';
+  return wordPlayback.currentDisplayLine.value?.text || '';
 });
 
 const currentTranslation = computed(() => {
-  const idx = nowIndex.value;
-  if (idx < 0 || idx >= lrcArray.value.length) return '';
-  return lrcArray.value[idx]?.trText || '';
+  return wordPlayback.currentDisplayLine.value?.trText || '';
 });
 
 const currentRomanization = computed(() => {
-  const idx = nowIndex.value;
-  if (idx < 0 || idx >= lrcArray.value.length) return '';
-  return lrcArray.value[idx]?.romaText || '';
+  return wordPlayback.currentDisplayLine.value?.romaText || '';
 });
 
 // ==================== 音频响应 ====================

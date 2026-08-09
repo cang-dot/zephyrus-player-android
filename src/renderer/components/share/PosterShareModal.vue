@@ -54,6 +54,21 @@
               </button>
             </div>
 
+            <div class="config-section">
+              <div class="config-label">
+                字体粗细
+                <span class="value-tag">{{ config.fontWeight }}</span>
+              </div>
+              <input
+                v-model.number="config.fontWeight"
+                type="range"
+                min="100"
+                max="900"
+                step="50"
+                @input="regenerateDebounced"
+              />
+            </div>
+
             <!-- 布局一专属配置 -->
             <template v-if="config.layout === 'torn-paper'">
               <!-- 封面位置 -->
@@ -202,6 +217,61 @@
               </div>
             </template>
 
+            <template
+              v-if="config.layout === 'performance-archive' || config.layout === 'seal-tour'"
+            >
+              <div class="config-section">
+                <div class="config-label">强调色</div>
+                <div class="color-picker-row">
+                  <input v-model="config.accentColor" type="color" @input="regenerateDebounced" />
+                  <span class="color-value">{{ config.accentColor }}</span>
+                </div>
+              </div>
+
+              <div class="config-section">
+                <div class="config-label">图像滤镜</div>
+                <div class="segment-tabs">
+                  <button
+                    v-for="filter in imageFilters"
+                    :key="filter.key"
+                    :class="{ active: config.imageFilter === filter.key }"
+                    @click="setConfig('imageFilter', filter.key)"
+                  >
+                    {{ filter.label }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="config-section">
+                <div class="config-label">标题排版</div>
+                <div class="segment-tabs">
+                  <button
+                    v-for="orientation in titleOrientations"
+                    :key="orientation.key"
+                    :class="{ active: config.titleOrientation === orientation.key }"
+                    @click="setConfig('titleOrientation', orientation.key)"
+                  >
+                    {{ orientation.label }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="config-section archive-fields">
+                <label>
+                  <span>日期</span>
+                  <input v-model="config.eventDate" type="text" @input="regenerateDebounced" />
+                </label>
+                <label>
+                  <span>地点</span>
+                  <input v-model="config.eventVenue" type="text" @input="regenerateDebounced" />
+                </label>
+                <label>
+                  <span>附加信息</span>
+                  <input v-model="config.eventLabel" type="text" @input="regenerateDebounced" />
+                </label>
+              </div>
+            </template>
+
             <!-- 二维码开关 -->
             <div class="config-section">
               <div class="config-label">显示二维码</div>
@@ -298,8 +368,8 @@ import { artistList, playMusic } from '@/hooks/MusicHook';
 import {
   BUILTIN_FONTS,
   DEFAULT_POSTER_CONFIG,
+  POSTER_LAYOUT_OPTIONS,
   type PosterConfig,
-  type PosterLayout,
   type SelectedLyric
 } from '@/types/share';
 import { getImgUrl } from '@/utils';
@@ -342,9 +412,18 @@ function preloadLogo() {
 }
 
 // 布局选项
-const layouts = [
-  { key: 'torn-paper' as PosterLayout, label: '撕纸文艺', icon: 'ri-quill-pen-line' },
-  { key: 'immersive' as PosterLayout, label: '沉浸全屏', icon: 'ri-image-line' }
+const layouts = POSTER_LAYOUT_OPTIONS;
+
+const imageFilters = [
+  { key: 'monochrome' as const, label: '黑白' },
+  { key: 'low-saturation' as const, label: '低饱和' },
+  { key: 'high-contrast' as const, label: '高对比' }
+];
+
+const titleOrientations = [
+  { key: 'horizontal' as const, label: '横向' },
+  { key: 'vertical' as const, label: '竖向' },
+  { key: 'staggered' as const, label: '错位' }
 ];
 
 const lyricAligns = [
@@ -689,6 +768,35 @@ watch(
     font-size: 12px;
     color: rgba(255, 255, 255, 0.5);
     font-family: monospace;
+  }
+}
+
+.archive-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+
+  label {
+    display: grid;
+    gap: 6px;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 12px;
+  }
+
+  input {
+    min-width: 0;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+  }
+}
+
+@media (max-width: 520px) {
+  .archive-fields {
+    grid-template-columns: 1fr;
   }
 }
 

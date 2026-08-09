@@ -4,6 +4,16 @@ function visualLength(word: IWordData): number {
   return Math.max(1, Array.from(word.text).length) + (word.space ? 1 : 0);
 }
 
+/** Keep the last started primary line visible until the next primary line starts. */
+export function findStartedTimedLineIndex(startTimes: number[], currentTime: number): number {
+  let result = -1;
+  for (let index = 0; index < startTimes.length; index += 1) {
+    if (currentTime >= startTimes[index]) result = index;
+    else break;
+  }
+  return result;
+}
+
 /** Map irregular word timings to one continuous visual progress across the complete line. */
 export function getTimedLyricLineProgress(words: IWordData[], currentTimeMs: number): number {
   if (words.length === 0) return 0;

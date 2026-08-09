@@ -7,7 +7,10 @@ import {
   ttmlToTimedLines
 } from '../../src/renderer/services/ttmlParser';
 import { extractQrcLyricContent, parseQrcLyrics } from '../../src/renderer/utils/qrcParser';
-import { getTimedLyricLineProgress } from '../../src/renderer/utils/timedLyricProgress';
+import {
+  findStartedTimedLineIndex,
+  getTimedLyricLineProgress
+} from '../../src/renderer/utils/timedLyricProgress';
 import { mergeAuxiliaryLyrics, parseTimedLyrics } from '../../src/renderer/utils/timedLyrics';
 
 describe('timed lyric parsing', () => {
@@ -126,6 +129,14 @@ describe('timed lyric parsing', () => {
       { text: '我', startTime: 1160, duration: 80, space: true },
       { text: 'world', startTime: 1240, duration: 240, space: false }
     ]);
+    expect(
+      findStartedTimedLineIndex(
+        lines.map((line) => line.startTime! / 1000),
+        1.4
+      )
+    ).toBe(0);
+    expect(findStartedTimedLineIndex([1, 3], 2.95)).toBe(0);
+    expect(findStartedTimedLineIndex([1, 3], 3)).toBe(1);
   });
 
   it('keeps timing from direct TTML word spans used by AMLL lyrics', () => {

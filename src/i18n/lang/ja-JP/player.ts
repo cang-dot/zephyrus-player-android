@@ -121,7 +121,8 @@ export default {
     frenzy: 'フレンジー',
     eerie: '不気味',
     neon: '雨上がり',
-    rain: '雨夜'
+    rain: '雨夜',
+    smoke: '煙'
   },
   styleCustomization: {
     title: 'スタイル設定',
@@ -131,6 +132,8 @@ export default {
     appearance: '外観',
     lyricColor: '基本歌詞色',
     font: 'フォント',
+    styleDefaultFont: 'スタイル標準',
+    fontWeight: 'フォントの太さ',
     importFont: 'フォントを読み込む',
     customBackground: 'カスタム背景',
     solid: '単色',
@@ -146,11 +149,13 @@ export default {
     customColor: 'カスタム色',
     mainLyric: 'メイン歌詞',
     auxiliary: '背景 / デュエット',
+    auxiliaryCenterDisplay: '背景 / デュエットを中央に巨大表示',
     translation: '翻訳',
     climaxEffects: 'クライマックス効果',
     lyricRecolor: '歌詞の色変化',
     keyword: '重点文字',
     wordDrop: 'ワードドロップ',
+    staggered: 'スタッガード',
     styleEffects: 'スタイル調整',
     beatFlash: 'ビートフラッシュ',
     newspaperFrequency: '新聞表示頻度',
@@ -158,7 +163,18 @@ export default {
     glowRadius: 'グロー半径',
     pulseSpeed: 'パルス速度',
     giantSize: '巨大文字サイズ',
-    flipSpeed: 'ページ送り速度'
+    wordDropFontWeight: 'ドロップ文字の太さ',
+    flipSpeed: 'ページ送り速度',
+    staggeredSize: '文字サイズ',
+    staggeredRowGap: '行間',
+    staggeredOffset: 'Y軸オフセット',
+    staggeredRotation: '回転オフセット',
+    smokeDensity: '煙の密度',
+    smokeChaos: '煙の乱流',
+    smokeLoudnessResponse: '音量反応',
+    smokeOpacity: '煙の不透明度',
+    smokeVignette: '高潮の暗角',
+    smokeFontStretch: 'フォント伸縮'
   },
   // タイマー機能関連
   sleepTimer: {
