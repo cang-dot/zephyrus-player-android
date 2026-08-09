@@ -448,7 +448,7 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 .mobile-bottom-dock {
   position: fixed;
   right: 12px;
-  bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
+  bottom: calc(var(--safe-area-inset-bottom, 0px) + 14px);
   left: 12px;
   z-index: 199;
   height: 0;
@@ -465,8 +465,8 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 
   &.visible {
     height: 54px;
-    border-color: color-mix(in srgb, var(--m-white, #fff) 24%, transparent);
-    background: color-mix(in srgb, var(--m-surface, #eae6df) 65%, transparent);
+    border-color: var(--m-glass-border);
+    background: var(--m-glass-bg);
     box-shadow:
       0 14px 34px rgba(0, 0, 0, 0.18),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -482,21 +482,22 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 
   :deep(.mobile-play-bar.play-bar-mini.is-menu-show) {
     position: absolute !important;
-    top: 4px;
-    right: 0;
+    top: 6px;
+    right: 6px;
     bottom: auto !important;
-    left: 0 !important;
-    width: 100% !important;
+    left: 6px !important;
+    width: calc(100% - 12px) !important;
   }
 
   &.player-collapsed :deep(.mobile-play-bar.play-bar-mini.idle-collapsed) {
-    top: 2px;
+    top: auto !important;
     right: 2px !important;
+    bottom: 2px !important;
     left: auto !important;
     width: 50px !important;
   }
 
-  &:not(.visible) {
+  &:not(.visible):not(.has-player) {
     position: static;
   }
 
@@ -516,7 +517,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 .mobile-glow-nav-wrap {
   position: fixed;
-  bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
+  bottom: calc(var(--safe-area-inset-bottom, 0px) + 14px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 200;
@@ -535,7 +536,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 .mobile-bottom-dock .mobile-glow-nav-wrap {
   position: absolute;
-  bottom: 4px;
+  bottom: 3px;
 }
 
 /* 外层径向辉光 — 动态强调色 */
@@ -562,6 +563,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   box-shadow: none;
   position: relative;
   z-index: 1;
+  transform: none;
 }
 
 /* 单个导航项 — 纯图标，选中时才显示文字 */
@@ -570,8 +572,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 36px;
-  min-width: 36px;
+  height: 40px;
+  min-width: 40px;
   padding: 0 8px;
   border-radius: 9999px;
   cursor: pointer;
@@ -625,7 +627,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* 图标 */
 .glow-item-icon {
-  font-size: 19px;
+  font-size: 23px;
   color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
   transition:
     color 0.35s $spring-smooth,
@@ -635,7 +637,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 /* 选中态：图标弹跳放大 + 强调色 */
 .glow-nav-item.active .glow-item-icon {
   color: var(--accent-color, #fff);
-  transform: scale(1.15);
+  transform: scale(1.1);
 }
 
 /* hover 态 */

@@ -16,97 +16,149 @@
     </template>
     <template v-else>
       <div class="user-scroll">
-        <glow-tabs
-          v-model="currentTab"
-          :tabs="visibleTabs.map((tab) => ({ key: tab.key, label: t(tab.label) }))"
-          full-width
-          class="tab-bar-glow"
-        />
-
         <!-- Personal center: profile, listening statistics and connected platforms. -->
-        <div v-if="user" class="content-area" :class="setAnimationClass('animate__fadeIn')">
-          <template v-if="currentTab === 'overview'">
-            <section class="profile-glass">
-              <div class="profile-main">
-                <img
-                  v-if="user.avatarUrl"
-                  class="profile-avatar"
-                  :src="getImgUrl(user.avatarUrl, '144y144')"
-                  :alt="user.nickname"
+        <div class="content-area" :class="setAnimationClass('animate__fadeIn')">
+          <section
+            class="profile-glass"
+            :class="[`panel-${accountPanel}`, { 'is-expanded': accountPanel !== 'closed' }]"
+          >
+            <div class="profile-morph-stage">
+              <div
+                class="profile-morph-view profile-closed-view"
+                :class="{ active: accountPanel === 'closed' }"
+              >
+                <div class="profile-main">
+                  <button
+                    type="button"
+                    class="profile-avatar-button"
+                    aria-label="accounts"
+                    @pointerdown="startAvatarPress"
+                    @pointerup="endAvatarPress"
+                    @pointercancel="cancelAvatarPress"
+                    @pointerleave="cancelAvatarPress"
+                    @contextmenu.prevent="accountPanel = 'accounts'"
+                  >
+                    <img
+                      v-if="user?.avatarUrl"
+                      class="profile-avatar"
+                      :src="getImgUrl(user.avatarUrl, '144y144')"
+                      :alt="user.nickname"
+                    />
+                    <span v-else class="profile-avatar profile-avatar-placeholder">
+                      <i class="ri-user-3-line" />
+                    </span>
+                  </button>
+                  <div class="profile-copy">
+                    <h1>{{ user?.nickname || t('user.accountSwitcher.addAccount') }}</h1>
+                    <p>{{ userDetail?.profile?.signature || t('user.detail.noSignature') }}</p>
+                    <span class="platform-badge">{{ activePlatformLabel }}</span>
+                  </div>
+                </div>
+                <div class="profile-stats">
+                  <div>
+                    <strong>{{ userDetail?.profile?.followeds || 0 }}</strong>
+                    <span>{{ t('user.profile.followers') }}</span>
+                  </div>
+                  <div>
+                    <strong>{{ userDetail?.profile?.follows || 0 }}</strong>
+                    <span>{{ t('user.profile.following') }}</span>
+                  </div>
+                  <div>
+                    <strong>{{ userDetail?.level || 0 }}</strong>
+                    <span>{{ t('user.profile.level') }}</span>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="profile-morph-view account-morph-panel account-grid-panel"
+                :class="{ active: accountPanel === 'accounts' }"
+              >
+                <div class="account-morph-heading">
+                  <strong>{{ t('user.accountSwitcher.title') }}</strong>
+                  <button type="button" @click="closeAccountPanel">
+                    <i class="ri-close-line" />
+                  </button>
+                </div>
+                <div class="account-morph-grid">
+                  <button
+                    v-for="account in accounts"
+                    :key="account.accountId"
+                    type="button"
+                    class="account-morph-row"
+                    :class="{ active: account.accountId === activeAccountId }"
+                    @click="
+                      handleAccountChange(account);
+                      closeAccountPanel();
+                    "
+                  >
+                    <img
+                      v-if="account.avatarUrl"
+                      :src="getImgUrl(account.avatarUrl, '72y72')"
+                      alt=""
+                    />
+                    <span v-else><i class="ri-user-3-line" /></span>
+                    <div>
+                      <strong>{{ account.nickname }}</strong
+                      ><small>{{ platformName(account.platform) }}</small>
+                    </div>
+                    <i
+                      v-if="account.accountId === activeAccountId"
+                      class="ri-check-line account-morph-check"
+                    />
+                  </button>
+                </div>
+                <button type="button" class="account-add-morph" @click="accountPanel = 'login'">
+                  <i class="ri-user-add-line" />{{ t('user.accountSwitcher.addAccount') }}
+                </button>
+              </div>
+              <div
+                class="profile-morph-view account-morph-panel login-morph-panel"
+                :class="{ active: accountPanel === 'login' }"
+              >
+                <login-component
+                  embedded
+                  @login-success="handleLoginSuccess"
+                  @close="closeAccountPanel"
                 />
-                <div v-else class="profile-avatar profile-avatar-placeholder">
-                  <i class="ri-user-3-line" />
-                </div>
-                <div class="profile-copy">
-                  <h1>{{ user.nickname }}</h1>
-                  <p>{{ userDetail?.profile?.signature || t('user.detail.noSignature') }}</p>
-                  <span class="platform-badge">{{ activePlatformLabel }}</span>
-                </div>
               </div>
-              <div class="profile-stats">
-                <div>
-                  <strong>{{ userDetail?.profile?.followeds || 0 }}</strong>
-                  <span>{{ t('user.profile.followers') }}</span>
-                </div>
-                <div>
-                  <strong>{{ userDetail?.profile?.follows || 0 }}</strong>
-                  <span>{{ t('user.profile.following') }}</span>
-                </div>
-                <div>
-                  <strong>{{ userDetail?.level || 0 }}</strong>
-                  <span>{{ t('user.profile.level') }}</span>
-                </div>
+            </div>
+          </section>
+
+          <section class="listening-overview">
+            <article>
+              <i class="ri-headphone-line" /><strong>{{ totalPlayCount }}</strong
+              ><span>{{ t('user.statistics.plays') }}</span>
+            </article>
+            <article>
+              <i class="ri-bar-chart-box-line" /><strong>{{ displayRecordList.length }}</strong
+              ><span>{{ t('user.statistics.rankedSongs') }}</span>
+            </article>
+            <article>
+              <i class="ri-links-line" /><strong>{{ connectedPlatformCount }}</strong
+              ><span>{{ t('user.statistics.platforms') }}</span>
+            </article>
+          </section>
+
+          <section class="ranking-section glass-section">
+            <h2 class="section-title">{{ t('user.ranking.title') }}</h2>
+            <div class="ranking-list">
+              <div
+                v-for="(item, index) in displayRecordList.slice(0, 20)"
+                :key="`${item.id}-${index}`"
+                class="ranking-item"
+              >
+                <span class="ranking-num">{{ index + 1 }}</span>
+                <song-item class="ranking-song-item" :item="item" mini @play="handlePlayRecord" />
               </div>
-            </section>
-
-            <section class="listening-overview">
-              <article>
-                <i class="ri-headphone-line" />
-                <strong>{{ totalPlayCount }}</strong>
-                <span>{{ t('user.statistics.plays') }}</span>
-              </article>
-              <article>
-                <i class="ri-bar-chart-box-line" />
-                <strong>{{ displayRecordList.length }}</strong>
-                <span>{{ t('user.statistics.rankedSongs') }}</span>
-              </article>
-              <article>
-                <i class="ri-links-line" />
-                <strong>{{ connectedPlatformCount }}</strong>
-                <span>{{ t('user.statistics.platforms') }}</span>
-              </article>
-            </section>
-
-            <section class="ranking-section glass-section">
-              <h2 class="section-title">{{ t('user.ranking.title') }}</h2>
-              <div class="ranking-list">
-                <div
-                  v-for="(item, index) in displayRecordList.slice(0, 20)"
-                  :key="`${item.id}-${index}`"
-                  class="ranking-item"
-                >
-                  <span class="ranking-num">{{ index + 1 }}</span>
-                  <song-item class="ranking-song-item" :item="item" mini @play="handlePlayRecord" />
-                </div>
-                <div v-if="!displayRecordList.length" class="ranking-empty">
-                  {{ t('user.ranking.empty') }}
-                </div>
+              <div v-if="!displayRecordList.length" class="ranking-empty">
+                {{ t('user.ranking.empty') }}
               </div>
-            </section>
-          </template>
-
-          <section v-else class="accounts-glass">
-            <platform-accounts />
+            </div>
           </section>
         </div>
 
         <div class="bottom-spacer" />
         <play-bottom />
-      </div>
-
-      <!-- Login prompt -->
-      <div v-if="!isLoggedIn" class="login-container" :class="setAnimationClass('animate__fadeIn')">
-        <login-component @login-success="handleLoginSuccess" />
       </div>
     </template>
   </div>
@@ -115,20 +167,14 @@
 <script lang="ts" setup>
 import { useMessage } from 'naive-ui';
 import { storeToRefs } from 'pinia';
-import { computed, getCurrentInstance, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import { fetchPlatformAccountData } from '@/api/platformQrApi';
 import { getUserDetail, getUserPlaylist, getUserRecord } from '@/api/user';
-import GlowTabs from '@/components/common/GlowTabs.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
-import PlatformAccounts from '@/components/user/PlatformAccounts.vue';
-import {
-  registerMobileTopbarAction,
-  unregisterMobileTopbarAction
-} from '@/composables/useMobileTopbarMenu';
 import { type PlatformAccount, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { useUserStore } from '@/store/modules/user';
@@ -148,21 +194,13 @@ const { userDetail, recordList } = storeToRefs(userStore);
 const infoLoading = ref(false);
 const mounted = ref(true);
 const message = useMessage();
-const topbarActionPrefix = `user-${getCurrentInstance()?.uid || 'view'}`;
-
-const goToLogin = () => {
-  router.push('/login');
-};
-
-const tabs = [
-  { key: 'overview', label: 'comp.my' },
-  { key: 'platforms', label: 'user.tabs.platforms' }
-];
-const currentTab = ref('overview');
+const accountPanel = ref<'closed' | 'accounts' | 'login'>(
+  route.query.panel === 'login' ? 'login' : 'closed'
+);
+let avatarPressTimer: number | null = null;
 
 const { accounts, activeAccountId, activeAccount, activeAccountCache } = storeToRefs(accountStore);
 const activePlatform = computed(() => activeAccount.value?.platform || 'netease');
-const visibleTabs = computed(() => tabs);
 const user = computed(() => {
   if (activeAccount.value) {
     return {
@@ -191,10 +229,30 @@ const connectedPlatformCount = computed(
 );
 const activePlatformLabel = computed(() => activePlatform.value.toUpperCase());
 
+const platformName = (platform: PlatformAccount['platform']) =>
+  ({ netease: '网易云', qq: 'QQ 音乐', kugou: '酷狗音乐', spotify: 'Spotify' })[platform];
+
 const handlePlayRecord = (item: any) => {
-  const tracks = displayRecordList.value || [];
-  playerStore.setPlayList(tracks);
+  playerStore.setPlayList(displayRecordList.value || []);
   playerStore.setPlay(item);
+};
+
+const startAvatarPress = () => {
+  if (avatarPressTimer) window.clearTimeout(avatarPressTimer);
+  avatarPressTimer = window.setTimeout(() => {
+    accountPanel.value = 'accounts';
+    avatarPressTimer = null;
+  }, 480);
+};
+const cancelAvatarPress = () => {
+  if (avatarPressTimer) window.clearTimeout(avatarPressTimer);
+  avatarPressTimer = null;
+};
+const endAvatarPress = () => cancelAvatarPress();
+const closeAccountPanel = () => {
+  cancelAvatarPress();
+  accountPanel.value = 'closed';
+  if (route.query.panel) router.replace({ path: '/user' });
 };
 
 const handleAccountChange = async (account: PlatformAccount) => {
@@ -219,11 +277,7 @@ const handleAccountChange = async (account: PlatformAccount) => {
 
 onBeforeUnmount(() => {
   mounted.value = false;
-  unregisterMobileTopbarAction(`${topbarActionPrefix}-settings`);
-  accounts.value.forEach((account) => {
-    unregisterMobileTopbarAction(`${topbarActionPrefix}-account-${account.accountId}`);
-  });
-  unregisterMobileTopbarAction(`${topbarActionPrefix}-add-account`);
+  cancelAvatarPress();
 });
 
 const checkLoginStatus = () => {
@@ -369,7 +423,7 @@ const loadData = async () => {
     console.error('加载用户页面失败:', error);
     if (error.response?.status === 401 || error.response?.status === 301) {
       userStore.handleLogout();
-      router.push('/login');
+      accountPanel.value = 'login';
     } else {
       message.error(t('user.message.loadFailed'));
     }
@@ -410,61 +464,38 @@ watch(
   }
 );
 
+watch(
+  () => route.query.panel,
+  (panel) => {
+    if (panel === 'login') accountPanel.value = 'login';
+  }
+);
+
 onMounted(() => {
   checkLoginStatus() && loadData();
-  registerMobileTopbarAction({
-    id: `${topbarActionPrefix}-settings`,
-    routePath: route.path,
-    label: t('common.settings'),
-    icon: 'ri-settings-3-line',
-    run: () => router.push('/set')
-  });
-  accounts.value.forEach((account) => {
-    registerMobileTopbarAction({
-      id: `${topbarActionPrefix}-account-${account.accountId}`,
-      routePath: route.path,
-      label: account.nickname,
-      icon: account.accountId === activeAccountId.value ? 'ri-radio-button-line' : 'ri-user-line',
-      run: () => handleAccountChange(account)
-    });
-  });
-  registerMobileTopbarAction({
-    id: `${topbarActionPrefix}-add-account`,
-    routePath: route.path,
-    label: t('user.accountSwitcher.addAccount'),
-    icon: 'ri-user-add-line',
-    run: goToLogin
-  });
 });
 
 const handleLoginSuccess = () => {
+  accountPanel.value = 'closed';
   checkLoginStatus();
   loadData();
 };
-
-const isLoggedIn = computed(() => accounts.value.length > 0 || userStore.user);
 </script>
 
 <style lang="scss" scoped>
 .user-page {
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   background: var(--cover-bg, var(--m-bg, var(--bg-color)));
 }
 
 .user-scroll {
   width: 100%;
-  height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+  min-height: 100%;
+  overflow: visible;
   padding-top: calc(var(--safe-area-inset-top, 0px) + 68px);
-  &::-webkit-scrollbar {
-    display: none;
-  }
 }
 
 /* Skeleton — 新骨架屏：图片转圈 + 文字遮罩 */
@@ -883,8 +914,63 @@ const isLoggedIn = computed(() => accounts.value.length > 0 || userStore.user);
 }
 
 .profile-glass {
+  position: relative;
   padding: 20px;
   border-radius: 28px;
+  overflow: hidden;
+  transition:
+    min-height 460ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    padding 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 300ms ease;
+
+  &.panel-closed {
+    min-height: 178px;
+  }
+
+  &.panel-accounts {
+    min-height: 286px;
+  }
+
+  &.panel-login {
+    min-height: 600px;
+  }
+
+  &.is-expanded {
+    border-radius: 32px;
+    box-shadow:
+      0 22px 48px color-mix(in srgb, var(--m-shadow, #000) 54%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+}
+
+.profile-morph-stage {
+  position: relative;
+  min-height: 138px;
+}
+
+.profile-morph-view {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(18px, 0, 0) scale(0.98);
+  transition:
+    opacity 220ms ease,
+    transform 460ms cubic-bezier(0.32, 0.72, 0, 1),
+    visibility 0s linear 460ms;
+}
+
+.profile-morph-view.active {
+  position: relative;
+  inset: auto;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+  transition-delay: 0s;
 }
 
 .profile-main {
@@ -898,9 +984,147 @@ const isLoggedIn = computed(() => accounts.value.length > 0 || userStore.user);
   height: 72px;
   flex: 0 0 72px;
   border: 2px solid rgba(255, 255, 255, 0.28);
-  border-radius: 24px;
+  border-radius: 50%;
   object-fit: cover;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+}
+
+.profile-avatar-button {
+  display: block;
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  touch-action: pan-y;
+  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  &:active {
+    transform: scale(0.94);
+  }
+}
+
+.account-morph-panel {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+}
+
+.account-grid-panel {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.account-morph-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.account-morph-heading {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--m-text-primary);
+  font-size: 15px;
+
+  button {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--m-surface-alt) 58%, transparent);
+    color: inherit;
+    font-size: 18px;
+  }
+}
+
+.account-morph-row {
+  display: grid;
+  min-width: 0;
+  min-height: 112px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 14px 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--m-surface-alt) 42%, transparent);
+  color: var(--m-text-primary);
+  text-align: center;
+  transition:
+    transform 180ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-color 180ms ease,
+    background 180ms ease;
+
+  > img,
+  > span:first-child {
+    display: grid;
+    width: 58px;
+    height: 58px;
+    place-items: center;
+    border-radius: 50%;
+    object-fit: cover;
+    background: color-mix(in srgb, var(--m-surface-alt) 68%, transparent);
+  }
+
+  div {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+
+    strong,
+    small {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    small {
+      color: var(--m-text-muted);
+      font-size: 11px;
+    }
+  }
+
+  &.active {
+    border-color: color-mix(in srgb, var(--accent-color) 48%, transparent);
+    background: color-mix(in srgb, var(--accent-color) 14%, transparent);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+.account-morph-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: var(--accent-color);
+  font-size: 19px;
+}
+
+.account-morph-row {
+  position: relative;
+}
+
+.account-add-morph {
+  min-height: 48px;
+  border: 1px dashed color-mix(in srgb, var(--accent-color) 48%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--accent-color) 8%, transparent);
+  color: var(--accent-color);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .profile-avatar-placeholder {
@@ -1007,6 +1231,13 @@ const isLoggedIn = computed(() => accounts.value.length > 0 || userStore.user);
   margin-top: 10px;
   padding: 16px;
   border-radius: 28px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-glass,
+  .profile-morph-view {
+    transition-duration: 120ms;
+  }
 }
 
 .accounts-glass {

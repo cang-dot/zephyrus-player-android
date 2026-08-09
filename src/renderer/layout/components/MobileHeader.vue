@@ -1,72 +1,121 @@
 <template>
-  <div class="floating-topbar" :class="{ 'safe-area-top': hasSafeArea, 'is-search': isSearchPage }">
+  <div
+    class="floating-topbar"
+    :class="{
+      'safe-area-top': hasSafeArea,
+      'is-search': isSearchPage,
+      'has-back': showBack,
+      'menu-expanded': topbarMenu.expanded.value
+    }"
+  >
     <button v-if="showBack" type="button" class="topbar-pill topbar-back" @click="onTitleClick">
       <i class="ri-arrow-left-s-line" />
     </button>
 
-    <section
-      class="topbar-pill topbar-morph"
-      :class="{ expanded: topbarMenu.expanded.value, 'has-menu': hasMorphMenu }"
-      @click="toggleMorphMenu"
-    >
-      <header class="morph-trigger">
-        <span>{{ topbarMenu.activeLabel.value || displayTitle }}</span>
-        <i v-if="hasMorphMenu" class="ri-arrow-down-s-line" />
-      </header>
-      <div class="morph-content" @click.stop>
-        <div v-for="group in topbarMenu.groups.value" :key="group.id" class="morph-group">
-          <button
-            v-for="option in group.options"
-            :key="option.key"
-            type="button"
-            :class="{ active: String(option.key) === String(group.value) }"
-            @click="selectMorphOption(group, option.key)"
-          >
-            <i v-if="option.icon" :class="option.icon" />
-            <span>{{ option.label }}</span>
-            <i v-if="String(option.key) === String(group.value)" class="ri-check-line" />
-          </button>
+    <div v-if="!isSearchPage" class="topbar-morph-anchor">
+      <section
+        class="topbar-pill topbar-morph"
+        :class="{ expanded: topbarMenu.expanded.value, 'has-menu': hasMorphMenu }"
+        @click="toggleMorphMenu"
+      >
+        <header class="morph-trigger">
+          <span>{{
+            hasMorphMenu ? topbarMenu.activeLabel.value || displayTitle : displayTitle
+          }}</span>
+          <i v-if="hasMorphMenu" class="ri-arrow-down-s-line" />
+        </header>
+        <div class="morph-content" @click.stop>
+          <div v-for="group in topbarMenu.groups.value" :key="group.id" class="morph-group">
+            <button
+              v-for="option in group.options"
+              :key="option.key"
+              type="button"
+              :class="{ active: String(option.key) === String(group.value) }"
+              @click="selectMorphOption(group, option.key)"
+            >
+              <i v-if="option.icon" :class="option.icon" />
+              <span>{{ option.label }}</span>
+              <i v-if="String(option.key) === String(group.value)" class="ri-check-line" />
+            </button>
+          </div>
+          <div v-if="topbarMenu.actions.value.length" class="morph-actions">
+            <button
+              v-for="action in topbarMenu.actions.value"
+              :key="action.id"
+              type="button"
+              @click="runMorphAction(action)"
+            >
+              <i :class="action.icon" />
+              <span>{{ action.label }}</span>
+            </button>
+          </div>
         </div>
-        <div v-if="topbarMenu.actions.value.length" class="morph-actions">
-          <button
-            v-for="action in topbarMenu.actions.value"
-            :key="action.id"
-            type="button"
-            @click="runMorphAction(action)"
-          >
-            <i :class="action.icon" />
-            <span>{{ action.label }}</span>
-          </button>
-        </div>
-      </div>
-    </section>
+      </section>
+    </div>
 
     <!-- 搜索框（非搜索页：点击跳转；搜索页：真实输入框） -->
-    <div class="topbar-pill topbar-search-pill" @click="!isSearchPage && openSearch()">
+    <div
+      class="topbar-pill topbar-search-pill"
+      @click="!isSearchPage && !isSettingsPage && openSearch()"
+    >
       <i class="ri-search-line search-icon"></i>
       <input
-        v-if="isSearchPage"
+        v-if="isSearchPage || isSettingsPage"
         ref="searchInputRef"
-        :value="searchStore.searchValue"
+        :value="isSettingsPage ? settingsSearchValue : searchStore.searchValue"
         type="text"
         class="search-input"
-        :placeholder="searchStore.placeholder"
-        @input="onSearchInput"
-        @focus="handleSearchFocus"
-        @click="handleSearchFocus"
-        @keydown.enter="handleSearchSubmit"
+        :placeholder="isSettingsPage ? topbarSearchPlaceholder : searchStore.placeholder"
+        @input="isSettingsPage ? onSettingsSearchInput : onSearchInput"
+        @focus="isSearchPage && handleSearchFocus()"
+        @click="isSearchPage && handleSearchFocus()"
+        @keydown.enter="isSearchPage && handleSearchSubmit()"
       />
-      <span v-else class="topbar-search-text">{{ t('comp.searchBar.searchPlaceholder') }}</span>
+      <span v-else class="topbar-search-text">{{ topbarSearchPlaceholder }}</span>
       <i
-        v-if="isSearchPage && searchStore.searchValue"
+        v-if="(isSearchPage && searchStore.searchValue) || (isSettingsPage && settingsSearchValue)"
         class="ri-close-circle-fill clear-icon"
-        @click.stop="clearSearch"
+        @click.stop="isSettingsPage ? clearSettingsSearch() : clearSearch()"
       ></i>
     </div>
 
+    <section
+      v-if="isSearchPage"
+      class="topbar-pill topbar-search-type"
+      :class="{ expanded: searchTypeExpanded }"
+      @click.stop="searchTypeExpanded = !searchTypeExpanded"
+    >
+      <header class="search-type-trigger">
+        <span>{{ activeSearchTypeLabel }}</span>
+        <i class="ri-arrow-down-s-line" />
+      </header>
+      <div class="search-type-options">
+        <button
+          v-for="type in searchTypes"
+          :key="type.key"
+          type="button"
+          :class="{ active: Number(type.key) === Number(searchStore.searchType) }"
+          @click.stop="selectSearchType(type.key)"
+        >
+          <span>{{ type.label }}</span>
+          <i v-if="Number(type.key) === Number(searchStore.searchType)" class="ri-check-line" />
+        </button>
+      </div>
+    </section>
+
+    <button
+      v-if="route.path === '/user'"
+      type="button"
+      class="topbar-pill topbar-action-pill topbar-settings-pill"
+      :title="t('common.settings')"
+      @click="goToSettings"
+    >
+      <i class="ri-settings-3-line action-icon" />
+    </button>
+
     <!-- 头像 / 搜索按钮 -->
     <div
-      v-if="route.path !== '/user'"
+      v-else
       class="topbar-pill topbar-action-pill"
       :class="{ 'search-btn': isSearchPage }"
       @click="isSearchPage ? handleSearchSubmit() : goToUser()"
@@ -82,9 +131,9 @@
   </div>
 
   <div
-    v-if="topbarMenu.expanded.value"
+    v-if="topbarMenu.expanded.value || searchTypeExpanded"
     class="morph-dismiss-layer"
-    @pointerdown="topbarMenu.close"
+    @pointerdown="closeFloatingMenus"
   />
 
   <Teleport to="body">
@@ -148,6 +197,7 @@ import { useRoute, useRouter } from 'vue-router';
 
 import { getSearchSuggestions } from '@/api/search';
 import { useMobileTopbarMenu } from '@/composables/useMobileTopbarMenu';
+import { SEARCH_TYPES } from '@/const/bar-const';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { useSearchStore } from '@/store/modules/search';
 import { useUserStore } from '@/store/modules/user';
@@ -167,11 +217,17 @@ const showBack = computed(() => route.meta.back === true);
 const isSearchPage = computed(
   () => route.path === '/mobile-search' || route.path === '/mobile-search-result'
 );
+const isSettingsPage = computed(() => route.path === '/set');
 const isSearchResultPage = computed(() => route.path === '/mobile-search-result');
+const searchTypes = computed(() =>
+  SEARCH_TYPES.map((type) => ({ key: type.key, label: t(type.label) }))
+);
 
 const topbarMenu = useMobileTopbarMenu(() => route.path);
+const isUserPage = computed(() => route.path === '/user');
 const hasMorphMenu = computed(
-  () => topbarMenu.groups.value.length > 0 || topbarMenu.actions.value.length > 0
+  () =>
+    !isUserPage.value && (topbarMenu.groups.value.length > 0 || topbarMenu.actions.value.length > 0)
 );
 
 const displayTitle = computed(() => {
@@ -185,7 +241,13 @@ const avatarUrl = computed(() => {
   return url ? getImgUrl(url, '72y72') : '';
 });
 
+const topbarSearchPlaceholder = computed(() =>
+  route.path === '/set' ? '搜索设置项...' : t('comp.searchBar.searchPlaceholder')
+);
+
 const searchInputRef = ref<HTMLInputElement | null>(null);
+const settingsSearchValue = ref('');
+const searchTypeExpanded = ref(false);
 const showSearchAssist = ref(false);
 const searchHistory = ref<string[]>([]);
 const suggestions = ref<string[]>([]);
@@ -193,6 +255,12 @@ const suggestionsLoading = ref(false);
 const showingHistory = computed(() => !searchStore.searchValue.trim());
 const assistItems = computed(() =>
   showingHistory.value ? searchHistory.value : suggestions.value
+);
+const activeSearchTypeLabel = computed(
+  () =>
+    searchTypes.value.find((type) => Number(type.key) === Number(searchStore.searchType))?.label ||
+    searchTypes.value[0]?.label ||
+    ''
 );
 const HISTORY_KEY = 'mobile_search_history';
 let suggestionRequestId = 0;
@@ -280,8 +348,14 @@ watch(
   () => {
     closeSearchAssist();
     topbarMenu.close();
+    searchTypeExpanded.value = false;
   }
 );
+
+const closeFloatingMenus = () => {
+  topbarMenu.close();
+  searchTypeExpanded.value = false;
+};
 
 const onTitleClick = () => {
   if (showBack.value) {
@@ -309,7 +383,19 @@ const runMorphAction = (action: any) => {
 
 const openSearch = () => router.push('/mobile-search');
 
+const onSettingsSearchInput = (event: Event) => {
+  const value = (event.target as HTMLInputElement).value;
+  settingsSearchValue.value = value;
+  window.dispatchEvent(new CustomEvent('mobile-settings-search-input', { detail: value }));
+};
+
+const clearSettingsSearch = () => {
+  settingsSearchValue.value = '';
+  window.dispatchEvent(new CustomEvent('mobile-settings-search-input', { detail: '' }));
+};
+
 const goToUser = () => router.push('/user');
+const goToSettings = () => router.push('/set');
 
 const onSearchInput = (e: Event) => {
   const value = (e.target as HTMLInputElement).value;
@@ -332,6 +418,15 @@ const handleSearchFocus = () => openSearchAssist();
 const clearSearch = () => {
   searchStore.setSearchValue('');
   openSearchAssist();
+};
+
+const selectSearchType = (value: string | number) => {
+  const type = Number(value);
+  searchStore.setSearchType(type);
+  searchTypeExpanded.value = false;
+  if (isSearchResultPage.value) {
+    router.replace({ path: route.path, query: { ...route.query, type } });
+  }
 };
 
 const clearSearchHistory = () => {
@@ -388,12 +483,20 @@ const handleSearchSubmit = () => {
   transition: padding-top 220ms ease;
 }
 
+.topbar-morph-anchor {
+  position: relative;
+  width: 80px;
+  height: 40px;
+  flex: 0 0 80px;
+  pointer-events: auto;
+}
+
 .topbar-pill {
   display: flex;
   align-items: center;
   height: 40px;
   border-radius: 20px;
-  background: color-mix(in srgb, var(--m-surface, #eae6df) 62%, transparent);
+  background: var(--m-glass-bg);
   backdrop-filter: blur(24px) saturate(170%);
   -webkit-backdrop-filter: blur(24px) saturate(170%);
   border: 1px solid color-mix(in srgb, var(--m-white, #fff) 25%, transparent);
@@ -432,10 +535,10 @@ const handleSearchSubmit = () => {
   position: relative;
   z-index: 3;
   flex: 0 0 auto;
-  width: 92px;
+  width: 80px;
   height: auto;
-  min-width: 84px;
-  max-width: 104px;
+  min-width: 72px;
+  max-width: 88px;
   min-height: 40px;
   max-height: 40px;
   flex-direction: column;
@@ -463,14 +566,14 @@ const handleSearchSubmit = () => {
     max-height: min(52dvh, 420px);
     min-height: 40px;
     border-radius: 18px;
-    background: var(--cover-surface, rgba(255, 255, 255, 0.94));
+    background: var(--m-glass-bg);
     box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
     backdrop-filter: blur(28px) saturate(180%);
     -webkit-backdrop-filter: blur(28px) saturate(180%);
   }
 }
 
-.topbar-back + .topbar-morph.expanded {
+.floating-topbar.has-back .topbar-morph.expanded {
   left: 60px;
 }
 
@@ -686,6 +789,135 @@ const handleSearchSubmit = () => {
   }
 }
 
+.topbar-search-type {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 4;
+  width: 72px;
+  max-width: 72px;
+  height: auto;
+  min-height: 40px;
+  max-height: 40px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  overflow: hidden;
+  color: var(--cover-text-primary, var(--text-color));
+  transform-origin: top right;
+  transition:
+    width 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    max-width 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    max-height 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 280ms ease;
+
+  &.expanded {
+    position: fixed;
+    top: calc(var(--safe-area-inset-top, 0px) + 8px);
+    right: 60px;
+    width: min(42vw, 170px);
+    max-width: min(42vw, 170px);
+    max-height: 286px;
+    border-radius: 18px;
+    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.17);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+  }
+}
+
+.search-type-trigger {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 650;
+
+  i {
+    color: var(--cover-text-muted, #9a9590);
+    font-size: 13px;
+    transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .expanded & i {
+    transform: rotate(180deg);
+  }
+}
+
+.search-type-options {
+  display: grid;
+  gap: 2px;
+  padding: 0 6px 6px;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity 180ms ease,
+    transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  .expanded & {
+    opacity: 1;
+    transform: none;
+  }
+
+  button {
+    display: grid;
+    min-height: 38px;
+    grid-template-columns: minmax(0, 1fr) 18px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--cover-text-primary, var(--text-color));
+    font-size: 13px;
+    text-align: left;
+
+    &.active {
+      background: color-mix(in srgb, var(--accent-color) 14%, transparent);
+      color: var(--accent-color);
+    }
+
+    i {
+      color: currentColor;
+    }
+  }
+}
+
+.topbar-search-pill,
+.topbar-search-type,
+.topbar-action-pill {
+  transform-origin: center right;
+  transition:
+    opacity 180ms ease,
+    transform 340ms cubic-bezier(0.32, 0.72, 0, 1),
+    background 180ms ease,
+    border-color 180ms ease;
+}
+
+.floating-topbar.menu-expanded {
+  .topbar-search-pill,
+  .topbar-search-type,
+  .topbar-action-pill {
+    opacity: 0;
+    transform: translate3d(12px, 0, 0) scale(0.94);
+    pointer-events: none;
+  }
+}
+
+.topbar-settings-pill {
+  border: 1px solid var(--m-glass-border);
+  color: var(--cover-text-primary, var(--text-color));
+
+  .action-icon {
+    color: currentColor;
+    font-size: 20px;
+  }
+}
+
 .avatar-img {
   width: 100%;
   height: 100%;
@@ -728,7 +960,7 @@ const handleSearchSubmit = () => {
   overflow: hidden;
   border: 1px solid var(--cover-border, rgba(255, 255, 255, 0.12));
   border-radius: 20px;
-  background: var(--cover-surface, rgba(255, 255, 255, 0.92));
+  background: var(--m-glass-bg);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
@@ -873,6 +1105,13 @@ const handleSearchSubmit = () => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .topbar-search-pill,
+  .topbar-search-type,
+  .topbar-action-pill {
+    transition-duration: 120ms;
+    transform: none !important;
+  }
+
   .floating-topbar,
   .topbar-pill {
     transition: none;

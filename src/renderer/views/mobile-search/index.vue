@@ -1,14 +1,5 @@
 <template>
   <div class="mobile-search-page">
-    <!-- 搜索类型标签 -->
-    <GlowTabs
-      :model-value="String(searchType)"
-      :tabs="searchTypes.map(t => ({ key: String(t.key), label: t.label }))"
-      scrollable
-      class="search-types-glow"
-      @update:model-value="(v) => selectType(Number(v))"
-    />
-
     <!-- 搜索内容区域 -->
     <div class="search-content">
       <!-- 搜索建议 -->
@@ -69,29 +60,19 @@
 
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core';
-import { computed, onMounted, ref, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import { getHotSearch, getSearchKeyword } from '@/api/home';
 import { getSearchSuggestions } from '@/api/search';
-import GlowTabs from '@/components/common/GlowTabs.vue';
-import { SEARCH_TYPES } from '@/const/bar-const';
 import { useSearchStore } from '@/store/modules/search';
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const router = useRouter();
 const searchStore = useSearchStore();
 
 // 搜索类型
-const searchType = ref(searchStore.searchType || 1);
-const searchTypes = computed(() => {
-  locale.value;
-  return SEARCH_TYPES.map((type) => ({
-    label: t(type.label),
-    key: type.key
-  }));
-});
 
 // 搜索建议
 const suggestions = ref<string[]>([]);
@@ -150,15 +131,12 @@ const debouncedGetSuggestions = useDebounceFn(async (keyword: string) => {
 }, 300);
 
 // Watch search store value for suggestions
-watch(() => searchStore.searchValue, (val) => {
-  debouncedGetSuggestions(val);
-});
-
-// 选择搜索类型
-const selectType = (type: number) => {
-  searchType.value = type;
-  searchStore.setSearchType(type);
-};
+watch(
+  () => searchStore.searchValue,
+  (val) => {
+    debouncedGetSuggestions(val);
+  }
+);
 
 // 选择建议
 const selectSuggestion = (keyword: string) => {
@@ -169,11 +147,13 @@ const selectSuggestion = (keyword: string) => {
     history.unshift(keyword);
     searchHistory.value = history.slice(0, 20);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(searchHistory.value));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   router.push({
     path: '/mobile-search-result',
-    query: { keyword, type: searchType.value }
+    query: { keyword, type: searchStore.searchType }
   });
 };
 
@@ -190,10 +170,6 @@ onMounted(() => {
   @apply flex flex-col;
   background: var(--m-bg, var(--bg-color));
   padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);
-}
-
-.search-types-glow {
-  margin: 8px 16px 4px;
 }
 
 .search-content {

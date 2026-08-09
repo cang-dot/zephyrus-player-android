@@ -32,7 +32,7 @@ const loginRouter = {
     icon: 'icon-Home',
     back: true
   },
-  component: () => import('@/views/login/index.vue')
+  redirect: { path: '/user', query: { panel: 'login' } }
 };
 
 const routes = [
@@ -48,7 +48,9 @@ const routes = [
           const data = JSON.parse(saved);
           if (data.defaultPage) return data.defaultPage;
         }
-      } catch {}
+      } catch {
+        // Ignore malformed legacy settings and use the normal default route.
+      }
       return '/';
     }
   },

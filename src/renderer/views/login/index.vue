@@ -1,12 +1,34 @@
 <template>
-  <div class="login-page">
+  <div class="login-page" :class="{ embedded }">
     <div class="login-shell">
       <header class="login-header">
-        <h1 class="login-logo">Zephyrus</h1>
-        <p class="login-tagline">{{ t('comp.homeHero.discoverMusic') }}</p>
+        <button v-if="embedded" type="button" class="embedded-back" @click="emit('close')">
+          <i class="ri-arrow-left-s-line" />
+        </button>
+        <div class="login-heading-copy">
+          <h1 class="login-logo">
+            {{ embedded ? t('user.accountSwitcher.addAccount') : 'Zephyrus' }}
+          </h1>
+          <p class="login-tagline">
+            {{ embedded ? t(`login.title.${activeMethod}`) : t('comp.homeHero.discoverMusic') }}
+          </p>
+        </div>
       </header>
 
       <section class="login-card">
+        <nav class="login-platform-picker" :aria-label="t('user.accountSwitcher.title')">
+          <button
+            v-for="platform in MUSIC_PLATFORMS"
+            :key="platform"
+            type="button"
+            :class="{ active: activePlatform === platform }"
+            @click="switchPlatform(platform)"
+          >
+            <platform-logo :platform="platform" :size="24" />
+            <span>{{ t(`login.platform.${platform}`) }}</span>
+          </button>
+        </nav>
+
         <div class="platform-context">
           <span class="platform-context-logo">
             <platform-logo :platform="activePlatform" :size="28" />
@@ -17,14 +39,6 @@
           </div>
         </div>
 
-        <glow-tabs
-          :model-value="activePlatform"
-          :tabs="platformTabs"
-          scrollable
-          class="login-platform-tabs"
-          @update:model-value="switchPlatform($event as Platform)"
-        />
-
         <segment-slider
           v-if="activePlatform !== 'spotify'"
           :model-value="activeMethod"
@@ -34,7 +48,7 @@
         />
 
         <div class="login-content">
-          <Transition name="login-content" mode="out-in">
+          <Transition name="login-content">
             <div :key="`${activePlatform}-${activeMethod}`" class="login-form">
               <spotify-login
                 v-if="activePlatform === 'spotify'"
@@ -77,11 +91,10 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue';
+import { computed, ref, toRefs, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
-import GlowTabs from '@/components/common/GlowTabs.vue';
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import SegmentSlider from '@/components/common/SegmentSlider.vue';
 import PlatformCookieLogin from '@/components/login/PlatformCookieLogin.vue';
@@ -99,6 +112,10 @@ import { useUserStore } from '@/store/modules/user';
 
 defineOptions({ name: 'Login' });
 
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+const emit = defineEmits<{ 'login-success': []; close: [] }>();
+const { embedded } = toRefs(props);
+
 type Platform = MusicPlatform;
 type LoginMethod = PlatformLoginMethod;
 
@@ -115,13 +132,6 @@ const routePlatform = computed(() => {
 
 const activePlatform = ref<Platform>(routePlatform.value);
 const activeMethod = ref<LoginMethod>('qr');
-
-const platformTabs = computed(() =>
-  MUSIC_PLATFORMS.map((platform) => ({
-    key: platform,
-    label: t(`login.platform.${platform}`)
-  }))
-);
 
 const availableMethods = computed<LoginMethod[]>(() => {
   if (activePlatform.value === 'netease') return ['qr', 'cookie', 'uid'];
@@ -163,6 +173,10 @@ watch(
 );
 
 const finishLogin = () => {
+  if (embedded.value) {
+    emit('login-success');
+    return;
+  }
   window.setTimeout(() => router.push('/user'), 260);
 };
 
@@ -229,6 +243,109 @@ const handleLoginError = (error: string) => {
   color: var(--cover-text-primary, var(--d-text-primary));
 }
 
+.login-page.embedded {
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+  background: transparent;
+
+  .login-shell {
+    width: 100%;
+    min-height: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .login-header {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 12px;
+    text-align: left;
+  }
+
+  .login-logo {
+    font-family: inherit;
+    font-size: 20px;
+    font-weight: 760;
+  }
+
+  .login-tagline {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+  }
+
+  .login-card {
+    display: grid;
+    gap: 12px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .platform-context {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--m-surface-alt) 46%, transparent);
+  }
+
+  .login-method-slider {
+    margin: 0;
+  }
+
+  .login-content {
+    display: block;
+    min-height: 0;
+  }
+
+  :deep(.qr-login),
+  :deep(.platform-qr-login) {
+    padding: 2px 0 0;
+  }
+
+  :deep(.qr-login .login-title) {
+    margin-bottom: 10px;
+    font-size: 16px;
+  }
+
+  :deep(.qr-container),
+  :deep(.platform-qr-login .qr-container) {
+    width: min(196px, 58vw);
+    height: min(196px, 58vw);
+    border-radius: 16px;
+  }
+
+  :deep(.qr-status-text),
+  :deep(.qr-login .text) {
+    margin-top: 8px;
+    font-size: 11px;
+  }
+}
+
+.embedded-back {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--m-surface-alt) 62%, transparent);
+  color: var(--m-text-primary);
+  font-size: 20px;
+}
+
+.login-heading-copy {
+  min-width: 0;
+}
+
 .login-shell {
   display: flex;
   width: min(100%, 460px);
@@ -272,6 +389,50 @@ const handleLoginError = (error: string) => {
   -webkit-backdrop-filter: blur(24px) saturate(170%);
 }
 
+.login-platform-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+
+  button {
+    display: grid;
+    min-width: 0;
+    min-height: 68px;
+    place-items: center;
+    align-content: center;
+    gap: 5px;
+    padding: 7px 4px;
+    border: 1px solid transparent;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--m-surface-alt) 38%, transparent);
+    color: var(--cover-text-muted, var(--d-text-muted));
+    transition:
+      transform 180ms cubic-bezier(0.32, 0.72, 0, 1),
+      background 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease;
+
+    span {
+      width: 100%;
+      overflow: hidden;
+      font-size: 10px;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    &.active {
+      border-color: color-mix(in srgb, var(--accent-color) 42%, transparent);
+      background: color-mix(in srgb, var(--accent-color) 13%, transparent);
+      color: var(--accent-color);
+    }
+
+    &:active {
+      transform: scale(0.96);
+    }
+  }
+}
+
 .platform-context {
   display: flex;
   align-items: center;
@@ -307,12 +468,6 @@ const handleLoginError = (error: string) => {
   color: var(--accent-color);
 }
 
-.login-platform-tabs {
-  display: flex;
-  width: 100%;
-  margin-bottom: 12px;
-}
-
 .login-method-slider {
   margin-bottom: 20px;
 }
@@ -326,7 +481,7 @@ const handleLoginError = (error: string) => {
 
 .login-form {
   width: 100%;
-  max-width: 320px;
+  max-width: none;
 }
 
 .login-content-enter-active,

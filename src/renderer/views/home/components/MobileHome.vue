@@ -131,6 +131,7 @@ onMounted(() => recommendStore.refreshIfStale());
 }
 
 .mode-card {
+  --material-tone: 0.14;
   min-height: 112px;
   padding: 16px;
   display: grid;
@@ -139,7 +140,12 @@ onMounted(() => recommendStore.refreshIfStale());
   gap: 3px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 28px;
-  background: color-mix(in srgb, rgba(30, 30, 32, 0.62) 64%, transparent);
+  background:
+    linear-gradient(
+      rgba(var(--accent-color-rgb, 136, 136, 136), var(--material-tone)),
+      rgba(var(--accent-color-rgb, 136, 136, 136), var(--material-tone))
+    ),
+    color-mix(in srgb, rgba(30, 30, 32, 0.62) 58%, transparent);
   color: #fff;
   box-shadow:
     0 12px 28px rgba(0, 0, 0, 0.1),
@@ -148,17 +154,20 @@ onMounted(() => recommendStore.refreshIfStale());
   -webkit-backdrop-filter: blur(24px) saturate(165%);
 
   &.fm {
+    --material-tone: 0.22;
     grid-row: span 2;
     min-height: 234px;
   }
 
   &.random {
+    --material-tone: 0.1;
     min-height: 112px;
   }
 
   i {
     margin-bottom: auto;
     font-size: 25px;
+    color: color-mix(in srgb, var(--accent-color) 72%, #fff);
   }
 
   span {
@@ -176,7 +185,12 @@ onMounted(() => recommendStore.refreshIfStale());
   padding: 16px 12px 6px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 30px;
-  background: color-mix(in srgb, rgba(30, 30, 32, 0.58) 62%, transparent);
+  background:
+    linear-gradient(
+      rgba(var(--accent-color-rgb, 136, 136, 136), 0.12),
+      rgba(var(--accent-color-rgb, 136, 136, 136), 0.12)
+    ),
+    color-mix(in srgb, rgba(30, 30, 32, 0.58) 58%, transparent);
   box-shadow:
     0 14px 32px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
@@ -206,8 +220,8 @@ onMounted(() => recommendStore.refreshIfStale());
     display: grid;
     place-items: center;
     border-radius: 50%;
-    background: #fff;
-    color: #111;
+    background: color-mix(in srgb, var(--accent-color) 82%, #fff);
+    color: #fff;
   }
 }
 

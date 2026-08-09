@@ -40,6 +40,7 @@
           class="mini-song-cover"
           lazy
           preview-disabled
+          @click.stop="setMusicFull"
         />
         <div class="mini-song-text">
           <n-ellipsis line-clamp="1">
@@ -420,6 +421,10 @@ watch(
   }
 
   &.is-menu-show .mobile-mini-controls {
+    width: 100%;
+    height: 48px;
+    margin: 0;
+    padding: 0 8px 0 4px;
     border-color: transparent;
     background: transparent;
     box-shadow: none;
@@ -547,8 +552,8 @@ watch(
     --mini-swipe-duration: 0ms;
     --mini-swipe-opacity-duration: 0ms;
     --mini-swipe-ease: cubic-bezier(0.22, 0.84, 0.24, 1.08);
-    background: color-mix(in srgb, var(--m-surface, #eae6df) 66%, transparent);
-    border: 1px solid color-mix(in srgb, var(--m-white, #fff) 22%, transparent);
+    background: var(--m-glass-bg);
+    border: 1px solid var(--m-glass-border);
     backdrop-filter: blur(24px) saturate(165%);
     -webkit-backdrop-filter: blur(24px) saturate(165%);
     touch-action: pan-y;
@@ -582,14 +587,27 @@ watch(
       transition: flex 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
       .mini-song-cover {
-        @apply w-12 h-12 rounded-full;
-        border: 8px solid var(--m-surface-alt, #e0dbd3);
+        width: 40px;
+        height: 40px;
+        margin: 4px;
+        flex: 0 0 auto;
+        overflow: hidden;
+        border-radius: 50%;
+        border: 4px solid color-mix(in srgb, var(--accent-color) 18%, transparent);
         transition:
           width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
           height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
           border-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
           transform 180ms ease-out;
         transform: rotate(var(--mini-swipe-rotation, 0deg));
+
+        :deep(.n-image-img),
+        :deep(img) {
+          width: 100%;
+          height: 100%;
+          border-radius: inherit;
+          object-fit: cover;
+        }
       }
 
       .mini-song-text {
@@ -755,6 +773,7 @@ watch(
     margin: 3px;
     border-width: 1px !important;
     border-color: transparent !important;
+    border-radius: 50% !important;
   }
 
   &.idle-collapsed .mini-song-text,

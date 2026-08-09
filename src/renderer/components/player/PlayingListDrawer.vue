@@ -262,24 +262,47 @@ const handleDeleteSong = (song: SongResult) => {
 
 // 移动端适配
 @media (max-width: 768px) {
+  .fixed-overlay {
+    z-index: 190;
+    background: rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+  }
+
   .playlist-panel {
     position: fixed;
-    width: 100%;
-    height: 80vh;
+    z-index: 198;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    height: calc(100dvh - var(--safe-area-inset-top, 0px) - 14px);
     top: auto;
-    bottom: 0; // 移动端底部留出导航栏高度
-    border-radius: 30px 30px 0 0;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 14px);
+    border-radius: 32px;
     border-left: none;
-    border-top: 1px solid theme('colors.gray.200');
+    border: 1px solid var(--m-glass-border, rgba(255, 255, 255, 0.24));
     box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
+    background: var(--m-glass-bg, rgba(255, 255, 255, 0.62));
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    padding-bottom: 58px;
+    transform-origin: center bottom;
+
+    &.animate__slideInUp {
+      animation-name: mobile-playlist-morph-in !important;
+    }
+
+    &.animate__slideOutDown {
+      animation-name: mobile-playlist-morph-out !important;
+    }
 
     &-header {
-      @apply text-center relative px-4;
+      @apply relative px-4;
 
       &::before {
         content: '';
         position: absolute;
-        top: -15px;
+        top: 10px;
         left: 50%;
         transform: translateX(-50%);
         width: 40px;
@@ -290,9 +313,37 @@ const handleDeleteSong = (song: SongResult) => {
     }
 
     &-content {
-      height: calc(80vh - 60px);
+      height: calc(
+        100dvh - var(--safe-area-inset-top, 0px) - var(--safe-area-inset-bottom, 0px) - 132px
+      );
       @apply px-4;
     }
+  }
+}
+
+@keyframes mobile-playlist-morph-in {
+  from {
+    opacity: 0.75;
+    transform: translate3d(0, 100%, 0) scale(0.76, 0.16);
+    border-radius: 999px;
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1, 1);
+    border-radius: 32px;
+  }
+}
+
+@keyframes mobile-playlist-morph-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1, 1);
+    border-radius: 32px;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 100%, 0) scale(0.76, 0.16);
+    border-radius: 999px;
   }
 }
 </style>

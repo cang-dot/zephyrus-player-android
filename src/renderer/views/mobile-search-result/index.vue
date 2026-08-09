@@ -1,14 +1,5 @@
 <template>
   <div class="mobile-search-result">
-    <!-- 搜索类型标签 -->
-    <glow-tabs
-      :model-value="String(searchType)"
-      :tabs="searchTypes.map((t) => ({ key: String(t.key), label: t.label }))"
-      scrollable
-      class="search-types-glow"
-      @update:model-value="(v) => selectType(Number(v))"
-    />
-
     <!-- 来源筛选（仅歌曲搜索且有结果时） -->
     <div
       v-if="searchType === SEARCH_TYPE.MUSIC && results.length && sourceFilterOptions.length > 1"
@@ -126,7 +117,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { crossPlatformSearch } from '@/api/crossPlatformSearch';
 import { searchPlatformMusic } from '@/api/platformQrApi';
 import { getSearch } from '@/api/search';
-import { getUnlockKey, getUnlockSearchResults } from '@/api/unlockKey';
 import {
   rankSearchResults,
   searchServerSongs,
@@ -134,10 +124,11 @@ import {
   serverSongToSongResult
 } from '@/api/serverSongs';
 import { openSpotifyTrack } from '@/api/spotify';
+import { getUnlockKey, getUnlockSearchResults } from '@/api/unlockKey';
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
-import { SEARCH_TYPE, SEARCH_TYPES } from '@/const/bar-const';
+import { SEARCH_TYPE } from '@/const/bar-const';
 import {
   getCachedLabel,
   quickClassify,
@@ -150,7 +141,7 @@ import { useSearchStore } from '@/store/modules/search';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const playerStore = usePlayerStore();
@@ -164,13 +155,6 @@ const artistResults = ref<any[]>([]);
 
 // 搜索类型
 const searchType = ref(Number(route.query.type) || searchStore.searchType || 1);
-const searchTypes = computed(() => {
-  locale.value;
-  return SEARCH_TYPES.map((type) => ({
-    label: t(type.label),
-    key: type.key
-  }));
-});
 
 // 搜索结果
 const results = ref<any[]>([]);
@@ -578,24 +562,6 @@ const triggerPlatformSearch = async (kw: string, existingSongs: any[]) => {
   results.value = rankSearchResults(results.value, keyword.value);
 };
 
-// 选择搜索类型
-const selectType = (type: number) => {
-  if (searchType.value === type) return;
-
-  searchType.value = type;
-  searchStore.searchType = type;
-
-  // 更新路由查询参数
-  router.replace({
-    query: {
-      ...route.query,
-      type: type.toString()
-    }
-  });
-
-  performSearch();
-};
-
 // 滚动加载更多
 const handleScroll = (e: Event) => {
   const target = e.target as HTMLElement;
@@ -629,6 +595,7 @@ watch(
       keyword.value = query.keyword as string;
       searchStore.setSearchValue(keyword.value);
       searchType.value = Number(query.type) || searchStore.searchType || 1;
+      searchStore.setSearchType(searchType.value);
       performSearch();
     }
   }
@@ -648,10 +615,6 @@ onMounted(() => {
   @apply bg-light dark:bg-black;
   @apply flex flex-col;
   padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);
-}
-
-.search-types-glow {
-  margin: 8px 16px 4px;
 }
 
 .source-filter-wrap {

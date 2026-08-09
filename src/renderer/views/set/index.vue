@@ -12,20 +12,6 @@
 
       <!-- Content -->
       <div class="settings-content">
-        <div class="settings-inline-search">
-          <i class="ri-search-line search-icon" />
-          <input
-            ref="searchInputRef"
-            v-model="searchQuery"
-            class="search-input"
-            :placeholder="t('comp.searchBar.searchPlaceholder')"
-            @input="onSearchInput"
-            @keydown.escape="clearSearch"
-          />
-          <button v-if="searchQuery" class="search-clear" @click="clearSearch">
-            <i class="ri-close-line" />
-          </button>
-        </div>
         <!-- Search results mode -->
         <template v-if="isSearching">
           <div v-if="searchResults.length > 0" class="animate-fade-in">
@@ -95,25 +81,11 @@
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core';
 import { useDialog, useMessage } from 'naive-ui';
-import {
-  computed,
-  getCurrentInstance,
-  nextTick,
-  onMounted,
-  onUnmounted,
-  provide,
-  ref,
-  watch
-} from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute } from 'vue-router';
 
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
-import {
-  registerMobileTopbarAction,
-  unregisterMobileTopbarAction
-} from '@/composables/useMobileTopbarMenu';
 import { useSettingsStore } from '@/store/modules/settings';
 import { isElectron } from '@/utils';
 
@@ -133,9 +105,7 @@ const settingsStore = useSettingsStore();
 const message = useMessage();
 const dialog = useDialog();
 const { t } = useI18n();
-const route = useRoute();
 const contentRef = ref<HTMLElement | null>(null);
-const topbarActionId = `settings-search-${getCurrentInstance()?.uid || 'view'}`;
 
 // ==================== Settings data ====================
 const saveSettings = useDebounceFn((data) => {
@@ -169,7 +139,7 @@ watch(
 
 onUnmounted(() => {
   settingsStore.setSetData(localSetData.value);
-  unregisterMobileTopbarAction(topbarActionId);
+  window.removeEventListener('mobile-settings-search-input', onTopbarSearchInput);
 });
 
 // ==================== Provide ====================
@@ -206,7 +176,6 @@ const navSections = computed(() => {
 const currentSection = ref('basic');
 
 // ==================== Settings search ====================
-const searchInputRef = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
 const isSearching = ref(false);
 const searchResults = ref<SearchResult[]>([]);
@@ -413,6 +382,11 @@ const clearSearch = () => {
   searchResults.value = [];
 };
 
+const onTopbarSearchInput = (event: Event) => {
+  searchQuery.value = String((event as CustomEvent).detail || '');
+  onSearchInput();
+};
+
 const jumpToResult = (result: SearchResult) => {
   clearSearch();
   currentSection.value = result.tabId;
@@ -436,13 +410,7 @@ const jumpToResult = (result: SearchResult) => {
 
 // ==================== Init ====================
 onMounted(() => {
-  registerMobileTopbarAction({
-    id: topbarActionId,
-    routePath: route.path,
-    label: t('comp.searchBar.searchPlaceholder'),
-    icon: 'ri-search-line',
-    run: () => nextTick(() => searchInputRef.value?.focus())
-  });
+  window.addEventListener('mobile-settings-search-input', onTopbarSearchInput);
   if (isElectron && settingsStore.appUpdateState.currentVersion === '') {
     settingsStore.setAppUpdateState(createDefaultAppUpdateState(config.version));
   }
