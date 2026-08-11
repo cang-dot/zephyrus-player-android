@@ -8,7 +8,11 @@
         class="playlist-source-tabs"
       />
 
-      <local-music-view v-if="playlistSourceFilter === 'local'" class="embedded-local-music" />
+      <local-music-view
+        v-if="playlistSourceFilter === 'local'"
+        embedded
+        class="embedded-local-music"
+      />
 
       <!-- Loading skeleton -->
       <div v-if="playlistSourceFilter !== 'local' && isLoading" class="cover-grid">
@@ -30,7 +34,8 @@
           v-for="item in items"
           :key="`${item.accountId}-${item.type}-${item.id}`"
           class="cover-card"
-          @click="handleItemClick(item)"
+          data-no-page-swipe
+          @click.stop="handleItemClick(item)"
         >
           <div class="cover-wrap">
             <img
@@ -241,7 +246,9 @@ const handleItemClick = async (item: any) => {
 }
 
 .embedded-local-music {
-  min-height: calc(100dvh - 140px);
+  display: block;
+  width: 100%;
+  min-height: calc(100dvh - var(--safe-area-inset-top, 0px) - 116px);
 }
 
 /* Cover grid */

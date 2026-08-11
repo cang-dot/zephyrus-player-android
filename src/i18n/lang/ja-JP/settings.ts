@@ -347,6 +347,8 @@ export default {
     showTranslationDescription: '歌詞の下に翻訳を表示します',
     showRomanization: 'ローマ字を表示',
     showRomanizationDescription: '歌詞の下にローマ字を表示します',
+    statusBarLyrics: 'ステータスバー歌詞',
+    statusBarLyricsDescription: '上部のフローティング表示で他のアプリ上に現在の歌詞を表示します',
     hideLyrics: '歌詞を非表示',
     hidePlayBar: '再生バーを非表示',
     hideMiniPlayBar: 'ミニ再生バーを非表示',

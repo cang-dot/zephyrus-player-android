@@ -3,7 +3,7 @@
     <n-scrollbar class="h-full">
       <div class="toplist-content w-full pb-32 pt-6 page-padding">
         <!-- Hero Section -->
-        <div class="mb-10">
+        <div class="toplist-page-heading mb-10">
           <h1
             class="text-3xl md:text-4xl font-bold tracking-tight text-neutral-900 dark:text-white mb-2"
           >
@@ -144,6 +144,16 @@ onMounted(() => {
 <style lang="scss" scoped>
 .toplist-page {
   position: relative;
+}
+
+@media (max-width: 768px) {
+  .toplist-content {
+    padding-top: calc(var(--safe-area-inset-top, 0px) + 72px) !important;
+  }
+
+  .toplist-page-heading {
+    display: none;
+  }
 }
 
 .animate-item {

@@ -188,6 +188,38 @@ function parseTimedWords(
   return words;
 }
 
+function stripBackgroundWrapper(words: TtmlWord[]): TtmlWord[] {
+  if (words.length === 0) return words;
+
+  const firstIndex = words.findIndex((word) => Boolean(word.text.trim()));
+  let lastIndex = -1;
+  for (let index = words.length - 1; index >= 0; index -= 1) {
+    if (words[index].text.trim()) {
+      lastIndex = index;
+      break;
+    }
+  }
+  if (firstIndex < 0 || lastIndex < 0) return words;
+
+  const firstText = words[firstIndex].text;
+  const lastText = words[lastIndex].text;
+  const opening = firstText.trimStart()[0];
+  const closing = lastText.trimEnd().at(-1);
+  const isWrapper = (opening === '(' && closing === ')') || (opening === '（' && closing === '）');
+  if (!isWrapper) return words;
+
+  const normalized = words.map((word) => ({ ...word }));
+  normalized[firstIndex].text = normalized[firstIndex].text.replace(
+    opening === '(' ? /^(\s*)\(/ : /^(\s*)（/,
+    '$1'
+  );
+  normalized[lastIndex].text = normalized[lastIndex].text.replace(
+    closing === ')' ? /\)(\s*)$/ : /）(\s*)$/,
+    '$1'
+  );
+  return normalized.filter((word) => Boolean(word.text.trim()));
+}
+
 function parentDivPart(element: Element): string | undefined {
   let parent = element.parentElement;
   while (parent) {
@@ -206,7 +238,7 @@ function parseBackgroundSpan(
 ): TtmlBackgroundLine | null {
   const begin = parseTtmlTime(attr(element, 'begin') || String(parentBegin));
   const end = parseTtmlTime(attr(element, 'end') || String(parentEnd));
-  const words = parseTimedWords(element, begin, end, 'background');
+  const words = stripBackgroundWrapper(parseTimedWords(element, begin, end, 'background'));
   const translations: TtmlAuxiliaryText[] = [];
   const romanizations: TtmlAuxiliaryText[] = [];
 

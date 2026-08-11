@@ -3,38 +3,65 @@
     <div class="discover-grid">
       <button
         v-for="item in shortcuts"
-        :key="item.path"
+        :key="item.key"
+        type="button"
         class="discover-card"
-        @click="router.push(item.path)"
+        data-no-page-swipe
+        @click="openShortcut(item)"
       >
         <i :class="item.icon" />
         <span>{{ item.label }}</span>
       </button>
     </div>
     <div class="discover-section">
-      <home-playlist-section :title="t('comp.recommendSonglist.title')" :limit="8" />
+      <home-playlist-section
+        :title="t('comp.recommendSonglist.title')"
+        :limit="8"
+        :show-more="false"
+      />
     </div>
     <div class="discover-section">
-      <home-album-section :title="t('comp.newAlbum.title')" :limit="6" :columns="3" :rows="1" />
+      <home-album-section
+        :title="t('comp.newAlbum.title')"
+        :limit="6"
+        :columns="3"
+        :rows="1"
+        @more="router.push('/album')"
+      />
+    </div>
+    <div ref="artistsSection" class="discover-section discover-artists">
+      <h2>{{ t('comp.recommendSinger.title') }}</h2>
+      <home-artists :title="t('comp.recommendSinger.title')" :limit="12" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import HomeAlbumSection from '@/views/home/components/HomeAlbumSection.vue';
+import HomeArtists from '@/views/home/components/HomeArtists.vue';
 import HomePlaylistSection from '@/views/home/components/HomePlaylistSection.vue';
 
 const { t } = useI18n();
 const router = useRouter();
+const artistsSection = ref<HTMLElement | null>(null);
 const shortcuts = [
-  { path: '/toplist', icon: 'ri-bar-chart-grouped-fill', label: '榜单' },
-  { path: '/album', icon: 'ri-album-fill', label: '新专辑' },
-  { path: '/artist/detail/0', icon: 'ri-mic-fill', label: '热门歌手' },
-  { path: '/podcast', icon: 'ri-radio-2-fill', label: '播客' }
+  { key: 'toplist', path: '/toplist', icon: 'ri-bar-chart-grouped-fill', label: '榜单' },
+  { key: 'album', path: '/album', icon: 'ri-album-fill', label: '新专辑' },
+  { key: 'artists', target: 'artists', icon: 'ri-mic-fill', label: '热门歌手' },
+  { key: 'podcast', path: '/podcast', icon: 'ri-radio-2-fill', label: '播客' }
 ];
+
+const openShortcut = (item: (typeof shortcuts)[number]) => {
+  if (item.target === 'artists') {
+    artistsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  if (item.path) router.push(item.path);
+};
 </script>
 
 <style scoped lang="scss">
@@ -74,5 +101,15 @@ const shortcuts = [
 }
 .discover-section {
   margin-top: 22px;
+}
+
+.discover-artists {
+  scroll-margin-top: calc(var(--safe-area-inset-top, 0px) + 72px);
+}
+
+.discover-artists h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 700;
 }
 </style>

@@ -34,7 +34,7 @@ export function navigateToMusicList(
   }
 
   // 路由跳转
-  if (id) {
+  if (id !== undefined && id !== null && id !== '') {
     router.push({
       name: 'musicList',
       params: { id },

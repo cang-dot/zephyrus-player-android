@@ -38,11 +38,16 @@
         visible: shouldShowBottomMenu,
         'has-player': isPlay,
         'player-collapsed': isPlay && miniPlayerIdleCollapsed,
-        'player-open': isPlay && !miniPlayerIdleCollapsed
+        'player-open': isPlay && !miniPlayerIdleCollapsed,
+        'playlist-mounted': isPlay && playlistSurfaceMounted,
+        'playlist-open': isPlay && playlistSurfaceExpanded
       }"
     >
       <!-- 播放条与导航共用同一个 Dock 玻璃表面。 -->
       <mobile-play-bar v-if="isPlay" @idle-collapse-change="miniPlayerIdleCollapsed = $event" />
+
+      <!-- 普通页面的播放列表只在 Dock 内形变，不与全屏播放器共用承载容器。 -->
+      <playing-list-drawer v-if="isPlay && !playerStore.musicFull" embedded />
 
       <Transition name="glow-nav-in">
         <div
@@ -79,9 +84,10 @@
         </div>
       </Transition>
     </div>
+    <!-- 全屏播放器使用独立播放列表：竖屏为底部浮层，横屏为右侧抽屉。 -->
+    <playing-list-drawer v-if="isPlay && playerStore.musicFull" fullscreen />
     <!-- 其他弹窗/抽屉 -->
     <playlist-drawer v-model="showPlaylistDrawer" :song="currentSong" :song-id="currentSongId" />
-    <playing-list-drawer />
   </div>
 </template>
 
@@ -119,6 +125,8 @@ type PageTransitionDirection = 'next' | 'prev';
 
 const pageTransitionDirection = ref<PageTransitionDirection | null>(null);
 const miniPlayerIdleCollapsed = ref(false);
+const playlistSurfaceMounted = ref(false);
+const playlistSurfaceExpanded = ref(false);
 const pageSwipeOffset = ref(0);
 const pageSwipeAnimating = ref(false);
 const pageTransitionName = computed(() =>
@@ -136,6 +144,34 @@ const pageSwipeStyle = computed(() => ({
 
 let pageTransitionTimer: ReturnType<typeof setTimeout> | undefined;
 let pageSwipeResetTimer: ReturnType<typeof setTimeout> | undefined;
+let playlistSurfaceUnmountTimer: ReturnType<typeof setTimeout> | undefined;
+let playlistSurfaceFrame = 0;
+
+watch(
+  () => [playerStore.playListDrawerVisible, playerStore.musicFull] as const,
+  ([visible, musicFull]) => {
+    const shouldExpandDock = visible && !musicFull;
+    if (playlistSurfaceUnmountTimer) clearTimeout(playlistSurfaceUnmountTimer);
+    if (playlistSurfaceFrame) cancelAnimationFrame(playlistSurfaceFrame);
+    if (shouldExpandDock) {
+      playlistSurfaceMounted.value = true;
+      playlistSurfaceExpanded.value = false;
+      playlistSurfaceFrame = requestAnimationFrame(() => {
+        playlistSurfaceFrame = requestAnimationFrame(() => {
+          playlistSurfaceExpanded.value = true;
+          playlistSurfaceFrame = 0;
+        });
+      });
+      return;
+    }
+    playlistSurfaceExpanded.value = false;
+    playlistSurfaceUnmountTimer = setTimeout(() => {
+      playlistSurfaceMounted.value = false;
+      playlistSurfaceUnmountTimer = undefined;
+    }, 480);
+  },
+  { immediate: true }
+);
 
 const schedulePageTransitionReset = () => {
   if (pageTransitionTimer) clearTimeout(pageTransitionTimer);
@@ -319,6 +355,8 @@ onBeforeUnmount(() => {
   if (pageTransitionTimer) clearTimeout(pageTransitionTimer);
   if (pageSwipeResetTimer) clearTimeout(pageSwipeResetTimer);
   if (pageClickTimer) clearTimeout(pageClickTimer);
+  if (playlistSurfaceUnmountTimer) clearTimeout(playlistSurfaceUnmountTimer);
+  if (playlistSurfaceFrame) cancelAnimationFrame(playlistSurfaceFrame);
 });
 
 // 底栏布局模式：default | compact
@@ -336,7 +374,14 @@ let touchStartX = 0;
 let touchStartTime = 0;
 
 const onLayoutTouchStart = (e: TouchEvent) => {
-  if (!isPlay.value || playerStore.musicFull) return;
+  if (
+    !isPlay.value ||
+    playerStore.musicFull ||
+    (e.target instanceof Element && e.target.closest('.mobile-play-bar, .mobile-bottom-dock'))
+  ) {
+    touchStartY = 0;
+    return;
+  }
   const touch = e.touches[0];
   touchStartY = touch.clientY;
   touchStartX = touch.clientX;
@@ -344,7 +389,7 @@ const onLayoutTouchStart = (e: TouchEvent) => {
 };
 
 const onLayoutTouchEnd = (e: TouchEvent) => {
-  if (!isPlay.value || playerStore.musicFull) return;
+  if (!isPlay.value || playerStore.musicFull || touchStartY === 0) return;
   // 紧凑模式下播放栏更靠下，手势触发区域下调
   const gestureThreshold = isCompactNav.value ? 100 : 160;
   const windowHeight = window.innerHeight;
@@ -383,6 +428,8 @@ const activeGlowStyle = computed(() => {
 // 提供给 MobilePlayBar 使用，用于调整播放栏位置
 provide('shouldShowMobileMenu', shouldShowBottomMenu);
 provide('isCompactNav', isCompactNav);
+provide('playlistSurfaceMounted', playlistSurfaceMounted);
+provide('playlistSurfaceExpanded', playlistSurfaceExpanded);
 
 // Keep-alive 配置
 const keepAliveInclude = computed(() => {
@@ -425,6 +472,8 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   height: 100dvh;
   position: relative;
   background: var(--m-bg, var(--bg-color));
+  --mobile-dock-inset: 12px;
+  --mobile-dock-gap: 12px;
 }
 
 .mobile-content {
@@ -447,9 +496,9 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 
 .mobile-bottom-dock {
   position: fixed;
-  right: 12px;
-  bottom: calc(var(--safe-area-inset-bottom, 0px) + 14px);
-  left: 12px;
+  right: var(--mobile-dock-inset);
+  bottom: calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap));
+  left: var(--mobile-dock-inset);
   z-index: 199;
   height: 0;
   border: 1px solid transparent;
@@ -480,11 +529,61 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
     border-radius: 32px;
   }
 
+  &.playlist-open {
+    height: min(62dvh, 500px);
+    min-height: 310px;
+    border-radius: 32px;
+    overflow: hidden;
+    pointer-events: auto;
+    background: var(--m-glass-bg);
+    border-color: var(--m-glass-border);
+    box-shadow:
+      0 18px 48px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(30px) saturate(175%);
+    -webkit-backdrop-filter: blur(30px) saturate(175%);
+  }
+
+  /* Without navigation, the MobilePlayBar itself is the visible morphing surface. */
+  &.playlist-mounted:not(.visible) {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    overflow: visible;
+  }
+
+  &.playlist-open.visible {
+    height: min(62dvh, 500px);
+  }
+
+  &.playlist-mounted :deep(.mobile-play-bar.play-bar-mini.is-menu-show) {
+    z-index: 201;
+  }
+
+  &.playlist-mounted :deep(.playlist-panel.embedded) {
+    z-index: 100001;
+  }
+
+  &.playlist-mounted.visible :deep(.playlist-panel.embedded) {
+    bottom: 112px;
+  }
+
+  &.playlist-mounted:not(.visible) :deep(.playlist-panel.embedded) {
+    position: fixed;
+    top: auto;
+    right: 12px;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 64px);
+    left: 12px;
+    height: calc(min(62dvh, 500px) - 56px);
+  }
+
   :deep(.mobile-play-bar.play-bar-mini.is-menu-show) {
     position: absolute !important;
-    top: 6px;
+    top: auto !important;
     right: 6px;
-    bottom: auto !important;
+    bottom: 48px !important;
     left: 6px !important;
     width: calc(100% - 12px) !important;
   }
@@ -497,7 +596,7 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
     width: 50px !important;
   }
 
-  &:not(.visible):not(.has-player) {
+  &:not(.visible):not(.has-player):not(.playlist-open) {
     position: static;
   }
 
@@ -517,7 +616,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 .mobile-glow-nav-wrap {
   position: fixed;
-  bottom: calc(var(--safe-area-inset-bottom, 0px) + 14px);
+  bottom: calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap));
   left: 50%;
   transform: translateX(-50%);
   z-index: 200;
@@ -758,7 +857,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 /* —— 默认模式：底栏加宽到与迷你播放栏同宽 —— */
 .nav-default .mobile-glow-nav-wrap {
   /* 加宽到与迷你播放栏同宽（100vw - 24px，对应 mx-3） */
-  width: calc(100vw - 24px);
+  width: calc(100vw - (var(--mobile-dock-inset) * 2));
   max-width: 500px;
 }
 
@@ -773,8 +872,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* The circular player is adjacent to navigation, but never becomes a fifth route. */
 .mobile-glow-nav-wrap.has-player-slot {
-  left: 12px;
-  right: 74px;
+  left: var(--mobile-dock-inset);
+  right: calc(var(--mobile-dock-inset) + 62px);
   width: auto;
   max-width: none;
   transform: none;
@@ -782,8 +881,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .mobile-bottom-dock.player-open .mobile-glow-nav-wrap {
-  left: 12px;
-  right: 12px;
+  left: var(--mobile-dock-inset);
+  right: var(--mobile-dock-inset);
   width: auto;
   max-width: none;
   transform: none;
@@ -803,7 +902,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 */
 .nav-compact .mobile-glow-nav-wrap.compact-mode {
   left: auto;
-  right: 12px;
+  right: var(--mobile-dock-inset);
   transform: none;
   width: auto;
   max-width: 55vw;
@@ -812,8 +911,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .nav-compact .mobile-glow-nav-wrap.compact-mode.has-player-slot {
-  left: 12px;
-  right: 74px;
+  left: var(--mobile-dock-inset);
+  right: calc(var(--mobile-dock-inset) + 62px);
   width: auto;
   max-width: none;
   transform: none;

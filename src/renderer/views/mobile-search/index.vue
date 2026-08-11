@@ -2,24 +2,8 @@
   <div class="mobile-search-page">
     <!-- 搜索内容区域 -->
     <div class="search-content">
-      <!-- 搜索建议 -->
-      <div v-if="suggestions.length > 0" class="search-section">
-        <div class="section-title">{{ t('search.suggestions') }}</div>
-        <div class="suggestion-list">
-          <div
-            v-for="(item, index) in suggestions"
-            :key="index"
-            class="suggestion-item"
-            @click="selectSuggestion(item)"
-          >
-            <i class="ri-search-line"></i>
-            <span>{{ item }}</span>
-          </div>
-        </div>
-      </div>
-
       <!-- 搜索历史 -->
-      <div v-else-if="searchHistory.length > 0" class="search-section">
+      <div v-if="searchHistory.length > 0" class="search-section">
         <div class="section-header">
           <span class="section-title">{{ t('search.history') }}</span>
           <span class="clear-history" @click="clearHistory">{{ t('common.clear') }}</span>
@@ -59,13 +43,11 @@
 </template>
 
 <script setup lang="ts">
-import { useDebounceFn } from '@vueuse/core';
-import { onMounted, ref, watch } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import { getHotSearch, getSearchKeyword } from '@/api/home';
-import { getSearchSuggestions } from '@/api/search';
 import { useSearchStore } from '@/store/modules/search';
 
 const { t } = useI18n();
@@ -75,8 +57,6 @@ const searchStore = useSearchStore();
 // 搜索类型
 
 // 搜索建议
-const suggestions = ref<string[]>([]);
-
 // 搜索历史
 const HISTORY_KEY = 'mobile_search_history';
 const searchHistory = ref<string[]>([]);
@@ -120,23 +100,6 @@ const clearHistory = () => {
   searchHistory.value = [];
   localStorage.removeItem(HISTORY_KEY);
 };
-
-// 获取搜索建议（防抖）
-const debouncedGetSuggestions = useDebounceFn(async (keyword: string) => {
-  if (!keyword.trim()) {
-    suggestions.value = [];
-    return;
-  }
-  suggestions.value = await getSearchSuggestions(keyword);
-}, 300);
-
-// Watch search store value for suggestions
-watch(
-  () => searchStore.searchValue,
-  (val) => {
-    debouncedGetSuggestions(val);
-  }
-);
 
 // 选择建议
 const selectSuggestion = (keyword: string) => {

@@ -120,7 +120,7 @@ onMounted(() => recommendStore.refreshIfStale());
 <style scoped lang="scss">
 .mobile-home {
   min-height: 100%;
-  padding: 72px 14px 150px;
+  padding: calc(var(--safe-area-inset-top, 0px) + 64px) 14px 150px;
   color: #fff;
 }
 

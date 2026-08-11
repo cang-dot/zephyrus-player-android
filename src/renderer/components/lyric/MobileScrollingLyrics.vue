@@ -62,28 +62,48 @@
         @touchend="handleLyricTouchEnd"
         @touchmove="handleLyricTouchMove"
       >
-        <!-- 选择模式的复选框 -->
-        <div v-if="selectMode && item.text && item.text.trim()" class="lyric-checkbox">
-          <i
-            :class="
-              selectedSet.has(index) ? 'ri-checkbox-circle-fill' : 'ri-checkbox-blank-circle-line'
-            "
-          ></i>
-        </div>
+        <div class="lyric-main-row">
+          <!-- 选择模式的复选框 -->
+          <div v-if="selectMode && item.text && item.text.trim()" class="lyric-checkbox">
+            <i
+              :class="
+                selectedSet.has(index) ? 'ri-checkbox-circle-fill' : 'ri-checkbox-blank-circle-line'
+              "
+            ></i>
+          </div>
 
-        <span
-          v-if="item.hasWordByWord && item.words && item.words.length > 0"
-          class="timed-lyric-line"
-        >
-          <span class="timed-lyric-base" :style="getTimedLineBaseStyle()">{{ item.text }}</span>
           <span
-            class="timed-lyric-active"
-            aria-hidden="true"
-            :style="getTimedLineActiveStyle(index, item)"
-            >{{ item.text }}</span
+            v-if="item.hasWordByWord && item.words && item.words.length > 0"
+            class="timed-lyric-line"
           >
-        </span>
-        <span v-else :style="getLineStyle(index)">{{ item.text }}</span>
+            <template v-for="(word, wordIndex) in item.words" :key="`${index}-${wordIndex}`">
+              <span
+                class="timed-lyric-word"
+                :class="getTimedWordClasses(index, word)"
+                :style="getTimedWordStyle(index, word)"
+                >{{ word.text }}</span
+              >
+              <span v-if="word.space" class="timed-lyric-space">&nbsp;</span>
+            </template>
+          </span>
+          <span v-else :style="getLineStyle(index)">{{ item.text }}</span>
+        </div>
+        <div v-if="index === displayIndex" class="auxiliary-lyric-stack">
+          <div
+            v-if="backgroundLyricTokens.length > 0"
+            class="background-lyric-line"
+            :style="getAuxiliaryLyricStyle()"
+          >
+            {{ backgroundLyricTokens.map((token) => token.text).join(' ') }}
+          </div>
+          <div
+            v-if="duetLyricTokens.length > 0"
+            class="duet-lyric-line"
+            :style="getAuxiliaryLyricStyle()"
+          >
+            {{ duetLyricTokens.map((token) => token.text).join(' ') }}
+          </div>
+        </div>
         <div v-if="config.showTranslation && item.trText" class="translation">
           {{ item.trText }}
         </div>
@@ -138,7 +158,6 @@ import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import type { ILyricText } from '@/types/music';
 import type { SelectedLyric } from '@/types/share';
 import { getTextColors } from '@/utils/linearColor';
-import { getTimedLyricLineProgress } from '@/utils/timedLyricProgress';
 
 const { t } = useI18n();
 const wordPlayback = useWordTimedPlayback();
@@ -146,6 +165,11 @@ const displayLyrics = wordPlayback.displayLines;
 const displayTimes = wordPlayback.displayTimes;
 const displayIndex = wordPlayback.displayIndex;
 const correctedTime = wordPlayback.correctedTime;
+const auxiliaryTokens = wordPlayback.auxiliaryTokens;
+const backgroundLyricTokens = computed(() => auxiliaryTokens.value.filter((token) => !token.agent));
+const duetLyricTokens = computed(() =>
+  auxiliaryTokens.value.filter((token) => Boolean(token.agent))
+);
 
 const emit = defineEmits<{ close: []; interact: []; generatePoster: [lyrics: SelectedLyric[]] }>();
 
@@ -484,24 +508,49 @@ function updateTimeIndicator() {
   currentTimeText.value = formatTime(closestTime);
 }
 
-const getTimedLineBaseStyle = () => {
-  const colors = textColors.value || getTextColors();
-  return { color: colors.primary };
+const getTimedWordState = (lineIndex: number, word: { startTime: number; duration: number }) => {
+  if (lineIndex !== displayIndex.value) return 'upcoming';
+  const now = correctedTime.value * 1000;
+  const start = Number.isFinite(word.startTime) ? word.startTime : 0;
+  const duration = Math.max(0, Number(word.duration) || 0);
+  const end = start + Math.max(duration, 60);
+  if (now >= end) return 'finished';
+  if (now >= start) return 'active';
+  return 'upcoming';
 };
 
-const getTimedLineActiveStyle = (lineIndex: number, item: ILyricText) => {
+const getTimedWordClasses = (lineIndex: number, word: { startTime: number; duration: number }) => ({
+  [`is-${getTimedWordState(lineIndex, word)}`]: true,
+  'is-sustained': Math.max(0, Number(word.duration) || 0) >= 420
+});
+
+const getTimedWordStyle = (lineIndex: number, word: { startTime: number; duration: number }) => {
   const colors = textColors.value || getTextColors();
+  const state = getTimedWordState(lineIndex, word);
+  const duration = Math.max(Number(word.duration) || 0, 60);
   const progress =
-    lineIndex === displayIndex.value && item.words
-      ? getTimedLyricLineProgress(item.words, correctedTime.value * 1000)
-      : 0;
-  const hiddenPercent = Math.max(0, 100 - progress * 100);
+    state === 'active'
+      ? Math.min(Math.max((correctedTime.value * 1000 - word.startTime) / duration, 0), 1)
+      : state === 'finished'
+        ? 1
+        : 0;
+  const active = state === 'active';
+  const longSyllable = duration >= 420;
   return {
-    color: colors.active,
-    clipPath: `inset(0 ${hiddenPercent}% 0 0)`,
-    WebkitClipPath: `inset(0 ${hiddenPercent}% 0 0)`,
-    textShadow: `0 0 8px ${colors.active}40`
+    color: state === 'upcoming' ? colors.primary : colors.active,
+    backgroundImage: active
+      ? `linear-gradient(90deg, ${colors.active} ${Math.round(progress * 100)}%, ${colors.primary} ${Math.round(progress * 100)}%)`
+      : 'none',
+    backgroundClip: active ? 'text' : 'initial',
+    WebkitBackgroundClip: active ? 'text' : 'initial',
+    WebkitTextFillColor: active ? 'transparent' : 'initial',
+    textShadow: active ? `0 0 ${longSyllable ? 14 : 9}px ${colors.active}99` : 'none'
   };
+};
+
+const getAuxiliaryLyricStyle = () => {
+  const colors = textColors.value || getTextColors();
+  return { '--lyric-aux-color': colors.active };
 };
 
 const getLineStyle = (lineIndex: number) => {
@@ -599,6 +648,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-direction: column;
 
   &.now-text {
     opacity: 1;
@@ -628,6 +678,14 @@ onBeforeUnmount(() => {
   }
 }
 
+.lyric-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  gap: 8px;
+}
+
 .lyric-checkbox {
   flex-shrink: 0;
   font-size: 22px;
@@ -647,30 +705,86 @@ onBeforeUnmount(() => {
 
 .timed-lyric-line {
   position: relative;
-  display: inline-grid;
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
   max-width: 100%;
-  place-items: center;
   text-align: center;
 }
 
-.timed-lyric-base,
-.timed-lyric-active {
-  grid-area: 1 / 1;
-  max-width: 100%;
-  overflow-wrap: anywhere;
+.timed-lyric-word {
+  display: inline-block;
   white-space: pre-wrap;
+  transform: translateY(0) scale(1);
+  transform-origin: center bottom;
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    text-shadow 220ms ease,
+    color 160ms ease;
+  will-change: transform, text-shadow;
 }
 
-.timed-lyric-active {
-  pointer-events: none;
-  transition: clip-path 50ms linear;
-  will-change: clip-path;
+.timed-lyric-word.is-active {
+  transform: translateY(-2px) scale(1.015);
+}
+
+.timed-lyric-word.is-active.is-sustained {
+  transform: translateY(-4px) scale(1.025);
+}
+
+.timed-lyric-space {
+  white-space: pre;
+}
+
+.auxiliary-lyric-stack {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.background-lyric-line,
+.duet-lyric-line {
+  width: 100%;
+  margin-top: 2px;
+  color: color-mix(in srgb, #fff 82%, var(--lyric-aux-color, #fff));
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0;
+  opacity: 0.78;
+  text-align: center;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.background-lyric-line {
+  font-size: 0.72em;
+}
+
+.duet-lyric-line {
+  font-size: 1em;
+  font-weight: inherit;
+  opacity: 0.92;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--lyric-aux-color, #fff) 48%, transparent);
+  transform: translateY(-2px);
 }
 
 .no-scroll-tip {
   opacity: 0.3;
   font-size: 14px;
   text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timed-lyric-word {
+    transition: color 120ms linear;
+  }
+
+  .timed-lyric-word.is-active,
+  .timed-lyric-word.is-active.is-sustained {
+    transform: none;
+  }
 }
 
 .time-indicator {

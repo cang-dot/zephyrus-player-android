@@ -69,9 +69,79 @@ export type ParseResult<T> =
 // 预编译正则表达式以提高性能
 const METADATA_PATTERN = /^\{("t":|"c":)/; // 匹配 {"t": 或 {"c":
 const LINE_TIME_PATTERN = /^\[(\d+),(\d+)\](.+)$/; // 逐字歌词格式: [92260,4740]...
-const LRC_TIME_PATTERN = /^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)$/; // 标准LRC格式: [00:25.47]...
-// 网易云 YRC 使用三个时间字段，QQ QRC 通常只有两个。
-const WORD_PATTERN = /\((\d+),(\d+)(?:,\d+)?\)([^(]*?)(?=\(|$)/g;
+const LRC_TIME_PATTERN = /^\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\](.*)$/;
+// 网易云 YRC 使用圆括号；部分本地逐字 LRC 使用方括号或尖括号时间段。
+const WORD_PATTERN =
+  /(?:\((\d+),(\d+)(?:,\d+)?\)|\[(\d+),(\d+)(?:,\d+)?\]|<(\d+),(\d+)(?:,\d+)?>)([\s\S]*?)(?=(?:\(\d+,\d+(?:,\d+)?\)|\[\d+,\d+(?:,\d+)?\]|<\d+,\d+(?:,\d+)?>)|$)/g;
+// Enhanced LRC 使用绝对时间戳；同时兼容 <mm:ss.xx> 与 [mm:ss.xx] 两种标记。
+const INLINE_LRC_TIME_PATTERN =
+  /<(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?>|\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+
+function timestampPartsToMs(minutes: string, seconds: string, fraction?: string): number {
+  const ms = fraction ? parseInt(fraction.padEnd(3, '0').slice(0, 3), 10) : 0;
+  return parseInt(minutes, 10) * 60000 + parseInt(seconds, 10) * 1000 + ms;
+}
+
+function applyWordSpacing(words: Array<Omit<WordData, 'space'>>, fullText: string): WordData[] {
+  let currentPos = 0;
+  return words.map((word) => {
+    const wordIndex = fullText.indexOf(word.text, currentPos);
+    if (wordIndex < 0) return word;
+    const wordEnd = wordIndex + word.text.length;
+    const spacedWord = {
+      ...word,
+      space: wordEnd < fullText.length && /\s/.test(fullText[wordEnd])
+    };
+    currentPos = wordEnd;
+    return spacedWord;
+  });
+}
+
+/** 解析行内绝对时间戳格式：[行时间]<词时间>词，或 [行时间][词时间]词。 */
+function parseInlineLrcWords(
+  content: string,
+  lineStartTime: number
+): { fullText: string; words: WordData[] } | null {
+  INLINE_LRC_TIME_PATTERN.lastIndex = 0;
+  const markers: Array<{ index: number; end: number; time: number }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = INLINE_LRC_TIME_PATTERN.exec(content)) !== null) {
+    const minutes = match[1] ?? match[4];
+    const seconds = match[2] ?? match[5];
+    const fraction = match[3] ?? match[6];
+    const time = timestampPartsToMs(minutes, seconds, fraction);
+    if (Number.isFinite(time)) {
+      markers.push({ index: match.index, end: INLINE_LRC_TIME_PATTERN.lastIndex, time });
+    }
+  }
+  if (!markers.length) return null;
+
+  const rawSegments: string[] = [];
+  const timedWords: Array<Omit<WordData, 'space'>> = [];
+  const addWord = (rawText: string, startTime: number, endTime?: number) => {
+    rawSegments.push(rawText);
+    const text = rawText.trim();
+    if (!text) return;
+    timedWords.push({
+      text,
+      startTime,
+      duration: endTime === undefined ? 0 : Math.max(0, endTime - startTime)
+    });
+  };
+
+  const prefix = content.slice(0, markers[0].index);
+  if (prefix.trim()) addWord(prefix, lineStartTime, markers[0].time);
+
+  markers.forEach((marker, index) => {
+    const nextMarker = markers[index + 1];
+    const rawText = content.slice(marker.end, nextMarker?.index ?? content.length);
+    addWord(rawText, marker.time, nextMarker?.time);
+  });
+
+  const fullText = rawSegments.join('').trim();
+  if (!fullText || !timedWords.length) return null;
+  return { fullText, words: applyWordSpacing(timedWords, fullText) };
+}
 
 /**
  * 时间格式化函数
@@ -157,8 +227,9 @@ const parseLrcLine = (line: string): ParseResult<LyricLine> => {
 
   const minutes = parseInt(lrcMatch[1], 10);
   const seconds = parseInt(lrcMatch[2], 10);
-  const milliseconds = parseInt(lrcMatch[3].padEnd(3, '0'), 10); // 处理2位或3位毫秒
-  const text = lrcMatch[4].trim();
+  const milliseconds = lrcMatch[3] ? parseInt(lrcMatch[3].padEnd(3, '0').slice(0, 3), 10) : 0;
+  const rawText = lrcMatch[4];
+  const text = rawText.trim();
 
   // 验证时间值
   if (
@@ -177,14 +248,15 @@ const parseLrcLine = (line: string): ParseResult<LyricLine> => {
   }
 
   const startTime = minutes * 60000 + seconds * 1000 + milliseconds;
+  const inlineWords = parseInlineLrcWords(rawText, startTime);
 
   return {
     success: true,
     data: {
       startTime,
       duration: 0, // LRC格式没有持续时间信息
-      fullText: text,
-      words: [] // LRC格式没有逐字信息
+      fullText: inlineWords?.fullText ?? text,
+      words: inlineWords?.words ?? []
     }
   };
 };
@@ -226,10 +298,15 @@ const parseWordByWordLine = (line: string): ParseResult<LyricLine> => {
   const tempWords: Array<{ startTime: number; duration: number; text: string }> = [];
 
   while ((match = WORD_PATTERN.exec(content)) !== null) {
-    const wordStartTime = parseInt(match[1], 10);
-    const wordDuration = parseInt(match[2], 10);
-    const rawWordText = match[3]; // 保留原始文本（可能包含空格）
+    const rawWordStartTime = parseInt(match[1] ?? match[3] ?? match[5], 10);
+    const wordDuration = parseInt(match[2] ?? match[4] ?? match[6], 10);
+    const rawWordText = match[7]; // 保留原始文本（可能包含空格）
     const wordText = rawWordText.trim(); // 去除首尾空格的文本
+    // 某些本地 LRC 以行开始为基准保存相对词时间；YRC/QRC 则保存绝对时间。
+    const wordStartTime =
+      rawWordStartTime < startTime && rawWordStartTime <= duration
+        ? startTime + rawWordStartTime
+        : rawWordStartTime;
 
     // 验证单词数据
     const lineEndTime = startTime + duration;
@@ -256,29 +333,7 @@ const parseWordByWordLine = (line: string): ParseResult<LyricLine> => {
   // 构建完整的文本（保留原始空格）
   const fullText = rawTextParts.join('').trim();
 
-  // 第二遍：检查每个单词在完整文本中是否后面有空格
-  let currentPos = 0;
-  for (const word of tempWords) {
-    // 在完整文本中查找当前单词的位置
-    const wordIndex = fullText.indexOf(word.text, currentPos);
-    if (wordIndex === -1) {
-      // 如果找不到，直接添加不带空格标记的单词
-      words.push(word);
-      continue;
-    }
-
-    // 计算单词结束位置
-    const wordEndPos = wordIndex + word.text.length;
-    // 检查单词后面是否有空格
-    const hasSpace = wordEndPos < fullText.length && fullText[wordEndPos] === ' ';
-    words.push({
-      ...word,
-      space: hasSpace
-    });
-
-    // 更新搜索位置
-    currentPos = wordEndPos;
-  }
+  words.push(...applyWordSpacing(tempWords, fullText));
 
   return {
     success: true,
@@ -326,29 +381,32 @@ const calculateLrcDurations = (lyrics: LyricLine[]): LyricLine[] => {
   for (let i = 0; i < lyrics.length; i++) {
     const currentLine = lyrics[i];
 
-    // 如果已经有持续时间（逐字歌词），直接使用
-    if (currentLine.duration > 0) {
-      updatedLyrics.push(currentLine);
-      continue;
-    }
-
-    // 计算LRC格式的持续时间
-    let duration = 0;
-    if (i < lyrics.length - 1) {
-      // 使用下一行的开始时间减去当前行的开始时间
-      duration = lyrics[i + 1].startTime - currentLine.startTime;
-    } else {
-      // 最后一行，使用默认持续时间（3秒）
-      duration = 3000;
+    let duration = currentLine.duration;
+    if (duration <= 0) {
+      if (i < lyrics.length - 1) {
+        duration = lyrics[i + 1].startTime - currentLine.startTime;
+      } else {
+        duration = 3000;
+      }
     }
 
     // 确保持续时间不为负数
     duration = Math.max(duration, 0);
 
-    updatedLyrics.push({
-      ...currentLine,
-      duration
+    const lineEndTime = currentLine.startTime + duration;
+    const words = currentLine.words.map((word, wordIndex) => {
+      const nextWord = currentLine.words[wordIndex + 1];
+      const maxDuration = Math.max(0, lineEndTime - word.startTime);
+      const inferredDuration = nextWord
+        ? Math.max(0, nextWord.startTime - word.startTime)
+        : maxDuration;
+      return {
+        ...word,
+        duration: Math.min(word.duration > 0 ? word.duration : inferredDuration, maxDuration)
+      };
     });
+
+    updatedLyrics.push({ ...currentLine, duration, words });
   }
 
   return updatedLyrics;

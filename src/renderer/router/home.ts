@@ -53,7 +53,8 @@ const layoutRouter = [
       title: 'comp.newAlbum.title',
       icon: 'ri-album-fill',
       keepAlive: true,
-      isMobile: false
+      isMobile: true,
+      back: true
     },
     component: () => import('@/views/album/index.vue')
   },
@@ -64,7 +65,8 @@ const layoutRouter = [
       title: 'comp.toplist',
       icon: 'ri-bar-chart-grouped-fill',
       keepAlive: true,
-      isMobile: false
+      isMobile: true,
+      back: true
     },
     component: () => import('@/views/toplist/index.vue')
   },

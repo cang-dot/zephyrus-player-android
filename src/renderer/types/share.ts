@@ -18,6 +18,7 @@ export const POSTER_LAYOUT_OPTIONS: ReadonlyArray<{
 
 export type PosterImageFilter = 'monochrome' | 'low-saturation' | 'high-contrast';
 export type PosterTitleOrientation = 'horizontal' | 'vertical' | 'staggered';
+export type PosterAccentColorMode = 'cover' | 'custom';
 
 /** 歌词对齐方式 */
 export type LyricAlign = 'staggered' | 'center' | 'left' | 'right';
@@ -72,14 +73,12 @@ export interface PosterConfig {
   watermarkOpacity: number;
   /** 新演出海报的强调色 */
   accentColor: string;
+  /** 强调色来源 */
+  accentColorMode: PosterAccentColorMode;
   /** 新演出海报的图像处理 */
   imageFilter: PosterImageFilter;
   /** 标题排版方向 */
   titleOrientation: PosterTitleOrientation;
-  /** 演出日期文案 */
-  eventDate: string;
-  /** 演出地点文案 */
-  eventVenue: string;
   /** 演出附加信息 */
   eventLabel: string;
 }
@@ -104,10 +103,9 @@ export const DEFAULT_POSTER_CONFIG: PosterConfig = {
   watermarkType: 'text',
   watermarkOpacity: 30,
   accentColor: '#d20a12',
+  accentColorMode: 'cover',
   imageFilter: 'monochrome',
   titleOrientation: 'staggered',
-  eventDate: '',
-  eventVenue: '',
   eventLabel: 'LIVE ARCHIVE'
 };
 
@@ -125,6 +123,7 @@ export function normalizePosterConfig(config: Partial<PosterConfig>): PosterConf
     ...config,
     layout,
     fontWeight,
+    accentColorMode: config.accentColorMode === 'custom' ? 'custom' : 'cover',
     gradientBgColors: config.gradientBgColors?.length
       ? [...config.gradientBgColors]
       : [...DEFAULT_POSTER_CONFIG.gradientBgColors]

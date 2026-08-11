@@ -1,24 +1,5 @@
 <template>
   <div class="mobile-search-result">
-    <!-- 来源筛选（仅歌曲搜索且有结果时） -->
-    <div
-      v-if="searchType === SEARCH_TYPE.MUSIC && results.length && sourceFilterOptions.length > 1"
-      class="source-filter-wrap"
-    >
-      <glow-tabs
-        :model-value="String(activeSourceFilter)"
-        :tabs="
-          sourceFilterOptions.map((opt) => ({
-            key: String(opt.key),
-            label: `${opt.label} ${opt.count}`
-          }))
-        "
-        scrollable
-        class="source-filter-glow"
-        @update:model-value="(v) => (activeSourceFilter = v as any)"
-      />
-    </div>
-
     <!-- 搜索结果列表 -->
     <div class="result-content" @scroll="handleScroll">
       <!-- 加载中 -->
@@ -125,7 +106,6 @@ import {
 } from '@/api/serverSongs';
 import { openSpotifyTrack } from '@/api/spotify';
 import { getUnlockKey, getUnlockSearchResults } from '@/api/unlockKey';
-import GlowTabs from '@/components/common/GlowTabs.vue';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { SEARCH_TYPE } from '@/const/bar-const';
@@ -155,6 +135,7 @@ const artistResults = ref<any[]>([]);
 
 // 搜索类型
 const searchType = ref(Number(route.query.type) || searchStore.searchType || 1);
+const sourceFilter = ref(String(route.query.source || searchStore.searchSource || 'all'));
 
 // 搜索结果
 const results = ref<any[]>([]);
@@ -162,7 +143,7 @@ const loading = ref(false);
 const crossSearchLoading = ref(false);
 
 // 来源筛选
-const activeSourceFilter = ref<SourceLabel | 'all'>('all');
+const activeSourceFilter = ref<SourceLabel | 'all'>(sourceFilter.value as SourceLabel | 'all');
 const sourceLabelVersion = ref(0);
 
 function classifySongs(songs: any[]) {
@@ -207,6 +188,14 @@ const sourceFilterOptions = computed(() => {
   return options;
 });
 
+watch(
+  sourceFilterOptions,
+  (options) => {
+    searchStore.setSearchSourceOptions(options);
+  },
+  { immediate: true, deep: true }
+);
+
 const filteredResults = computed(() => {
   sourceLabelVersion.value;
   let list = results.value;
@@ -235,7 +224,7 @@ const performSearch = async (isLoadMore = false) => {
     artistResults.value = [];
     page.value = 1;
     hasMore.value = true;
-    activeSourceFilter.value = 'all';
+    activeSourceFilter.value = sourceFilter.value as SourceLabel | 'all';
   }
 
   try {
@@ -592,14 +581,28 @@ watch(
   () => route.query,
   (query) => {
     if (route.path === '/mobile-search-result' && query.keyword) {
-      keyword.value = query.keyword as string;
+      const nextKeyword = query.keyword as string;
+      const nextType = Number(query.type) || searchStore.searchType || 1;
+      const shouldReload = nextKeyword !== keyword.value || nextType !== searchType.value;
+      keyword.value = nextKeyword;
       searchStore.setSearchValue(keyword.value);
-      searchType.value = Number(query.type) || searchStore.searchType || 1;
+      searchType.value = nextType;
       searchStore.setSearchType(searchType.value);
-      performSearch();
+      sourceFilter.value = typeof query.source === 'string' ? query.source : 'all';
+      activeSourceFilter.value = sourceFilter.value as SourceLabel | 'all';
+      searchStore.setSearchSource(sourceFilter.value);
+      if (shouldReload) performSearch();
     }
   }
 );
+
+watch(activeSourceFilter, (source) => {
+  sourceFilter.value = source;
+  searchStore.setSearchSource(source);
+  if (route.path === '/mobile-search-result' && route.query.source !== source) {
+    void router.replace({ path: route.path, query: { ...route.query, source } });
+  }
+});
 
 onMounted(() => {
   searchStore.setSearchValue(keyword.value);
@@ -614,7 +617,8 @@ onMounted(() => {
   @apply fixed inset-0;
   @apply bg-light dark:bg-black;
   @apply flex flex-col;
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);
+  min-height: 100dvh;
+  padding-top: 0;
 }
 
 .source-filter-wrap {
@@ -627,6 +631,8 @@ onMounted(() => {
 
 .result-content {
   @apply flex-1 overflow-y-auto;
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);
+  padding-bottom: calc(var(--safe-area-inset-bottom, 0px) + 12px);
 }
 
 .loading-state {

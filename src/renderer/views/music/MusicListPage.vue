@@ -1,25 +1,21 @@
 <template>
-  <div class="music-list-page">
+  <div class="music-list-page" data-no-page-swipe>
     <n-scrollbar ref="scrollbarRef" class="flex-1 min-h-0" @scroll="handleScroll">
       <div class="music-list-content">
-        <!-- Loading skeleton -->
-        <div v-if="loading" class="hero-skeleton">
-          <div class="skeleton-cover skeleton-shimmer" />
-          <div class="skeleton-info">
-            <div class="skeleton-title skeleton-shimmer" />
-            <div class="skeleton-badge skeleton-shimmer" />
-            <div class="skeleton-meta skeleton-shimmer" />
-          </div>
-        </div>
+        <page-loading-placeholder
+          v-if="loading"
+          variant="music-list"
+          :label="t('common.loading')"
+        />
 
         <template v-else>
-          <!--
-            Hero Zone — 信息+控制合为一体
-            展开态: [封面] / [标题+详情] / [控制栏]  纵向居中
-            收缩态: [小封面] [标题]  [播放] [收藏]   横向单行
-            同一组 DOM 元素通过 CSS 形变实现过渡，不创建新对象
-          -->
-          <section class="hero-zone" :class="{ compact: isCompact }">
+          <section class="list-topbar-spacer" aria-hidden="true">
+            <span>{{ name }}</span>
+          </section>
+          <!-- 歌单操作收纳到顶栏形变胶囊；列表本身从顶栏下方开始。 -->
+          <section class="list-controls-placeholder" aria-hidden="true" />
+          <!-- removed standalone hero controls -->
+          <section v-if="false" class="legacy-hero-zone">
             <!-- 封面：160px → 40px -->
             <div class="cover-wrap">
               <img
@@ -153,6 +149,35 @@
               </div>
             </div>
           </section>
+
+          <div v-if="false && isMobile && songList.length > 0" class="mobile-list-adjust-toolbar">
+            <div class="list-search-wrap">
+              <n-input
+                v-model:value="searchKeyword"
+                :placeholder="t('comp.musicList.searchSongs')"
+                round
+                clearable
+                size="small"
+                class="list-search-input"
+              >
+                <template #prefix>
+                  <i class="ri-search-line text-neutral-400"></i>
+                </template>
+              </n-input>
+            </div>
+            <button
+              class="icon-btn"
+              :title="t('comp.musicList.toggleLayout', '切换布局')"
+              @click="toggleLayout"
+            >
+              <i :class="isCompactLayout ? 'ri-list-check-2' : 'ri-grid-line'" />
+            </button>
+            <n-dropdown :options="sortOptions" :value="sortBy" @select="handleSortChange">
+              <button class="icon-btn" :title="t('common.sort', '排序')">
+                <i class="ri-sort-asc" />
+              </button>
+            </n-dropdown>
+          </div>
         </template>
 
         <!-- 专辑介绍弹窗 -->
@@ -232,7 +257,7 @@
 <script setup lang="ts">
 import { useMessage } from 'naive-ui';
 import PinyinMatch from 'pinyin-match';
-import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 
@@ -244,8 +269,15 @@ import {
   updatePlaylistTracks
 } from '@/api/music';
 import playlistPlaceholder from '@/assets/icon_512.png';
+import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
+import {
+  registerMobileTopbarAction,
+  registerMobileTopbarPresentation,
+  unregisterMobileTopbarAction,
+  unregisterMobileTopbarPresentation
+} from '@/composables/useMobileTopbarMenu';
 import { useDownload } from '@/hooks/useDownload';
 import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
@@ -440,6 +472,64 @@ const sortBy = ref<SortType>('default');
 // 专辑介绍弹窗
 const showDescriptionPopover = ref(false);
 const isFullPlaylistLoaded = ref(false);
+
+const topbarActionPrefix = 'music-list';
+const topbarSource = computed(() =>
+  route.query.from === 'platform' ? '平台歌单' : isAlbum.value ? '专辑' : '歌单'
+);
+
+const registerMusicListTopbar = () => {
+  registerMobileTopbarPresentation({
+    routePath: '/music-list/*',
+    title: name.value || '歌单',
+    subtitle: `${topbarSource.value} · ${total.value} 首`,
+    imageUrl: getImgUrl(getCoverImgUrl.value, '100y100'),
+    searchPlaceholder: t('comp.musicList.searchSongs'),
+    searchValue: searchKeyword.value,
+    onSearchInput: (value) => {
+      searchKeyword.value = value;
+    }
+  });
+  registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-play`,
+    routePath: '/music-list/*',
+    label: t('comp.musicList.playAll'),
+    icon: 'ri-play-fill',
+    run: handlePlayAll
+  });
+  registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-collect`,
+    routePath: '/music-list/*',
+    label: '收藏歌单',
+    icon: isCollected.value ? 'ri-heart-fill' : 'ri-heart-line',
+    run: toggleCollect
+  });
+  registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-search`,
+    routePath: '/music-list/*',
+    label: '歌单内搜索',
+    icon: 'ri-search-line',
+    keepOpen: true,
+    run: () => undefined
+  });
+  registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-layout`,
+    routePath: '/music-list/*',
+    label: '切换视图',
+    icon: isCompactLayout.value ? 'ri-list-check-2' : 'ri-grid-line',
+    run: toggleLayout
+  });
+  registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-sort`,
+    routePath: '/music-list/*',
+    label: '排序方式',
+    icon: 'ri-sort-asc',
+    run: () => undefined,
+    options: sortOptions,
+    value: sortBy.value,
+    select: (value) => handleSortChange(value as SortType)
+  });
+};
 
 const isSelecting = ref(false);
 const selectedSongs = ref<number[]>([]);
@@ -962,6 +1052,22 @@ watch(
 
 onMounted(() => {
   checkCollectionStatus();
+  registerMusicListTopbar();
+});
+
+watch(
+  [name, total, getCoverImgUrl, isCollected, isCompactLayout, searchKeyword],
+  () => registerMusicListTopbar(),
+  { flush: 'post' }
+);
+
+onBeforeUnmount(() => {
+  unregisterMobileTopbarPresentation('/music-list/*');
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-play`);
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-collect`);
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-search`);
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-layout`);
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-sort`);
 });
 
 // keep-alive 重新激活时重置状态
@@ -989,60 +1095,8 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);
 }
 
-/* ===== Loading skeleton ===== */
-.hero-skeleton {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 24px 20px;
-  margin: 0 16px;
-}
-.skeleton-cover {
-  width: 160px;
-  height: 160px;
-  border-radius: 16px;
-}
-.skeleton-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  max-width: 280px;
-}
-.skeleton-title {
-  height: 24px;
-  width: 70%;
-  border-radius: 8px;
-}
-.skeleton-badge {
-  height: 18px;
-  width: 80px;
-  border-radius: 9999px;
-}
-.skeleton-meta {
-  height: 14px;
-  width: 50%;
-  border-radius: 6px;
-}
-.skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(128, 128, 128, 0.08) 25%,
-    rgba(128, 128, 128, 0.16) 50%,
-    rgba(128, 128, 128, 0.08) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
+.list-topbar-spacer {
+  display: none;
 }
 
 /* ============================================================
@@ -1385,9 +1439,42 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 .list-search-wrap {
   width: 180px;
 }
+
+.mobile-list-adjust-toolbar {
+  display: none;
+}
 .list-search-input {
   border: none !important;
   background: rgba(128, 128, 128, 0.1) !important;
+}
+
+@media (max-width: 640px) {
+  .mobile-list-adjust-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 16px 10px;
+    padding: 8px;
+    border: 1px solid var(--cover-border, rgba(128, 128, 128, 0.12));
+    border-radius: 18px;
+    background: var(--m-glass-bg, rgba(255, 255, 255, 0.58));
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(24px) saturate(165%);
+    -webkit-backdrop-filter: blur(24px) saturate(165%);
+
+    .list-search-wrap {
+      min-width: 0;
+      flex: 1;
+      width: auto;
+    }
+
+    .icon-btn {
+      flex: 0 0 34px;
+      width: 34px;
+      height: 34px;
+      font-size: 17px;
+    }
+  }
 }
 
 /* ===== Song list ===== */

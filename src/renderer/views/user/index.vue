@@ -1,18 +1,11 @@
 <template>
   <div class="user-page">
     <template v-if="infoLoading">
-      <div class="skeleton-wrap">
-        <!-- Playlist grid skeleton -->
-        <div class="skel-grid">
-          <div v-for="i in 4" :key="i" class="skel-playlist-card">
-            <div class="skel-cover">
-              <i class="ri-music-2-line skel-spin" />
-            </div>
-            <div class="skel-text-mask skel-pl-name" />
-            <div class="skel-text-mask skel-pl-desc" />
-          </div>
-        </div>
-      </div>
+      <page-loading-placeholder
+        class="user-loading-placeholder"
+        variant="user"
+        :label="t('common.loading')"
+      />
     </template>
     <template v-else>
       <div class="user-scroll">
@@ -146,9 +139,19 @@
                 v-for="(item, index) in displayRecordList.slice(0, 20)"
                 :key="`${item.id}-${index}`"
                 class="ranking-item"
+                role="button"
+                tabindex="0"
+                @click="handlePlayRecord(item)"
+                @keydown.enter.prevent="handlePlayRecord(item)"
               >
                 <span class="ranking-num">{{ index + 1 }}</span>
-                <song-item class="ranking-song-item" :item="item" mini @play="handlePlayRecord" />
+                <song-item
+                  class="ranking-song-item"
+                  :item="item"
+                  mini
+                  @click.stop
+                  @play="handlePlayRecord"
+                />
               </div>
               <div v-if="!displayRecordList.length" class="ranking-empty">
                 {{ t('user.ranking.empty') }}
@@ -173,6 +176,7 @@ import { useRoute, useRouter } from 'vue-router';
 
 import { fetchPlatformAccountData } from '@/api/platformQrApi';
 import { getUserDetail, getUserPlaylist, getUserRecord } from '@/api/user';
+import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { type PlatformAccount, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
@@ -498,164 +502,9 @@ const handleLoginSuccess = () => {
   padding-top: calc(var(--safe-area-inset-top, 0px) + 68px);
 }
 
-/* Skeleton — 新骨架屏：图片转圈 + 文字遮罩 */
-.skeleton-wrap {
-  width: 100%;
-  height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  padding: 16px;
-  /* 避开顶栏，与 hero-card 对齐 */
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 52px);
-  &::-webkit-scrollbar {
-    display: none;
-  }
-}
-
-.skel-hero-card {
-  border-radius: 22px;
-  padding: 20px;
-  margin-bottom: 16px;
-  background: var(--cover-surface, var(--d-surface, rgba(255, 255, 255, 0.55)));
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-}
-
-.skel-hero-top {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.skel-avatar {
-  display: flex;
-  width: 64px;
-  height: 64px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--cover-surface-alt, rgba(128, 128, 128, 0.08));
-  flex-shrink: 0;
-
-  i {
-    font-size: 26px;
-    color: var(--cover-text-muted, var(--d-text-muted, #9a9590));
-  }
-}
-
-.skel-profile {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.skel-name {
-  width: 120px;
-  height: 20px;
-}
-
-.skel-sig {
-  width: 180px;
-  height: 14px;
-}
-
-.skel-stats-row {
-  display: flex;
-  gap: 0;
-  padding: 10px 0;
-  border-top: 1px solid var(--cover-border, rgba(128, 128, 128, 0.1));
-  margin-bottom: 12px;
-}
-
-.skel-stat {
-  flex: 1;
-  height: 36px;
-  margin: 0 8px;
-}
-
-.skel-tab-bar {
-  display: flex;
-  gap: 8px;
-}
-
-.skel-tab {
-  flex: 1;
-  height: 32px;
-  border-radius: 8px;
-}
-
-.skel-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.skel-playlist-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.skel-cover {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--cover-surface-alt, rgba(128, 128, 128, 0.08));
-
-  i {
-    font-size: 28px;
-    color: var(--cover-text-muted, var(--d-text-muted, #9a9590));
-    opacity: 0.5;
-  }
-}
-
-.skel-pl-name {
-  width: 70%;
-  height: 13px;
-}
-
-.skel-pl-desc {
-  width: 50%;
-  height: 11px;
-}
-
-/* 文字遮罩骨架 — shimmer 渐变扫光 */
-.skel-text-mask {
-  border-radius: 6px;
-  background: linear-gradient(
-    90deg,
-    var(--cover-surface-alt, rgba(128, 128, 128, 0.08)) 25%,
-    var(--cover-surface-hover, rgba(128, 128, 128, 0.14)) 50%,
-    var(--cover-surface-alt, rgba(128, 128, 128, 0.08)) 75%
-  );
-  background-size: 200% 100%;
-  animation: skel-shimmer 1.6s ease-in-out infinite;
-}
-
-.skel-spin {
-  animation: skel-rotate 1.2s linear infinite;
-}
-
-@keyframes skel-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-@keyframes skel-rotate {
-  to {
-    transform: rotate(360deg);
-  }
+.user-loading-placeholder {
+  min-height: 100%;
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 68px);
 }
 
 /* Safe area spacer */
@@ -1383,9 +1232,19 @@ const handleLoginSuccess = () => {
   padding: 8px;
   border-radius: 14px;
   transition: background 160ms ease;
+  cursor: pointer;
+  outline: none;
 
   &:hover {
     background: var(--cover-surface-hover, rgba(128, 128, 128, 0.06));
+  }
+
+  &:active {
+    transform: scale(0.99);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-color) 64%, transparent);
   }
 }
 
@@ -1660,14 +1519,6 @@ const handleLoginSuccess = () => {
   .long-press-hint,
   .account-picker-inline {
     transition: none;
-  }
-
-  .skel-spin {
-    animation-duration: 3s;
-  }
-
-  .skel-text-mask {
-    animation: none;
   }
 
   .long-press-hint {

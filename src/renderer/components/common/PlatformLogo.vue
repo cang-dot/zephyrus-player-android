@@ -13,6 +13,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+import jooxLogo from '@/assets/platforms/joox.svg?url';
 import kugouLogo from '@/assets/platforms/kugou.svg?url';
 import neteaseLogo from '@/assets/platforms/netease-music.svg?url';
 import qqMusicLogo from '@/assets/platforms/qqmusic.svg?url';
@@ -33,6 +34,7 @@ const props = withDefaults(
 );
 
 const assets: Record<string, string> = {
+  joox: jooxLogo,
   netease: neteaseLogo,
   qq: qqMusicLogo,
   kugou: kugouLogo,

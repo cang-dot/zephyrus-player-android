@@ -1,7 +1,13 @@
 ﻿<template>
-  <div class="local-music-page">
+  <div class="local-music-page" :class="{ 'is-embedded': embedded }">
     <!-- ==================== 移动端（Capacitor） ==================== -->
-    <div v-if="isMobileNative" ref="scrollRef" class="lm-scroll" @scroll.passive="onScroll">
+    <div
+      v-if="isMobileNative"
+      ref="scrollRef"
+      class="lm-scroll"
+      :class="{ 'is-embedded': embedded }"
+      @scroll.passive="onScroll"
+    >
       <glow-tabs
         v-if="localMusicStore.musicList.length > 0"
         v-model="activeTab"
@@ -463,6 +469,9 @@ const { confirmPlaylistReplace } = usePlaylistConfirm();
 
 // ==================== Platform detection ====================
 const isMobileNative = !isElectron;
+const { embedded } = withDefaults(defineProps<{ embedded?: boolean }>(), {
+  embedded: false
+});
 
 // ==================== State ====================
 const searchKeyword = ref('');
@@ -767,6 +776,11 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
 .local-music-page {
   height: 100%;
   width: 100%;
+
+  &.is-embedded {
+    height: auto;
+    min-height: calc(100dvh - var(--safe-area-inset-top, 0px) - 116px);
+  }
 }
 
 /* ==================== 移动端样式 ==================== */
@@ -777,6 +791,13 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   scrollbar-width: none;
   &::-webkit-scrollbar {
     display: none;
+  }
+
+  &.is-embedded {
+    height: auto;
+    min-height: inherit;
+    overflow: visible;
+    -webkit-overflow-scrolling: auto;
   }
 }
 
@@ -926,7 +947,7 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 280px 20px 0;
+  margin: 12px 16px;
   padding: 16px;
   border-radius: 16px;
   background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.08);
@@ -941,7 +962,8 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 360px 20px 80px;
+  min-height: calc(100dvh - var(--safe-area-inset-top, 0px) - 220px);
+  padding: 48px 20px 120px;
   gap: 16px;
 }
 
@@ -980,7 +1002,7 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
 /* Content area */
 .content-area {
   padding: 0 16px;
-  margin-top: 280px;
+  margin-top: 0;
 }
 
 .no-results {
@@ -1134,6 +1156,10 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
 /* Bottom spacer for safe area + nav bar */
 .bottom-spacer {
   height: calc(var(--safe-area-inset-bottom, 0px) + 140px);
+}
+
+.local-music-page.is-embedded .bottom-spacer {
+  height: 0;
 }
 
 /* ==================== Desktop styles (shared) ==================== */

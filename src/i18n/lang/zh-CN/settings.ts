@@ -344,6 +344,8 @@ export default {
     showTranslationDescription: '在歌词下方显示翻译文本',
     showRomanization: '显示罗马音',
     showRomanizationDescription: '在歌词下方显示罗马音文本',
+    statusBarLyrics: '状态栏歌词',
+    statusBarLyricsDescription: '通过顶部悬浮窗在其他应用上方显示当前歌词',
     hideLyrics: '隐藏歌词',
     hidePlayBar: '隐藏播放栏',
     hideMiniPlayBar: '隐藏迷你播放栏',

@@ -340,6 +340,8 @@ export default {
     showTranslationDescription: '在歌詞下方顯示翻譯文字',
     showRomanization: '顯示羅馬音',
     showRomanizationDescription: '在歌詞下方顯示羅馬音文字',
+    statusBarLyrics: '狀態列歌詞',
+    statusBarLyricsDescription: '透過頂部懸浮窗在其他應用程式上方顯示目前歌詞',
     hideLyrics: '隱藏歌詞',
     hidePlayBar: '隱藏播放列',
     hideMiniPlayBar: '隱藏迷你播放列',

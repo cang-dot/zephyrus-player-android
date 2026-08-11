@@ -331,6 +331,32 @@
                   <span class="share-toggle-knob"></span>
                 </button>
               </div>
+
+              <div
+                v-if="androidNativeAvailable"
+                class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2"
+              >
+                <div class="min-w-0 pr-3">
+                  <div class="text-sm text-white/80">
+                    {{ tr('settings.lyricSettings.statusBarLyrics', '状态栏歌词') }}
+                  </div>
+                  <div class="text-xs text-white/40 mt-1">
+                    {{
+                      tr(
+                        'settings.lyricSettings.statusBarLyricsDescription',
+                        '通过顶部悬浮窗在其他应用上方显示当前歌词'
+                      )
+                    }}
+                  </div>
+                </div>
+                <button
+                  class="share-toggle-switch"
+                  :class="{ on: lyricConfig.statusBarLyricsEnabled }"
+                  @click="toggleStatusBarLyrics"
+                >
+                  <span class="share-toggle-knob"></span>
+                </button>
+              </div>
             </div>
 
             <!-- 分隔线 -->
@@ -706,6 +732,12 @@ import { useMetaphor } from '@/features/lyric-metaphor/useMetaphor';
 import { lrcArray, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
 import { isLocalSong } from '@/hooks/useLocalMusic';
+import {
+  hasStatusBarLyricPermission,
+  isAndroidNative,
+  refreshStatusBarLyric,
+  requestStatusBarLyricPermission
+} from '@/services/androidNative';
 import { deleteClimaxCache, getLocalClimax, saveLocalClimax } from '@/services/cacheService';
 import { useClimaxStore } from '@/store/modules/climax';
 import { useCommunityDataStore } from '@/store/modules/communityData';
@@ -728,6 +760,7 @@ const communityDataStore = useCommunityDataStore();
 const userStore = useUserStore();
 const { navigateToArtist } = useArtist();
 const message = window.$message;
+const androidNativeAvailable = isAndroidNative();
 const activeTab = ref<'song' | 'control'>('control');
 const openPlaylistDrawer = inject<(songOrId: number | SongResult) => void>('openPlaylistDrawer');
 
@@ -1346,6 +1379,17 @@ function toggleShowRomanization() {
   lyricConfig.value.showRomanization = !lyricConfig.value.showRomanization;
   localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
   window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+}
+
+function toggleStatusBarLyrics() {
+  lyricConfig.value.statusBarLyricsEnabled = !lyricConfig.value.statusBarLyricsEnabled;
+  localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
+  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  if (lyricConfig.value.statusBarLyricsEnabled && !hasStatusBarLyricPermission()) {
+    requestStatusBarLyricPermission();
+    message?.info('请允许 Zephyrus 显示在其他应用上层');
+  }
+  void nextTick(refreshStatusBarLyric);
 }
 
 // ==================== 分享功能配置 ====================

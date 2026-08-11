@@ -6,7 +6,9 @@
       playerStore.musicFull ? 'play-bar-expanded' : 'play-bar-mini',
       shouldShowMobileMenu ? 'is-menu-show' : 'is-menu-hide',
       isCompactNav && shouldShowMobileMenu ? 'compact-nav' : '',
-      idleCollapsed && !playerStore.musicFull ? 'idle-collapsed' : ''
+      idleCollapsed && !playerStore.musicFull ? 'idle-collapsed' : '',
+      playlistSurfaceMounted && !playerStore.musicFull ? 'playlist-mounted' : '',
+      playlistSurfaceExpanded && !playerStore.musicFull ? 'playlist-open' : ''
     ]"
     :style="{
       color: playerStore.musicFull
@@ -57,11 +59,16 @@
         </div>
       </div>
 
-      <div class="mini-playback-controls">
-        <div class="mini-control-btn play" @click="playMusicEvent">
+      <div class="mini-playback-controls" @pointerdown.stop>
+        <div class="mini-control-btn play" role="button" tabindex="0" @click.stop="playMusicEvent">
           <i class="iconfont icon" :class="play ? 'icon-stop' : 'icon-play'"></i>
         </div>
-        <i class="iconfont icon-list mini-list-icon" @click="openPlayListDrawer"></i>
+        <i
+          class="iconfont icon-list mini-list-icon"
+          role="button"
+          tabindex="0"
+          @click.stop="openPlayListDrawer"
+        ></i>
       </div>
     </div>
 
@@ -76,52 +83,28 @@
 
 <script lang="ts" setup>
 import type { Ref } from 'vue';
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
 
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl, setAnimationClass } from '@/utils';
-import { shouldRestartMiniPlayerIdleTimer } from '@/utils/miniPlayerIdle';
 
 const shouldShowMobileMenu = inject('shouldShowMobileMenu') as Ref<boolean>;
 const isCompactNav = inject('isCompactNav', ref(false)) as Ref<boolean>;
+const playlistSurfaceMounted = inject('playlistSurfaceMounted', ref(false)) as Ref<boolean>;
+const playlistSurfaceExpanded = inject('playlistSurfaceExpanded', ref(false)) as Ref<boolean>;
 const emit = defineEmits<{
   (event: 'idle-collapse-change', collapsed: boolean): void;
 }>();
 
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
-const route = useRoute();
 const idleCollapsed = ref(false);
-let idleTimer: ReturnType<typeof setTimeout> | undefined;
 let miniLongPressTimer: ReturnType<typeof setTimeout> | undefined;
 let miniLongPressTriggered = false;
 let miniPointerStartedCollapsed = false;
-
-const clearIdleTimer = () => {
-  if (!idleTimer) return;
-  clearTimeout(idleTimer);
-  idleTimer = undefined;
-};
-
-const scheduleIdleCollapse = () => {
-  clearIdleTimer();
-  if (playerStore.musicFull) return;
-  idleTimer = setTimeout(() => {
-    if (!playerStore.musicFull && !miniPointerActive && !miniSwipeSwitching.value) {
-      idleCollapsed.value = true;
-    }
-    idleTimer = undefined;
-  }, 3000);
-};
-
-const resetIdleTimer = () => {
-  idleCollapsed.value = false;
-  scheduleIdleCollapse();
-};
 
 // 是否播放
 const play = computed(() => playerStore.isPlay);
@@ -142,7 +125,6 @@ const MusicFullRef = ref<any>(null);
 
 // 设置 musicFull
 const setMusicFull = () => {
-  clearIdleTimer();
   idleCollapsed.value = false;
   playerStore.setMusicFull(!playerStore.musicFull);
   if (playerStore.musicFull) {
@@ -157,7 +139,7 @@ const onMiniSongInfoClick = () => {
   }
   if (miniPointerStartedCollapsed || idleCollapsed.value) {
     miniPointerStartedCollapsed = false;
-    resetIdleTimer();
+    idleCollapsed.value = false;
     return;
   }
   setMusicFull();
@@ -172,13 +154,12 @@ watch(
 
 // 打开播放列表抽屉
 const openPlayListDrawer = () => {
-  resetIdleTimer();
+  idleCollapsed.value = false;
   playerStore.setPlayListDrawerVisible(true);
 };
 
 // 播放暂停按钮事件
 const playMusicEvent = async () => {
-  resetIdleTimer();
   try {
     playerStore.setPlay(playMusic.value);
   } catch (error) {
@@ -192,6 +173,7 @@ const miniSwipeOffset = ref(0);
 const miniSwipeAnimating = ref(false);
 const miniSwipeSwitching = ref(false);
 const miniSwipeAxis = ref<'none' | 'horizontal' | 'vertical'>('none');
+const miniVerticalOffset = ref(0);
 const suppressMiniClick = ref(false);
 // Keep the gesture compact so a track change reads as a nudge, not a displaced bar.
 const getMiniSwipeLimit = () => Math.min(36, Math.max(28, window.innerWidth * 0.085));
@@ -199,7 +181,7 @@ const miniSwipeProgress = computed(() =>
   Math.min(Math.abs(miniSwipeOffset.value) / getMiniSwipeLimit(), 1)
 );
 const miniSwipeStyle = computed(() => ({
-  transform: `translate3d(${miniSwipeOffset.value}px, 0, 0) scale(${1 - miniSwipeProgress.value * 0.012})`,
+  transform: `translate3d(${miniSwipeOffset.value}px, ${miniVerticalOffset.value}px, 0) scale(${1 - miniSwipeProgress.value * 0.012})`,
   opacity: String(1 - miniSwipeProgress.value * 0.12),
   '--mini-swipe-rotation': `${miniSwipeOffset.value * 0.018}deg`,
   '--mini-swipe-content-shift': `${miniSwipeOffset.value * 0.05}px`
@@ -242,11 +224,10 @@ const onMiniPointerDown = (event: PointerEvent) => {
   miniPointerStartTime = Date.now();
   miniPointerActive = true;
   miniPointerId = event.pointerId;
-  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
   miniSwipeAxis.value = 'none';
   miniSwipeAnimating.value = false;
+  miniVerticalOffset.value = 0;
   miniPointerStartedCollapsed = idleCollapsed.value;
-  clearIdleTimer();
   miniLongPressTriggered = false;
   if (idleCollapsed.value) {
     miniLongPressTimer = setTimeout(() => {
@@ -272,8 +253,20 @@ const onMiniPointerMove = (event: PointerEvent) => {
       miniLongPressTimer = undefined;
     }
   }
+  if (miniSwipeAxis.value === 'vertical') {
+    if (!(event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) {
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    }
+    event.preventDefault();
+    setMiniClickSuppressed();
+    miniVerticalOffset.value = Math.max(-68, Math.min(68, deltaY));
+    return;
+  }
   if (miniSwipeAxis.value !== 'horizontal') return;
 
+  if (!(event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) {
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  }
   event.preventDefault();
   setMiniClickSuppressed();
   const maxDrag = getMiniSwipeLimit();
@@ -283,6 +276,7 @@ const onMiniPointerMove = (event: PointerEvent) => {
 const finishMiniSwipeAnimation = () => {
   miniSwipeAnimating.value = true;
   miniSwipeOffset.value = 0;
+  miniVerticalOffset.value = 0;
   if (miniSwipeTimer) clearTimeout(miniSwipeTimer);
   miniSwipeTimer = setTimeout(() => {
     miniSwipeAnimating.value = false;
@@ -330,6 +324,7 @@ const releaseMiniPointer = (event: PointerEvent) => {
 const onMiniPointerUp = (event: PointerEvent) => {
   if (!miniPointerActive || event.pointerId !== miniPointerId) return;
   const deltaX = event.clientX - miniPointerStartX;
+  const deltaY = event.clientY - miniPointerStartY;
   const elapsed = Math.max(1, Date.now() - miniPointerStartTime);
   const projectedX = deltaX + (deltaX / elapsed) * 110;
   const swipeLimit = getMiniSwipeLimit();
@@ -345,9 +340,22 @@ const onMiniPointerUp = (event: PointerEvent) => {
     clearTimeout(miniLongPressTimer);
     miniLongPressTimer = undefined;
   }
+  const verticalCommit = miniSwipeAxis.value === 'vertical' && Math.abs(deltaY) > 34;
   if (commit) switchTrackWithAnimation(deltaX < 0 ? 'left' : 'right');
-  else finishMiniSwipeAnimation();
-  if (!miniLongPressTriggered) resetIdleTimer();
+  else if (verticalCommit && miniPointerStartedCollapsed && deltaY < 0) {
+    idleCollapsed.value = false;
+    if (navigator.vibrate) navigator.vibrate(8);
+    finishMiniSwipeAnimation();
+  } else if (verticalCommit && !miniPointerStartedCollapsed && deltaY < 0) {
+    idleCollapsed.value = false;
+    playerStore.setMusicFull(true);
+    if (navigator.vibrate) navigator.vibrate(8);
+    finishMiniSwipeAnimation();
+  } else if (verticalCommit && !miniPointerStartedCollapsed && deltaY > 0) {
+    idleCollapsed.value = true;
+    if (navigator.vibrate) navigator.vibrate(8);
+    finishMiniSwipeAnimation();
+  } else finishMiniSwipeAnimation();
 };
 
 const onMiniPointerCancel = (event: PointerEvent) => {
@@ -359,35 +367,27 @@ const onMiniPointerCancel = (event: PointerEvent) => {
     miniLongPressTimer = undefined;
   }
   finishMiniSwipeAnimation();
-  resetIdleTimer();
 };
 
 onBeforeUnmount(() => {
   if (miniSwipeTimer) clearTimeout(miniSwipeTimer);
   if (miniClickTimer) clearTimeout(miniClickTimer);
   if (miniLongPressTimer) clearTimeout(miniLongPressTimer);
-  clearIdleTimer();
 });
-
-onMounted(resetIdleTimer);
 
 watch(
   () => playerStore.musicFull,
   (isFull) => {
     if (isFull) {
-      clearIdleTimer();
       idleCollapsed.value = false;
-      return;
     }
-    resetIdleTimer();
   }
 );
 
 watch(
-  () => route.fullPath,
-  () => {
-    if (!shouldRestartMiniPlayerIdleTimer(idleCollapsed.value, playerStore.musicFull)) return;
-    scheduleIdleCollapse();
+  () => [shouldShowMobileMenu.value, playerStore.playListDrawerVisible],
+  ([menuVisible, drawerVisible]) => {
+    if (!menuVisible || drawerVisible) idleCollapsed.value = false;
   }
 );
 
@@ -397,7 +397,6 @@ watch(
   () => playerStore.playMusic,
   async () => {
     background.value = playMusic.value.backgroundColor as string;
-    resetIdleTimer();
   },
   { immediate: true, deep: true }
 );
@@ -411,10 +410,17 @@ watch(
   /* 统一弹簧过渡 — 位置、宽度、高度、边距全部平滑形变，不创建新对象 */
   transition:
     bottom 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    right 0.42s cubic-bezier(0.32, 0.72, 0, 1),
     left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
     width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    height 0.42s cubic-bezier(0.32, 0.72, 0, 1),
     max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-    min-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    min-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    border-color 0.22s ease,
+    background-color 0.3s ease,
+    box-shadow 0.32s ease;
+  will-change: transform, opacity;
 
   &.is-menu-show {
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 60px);
@@ -435,6 +441,24 @@ watch(
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
   }
 
+  /* 独立出现时由播放栏自身提供有色毛玻璃表面，兼容 WebView 的弱 backdrop-filter。 */
+  &.is-menu-hide.play-bar-mini:not(.playlist-open) .mobile-mini-controls {
+    background:
+      linear-gradient(
+        145deg,
+        rgba(255, 255, 255, 0.18),
+        rgba(var(--accent-color-rgb, 136, 136, 136), 0.12)
+      ),
+      color-mix(in srgb, var(--cover-surface, rgba(24, 24, 28, 0.78)) 86%, transparent);
+    border-color: color-mix(in srgb, var(--accent-color, #888) 24%, rgba(255, 255, 255, 0.22));
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.24),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+  }
+
   &.play-bar-expanded {
     @apply bg-transparent;
     height: auto;
@@ -450,6 +474,73 @@ watch(
 
   &.play-bar-mini {
     @apply h-14 py-0;
+    transition:
+      bottom 0.42s cubic-bezier(0.22, 0.8, 0.2, 1),
+      left 0.42s cubic-bezier(0.22, 0.8, 0.2, 1),
+      width 0.42s cubic-bezier(0.22, 0.8, 0.2, 1),
+      height 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+      max-width 0.42s cubic-bezier(0.22, 0.8, 0.2, 1),
+      min-width 0.42s cubic-bezier(0.22, 0.8, 0.2, 1),
+      border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+      border-color 0.22s ease,
+      background-color 0.3s ease,
+      box-shadow 0.32s ease,
+      transform 0.42s cubic-bezier(0.22, 0.8, 0.2, 1),
+      opacity 0.28s ease;
+  }
+
+  /* 有底栏时播放栏保持底部锚点；无底栏时它本身形变为播放列表玻璃表面。 */
+  &.playlist-mounted.play-bar-mini {
+    z-index: 100000;
+  }
+
+  &.playlist-mounted.play-bar-mini.is-menu-hide {
+    right: 0;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
+    left: 0;
+    width: 100%;
+    height: 56px;
+    overflow: hidden;
+    border: 1px solid transparent;
+    border-radius: 28px;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  &.playlist-open.play-bar-mini.is-menu-hide {
+    right: 12px;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 12px);
+    left: 12px;
+    width: calc(100% - 24px);
+    height: min(62dvh, 500px);
+    min-height: 310px;
+    border-color: var(--m-glass-border);
+    border-radius: 32px;
+    background: var(--m-glass-bg);
+    box-shadow:
+      0 18px 48px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(30px) saturate(175%);
+    -webkit-backdrop-filter: blur(30px) saturate(175%);
+  }
+
+  &.playlist-mounted.play-bar-mini.is-menu-hide .mobile-mini-controls {
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    left: 3px;
+    z-index: 3;
+    width: auto;
+    height: 48px;
+    margin: 0;
+  }
+
+  &.playlist-open.play-bar-mini.is-menu-hide .mobile-mini-controls {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   // 进度条
@@ -556,7 +647,7 @@ watch(
     border: 1px solid var(--m-glass-border);
     backdrop-filter: blur(24px) saturate(165%);
     -webkit-backdrop-filter: blur(24px) saturate(165%);
-    touch-action: pan-y;
+    touch-action: none;
     user-select: none;
     /* 内部元素形变过渡 — 与外层同步 */
     transition:
@@ -666,8 +757,8 @@ watch(
   /* ═══ 紧凑模式覆盖 — 直接复制底栏的精确位置和高度参数 ═══ */
   &.compact-nav {
     /* 直接复制 .mobile-glow-nav-wrap 的定位参数 */
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px) !important;
-    left: 12px !important;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap, 12px)) !important;
+    left: var(--mobile-dock-inset, 12px) !important;
     right: auto !important;
     transform: none !important;
     width: auto !important;
@@ -739,8 +830,8 @@ watch(
   /* The same mini-player node contracts into the cover beside the bottom navigation. */
   &.idle-collapsed {
     left: auto !important;
-    right: 12px !important;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px) !important;
+    right: var(--mobile-dock-inset, 12px) !important;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap, 12px)) !important;
     width: 50px !important;
     min-width: 50px !important;
     max-width: 50px !important;

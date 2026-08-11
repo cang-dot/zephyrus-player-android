@@ -11,7 +11,7 @@ export interface AmllSongSource {
 }
 
 interface CachedTtmlLyric {
-  schemaVersion: 2;
+  schemaVersion: 3;
   cachedAt: number;
   lyric: TtmlLyric;
 }
@@ -30,7 +30,7 @@ const ZEPHYRUS_DB_BASE = String(import.meta.env.VITE_TTML_DB_BASE_URL || '')
 const DB_NAME = 'zephyrus-cache';
 const STORE_NAME = 'amll-ttml';
 const DB_VERSION = 2;
-const CACHE_SCHEMA_VERSION = 2;
+const CACHE_SCHEMA_VERSION = 3;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const OWNED_SOURCE_TIMEOUT_MS = 2500;
 const FALLBACK_SOURCE_TIMEOUT_MS = 8000;
@@ -160,7 +160,7 @@ function sourceUrls(source: AmllSongSource): TtmlEndpoint[] {
 
 function cacheKeyFor(source: AmllSongSource): string {
   const scope = ZEPHYRUS_DB_BASE || 'upstream-only';
-  return `v2:${scope}:${source.platform}:${source.songId}`;
+  return `v3:${scope}:${source.platform}:${source.songId}`;
 }
 
 export async function getAmllLyric(

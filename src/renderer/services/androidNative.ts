@@ -6,9 +6,10 @@
 
 import { nextTick, watch } from 'vue';
 
-import { allTime, artistList, nowTime, playMusic } from '@/hooks/MusicHook';
+import { allTime, artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
+import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import { getImgUrl } from '@/utils';
 
 type NativeBridge = {
@@ -32,6 +33,9 @@ type NativeBridge = {
   openNotificationSettings: () => void;
   openAppDetailsSettings: () => void;
   openDisplayOverOtherAppsSettings: () => void;
+  canDrawOverlays: () => boolean;
+  setStatusBarLyricEnabled: (enabled: boolean) => boolean;
+  updateStatusBarLyric: (text: string, accentColor: string) => void;
   installApkFromCache: (fileName: string) => void;
   startApkDownload: (url: string, expectedSize: number) => void;
   getApkDownloadState: () => string;
@@ -76,12 +80,51 @@ export function setStatusBarBgColor(hexColor: string) {
   }
 }
 
-/**
- * 安全区域 CSS 变量现在完全由 env(safe-area-inset-*) 驱动
- * WebView 在 viewport-fit=cover 下自动计算，无需 JS 注入
- */
+type NativeSafeAreaInsets = {
+  top?: number;
+  bottom?: number;
+  left?: number;
+  right?: number;
+  density?: number;
+};
+
+let safeAreaListenersBound = false;
+let safeAreaRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** WebView 的 env() 在部分挖孔设备上始终为 0，因此以原生窗口 inset 兜底。 */
 export function injectSafeAreaInsets() {
-  // no-op: CSS env() handles everything
+  if (!isAndroidNative()) return;
+
+  try {
+    const insets = JSON.parse(window.AndroidNative!.getSafeAreaInsets()) as NativeSafeAreaInsets;
+    const density = Math.max(0.1, Number(insets.density) || window.devicePixelRatio || 1);
+    const rootStyle = document.documentElement.style;
+    const setInset = (side: 'top' | 'bottom' | 'left' | 'right', rawValue?: number) => {
+      const value = Number(rawValue);
+      if (!Number.isFinite(value) || value <= 0) return;
+      rootStyle.setProperty(`--safe-area-inset-${side}`, `${value / density}px`);
+    };
+
+    setInset('top', insets.top);
+    setInset('bottom', insets.bottom);
+    setInset('left', insets.left);
+    setInset('right', insets.right);
+  } catch (e) {
+    console.warn('[NativeBridge] 获取安全区域失败，继续使用 CSS env():', e);
+  }
+}
+
+function bindSafeAreaListeners() {
+  if (safeAreaListenersBound || typeof window === 'undefined') return;
+  safeAreaListenersBound = true;
+  const refresh = () => {
+    if (safeAreaRefreshTimer) clearTimeout(safeAreaRefreshTimer);
+    requestAnimationFrame(injectSafeAreaInsets);
+    safeAreaRefreshTimer = setTimeout(injectSafeAreaInsets, 160);
+  };
+  window.addEventListener('resize', refresh, { passive: true });
+  window.addEventListener('orientationchange', refresh, { passive: true });
+  window.visualViewport?.addEventListener('resize', refresh, { passive: true });
 }
 
 /**
@@ -103,7 +146,8 @@ export function updateMusicNotification() {
   const artists = artistList?.value || [];
   const artist = artists.map((a: any) => a.name).join(' / ');
   const album = song.al?.name || song.album?.name || '';
-  const artworkUrl = getImgUrl(song.picUrl, '300y300');
+  const rawArtwork = song.picUrl || song.al?.picUrl || song.album?.picUrl || '';
+  const artworkUrl = getImgUrl(rawArtwork, '300y300');
   const isPlaying = playerStore.isPlay;
   const duration = allTime.value || 0;
   const position = nowTime.value || 0;
@@ -204,6 +248,62 @@ export function openDisplayOverOtherAppsSettings() {
   } catch (e) {
     console.warn('[NativeBridge] 打开显示在其他应用上层设置失败:', e);
   }
+}
+
+export function hasStatusBarLyricPermission(): boolean {
+  if (!isAndroidNative()) return false;
+  try {
+    return Boolean(window.AndroidNative!.canDrawOverlays());
+  } catch (e) {
+    console.warn('[NativeBridge] 检查悬浮窗权限失败:', e);
+    return false;
+  }
+}
+
+export function requestStatusBarLyricPermission() {
+  openDisplayOverOtherAppsSettings();
+}
+
+function readLyricConfig(): LyricConfig {
+  try {
+    const saved = JSON.parse(localStorage.getItem('music-full-config') || '{}');
+    return { ...DEFAULT_LYRIC_CONFIG, ...saved };
+  } catch {
+    return { ...DEFAULT_LYRIC_CONFIG };
+  }
+}
+
+export function refreshStatusBarLyric() {
+  if (!isAndroidNative()) return;
+  const enabled = Boolean(readLyricConfig().statusBarLyricsEnabled);
+  const permitted = hasStatusBarLyricPermission();
+
+  try {
+    window.AndroidNative!.setStatusBarLyricEnabled(enabled && permitted);
+    if (!enabled || !permitted) return;
+
+    const song = playMusic?.value;
+    const line = lrcArray.value[nowIndex.value];
+    const text = line?.text?.trim() || song?.name?.trim() || '';
+    const accentColor = song?.primaryColor || '#ffffff';
+    window.AndroidNative!.updateStatusBarLyric(text, accentColor);
+  } catch (e) {
+    console.warn('[NativeBridge] 更新状态栏歌词失败:', e);
+  }
+}
+
+let statusBarLyricBridgeInitialized = false;
+
+function setupStatusBarLyricBridge() {
+  if (statusBarLyricBridgeInitialized) return;
+  statusBarLyricBridgeInitialized = true;
+
+  watch([nowIndex, lrcArray, () => playMusic?.value?.id], refreshStatusBarLyric, {
+    immediate: true
+  });
+  window.addEventListener('music-full-config-updated', refreshStatusBarLyric);
+  window.addEventListener('focus', refreshStatusBarLyric);
+  (window as any).__statusBarLyricPermissionChanged = () => refreshStatusBarLyric();
 }
 
 /**
@@ -464,6 +564,7 @@ export function initNativeBridge() {
 
     // 1. 注入安全区域 CSS 变量
     injectSafeAreaInsets();
+    bindSafeAreaListeners();
 
     // 2. 同步状态栏图标外观到当前主题（沉浸式模式，背景透明，仅控制图标明暗）
     updateStatusBarTheme(settingsStore.theme === 'dark');
@@ -478,7 +579,7 @@ export function initNativeBridge() {
 
     // 4. 监听歌曲变化
     watch(
-      () => playMusic?.value?.id,
+      () => [playMusic?.value?.id, playMusic?.value?.picUrl, playMusic?.value?.playMusicUrl],
       () => {
         updateMusicNotification();
       }
@@ -519,15 +620,20 @@ export function initNativeBridge() {
 
     // 11. 音频焦点恢复钩子：其他应用抢走焦点后，保活模式下自动恢复播放
     (window as any).__audioFocusResumed = () => {
-      import('@/services/audioService').then(({ audioService }) => {
-        const currentSound = audioService.getCurrentSound();
-        if (currentSound && !currentSound.playing()) {
-          currentSound.play();
-        }
-      }).catch((e) => {
-        console.warn('[NativeBridge] 音频焦点恢复后播放失败:', e);
-      });
+      import('@/services/audioService')
+        .then(({ audioService }) => {
+          const currentSound = audioService.getCurrentSound();
+          if (currentSound && !currentSound.playing()) {
+            currentSound.play();
+          }
+        })
+        .catch((e) => {
+          console.warn('[NativeBridge] 音频焦点恢复后播放失败:', e);
+        });
     };
+
+    // 12. 状态栏歌词使用 Android 应用悬浮窗，按歌词行变化同步。
+    setupStatusBarLyricBridge();
 
     console.log('[NativeBridge] 原生桥接已初始化');
   } catch (e) {

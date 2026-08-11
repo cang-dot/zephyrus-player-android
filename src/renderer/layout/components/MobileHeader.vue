@@ -5,7 +5,9 @@
       'safe-area-top': hasSafeArea,
       'is-search': isSearchPage,
       'has-back': showBack,
-      'menu-expanded': topbarMenu.expanded.value
+      'menu-expanded': topbarMenu.expanded.value,
+      'filter-expanded': searchTypeExpanded,
+      'wide-detail-topbar': usesWideDetailTopbar
     }"
   >
     <button v-if="showBack" type="button" class="topbar-pill topbar-back" @click="onTitleClick">
@@ -16,15 +18,50 @@
       <section
         class="topbar-pill topbar-morph"
         :class="{ expanded: topbarMenu.expanded.value, 'has-menu': hasMorphMenu }"
-        @click="toggleMorphMenu"
+        @pointerdown.stop
       >
-        <header class="morph-trigger">
-          <span>{{
-            hasMorphMenu ? topbarMenu.activeLabel.value || displayTitle : displayTitle
-          }}</span>
+        <header class="morph-trigger" @click.stop="toggleMorphMenu">
+          <img
+            v-if="topbarMenu.presentation.value?.imageUrl"
+            :src="topbarMenu.presentation.value.imageUrl"
+            class="morph-trigger-image"
+            alt=""
+          />
+          <span class="morph-trigger-copy">
+            <strong>{{
+              topbarMenu.presentation.value?.title ||
+              (hasMorphMenu ? topbarMenu.activeLabel.value || displayTitle : displayTitle)
+            }}</strong>
+            <small v-if="topbarMenu.presentation.value?.subtitle">
+              {{ topbarMenu.presentation.value.subtitle }}
+            </small>
+          </span>
           <i v-if="hasMorphMenu" class="ri-arrow-down-s-line" />
         </header>
+        <div v-if="topbarMenu.presentation.value?.badge" class="morph-badge">
+          {{ topbarMenu.presentation.value.badge }}
+        </div>
         <div class="morph-content" @click.stop>
+          <section v-if="topbarMenu.presentation.value?.description" class="morph-description">
+            <header v-if="topbarMenu.presentation.value.descriptionTitle">
+              <i class="ri-information-line" />
+              <strong>{{ topbarMenu.presentation.value.descriptionTitle }}</strong>
+            </header>
+            <p>{{ topbarMenu.presentation.value.description }}</p>
+          </section>
+          <label v-if="topbarMenu.presentation.value?.searchPlaceholder" class="morph-search">
+            <i class="ri-search-line" />
+            <input
+              ref="morphSearchInputRef"
+              :value="topbarMenu.presentation.value.searchValue || ''"
+              :placeholder="topbarMenu.presentation.value.searchPlaceholder"
+              @input="
+                topbarMenu.presentation.value.onSearchInput?.(
+                  ($event.target as HTMLInputElement).value
+                )
+              "
+            />
+          </label>
           <div v-for="group in topbarMenu.groups.value" :key="group.id" class="morph-group">
             <button
               v-for="option in group.options"
@@ -39,69 +76,130 @@
             </button>
           </div>
           <div v-if="topbarMenu.actions.value.length" class="morph-actions">
-            <button
+            <section
               v-for="action in topbarMenu.actions.value"
               :key="action.id"
-              type="button"
-              @click="runMorphAction(action)"
+              class="morph-action-shell"
+              :class="{ expanded: expandedMorphActionId === action.id }"
             >
-              <i :class="action.icon" />
-              <span>{{ action.label }}</span>
-            </button>
+              <button
+                type="button"
+                class="morph-action-trigger"
+                @click.stop="runMorphAction(action)"
+              >
+                <i :class="action.icon" />
+                <span>{{ action.label }}</span>
+                <i v-if="action.options?.length" class="ri-arrow-down-s-line morph-action-arrow" />
+              </button>
+              <div v-if="action.options?.length" class="morph-action-options-wrap">
+                <div class="morph-action-options">
+                  <button
+                    v-for="option in action.options"
+                    :key="option.key"
+                    type="button"
+                    :class="{ active: String(option.key) === String(action.value) }"
+                    @click.stop="selectMorphActionOption(action, option.key)"
+                  >
+                    <span>{{ option.label }}</span>
+                    <i v-if="String(option.key) === String(action.value)" class="ri-check-line" />
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
         </div>
       </section>
     </div>
 
     <!-- 搜索框（非搜索页：点击跳转；搜索页：真实输入框） -->
-    <div
+    <button
       class="topbar-pill topbar-search-pill"
+      :class="{ 'search-circle': usesWideDetailTopbar }"
       @click="!isSearchPage && !isSettingsPage && openSearch()"
+      :aria-label="t('comp.searchBar.searchPlaceholder')"
     >
       <i class="ri-search-line search-icon"></i>
       <input
-        v-if="isSearchPage || isSettingsPage"
         ref="searchInputRef"
-        :value="isSettingsPage ? settingsSearchValue : searchStore.searchValue"
+        :value="isSettingsPage ? settingsSearchValue : isSearchPage ? searchStore.searchValue : ''"
         type="text"
         class="search-input"
+        :readonly="!isSearchPage && !isSettingsPage"
         :placeholder="isSettingsPage ? topbarSearchPlaceholder : searchStore.placeholder"
-        @input="isSettingsPage ? onSettingsSearchInput : onSearchInput"
-        @focus="isSearchPage && handleSearchFocus()"
-        @click="isSearchPage && handleSearchFocus()"
+        @input="onTopbarInput"
+        @focus="(isSearchPage || isSettingsPage) && handleSearchFocus()"
+        @click="(isSearchPage || isSettingsPage) && handleSearchFocus()"
         @keydown.enter="isSearchPage && handleSearchSubmit()"
       />
-      <span v-else class="topbar-search-text">{{ topbarSearchPlaceholder }}</span>
       <i
         v-if="(isSearchPage && searchStore.searchValue) || (isSettingsPage && settingsSearchValue)"
         class="ri-close-circle-fill clear-icon"
         @click.stop="isSettingsPage ? clearSettingsSearch() : clearSearch()"
       ></i>
-    </div>
+    </button>
 
-    <section
-      v-if="isSearchPage"
-      class="topbar-pill topbar-search-type"
-      :class="{ expanded: searchTypeExpanded }"
-      @click.stop="searchTypeExpanded = !searchTypeExpanded"
-    >
-      <header class="search-type-trigger">
-        <span>{{ activeSearchTypeLabel }}</span>
-        <i class="ri-arrow-down-s-line" />
-      </header>
-      <div class="search-type-options">
-        <button
-          v-for="type in searchTypes"
-          :key="type.key"
-          type="button"
-          :class="{ active: Number(type.key) === Number(searchStore.searchType) }"
-          @click.stop="selectSearchType(type.key)"
+    <div v-if="isSearchPage" class="topbar-morph-anchor topbar-search-morph-anchor">
+      <section
+        class="topbar-pill topbar-morph topbar-search-morph"
+        :class="{ expanded: searchTypeExpanded }"
+        @pointerdown.stop
+      >
+        <header
+          class="morph-trigger search-filter-trigger"
+          @click.stop="searchTypeExpanded = !searchTypeExpanded"
         >
-          <span>{{ type.label }}</span>
-          <i v-if="Number(type.key) === Number(searchStore.searchType)" class="ri-check-line" />
-        </button>
-      </div>
-    </section>
+          <span>{{ activeSearchTypeLabel }}</span>
+          <i class="ri-arrow-down-s-line" />
+        </header>
+        <div class="morph-content search-filter-content" @click.stop>
+          <div class="search-filter-grid">
+            <section class="search-filter-column">
+              <p class="search-filter-heading">搜索类型</p>
+              <div class="morph-group search-filter-options">
+                <button
+                  v-for="type in searchTypes"
+                  :key="type.key"
+                  type="button"
+                  :class="{ active: Number(type.key) === Number(searchStore.searchType) }"
+                  @click.stop="selectSearchType(type.key)"
+                >
+                  <span>{{ type.label }}</span>
+                  <i
+                    v-if="Number(type.key) === Number(searchStore.searchType)"
+                    class="ri-check-line"
+                  />
+                </button>
+              </div>
+            </section>
+            <section class="search-filter-column">
+              <p class="search-filter-heading">来源</p>
+              <div class="morph-group search-filter-options search-source-options">
+                <button
+                  v-for="source in searchStore.searchSourceOptions"
+                  :key="source.key"
+                  type="button"
+                  class="search-source-option"
+                  :class="{ active: source.key === searchStore.searchSource }"
+                  @click.stop="selectSearchSource(source.key)"
+                >
+                  <platform-logo
+                    v-if="platformForSearchSource(source.key)"
+                    :platform="platformForSearchSource(source.key)"
+                    :size="16"
+                  />
+                  <i v-else class="ri-apps-2-line" />
+                  <span
+                    >{{ source.label
+                    }}<small v-if="source.count != null"> {{ source.count }}</small></span
+                  >
+                  <i v-if="source.key === searchStore.searchSource" class="ri-check-line" />
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </div>
 
     <button
       v-if="route.path === '/user'"
@@ -146,13 +244,27 @@
         <section class="search-assist-panel" @pointerdown.stop>
           <header class="search-assist-header">
             <div class="search-assist-title">
-              <i :class="showingHistory ? 'ri-time-line' : 'ri-search-line'" />
+              <i
+                :class="
+                  isSettingsPage
+                    ? 'ri-settings-3-line'
+                    : showingHistory
+                      ? 'ri-time-line'
+                      : 'ri-search-line'
+                "
+              />
               <span>
-                {{ showingHistory ? t('search.title.searchHistory') : t('search.suggestions') }}
+                {{
+                  isSettingsPage
+                    ? '设置建议'
+                    : showingHistory
+                      ? t('search.title.searchHistory')
+                      : t('search.suggestions')
+                }}
               </span>
             </div>
             <button
-              v-if="showingHistory && searchHistory.length"
+              v-if="!isSettingsPage && showingHistory && searchHistory.length"
               type="button"
               class="search-assist-clear"
               @click="clearSearchHistory"
@@ -165,7 +277,24 @@
             <i class="ri-loader-4-line" />
           </div>
 
-          <div v-else-if="assistItems.length" class="search-assist-list">
+          <div v-else-if="isSettingsPage && settingsAssistItems.length" class="search-assist-list">
+            <button
+              v-for="(item, itemIndex) in settingsAssistItems"
+              :key="`settings-${item.tabId}-${item.title}-${itemIndex}`"
+              type="button"
+              class="search-assist-item search-assist-item--setting"
+              @click="selectSettingsAssistItem(item)"
+            >
+              <span class="settings-assist-section">{{ item.tabLabel }}</span>
+              <span class="settings-assist-copy">
+                <strong>{{ item.title }}</strong>
+                <small>{{ item.desc }}</small>
+              </span>
+              <i class="ri-arrow-right-s-line item-arrow" />
+            </button>
+          </div>
+
+          <div v-else-if="!isSettingsPage && assistItems.length" class="search-assist-list">
             <button
               v-for="(item, itemIndex) in assistItems"
               :key="`${showingHistory ? 'history' : 'suggestion'}-${item}-${itemIndex}`"
@@ -191,11 +320,12 @@
 
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core';
-import { computed, inject, nextTick, ref, watch } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import { getSearchSuggestions } from '@/api/search';
+import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import { useMobileTopbarMenu } from '@/composables/useMobileTopbarMenu';
 import { SEARCH_TYPES } from '@/const/bar-const';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
@@ -218,6 +348,9 @@ const isSearchPage = computed(
   () => route.path === '/mobile-search' || route.path === '/mobile-search-result'
 );
 const isSettingsPage = computed(() => route.path === '/set');
+const usesWideDetailTopbar = computed(
+  () => route.path.startsWith('/music-list/') || route.path.startsWith('/artist/detail/')
+);
 const isSearchResultPage = computed(() => route.path === '/mobile-search-result');
 const searchTypes = computed(() =>
   SEARCH_TYPES.map((type) => ({ key: type.key, label: t(type.label) }))
@@ -227,7 +360,10 @@ const topbarMenu = useMobileTopbarMenu(() => route.path);
 const isUserPage = computed(() => route.path === '/user');
 const hasMorphMenu = computed(
   () =>
-    !isUserPage.value && (topbarMenu.groups.value.length > 0 || topbarMenu.actions.value.length > 0)
+    !isUserPage.value &&
+    (topbarMenu.groups.value.length > 0 ||
+      topbarMenu.actions.value.length > 0 ||
+      Boolean(topbarMenu.presentation.value))
 );
 
 const displayTitle = computed(() => {
@@ -246,9 +382,19 @@ const topbarSearchPlaceholder = computed(() =>
 );
 
 const searchInputRef = ref<HTMLInputElement | null>(null);
+const morphSearchInputRef = ref<HTMLInputElement | null>(null);
 const settingsSearchValue = ref('');
 const searchTypeExpanded = ref(false);
+const expandedMorphActionId = ref<string | null>(null);
 const showSearchAssist = ref(false);
+type SettingsAssistItem = {
+  tabId: string;
+  tabLabel: string;
+  title: string;
+  desc: string;
+  titlePath: string;
+};
+const settingsAssistItems = ref<SettingsAssistItem[]>([]);
 const searchHistory = ref<string[]>([]);
 const suggestions = ref<string[]>([]);
 const suggestionsLoading = ref(false);
@@ -306,9 +452,10 @@ const loadSuggestions = async (keyword: string) => {
 const debouncedLoadSuggestions = useDebounceFn(loadSuggestions, 240);
 
 const openSearchAssist = () => {
-  if (!isSearchResultPage.value) return;
+  if (!isSearchResultPage.value && !isSettingsPage.value) return;
 
-  showSearchAssist.value = true;
+  showSearchAssist.value = isSettingsPage.value;
+  if (isSettingsPage.value) return;
   if (showingHistory.value) {
     suggestionRequestId++;
     suggestions.value = [];
@@ -349,12 +496,14 @@ watch(
     closeSearchAssist();
     topbarMenu.close();
     searchTypeExpanded.value = false;
+    expandedMorphActionId.value = null;
   }
 );
 
 const closeFloatingMenus = () => {
   topbarMenu.close();
   searchTypeExpanded.value = false;
+  expandedMorphActionId.value = null;
 };
 
 const onTitleClick = () => {
@@ -368,7 +517,9 @@ const onTitleClick = () => {
 };
 
 const toggleMorphMenu = () => {
-  if (hasMorphMenu.value) topbarMenu.expanded.value = !topbarMenu.expanded.value;
+  if (!hasMorphMenu.value) return;
+  topbarMenu.expanded.value = !topbarMenu.expanded.value;
+  if (!topbarMenu.expanded.value) expandedMorphActionId.value = null;
 };
 
 const selectMorphOption = (group: any, value: string | number) => {
@@ -377,8 +528,19 @@ const selectMorphOption = (group: any, value: string | number) => {
 };
 
 const runMorphAction = (action: any) => {
-  topbarMenu.close();
+  if (action.options?.length) {
+    expandedMorphActionId.value = expandedMorphActionId.value === action.id ? null : action.id;
+    return;
+  }
+  if (!action.keepOpen) topbarMenu.close();
+  expandedMorphActionId.value = null;
   action.run();
+  if (action.keepOpen) nextTick(() => morphSearchInputRef.value?.focus());
+};
+
+const selectMorphActionOption = (action: any, value: string | number) => {
+  action.select?.(value);
+  expandedMorphActionId.value = null;
 };
 
 const openSearch = () => router.push('/mobile-search');
@@ -389,9 +551,26 @@ const onSettingsSearchInput = (event: Event) => {
   window.dispatchEvent(new CustomEvent('mobile-settings-search-input', { detail: value }));
 };
 
+const onTopbarInput = (event: Event) => {
+  if (isSettingsPage.value) {
+    onSettingsSearchInput(event);
+  } else if (isSearchPage.value) {
+    onSearchInput(event);
+  }
+};
+
+const onSettingsSearchResults = (event: Event) => {
+  settingsAssistItems.value = Array.isArray((event as CustomEvent).detail)
+    ? (event as CustomEvent<SettingsAssistItem[]>).detail
+    : [];
+  showSearchAssist.value = Boolean(settingsSearchValue.value.trim());
+};
+
 const clearSettingsSearch = () => {
   settingsSearchValue.value = '';
   window.dispatchEvent(new CustomEvent('mobile-settings-search-input', { detail: '' }));
+  settingsAssistItems.value = [];
+  closeSearchAssist();
 };
 
 const goToUser = () => router.push('/user');
@@ -402,7 +581,7 @@ const onSearchInput = (e: Event) => {
   searchStore.setSearchValue(value);
   if (!isSearchResultPage.value) return;
 
-  showSearchAssist.value = true;
+  showSearchAssist.value = isSettingsPage.value;
   if (value.trim()) {
     debouncedLoadSuggestions(value);
   } else {
@@ -428,6 +607,38 @@ const selectSearchType = (value: string | number) => {
     router.replace({ path: route.path, query: { ...route.query, type } });
   }
 };
+
+const selectSearchSource = (source: string) => {
+  if (searchStore.searchType !== 1) searchStore.setSearchType(1);
+  searchStore.setSearchSource(source);
+  searchTypeExpanded.value = false;
+  if (isSearchResultPage.value) {
+    router.replace({ path: route.path, query: { ...route.query, type: 1, source } });
+  }
+};
+
+const platformForSearchSource = (source: string) => {
+  if (source === 'netease' || source === 'netease-vip') return 'netease';
+  if (source === 'cross-qq') return 'qq';
+  if (source === 'cross-joox') return 'joox';
+  if (source === 'cross-kugou') return 'kugou';
+  if (source === 'cross-spotify') return 'spotify';
+  return '';
+};
+
+const selectSettingsAssistItem = (item: SettingsAssistItem) => {
+  closeSearchAssist();
+  searchInputRef.value?.blur();
+  window.dispatchEvent(new CustomEvent('mobile-settings-search-select', { detail: item }));
+};
+
+onMounted(() => {
+  window.addEventListener('mobile-settings-search-results', onSettingsSearchResults);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('mobile-settings-search-results', onSettingsSearchResults);
+});
 
 const clearSearchHistory = () => {
   searchHistory.value = [];
@@ -573,8 +784,61 @@ const handleSearchSubmit = () => {
   }
 }
 
+.topbar-search-morph-anchor {
+  width: 72px;
+  flex-basis: 72px;
+}
+
+.topbar-search-morph {
+  position: fixed;
+  top: calc(var(--safe-area-inset-top, 0px) + 8px);
+  right: 60px;
+  left: auto;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  max-height: none;
+  transform-origin: top right;
+
+  &.expanded {
+    width: min(calc(100vw - 72px), 430px);
+    max-width: min(calc(100vw - 72px), 430px);
+    max-height: calc(100dvh - var(--safe-area-inset-top, 0px) - 16px);
+    min-height: 40px;
+    border-radius: 18px;
+    background: var(--m-glass-bg);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+  }
+}
+
+/* 歌单与歌手详情的收起胶囊填满中间轨道，让右侧按钮保持稳定。 */
+.floating-topbar.wide-detail-topbar .topbar-morph-anchor {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.floating-topbar.wide-detail-topbar .topbar-morph:not(.expanded) {
+  width: 100%;
+  max-width: none;
+}
+
+/* 展开态保持同一容器形变，并延伸到顶栏右边缘。 */
+.floating-topbar.wide-detail-topbar .topbar-morph.expanded {
+  width: min(calc(100vw - 72px), 460px);
+  max-width: min(calc(100vw - 72px), 460px);
+}
+
 .floating-topbar.has-back .topbar-morph.expanded {
   left: 60px;
+}
+
+/* Search filter keeps the right edge of its trigger as the morph origin. */
+.floating-topbar.has-back .topbar-search-morph.expanded {
+  right: 60px;
+  left: auto;
 }
 
 .morph-trigger {
@@ -590,6 +854,60 @@ const handleSearchSubmit = () => {
   white-space: nowrap;
   cursor: pointer;
 
+  .morph-trigger-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+
+    strong,
+    small {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    strong {
+      font-size: inherit;
+      font-weight: inherit;
+    }
+
+    small {
+      max-height: 0;
+      color: var(--cover-text-muted, #9a9590);
+      font-size: 10px;
+      font-weight: 500;
+      opacity: 0;
+      transition:
+        max-height 260ms cubic-bezier(0.32, 0.72, 0, 1),
+        opacity 180ms ease;
+    }
+  }
+
+  .topbar-morph.expanded & {
+    min-height: 54px;
+    justify-content: flex-start;
+
+    .morph-trigger-copy {
+      align-items: flex-start;
+    }
+
+    .morph-trigger-copy small {
+      max-height: 16px;
+      opacity: 1;
+    }
+  }
+
+  > i:last-child {
+    transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .topbar-morph.expanded & > i:last-child {
+    transform: rotate(180deg);
+  }
+
   span {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -599,6 +917,38 @@ const handleSearchSubmit = () => {
     flex: 0 0 auto;
     color: var(--cover-text-muted, #9a9590);
     font-size: 16px;
+  }
+}
+
+.morph-trigger-image {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 8px;
+  object-fit: cover;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+  transition:
+    width 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 320ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  .topbar-morph.expanded & {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+    border-radius: 10px;
+  }
+}
+
+.morph-badge {
+  display: none;
+  margin: 0 12px 4px;
+  color: var(--cover-text-muted, #9a9590);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+
+  .topbar-morph.expanded & {
+    display: block;
   }
 }
 
@@ -621,10 +971,170 @@ const handleSearchSubmit = () => {
   }
 }
 
+.morph-description {
+  display: grid;
+  gap: 8px;
+  margin: 0 6px 6px;
+  padding: 10px 8px 12px;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--cover-border, rgba(128, 128, 128, 0.14)) 78%, transparent);
+  color: var(--cover-text-secondary, var(--text-color));
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--cover-text-primary, var(--text-color));
+    font-size: 13px;
+
+    i {
+      color: var(--accent-color);
+      font-size: 16px;
+    }
+
+    strong {
+      font-weight: 650;
+    }
+  }
+
+  p {
+    margin: 0;
+    color: var(--cover-text-secondary, var(--text-color));
+    font-size: 12px;
+    line-height: 1.65;
+    white-space: pre-line;
+  }
+}
+
+.search-filter-content {
+  display: grid;
+  max-height: none;
+  grid-template-rows: 0fr;
+  padding: 0 6px;
+  overflow: hidden;
+  transition:
+    grid-template-rows 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms ease,
+    padding 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  .topbar-search-morph.expanded & {
+    max-height: none;
+    grid-template-rows: 1fr;
+    overflow: hidden;
+    padding: 6px;
+  }
+}
+
+.search-filter-grid {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 8px;
+  overflow: hidden;
+}
+
+.search-filter-trigger {
+  min-height: 40px;
+  padding-inline: 10px;
+  font-size: 12px;
+
+  i {
+    font-size: 13px;
+    transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .topbar-search-morph.expanded & i {
+    transform: rotate(180deg);
+  }
+}
+
+.search-filter-column {
+  min-width: 0;
+}
+
 .morph-group,
 .morph-actions {
   display: grid;
   gap: 2px;
+}
+
+.floating-topbar.wide-detail-topbar .morph-actions {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+.floating-topbar.wide-detail-topbar .morph-action-trigger > i:first-child {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-color) 12%, transparent);
+  color: var(--accent-color);
+}
+
+.morph-action-shell {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: auto 0fr;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--m-glass-border) 60%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--m-surface-alt, #fff) 38%, transparent);
+  transition:
+    grid-template-rows 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 180ms ease,
+    border-radius 360ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  &.expanded {
+    grid-template-rows: auto 1fr;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--accent-color) 8%, var(--m-surface-alt, #fff));
+  }
+}
+
+.morph-action-shell > .morph-action-trigger {
+  border: 0;
+  background: transparent;
+}
+
+.morph-action-arrow {
+  margin-left: auto;
+  transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  .morph-action-shell.expanded & {
+    transform: rotate(180deg);
+  }
+}
+
+.morph-action-options-wrap {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.morph-action-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  padding: 0 6px 6px;
+  opacity: 0;
+  transform: translate3d(0, -5px, 0);
+  transition:
+    opacity 180ms ease,
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  .morph-action-shell.expanded & {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  button {
+    min-height: 38px;
+    padding-inline: 9px;
+    border-radius: 11px;
+    font-size: 12px;
+  }
 }
 
 .morph-group + .morph-group,
@@ -637,14 +1147,14 @@ const handleSearchSubmit = () => {
 .morph-group button,
 .morph-actions button {
   display: flex;
-  min-height: 40px;
+  min-height: 48px;
   align-items: center;
   gap: 8px;
   width: 100%;
   padding: 0 10px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--m-glass-border) 60%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--m-surface-alt, #fff) 38%, transparent);
   color: var(--cover-text-primary, var(--text-color));
   font-size: 14px;
   text-align: left;
@@ -669,15 +1179,36 @@ const handleSearchSubmit = () => {
 
   &:active,
   &.active {
-    background: var(--cover-surface-hover, rgba(128, 128, 128, 0.1));
+    background: color-mix(in srgb, var(--accent-color) 14%, var(--m-surface-alt, #fff));
     color: var(--accent-color);
+  }
+}
+
+.morph-group {
+  gap: 5px;
+}
+
+.morph-group + .morph-group,
+.morph-actions {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 0;
+}
+
+.search-filter-options {
+  gap: 5px;
+
+  button {
+    min-height: 38px;
+    padding-inline: 9px;
+    font-size: 12px;
   }
 }
 
 .morph-dismiss-layer {
   position: fixed;
   inset: 0;
-  z-index: 99;
+  z-index: 299;
   background: transparent;
 }
 
@@ -743,6 +1274,44 @@ const handleSearchSubmit = () => {
   }
 }
 
+.morph-search {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--cover-border, rgba(128, 128, 128, 0.12));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent-color) 8%, transparent);
+
+  i {
+    color: var(--cover-text-muted, #9a9590);
+  }
+
+  input {
+    min-width: 0;
+    flex: 1;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--cover-text-primary, var(--text-color));
+    font-size: 13px;
+  }
+}
+
+.topbar-search-pill.search-circle {
+  flex: 0 0 40px;
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+
+  .search-input,
+  .clear-icon {
+    display: none;
+  }
+}
+
 .topbar-search-text {
   flex: 1;
   font-size: 13px;
@@ -789,106 +1358,73 @@ const handleSearchSubmit = () => {
   }
 }
 
-.topbar-search-type {
-  position: relative;
+.search-filter-heading {
+  color: var(--cover-text-muted, #9a9590);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.search-filter-options button :deep(.platform-logo) {
   flex: 0 0 auto;
-  z-index: 4;
-  width: 72px;
-  max-width: 72px;
-  height: auto;
-  min-height: 40px;
-  max-height: 40px;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  padding: 0;
-  overflow: hidden;
-  color: var(--cover-text-primary, var(--text-color));
-  transform-origin: top right;
-  transition:
-    width 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    max-width 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    max-height 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    border-radius 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    box-shadow 280ms ease;
-
-  &.expanded {
-    position: fixed;
-    top: calc(var(--safe-area-inset-top, 0px) + 8px);
-    right: 60px;
-    width: min(42vw, 170px);
-    max-width: min(42vw, 170px);
-    max-height: 286px;
-    border-radius: 18px;
-    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.17);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
-  }
+  color: currentColor;
 }
 
-.search-type-trigger {
-  display: flex;
-  min-height: 40px;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 0 9px;
-  font-size: 12px;
-  font-weight: 650;
-
-  i {
-    color: var(--cover-text-muted, #9a9590);
-    font-size: 13px;
-    transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
-  }
-
-  .expanded & i {
-    transform: rotate(180deg);
-  }
-}
-
-.search-type-options {
+.search-filter-options button.search-source-option {
   display: grid;
-  gap: 2px;
-  padding: 0 6px 6px;
-  opacity: 0;
-  transform: translateY(-6px);
-  transition:
-    opacity 180ms ease,
-    transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  grid-template-columns: 20px minmax(0, 1fr) 18px;
 
-  .expanded & {
-    opacity: 1;
-    transform: none;
+  > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.search-filter-options button small {
+  color: var(--cover-text-muted, #9a9590);
+  font-size: 10px;
+}
+
+.search-assist-item--setting {
+  grid-template-columns: 52px minmax(0, 1fr) 20px;
+}
+
+.settings-assist-section {
+  align-self: start;
+  margin-top: 13px;
+  color: var(--accent-color, #888);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.settings-assist-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+
+  strong,
+  small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  button {
-    display: grid;
-    min-height: 38px;
-    grid-template-columns: minmax(0, 1fr) 18px;
-    align-items: center;
-    gap: 6px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: 12px;
-    background: transparent;
-    color: var(--cover-text-primary, var(--text-color));
+  strong {
     font-size: 13px;
-    text-align: left;
+    font-weight: 650;
+  }
 
-    &.active {
-      background: color-mix(in srgb, var(--accent-color) 14%, transparent);
-      color: var(--accent-color);
-    }
-
-    i {
-      color: currentColor;
-    }
+  small {
+    color: var(--cover-text-muted, #9a9590);
+    font-size: 11px;
   }
 }
 
 .topbar-search-pill,
-.topbar-search-type,
 .topbar-action-pill {
   transform-origin: center right;
   transition:
@@ -899,13 +1435,31 @@ const handleSearchSubmit = () => {
 }
 
 .floating-topbar.menu-expanded {
+  z-index: 300;
+
   .topbar-search-pill,
-  .topbar-search-type,
+  .topbar-search-morph,
   .topbar-action-pill {
     opacity: 0;
     transform: translate3d(12px, 0, 0) scale(0.94);
     pointer-events: none;
   }
+}
+
+.topbar-search-morph {
+  transform-origin: top right;
+  transition:
+    width 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    max-width 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    max-height 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    min-height 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-radius 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 240ms ease,
+    box-shadow 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.floating-topbar.filter-expanded {
+  z-index: 300;
 }
 
 .topbar-settings-pill {
@@ -1106,7 +1660,7 @@ const handleSearchSubmit = () => {
 
 @media (prefers-reduced-motion: reduce) {
   .topbar-search-pill,
-  .topbar-search-type,
+  .topbar-search-morph,
   .topbar-action-pill {
     transition-duration: 120ms;
     transform: none !important;

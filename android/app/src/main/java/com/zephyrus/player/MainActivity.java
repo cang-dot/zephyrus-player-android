@@ -117,6 +117,9 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onPostResume() {
         super.onPostResume();
+        if (nativeBridge != null) {
+            nativeBridge.notifyOverlayPermissionState();
+        }
         // 如果 deep link 已处理，跳过本次剪贴板检查
         if (deepLinkHandled) {
             deepLinkHandled = false;
@@ -275,6 +278,11 @@ public class MainActivity extends BridgeActivity {
         // 清理媒体通知
         try {
             MediaNotificationManager.getInstance(this).release();
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            StatusBarLyricOverlay.getInstance(this).destroy();
         } catch (Exception e) {
             // ignore
         }

@@ -54,6 +54,113 @@ function rgba(r: number, g: number, b: number, a: number = 1): string {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
+function resolvePosterAccentColor(config: PosterConfig): string {
+  if (config.accentColorMode === 'custom') return config.accentColor;
+  if (typeof document === 'undefined') return config.accentColor;
+  return (
+    getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim() ||
+    config.accentColor
+  );
+}
+
+function getCurrentPosterDate(): string {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}`;
+}
+
+/** 将作者名按印章的方形字面均衡拆行，优先避免单独悬空的末行。 */
+export function splitSealArtistName(artistName: string): string[] {
+  const glyphs = Array.from(
+    artistName
+      .replace(/\b(?:feat\.?|ft\.?)\b.*$/i, '')
+      .replace(/[\s/／、,&，·・]+/g, '')
+      .trim()
+  ).slice(0, 12);
+  if (!glyphs.length) return ['佚名'];
+  if (glyphs.length <= 2) return glyphs;
+
+  const rowCount = glyphs.length <= 6 ? 2 : glyphs.length <= 9 ? 3 : 3;
+  const baseSize = Math.floor(glyphs.length / rowCount);
+  let remainder = glyphs.length % rowCount;
+  const rows: string[] = [];
+  let offset = 0;
+  for (let row = 0; row < rowCount; row++) {
+    const rowSize = baseSize + (remainder > 0 ? 1 : 0);
+    remainder = Math.max(0, remainder - 1);
+    rows.push(glyphs.slice(offset, offset + rowSize).join(''));
+    offset += rowSize;
+  }
+  return rows.filter(Boolean);
+}
+
+function createSeededRandom(seedText: string): () => number {
+  let seed = 2166136261;
+  for (const char of Array.from(seedText)) {
+    seed ^= char.codePointAt(0) || 0;
+    seed = Math.imul(seed, 16777619);
+  }
+  return () => {
+    seed += 0x6d2b79f5;
+    let value = seed;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Canvas 矢量绘制的仿真印章边缘，保持缩放清晰并避免引入外部素材许可。 */
+function drawDistressedSealEdge(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  size: number,
+  color: string,
+  seedText: string
+): void {
+  const random = createSeededRandom(seedText);
+  const half = size / 2;
+  const left = centerX - half;
+  const top = centerY - half;
+  const points: Array<[number, number]> = [];
+  const segments = 14;
+  const jitter = () => (random() - 0.5) * 8;
+
+  for (let i = 0; i <= segments; i++) {
+    points.push([left + (size * i) / segments, top + jitter()]);
+  }
+  for (let i = 1; i <= segments; i++) {
+    points.push([left + size + jitter(), top + (size * i) / segments]);
+  }
+  for (let i = 1; i <= segments; i++) {
+    points.push([left + size - (size * i) / segments, top + size + jitter()]);
+  }
+  for (let i = 1; i < segments; i++) {
+    points.push([left + jitter(), top + size - (size * i) / segments]);
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  points.slice(1).forEach(([x, y]) => ctx.lineTo(x, y));
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(241,238,232,0.88)';
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 14;
+  ctx.lineJoin = 'round';
+  ctx.setLineDash([38, 5, 17, 3, 29, 7, 11, 3]);
+  ctx.lineDashOffset = -Math.floor(random() * 28);
+  ctx.stroke();
+
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.7;
+  ctx.lineWidth = 4;
+  ctx.setLineDash([24, 4, 44, 7, 13, 3]);
+  ctx.strokeRect(left + 15, top + 15, size - 30, size - 30);
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+}
+
 /**
  * 文本换行处理
  */
@@ -530,6 +637,7 @@ async function drawPerformanceArchiveLayout(
   lyrics: SelectedLyric[]
 ): Promise<void> {
   const family = getFontFamily(config.fontId);
+  const accentColor = resolvePosterAccentColor(config);
   ctx.fillStyle = '#090909';
   ctx.fillRect(0, 0, POSTER_WIDTH, POSTER_HEIGHT);
 
@@ -551,7 +659,7 @@ async function drawPerformanceArchiveLayout(
   ctx.fillRect(0, 620, POSTER_WIDTH, 520);
 
   ctx.save();
-  ctx.fillStyle = config.accentColor;
+  ctx.fillStyle = accentColor;
   ctx.font = `${config.fontWeight} 132px ${family}`;
   ctx.textAlign = config.titleOrientation === 'vertical' ? 'right' : 'left';
   ctx.textBaseline = 'top';
@@ -574,11 +682,11 @@ async function drawPerformanceArchiveLayout(
   ctx.fillText(songInfo.artists, 72, 930);
   ctx.font = `500 24px ${family}`;
   ctx.fillStyle = 'rgba(255,255,255,0.62)';
-  ctx.fillText(config.eventVenue || 'ZEPHYRUS MUSIC ARCHIVE', 72, 978);
+  ctx.fillText('ZEPHYRUS MUSIC ARCHIVE', 72, 978);
   ctx.textAlign = 'right';
-  ctx.fillText(config.eventDate || new Date().toISOString().slice(0, 10), 1008, 978);
+  ctx.fillText(getCurrentPosterDate(), 1008, 978);
   ctx.textAlign = 'left';
-  ctx.fillStyle = config.accentColor;
+  ctx.fillStyle = accentColor;
   ctx.fillRect(72, 1034, 936, 5);
 
   drawArchiveLyrics(ctx, lyrics, family, config.fontWeight, '#ffffff', 1130, 1780);
@@ -594,6 +702,7 @@ async function drawSealTourLayout(
   lyrics: SelectedLyric[]
 ): Promise<void> {
   const family = getFontFamily(config.fontId);
+  const accentColor = resolvePosterAccentColor(config);
   ctx.fillStyle = '#f1eee8';
   ctx.fillRect(0, 0, POSTER_WIDTH, POSTER_HEIGHT);
   try {
@@ -615,35 +724,36 @@ async function drawSealTourLayout(
     .slice(0, 7)
     .forEach((char, index) => ctx.fillText(char, 910 + (index % 2) * 26, 96 + index * 132));
 
-  const sealX = 670;
+  const sealX = 650;
   const sealY = 760;
+  const sealSize = 238;
   ctx.save();
-  ctx.strokeStyle = config.accentColor;
-  ctx.fillStyle = 'rgba(241,238,232,0.88)';
-  ctx.lineWidth = 12;
-  ctx.beginPath();
-  ctx.arc(sealX, sealY, 116, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = config.accentColor;
-  ctx.font = `${config.fontWeight} 46px ${family}`;
+  drawDistressedSealEdge(ctx, sealX, sealY, sealSize, accentColor, songInfo.artists);
+  ctx.fillStyle = accentColor;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const sealText = Array.from(songInfo.artists).slice(0, 4).join('');
-  ctx.fillText(sealText, sealX, sealY, 180);
+  const sealRows = splitSealArtistName(songInfo.artists);
+  const longestRow = Math.max(...sealRows.map((row) => Array.from(row).length));
+  const sealFontSize = Math.min(64, 168 / longestRow, 156 / sealRows.length);
+  const rowHeight = Math.min(68, 162 / sealRows.length);
+  ctx.font = `${config.fontWeight} ${sealFontSize}px ${family}`;
+  sealRows.forEach((row, index) => {
+    const y = sealY + (index - (sealRows.length - 1) / 2) * rowHeight;
+    ctx.fillText(row, sealX, y, 174);
+  });
   ctx.restore();
 
   ctx.fillStyle = '#121212';
   ctx.font = `700 28px ${family}`;
   ctx.textAlign = 'left';
   const archiveRows = [
-    config.eventDate || new Date().toISOString().slice(0, 10),
-    config.eventVenue || songInfo.artists,
+    getCurrentPosterDate(),
+    songInfo.artists,
     config.eventLabel || 'LIVE ARCHIVE'
   ];
   archiveRows.forEach((row, index) => {
     const y = 1210 + index * 62;
-    ctx.fillStyle = index === 0 ? config.accentColor : '#121212';
+    ctx.fillStyle = index === 0 ? accentColor : '#121212';
     ctx.fillText(row, 70, y);
     ctx.strokeStyle = 'rgba(18,18,18,0.2)';
     ctx.beginPath();

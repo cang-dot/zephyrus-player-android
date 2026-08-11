@@ -9,6 +9,7 @@
         <div class="h-1.5 w-1.5 rounded-full bg-[var(--accent-color)]" />
       </div>
       <button
+        v-if="showMore"
         class="group flex items-center gap-1.5 text-sm font-semibold text-neutral-400 transition-colors hover:text-[var(--accent-color)] dark:text-neutral-500 dark:hover:text-white"
         @click="$emit('more')"
       >
@@ -71,11 +72,13 @@ const props = withDefaults(
     limit?: number;
     columns?: number;
     rows?: number;
+    showMore?: boolean;
   }>(),
   {
     limit: 15,
     columns: 5,
-    rows: 3
+    rows: 3,
+    showMore: true
   }
 );
 

@@ -348,6 +348,8 @@ export default {
     showTranslationDescription: 'Show translated text below lyrics',
     showRomanization: 'Show Romanization',
     showRomanizationDescription: 'Show romanized text below lyrics',
+    statusBarLyrics: 'Status Bar Lyrics',
+    statusBarLyricsDescription: 'Show the current lyric above other apps in a top overlay',
     hideLyrics: 'Hide Lyrics',
     hidePlayBar: 'Hide Play Bar',
     hideMiniPlayBar: 'Hide Mini Play Bar',

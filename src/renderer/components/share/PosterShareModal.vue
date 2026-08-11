@@ -222,7 +222,21 @@
             >
               <div class="config-section">
                 <div class="config-label">强调色</div>
-                <div class="color-picker-row">
+                <div class="segment-tabs">
+                  <button
+                    :class="{ active: config.accentColorMode === 'cover' }"
+                    @click="setConfig('accentColorMode', 'cover')"
+                  >
+                    跟随歌曲主色
+                  </button>
+                  <button
+                    :class="{ active: config.accentColorMode === 'custom' }"
+                    @click="setConfig('accentColorMode', 'custom')"
+                  >
+                    自定义
+                  </button>
+                </div>
+                <div v-if="config.accentColorMode === 'custom'" class="color-picker-row">
                   <input v-model="config.accentColor" type="color" @input="regenerateDebounced" />
                   <span class="color-value">{{ config.accentColor }}</span>
                 </div>
@@ -242,7 +256,7 @@
                 </div>
               </div>
 
-              <div class="config-section">
+              <div v-if="config.layout === 'performance-archive'" class="config-section">
                 <div class="config-label">标题排版</div>
                 <div class="segment-tabs">
                   <button
@@ -257,14 +271,6 @@
               </div>
 
               <div class="config-section archive-fields">
-                <label>
-                  <span>日期</span>
-                  <input v-model="config.eventDate" type="text" @input="regenerateDebounced" />
-                </label>
-                <label>
-                  <span>地点</span>
-                  <input v-model="config.eventVenue" type="text" @input="regenerateDebounced" />
-                </label>
                 <label>
                   <span>附加信息</span>
                   <input v-model="config.eventLabel" type="text" @input="regenerateDebounced" />

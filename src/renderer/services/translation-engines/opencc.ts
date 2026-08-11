@@ -2,6 +2,29 @@ import type { ILyricText } from '@/types/music';
 
 let _inited = false;
 let _converter: any = null;
+const CJK_RUN_PATTERN = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]+/g;
+
+/**
+ * OpenCC only needs to see Chinese text. Keeping punctuation and other symbols
+ * outside the converter prevents third-party builds from rewriting full-width
+ * lyric punctuation (for example `！`) while converting a whole line.
+ */
+export async function convertTextPreservingSymbols(
+  text: string,
+  convertRun: (value: string) => string | Promise<string>
+): Promise<string> {
+  let result = '';
+  let cursor = 0;
+  CJK_RUN_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = CJK_RUN_PATTERN.exec(text)) !== null) {
+    result += text.slice(cursor, match.index);
+    result += await convertRun(match[0]);
+    cursor = match.index + match[0].length;
+  }
+  result += text.slice(cursor);
+  return result;
+}
 
 export async function init(): Promise<void> {
   if (_inited) return;
@@ -30,7 +53,7 @@ export async function convertLines(lines: string[]) {
     const src = (s || '').trim();
     if (!src || !cjkRe.test(src)) return '';
     try {
-      return await _converter.convert(src);
+      return await convertTextPreservingSymbols(src, (run) => _converter.convert(run));
     } catch (e) {
       console.warn('opencc convertLines item failed:', e);
       return '';

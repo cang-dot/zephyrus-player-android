@@ -3,44 +3,11 @@
     class="artist-detail-page h-full w-full bg-white dark:bg-neutral-900 transition-colors duration-500"
   >
     <n-scrollbar ref="scrollbarRef" class="h-full" @scroll="handleScroll">
-      <div class="artist-detail-content w-full pb-32" style="padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);">
-        <!-- Loading State -->
-        <div v-if="loading" class="artist-content">
-          <!-- Hero Skeleton -->
-          <div class="hero-section relative h-[400px] overflow-hidden rounded-tl-2xl">
-            <div class="hero-bg absolute inset-0 -top-20">
-              <div class="absolute inset-0 skeleton-shimmer" />
-            </div>
-            <div class="hero-content relative z-10 px-4 pb-6 pt-4 md:px-8 md:pt-8">
-              <div class="flex flex-col items-center gap-6 md:flex-row md:items-end md:gap-10">
-                <div
-                  class="h-36 w-36 md:h-48 md:w-48 skeleton-shimmer rounded-full flex-shrink-0"
-                />
-                <div class="flex-1 space-y-4 text-center md:text-left">
-                  <div class="h-6 w-20 skeleton-shimmer rounded-full" />
-                  <div class="h-10 w-1/2 md:h-12 skeleton-shimmer rounded-xl" />
-                  <div class="flex justify-center gap-4 md:justify-start">
-                    <div class="h-6 w-24 skeleton-shimmer rounded-lg" />
-                    <div class="h-6 w-24 skeleton-shimmer rounded-lg" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <!-- Content Skeleton -->
-          <div class="mt-8 page-padding-x">
-            <div class="space-y-4">
-              <div v-for="i in 8" :key="i" class="flex items-center gap-4">
-                <div class="h-12 w-12 skeleton-shimmer rounded-xl flex-shrink-0" />
-                <div class="flex-1 space-y-2">
-                  <div class="h-4 w-1/3 skeleton-shimmer rounded-lg" />
-                  <div class="h-3 w-1/4 skeleton-shimmer rounded-lg" />
-                </div>
-                <div class="h-8 w-8 skeleton-shimmer rounded-full flex-shrink-0" />
-              </div>
-            </div>
-          </div>
-        </div>
+      <div
+        class="artist-detail-content w-full pb-32"
+        style="padding-top: calc(var(--safe-area-inset-top, 0px) + 56px)"
+      >
+        <page-loading-placeholder v-if="loading" variant="artist" :label="t('common.loading')" />
 
         <!-- Main Content -->
         <div v-else-if="artistInfo" class="artist-content">
@@ -49,7 +16,7 @@
             展开态: 封面/名/统计/控制 纵向
             收缩态: 封面/名  控制  横向单行
           -->
-          <section class="hero-zone" :class="{ compact: isCompact }">
+          <section v-if="!isMobile" class="hero-zone" :class="{ compact: isCompact }">
             <!-- 封面 -->
             <div class="cover-wrap">
               <img
@@ -115,8 +82,11 @@
           </section>
 
           <!-- Search Input (Expandable) — 在 hero-zone 下方 -->
-          <Transition name="search-slide">
-            <div v-if="isSearchVisible && activeTab === 'songs'" class="search-container page-padding-x mt-2">
+          <Transition v-if="!isMobile" name="search-slide">
+            <div
+              v-if="isSearchVisible && activeTab === 'songs'"
+              class="search-container page-padding-x mt-2"
+            >
               <div class="search-input-wrap">
                 <i class="ri-search-line search-input-icon" />
                 <input
@@ -134,10 +104,10 @@
           </Transition>
 
           <!-- Tab Navigation — glow风格 -->
-          <section class="tab-nav page-padding-x pt-4 md:pt-6">
-            <GlowTabs
+          <section v-if="!isMobile" class="tab-nav page-padding-x pt-4 md:pt-6">
+            <glow-tabs
               v-model="activeTab"
-              :tabs="tabs.map(tab => ({ key: tab.value, label: tab.label }))"
+              :tabs="tabs.map((tab) => ({ key: tab.value, label: tab.label }))"
             />
           </section>
 
@@ -261,34 +231,6 @@
                 </div>
               </div>
             </div>
-
-            <!-- About Tab -->
-            <div v-show="activeTab === 'about'" class="about-tab">
-              <div class="about-content">
-                <h2
-                  class="text-xl md:text-2xl font-bold text-neutral-900 dark:text-white mb-4 md:mb-6"
-                >
-                  {{ t('artist.description') }}
-                </h2>
-                <div
-                  v-if="artistInfo.briefDesc"
-                  class="prose prose-neutral dark:prose-invert max-w-none"
-                >
-                  <p
-                    class="text-sm md:text-base leading-relaxed text-neutral-600 dark:text-neutral-300 whitespace-pre-line"
-                  >
-                    {{ artistInfo.briefDesc }}
-                  </p>
-                </div>
-                <div
-                  v-else
-                  class="empty-state flex flex-col items-center justify-center py-16 text-neutral-400 dark:text-neutral-500"
-                >
-                  <i class="iconfont icon-info text-5xl mb-4 opacity-50" />
-                  <p>{{ t('common.noData') || 'No description available' }}</p>
-                </div>
-              </div>
-            </div>
           </section>
         </div>
 
@@ -327,16 +269,25 @@ import { useRoute } from 'vue-router';
 
 import { getArtistAlbums, getArtistDetail, getArtistTopSongs } from '@/api/artist';
 import { getMusicDetail } from '@/api/music';
+import GlowTabs from '@/components/common/GlowTabs.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
+import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
+import {
+  registerMobileTopbarAction,
+  registerMobileTopbarGroup,
+  registerMobileTopbarPresentation,
+  unregisterMobileTopbarAction,
+  unregisterMobileTopbarGroup,
+  unregisterMobileTopbarPresentation
+} from '@/composables/useMobileTopbarMenu';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { useScrollTitle } from '@/hooks/useScrollTitle';
 import router from '@/router';
 import { usePlayerStore } from '@/store';
 import { IArtist } from '@/types/artist';
 import { calculateAnimationDelay, getImgUrl, isMobile } from '@/utils';
-import GlowTabs from '@/components/common/GlowTabs.vue';
 
 defineOptions({
   name: 'ArtistDetail'
@@ -363,7 +314,9 @@ const setCompact = (val: boolean) => {
   if (compactLocked) return;
   isCompact.value = val;
   compactLocked = true;
-  setTimeout(() => { compactLocked = false; }, 450);
+  setTimeout(() => {
+    compactLocked = false;
+  }, 450);
 };
 const handleScroll = (e: Event) => {
   const target = e.target as HTMLElement;
@@ -378,8 +331,7 @@ const handleScroll = (e: Event) => {
 // Tab configuration
 const tabs = computed(() => [
   { value: 'songs', label: t('artist.hotSongs') },
-  { value: 'albums', label: t('artist.albums') },
-  { value: 'about', label: t('artist.description') }
+  { value: 'albums', label: t('artist.albums') }
 ]);
 
 // 歌手信息
@@ -613,6 +565,88 @@ const handleSearchBlur = () => {
   }
 };
 
+// 移动端歌手页使用与歌单页相同的顶栏形变容器。所有内容都注册到同一
+// 个胶囊实例中，避免 Hero 卡片和顶栏菜单各自维护一份操作入口。
+const artistTopbarActionPrefix = 'artist-detail';
+let registeredArtistPresentationPath = '';
+
+const syncArtistTopbar = () => {
+  if (!isMobile.value || !route.path.startsWith('/artist/detail/')) return;
+
+  const presentationPath = route.path;
+  if (registeredArtistPresentationPath && registeredArtistPresentationPath !== presentationPath) {
+    unregisterMobileTopbarPresentation(registeredArtistPresentationPath);
+  }
+  registeredArtistPresentationPath = presentationPath;
+
+  registerMobileTopbarPresentation({
+    routePath: presentationPath,
+    title: artistInfo.value?.name || t('search.search.artist'),
+    subtitle: artistInfo.value
+      ? `${artistInfo.value.musicSize || 0} 首歌曲 · ${artistInfo.value.albumSize || 0} 张专辑`
+      : undefined,
+    imageUrl: artistInfo.value
+      ? getImgUrl(artistInfo.value.cover || artistInfo.value.picUrl, '100y100')
+      : undefined,
+    descriptionTitle: t('artist.description'),
+    description: artistInfo.value?.briefDesc || undefined,
+    searchPlaceholder:
+      activeTab.value === 'songs' && isSearchVisible.value
+        ? t('comp.musicList.searchSongs')
+        : undefined,
+    searchValue: searchKeyword.value,
+    onSearchInput: (value) => {
+      searchKeyword.value = value;
+    }
+  });
+
+  registerMobileTopbarGroup({
+    id: `${artistTopbarActionPrefix}-tabs`,
+    routePath: '/artist/detail/*',
+    options: tabs.value.map((tab) => ({ key: tab.value, label: tab.label })),
+    value: activeTab.value,
+    select: (value) => {
+      activeTab.value = String(value);
+      if (activeTab.value !== 'songs') {
+        isSearchVisible.value = false;
+        searchKeyword.value = '';
+      }
+      syncArtistTopbar();
+    }
+  });
+
+  registerMobileTopbarAction({
+    id: `${artistTopbarActionPrefix}-play`,
+    routePath: '/artist/detail/*',
+    label: t('comp.musicList.playAll'),
+    icon: 'ri-play-fill',
+    run: handlePlayAll
+  });
+  registerMobileTopbarAction({
+    id: `${artistTopbarActionPrefix}-add`,
+    routePath: '/artist/detail/*',
+    label: t('comp.musicList.addToPlaylist'),
+    icon: 'ri-play-list-add-line',
+    run: addToPlaylist
+  });
+  registerMobileTopbarAction({
+    id: `${artistTopbarActionPrefix}-search`,
+    routePath: '/artist/detail/*',
+    label: t('common.search'),
+    icon: isSearchVisible.value ? 'ri-close-line' : 'ri-search-line',
+    keepOpen: true,
+    run: () => {
+      if (isSearchVisible.value) closeSearch();
+      else showSearch();
+      syncArtistTopbar();
+    }
+  });
+};
+
+watch([artistInfo, activeTab, searchKeyword, isSearchVisible], () => syncArtistTopbar(), {
+  deep: false
+});
+
 // 过滤歌曲列表
 const filteredSongs = computed(() => {
   if (!searchKeyword.value) {
@@ -813,6 +847,7 @@ onActivated(() => {
 
     // 重新设置观察器
     setupObservers();
+    syncArtistTopbar();
   }
 });
 
@@ -822,6 +857,7 @@ onMounted(() => {
     previousId.value = route.params.id as string;
     loadArtistInfo();
     setupObservers();
+    syncArtistTopbar();
   }
 });
 
@@ -832,6 +868,14 @@ onDeactivated(() => {
 });
 
 onUnmounted(() => {
+  unregisterMobileTopbarGroup(`${artistTopbarActionPrefix}-tabs`);
+  unregisterMobileTopbarAction(`${artistTopbarActionPrefix}-play`);
+  unregisterMobileTopbarAction(`${artistTopbarActionPrefix}-add`);
+  unregisterMobileTopbarAction(`${artistTopbarActionPrefix}-search`);
+  if (registeredArtistPresentationPath) {
+    unregisterMobileTopbarPresentation(registeredArtistPresentationPath);
+    registeredArtistPresentationPath = '';
+  }
   // 完全清理观察器
   if (songsObserver) {
     songsObserver.disconnect();
@@ -887,11 +931,12 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   gap: 14px;
   padding: 20px 16px 14px;
   max-height: 500px;
-  transition: border-radius 0.4s $spring,
-              box-shadow 0.4s ease,
-              padding 0.4s $spring,
-              gap 0.4s $spring,
-              max-height 0.4s $spring;
+  transition:
+    border-radius 0.4s $spring,
+    box-shadow 0.4s ease,
+    padding 0.4s $spring,
+    gap 0.4s $spring,
+    max-height 0.4s $spring;
 
   &.compact {
     flex-direction: row;
@@ -908,7 +953,9 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   flex-shrink: 0;
   display: flex;
   justify-content: center;
-  .hero-zone.compact & { justify-content: flex-start; }
+  .hero-zone.compact & {
+    justify-content: flex-start;
+  }
 }
 
 .cover-img {
@@ -917,7 +964,11 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   border-radius: 50%;
   object-fit: cover;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-  transition: width 0.4s $spring, height 0.4s $spring, border-radius 0.4s $spring, box-shadow 0.4s ease;
+  transition:
+    width 0.4s $spring,
+    height 0.4s $spring,
+    border-radius 0.4s $spring,
+    box-shadow 0.4s ease;
   .hero-zone.compact & {
     width: 40px;
     height: 40px;
@@ -930,7 +981,9 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   flex: 1;
   min-width: 0;
   text-align: center;
-  .hero-zone.compact & { text-align: left; }
+  .hero-zone.compact & {
+    text-align: left;
+  }
 }
 
 .hero-title {
@@ -942,8 +995,13 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: font-size 0.4s $spring, font-weight 0.4s;
-  .hero-zone.compact & { font-size: 15px; font-weight: 600; }
+  transition:
+    font-size 0.4s $spring,
+    font-weight 0.4s;
+  .hero-zone.compact & {
+    font-size: 15px;
+    font-weight: 600;
+  }
 }
 
 .hero-detail {
@@ -951,89 +1009,208 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   max-height: 120px;
   overflow: hidden;
   margin-top: 8px;
-  transition: opacity 0.25s ease, max-height 0.35s $spring, margin-top 0.35s $spring;
-  .hero-zone.compact & { opacity: 0; max-height: 0; margin-top: 0; pointer-events: none; }
+  transition:
+    opacity 0.25s ease,
+    max-height 0.35s $spring,
+    margin-top 0.35s $spring;
+  .hero-zone.compact & {
+    opacity: 0;
+    max-height: 0;
+    margin-top: 0;
+    pointer-events: none;
+  }
 }
 
-.hero-badge-row { margin-top: 8px; }
+.hero-badge-row {
+  margin-top: 8px;
+}
 .hero-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 10px; border-radius: 9999px;
-  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.12);
   color: var(--accent-color, #888);
 }
 
 .hero-meta {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
-  gap: 12px; margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
 }
-.meta-stat { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560)); }
-.meta-stat i { font-size: 14px; color: var(--accent-color, #888); }
-.meta-stat-num { font-weight: 700; color: var(--cover-text-primary, var(--m-text-primary, #1a1a1a)); }
-.meta-stat-label { color: var(--cover-text-muted, var(--m-text-muted, #9a9590)); }
+.meta-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
+}
+.meta-stat i {
+  font-size: 14px;
+  color: var(--accent-color, #888);
+}
+.meta-stat-num {
+  font-weight: 700;
+  color: var(--cover-text-primary, var(--m-text-primary, #1a1a1a));
+}
+.meta-stat-label {
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+}
 
 .hero-controls {
-  display: flex; align-items: center; gap: 8px; justify-content: center; flex-shrink: 0;
-  .hero-zone.compact & { justify-content: flex-end; margin-left: auto; }
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  flex-shrink: 0;
+  .hero-zone.compact & {
+    justify-content: flex-end;
+    margin-left: auto;
+  }
 }
 
 .controls-extra {
-  display: flex; align-items: center; gap: 8px;
-  opacity: 1; max-width: 600px; overflow: hidden;
-  transition: opacity 0.25s ease, max-width 0.35s $spring;
-  .hero-zone.compact & { opacity: 0; max-width: 0; pointer-events: none; }
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 1;
+  max-width: 600px;
+  overflow: hidden;
+  transition:
+    opacity 0.25s ease,
+    max-width 0.35s $spring;
+  .hero-zone.compact & {
+    opacity: 0;
+    max-width: 0;
+    pointer-events: none;
+  }
 }
 
 .play-all-btn {
-  display: flex; align-items: center; gap: 4px;
-  padding: 8px 16px; border-radius: 9999px; border: none;
-  background: var(--accent-color, #888); color: #fff;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  border: none;
+  background: var(--accent-color, #888);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
   box-shadow: 0 2px 12px rgba(var(--accent-color-rgb, 136, 136, 136), 0.25);
-  white-space: nowrap; flex-shrink: 0;
-  transition: padding 0.3s $spring, font-size 0.3s $spring;
-  i { font-size: 16px; transition: font-size 0.3s $spring; }
-  .hero-zone.compact & { padding: 6px 12px; font-size: 12px; i { font-size: 14px; } }
-  &:active { transform: scale(0.94); }
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition:
+    padding 0.3s $spring,
+    font-size 0.3s $spring;
+  i {
+    font-size: 16px;
+    transition: font-size 0.3s $spring;
+  }
+  .hero-zone.compact & {
+    padding: 6px 12px;
+    font-size: 12px;
+    i {
+      font-size: 14px;
+    }
+  }
+  &:active {
+    transform: scale(0.94);
+  }
 }
 
 .icon-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px; border-radius: 50%; border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
   background: rgba(128, 128, 128, 0.1);
   color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
-  font-size: 18px; cursor: pointer; flex-shrink: 0;
+  font-size: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
   transition: all 0.2s $spring;
-  &:active { transform: scale(0.88); }
-  &.icon-btn-active { background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.15); color: var(--accent-color, #888); }
+  &:active {
+    transform: scale(0.88);
+  }
+  &.icon-btn-active {
+    background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.15);
+    color: var(--accent-color, #888);
+  }
 }
 
 /* Search */
-.search-container { padding: 0 16px; }
+.search-container {
+  padding: 0 16px;
+}
 .search-input-wrap {
-  display: flex; align-items: center;
+  display: flex;
+  align-items: center;
   background: rgba(128, 128, 128, 0.08);
   border-radius: 14px;
   overflow: hidden;
   padding: 0 12px;
 }
-.search-input-icon { color: var(--cover-text-muted, #999); font-size: 16px; }
-.search-input {
-  flex: 1; padding: 10px 8px; border: none; background: transparent; outline: none;
-  font-size: 14px; color: var(--cover-text-primary, #1a1a1a);
-  &::placeholder { color: var(--cover-text-muted, #999); }
+.search-input-icon {
+  color: var(--cover-text-muted, #999);
+  font-size: 16px;
 }
-.search-clear-btn { border: none; background: none; color: var(--cover-text-muted, #999); cursor: pointer; padding: 4px; }
+.search-input {
+  flex: 1;
+  padding: 10px 8px;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  color: var(--cover-text-primary, #1a1a1a);
+  &::placeholder {
+    color: var(--cover-text-muted, #999);
+  }
+}
+.search-clear-btn {
+  border: none;
+  background: none;
+  color: var(--cover-text-muted, #999);
+  cursor: pointer;
+  padding: 4px;
+}
 
 /* Search Slide Animation */
-.search-slide-enter-active, .search-slide-leave-active { transition: all 0.25s ease; }
-.search-slide-enter-from, .search-slide-leave-to { opacity: 0; transform: translateY(-8px); max-height: 0; margin-top: 0; }
-.search-slide-enter-to, .search-slide-leave-from { max-height: 60px; }
+.search-slide-enter-active,
+.search-slide-leave-active {
+  transition: all 0.25s ease;
+}
+.search-slide-enter-from,
+.search-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+  max-height: 0;
+  margin-top: 0;
+}
+.search-slide-enter-to,
+.search-slide-leave-from {
+  max-height: 60px;
+}
 
 /* Virtual Song List */
-.virtual-song-list { @apply w-full; }
-.song-list { @apply w-full; }
+.virtual-song-list {
+  @apply w-full;
+}
+.song-list {
+  @apply w-full;
+}
 
 .song-item-container {
   content-visibility: auto;
@@ -1048,25 +1225,46 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   animation: fadeInUp 0.4s ease backwards;
 }
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Loading Spinner */
-.loading-spinner { animation: pulse 2s ease-in-out infinite; }
+.loading-spinner {
+  animation: pulse 2s ease-in-out infinite;
+}
 @keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
 }
 
 /* Hover Effects */
-.album-cover { transition: box-shadow 0.3s ease; }
+.album-cover {
+  transition: box-shadow 0.3s ease;
+}
 .album-card:hover .album-cover {
   @apply shadow-2xl;
-  box-shadow: 0 10px 15px -3px rgba(var(--accent-color-rgb, 0, 0, 0), 0.1), 0 4px 6px -2px rgba(var(--accent-color-rgb, 0, 0, 0), 0.05);
+  box-shadow:
+    0 10px 15px -3px rgba(var(--accent-color-rgb, 0, 0, 0), 0.1),
+    0 4px 6px -2px rgba(var(--accent-color-rgb, 0, 0, 0), 0.05);
 }
 
 /* Focus states for accessibility */
-button:focus-visible { @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-white dark:ring-offset-neutral-900; }
-input:focus-visible { @apply outline-none ring-2 ring-primary ring-opacity-50; }
+button:focus-visible {
+  @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-white dark:ring-offset-neutral-900;
+}
+input:focus-visible {
+  @apply outline-none ring-2 ring-primary ring-opacity-50;
+}
 </style>

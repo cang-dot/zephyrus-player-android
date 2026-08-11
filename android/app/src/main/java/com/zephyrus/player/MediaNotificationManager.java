@@ -14,6 +14,7 @@ import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
+import android.util.Base64;
 import android.util.Log;
 
 import androidx.core.content.ContextCompat;
@@ -152,6 +153,14 @@ public class MediaNotificationManager {
         currentDuration = (long) (duration * 1000);
         currentPosition = (long) (position * 1000);
 
+        String nextArtworkUrl = artworkUrl != null ? artworkUrl : "";
+        boolean artworkChanged = !nextArtworkUrl.equals(currentArtworkUrl);
+        if (artworkChanged) {
+            // 切歌后先清空旧封面，避免本地封面尚未解码时继续显示上一首在线歌曲。
+            currentArtworkUrl = nextArtworkUrl;
+            currentArtwork = null;
+        }
+
         // 更新元数据
         MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder();
         metadataBuilder.putString(MediaMetadata.METADATA_KEY_TITLE, currentTitle);
@@ -179,9 +188,8 @@ public class MediaNotificationManager {
         mediaSession.setPlaybackState(stateBuilder.build());
 
         // 异步加载封面
-        if (artworkUrl != null && !artworkUrl.isEmpty() && !artworkUrl.equals(currentArtworkUrl)) {
-            currentArtworkUrl = artworkUrl;
-            loadArtworkAsync(artworkUrl);
+        if (artworkChanged && !nextArtworkUrl.isEmpty()) {
+            loadArtworkAsync(nextArtworkUrl);
         }
 
         updateNotification();
@@ -190,17 +198,26 @@ public class MediaNotificationManager {
     private void loadArtworkAsync(String urlStr) {
         new Thread(() -> {
             try {
-                URL url = new URL(urlStr);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setDoInput(true);
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
-                conn.connect();
-                InputStream input = conn.getInputStream();
-                Bitmap bitmap = BitmapFactory.decodeStream(input);
-                input.close();
-                conn.disconnect();
+                Bitmap bitmap;
+                if (urlStr.startsWith("data:image/")) {
+                    int commaIndex = urlStr.indexOf(',');
+                    if (commaIndex < 0) throw new IllegalArgumentException("Invalid image data URL");
+                    byte[] bytes = Base64.decode(urlStr.substring(commaIndex + 1), Base64.DEFAULT);
+                    bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                } else {
+                    URL url = new URL(urlStr);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setDoInput(true);
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(5000);
+                    conn.connect();
+                    InputStream input = conn.getInputStream();
+                    bitmap = BitmapFactory.decodeStream(input);
+                    input.close();
+                    conn.disconnect();
+                }
 
+                if (!urlStr.equals(currentArtworkUrl)) return;
                 currentArtwork = bitmap;
 
                 MainActivity activity = MainActivity.getInstance();

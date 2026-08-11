@@ -1,6 +1,6 @@
 import PinyinMatch from 'pinyin-match';
 
-import { type ClimaxSegment,normalizeClimaxSegments } from '@/api/climax';
+import { type ClimaxSegment, normalizeClimaxSegments } from '@/api/climax';
 import type { Artist, SongResult } from '@/types/music';
 
 /**
@@ -27,6 +27,9 @@ export interface ServerSong {
   duration: number;
   picUrl: string;
   audioUrl: string;
+  popularity?: number;
+  playCount?: number;
+  hot?: number;
   lyricsUrl?: string;
   climax?: ClimaxSegment[];
 }
@@ -174,7 +177,24 @@ export function rankSearchResults(songs: SongResult[], keyword: string): SongRes
         .map((artist: any) => artist.name || '')
         .join(' ');
       const albumName = song.al?.name || (song as any).album?.name || '';
-      const score = fuzzyScoreText(`${name} ${artistNames} ${albumName}`, trimmed);
+      const matchScore = Math.min(
+        fuzzyScoreText(name, trimmed),
+        fuzzyScoreText(artistNames, trimmed) + 8,
+        fuzzyScoreText(albumName, trimmed) + 16,
+        fuzzyScoreText(`${name} ${artistNames} ${albumName}`, trimmed) + 24
+      );
+      const popularity = Number(
+        (song as any).popularity ??
+          (song as any).playCount ??
+          (song as any).hot ??
+          (song as any).score ??
+          0
+      );
+      // 热度只作为有限的次级因素，避免热门但不相关的歌曲压过精确命中。
+      const popularityBoost = Number.isFinite(popularity)
+        ? Math.min(8, Math.log10(Math.max(1, popularity)) * 2)
+        : 0;
+      const score = matchScore - popularityBoost;
       return { song, index, score };
     })
     .sort((left, right) => left.score - right.score || left.index - right.index)
@@ -189,9 +209,14 @@ function scoreServerSong(song: ServerSong, query: string, rawQuery: string): num
     { value: `${song.name}${song.artists.join('')}${song.album || ''}`, weight: 24 }
   ];
 
-  return Math.min(
+  const matchScore = Math.min(
     ...candidates.map(({ value, weight }) => scoreText(value, query, rawQuery) + weight)
   );
+  const popularity = Number(song.popularity ?? song.playCount ?? song.hot ?? 0);
+  const popularityBoost = Number.isFinite(popularity)
+    ? Math.min(8, Math.log10(Math.max(1, popularity)) * 2)
+    : 0;
+  return matchScore - popularityBoost;
 }
 
 export function serverSongToSongResult(song: ServerSong): SongResult {

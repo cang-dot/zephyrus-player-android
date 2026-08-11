@@ -1,6 +1,7 @@
 import { DOMParser as XmlDomParser } from '@xmldom/xmldom';
 import { describe, expect, it, vi } from 'vitest';
 
+import { convertTextPreservingSymbols } from '../../src/renderer/services/translation-engines/opencc';
 import {
   parseTtml,
   type TtmlLyric,
@@ -28,6 +29,29 @@ describe('timed lyric parsing', () => {
       { text: '好', startTime: 1400, duration: 300, space: true },
       { text: 'world', startTime: 1700, duration: 500, space: false }
     ]);
+  });
+
+  it('preserves full-width punctuation through parsing and Chinese conversion', async () => {
+    const lyric = parseTimedLyrics(
+      '[00:23.364]所以失落吧！\n[00:28.766]So we sing（所以我们高歌）￥',
+      {
+        format: 'lrc',
+        source: 'netease'
+      }
+    );
+    expect(lyric.lrcArray.map((line) => line.text)).toEqual([
+      '所以失落吧！',
+      'So we sing（所以我们高歌）￥'
+    ]);
+
+    const converted = await convertTextPreservingSymbols(
+      '所以失落吧！So we sing（所以我们高歌）￥ 2026',
+      (run) => {
+        expect(run).not.toMatch(/[！（）￥\d\s]/);
+        return run;
+      }
+    );
+    expect(converted).toBe('所以失落吧！So we sing（所以我们高歌）￥ 2026');
   });
 
   it('extracts QRC XML and accepts two-field word timing', () => {
@@ -161,6 +185,37 @@ describe('timed lyric parsing', () => {
       { text: 'my', startTime: 4362, duration: 470, space: true },
       { text: 'car', startTime: 4832, duration: 810, space: false }
     ]);
+  });
+
+  it('preserves punctuation in TTML word spans', () => {
+    vi.stubGlobal('DOMParser', XmlDomParser);
+    try {
+      const lyric = parseTtml(
+        '<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="00:23.364" end="00:26.109"><span begin="00:23.364" end="00:25.000">所以失落吧</span><span begin="00:25.000" end="00:26.109">！</span></p></div></body></tt>'
+      );
+      expect(lyric?.lines[0].text).toBe('所以失落吧！');
+      expect(lyric?.lines[0].words.at(-1)?.text).toBe('！');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('removes only decorative wrappers from TTML background vocals', () => {
+    vi.stubGlobal('DOMParser', XmlDomParser);
+    try {
+      const lyric = parseTtml(
+        '<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><body><div><p begin="00:28.049" end="00:32.387"><span begin="00:28.049" end="00:31.396">So we sing（所以我们高歌）！</span><span ttm:role="x-bg" begin="00:31.224" end="00:32.387"><span begin="00:31.224" end="00:31.735">(太</span><span begin="00:31.735" end="00:32.387">多)</span></span></p></div></body></tt>'
+      );
+
+      expect(lyric?.lines[0].text).toBe('So we sing（所以我们高歌）！');
+      expect(lyric?.lines[0].background[0].text).toBe('太多');
+      expect(lyric?.lines[0].background[0].words).toEqual([
+        { text: '太', begin: 31.224, end: 31.735, role: 'background' },
+        { text: '多', begin: 31.735, end: 32.387, role: 'background' }
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('maps word timings to one continuous line progress', () => {

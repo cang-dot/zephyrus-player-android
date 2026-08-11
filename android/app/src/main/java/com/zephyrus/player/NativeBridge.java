@@ -808,6 +808,33 @@ public class NativeBridge {
         }
     }
 
+    /** Returns whether the app can create the status-bar lyric overlay. */
+    @JavascriptInterface
+    public boolean canDrawOverlays() {
+        return StatusBarLyricOverlay.getInstance(activity).hasPermission();
+    }
+
+    /** Enables or hides the status-bar lyric overlay. */
+    @JavascriptInterface
+    public boolean setStatusBarLyricEnabled(boolean enabled) {
+        return StatusBarLyricOverlay.getInstance(activity).setEnabled(enabled);
+    }
+
+    /** Updates the current lyric line and its song-theme accent color. */
+    @JavascriptInterface
+    public void updateStatusBarLyric(String text, String accentColor) {
+        StatusBarLyricOverlay.getInstance(activity).update(text, accentColor);
+    }
+
+    /** Notifies the WebView after returning from the system overlay-permission page. */
+    public void notifyOverlayPermissionState() {
+        boolean granted = StatusBarLyricOverlay.getInstance(activity).hasPermission();
+        activity.evaluateJavascript(
+                "window.__statusBarLyricPermissionChanged && "
+                        + "window.__statusBarLyricPermissionChanged(" + granted + ");"
+        );
+    }
+
     /**
      * 设置后台保活（音频焦点保持）
      * 开启后播放服务会持续持有音频焦点，尽量避免被其他应用的录音/音频/视频播放阻断

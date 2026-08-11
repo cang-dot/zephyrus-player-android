@@ -348,6 +348,8 @@ export default {
     showTranslationDescription: '가사 아래에 번역을 표시합니다',
     showRomanization: '로마자 표기 표시',
     showRomanizationDescription: '가사 아래에 로마자 표기를 표시합니다',
+    statusBarLyrics: '상태 표시줄 가사',
+    statusBarLyricsDescription: '상단 오버레이로 다른 앱 위에 현재 가사를 표시합니다',
     hideLyrics: '가사 숨기기',
     hidePlayBar: '재생바 숨기기',
     hideMiniPlayBar: '미니 재생바 숨기기',

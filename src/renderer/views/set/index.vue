@@ -140,6 +140,7 @@ watch(
 onUnmounted(() => {
   settingsStore.setSetData(localSetData.value);
   window.removeEventListener('mobile-settings-search-input', onTopbarSearchInput);
+  window.removeEventListener('mobile-settings-search-select', onTopbarSearchSelect);
 });
 
 // ==================== Provide ====================
@@ -364,12 +365,16 @@ const performSearch = useDebounceFn(() => {
   if (!q) {
     isSearching.value = false;
     searchResults.value = [];
+    window.dispatchEvent(new CustomEvent('mobile-settings-search-results', { detail: [] }));
     return;
   }
   isSearching.value = true;
   searchResults.value = settingIndex.value.filter((item) => {
     return fuzzyMatch(q, item.title) || fuzzyMatch(q, item.desc) || fuzzyMatch(q, item.tabLabel);
   });
+  window.dispatchEvent(
+    new CustomEvent('mobile-settings-search-results', { detail: searchResults.value.slice(0, 12) })
+  );
 }, 200);
 
 const onSearchInput = () => {
@@ -385,6 +390,11 @@ const clearSearch = () => {
 const onTopbarSearchInput = (event: Event) => {
   searchQuery.value = String((event as CustomEvent).detail || '');
   onSearchInput();
+};
+
+const onTopbarSearchSelect = (event: Event) => {
+  const result = (event as CustomEvent<SearchResult>).detail;
+  if (result) jumpToResult(result);
 };
 
 const jumpToResult = (result: SearchResult) => {
@@ -411,6 +421,7 @@ const jumpToResult = (result: SearchResult) => {
 // ==================== Init ====================
 onMounted(() => {
   window.addEventListener('mobile-settings-search-input', onTopbarSearchInput);
+  window.addEventListener('mobile-settings-search-select', onTopbarSearchSelect);
   if (isElectron && settingsStore.appUpdateState.currentVersion === '') {
     settingsStore.setAppUpdateState(createDefaultAppUpdateState(config.version));
   }
