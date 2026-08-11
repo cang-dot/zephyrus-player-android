@@ -77,6 +77,7 @@ export function createPlayerStyleConfig(styleKey: MobilePlayerStyleKey): PlayerS
     fontWeight: 600,
     wordDropFontWeight: 900,
     auxiliaryCenterDisplay: false,
+    forceNoWrap: false,
     staggeredSize: 48,
     staggeredRowGap: 18,
     staggeredOffset: 14,
@@ -128,6 +129,7 @@ export function resolvePlayerStyleConfig(
     Math.max(100, Number(config.wordDropFontWeight) || 900)
   );
   config.auxiliaryCenterDisplay = config.auxiliaryCenterDisplay === true;
+  config.forceNoWrap = config.forceNoWrap === true;
   config.staggeredSize = Math.min(96, Math.max(24, Number(config.staggeredSize) || 48));
   config.staggeredRowGap = Math.min(48, Math.max(8, Number(config.staggeredRowGap) || 18));
   config.staggeredOffset = Math.min(30, Math.max(0, Number(config.staggeredOffset) || 14));

@@ -1,14 +1,16 @@
 <template>
-  <div :id="id" :ref="setRef" class="mb-6 scroll-mt-20">
+  <div :id="id" :ref="setRef" class="setting-section mb-6 scroll-mt-20">
     <!-- 设置项列表 -->
-    <div class="space-y-px">
+    <div class="setting-section-list">
       <slot></slot>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { type ComponentPublicInstance } from 'vue';
+import { type ComponentPublicInstance, provide, ref } from 'vue';
+
+import { SETTING_ACCORDION_KEY } from './settingAccordion';
 
 defineOptions({
   name: 'SettingSection'
@@ -33,8 +35,23 @@ const emit = defineEmits<{
   ref: [el: Element | null];
 }>();
 
+const openItemId = ref<string | null>(null);
+provide(SETTING_ACCORDION_KEY, {
+  openItemId,
+  toggle: (itemId) => {
+    openItemId.value = openItemId.value === itemId ? null : itemId;
+  }
+});
+
 // 暴露 ref 给父组件
 const setRef = (el: Element | ComponentPublicInstance | null) => {
   emit('ref', el as Element | null);
 };
 </script>
+
+<style scoped>
+.setting-section-list {
+  display: grid;
+  gap: 10px;
+}
+</style>

@@ -6,7 +6,7 @@
  * presentation without reparsing XML or relying on LRC-specific fields.
  */
 
-import type { ILyricText } from '@/types/music';
+import type { ILyricText, IWordData } from '@/types/music';
 
 const TTM_NS = 'http://www.w3.org/ns/ttml#metadata';
 const ITUNES_NS = 'http://music.apple.com/lyric-ttml-internal';
@@ -420,19 +420,23 @@ export function findTtmlLineIndex(lyric: TtmlLyric, currentTime: number): number
   return result;
 }
 
+export function ttmlWordsToTimedWords(words: TtmlWord[]): IWordData[] {
+  return words
+    .map((word) => ({
+      text: word.text.trim(),
+      startTime: Math.round(word.begin * 1000),
+      duration: Math.max(0, Math.round((word.end - word.begin) * 1000)),
+      space: /\s$/.test(word.text)
+    }))
+    .filter((word) => Boolean(word.text));
+}
+
 /** Convert primary TTML lines to the shared timed-lyric shape used by scrolling lyrics. */
 export function ttmlToTimedLines(lyric: TtmlLyric): ILyricText[] {
   return lyric.lines
     .filter((line) => !line.isBackground)
     .map((line) => {
-      const words = line.words
-        .map((word) => ({
-          text: word.text.trim(),
-          startTime: Math.round(word.begin * 1000),
-          duration: Math.max(0, Math.round((word.end - word.begin) * 1000)),
-          space: /\s$/.test(word.text)
-        }))
-        .filter((word) => Boolean(word.text));
+      const words = ttmlWordsToTimedWords(line.words);
 
       return {
         text: line.text,

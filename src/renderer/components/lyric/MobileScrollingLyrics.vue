@@ -90,18 +90,46 @@
         </div>
         <div v-if="index === displayIndex" class="auxiliary-lyric-stack">
           <div
-            v-if="backgroundLyricTokens.length > 0"
+            v-for="line in backgroundLyricLines"
+            :key="line.sourceKey"
             class="background-lyric-line"
             :style="getAuxiliaryLyricStyle()"
           >
-            {{ backgroundLyricTokens.map((token) => token.text).join(' ') }}
+            <template v-if="line.words.length">
+              <template
+                v-for="(word, wordIndex) in line.words"
+                :key="`${line.sourceKey}-${wordIndex}`"
+              >
+                <span
+                  class="auxiliary-timed-word"
+                  :class="getAuxiliaryWordClasses(word)"
+                  :style="getAuxiliaryWordStyle(word)"
+                  >{{ word.text }}</span
+                ><span v-if="word.space" class="timed-lyric-space">&nbsp;</span>
+              </template>
+            </template>
+            <template v-else>{{ line.text }}</template>
           </div>
           <div
-            v-if="duetLyricTokens.length > 0"
+            v-for="line in duetLyricLines"
+            :key="line.sourceKey"
             class="duet-lyric-line"
             :style="getAuxiliaryLyricStyle()"
           >
-            {{ duetLyricTokens.map((token) => token.text).join(' ') }}
+            <template v-if="line.words.length">
+              <template
+                v-for="(word, wordIndex) in line.words"
+                :key="`${line.sourceKey}-${wordIndex}`"
+              >
+                <span
+                  class="auxiliary-timed-word"
+                  :class="getAuxiliaryWordClasses(word)"
+                  :style="getAuxiliaryWordStyle(word)"
+                  >{{ word.text }}</span
+                ><span v-if="word.space" class="timed-lyric-space">&nbsp;</span>
+              </template>
+            </template>
+            <template v-else>{{ line.text }}</template>
           </div>
         </div>
         <div v-if="config.showTranslation && item.trText" class="translation">
@@ -165,11 +193,9 @@ const displayLyrics = wordPlayback.displayLines;
 const displayTimes = wordPlayback.displayTimes;
 const displayIndex = wordPlayback.displayIndex;
 const correctedTime = wordPlayback.correctedTime;
-const auxiliaryTokens = wordPlayback.auxiliaryTokens;
-const backgroundLyricTokens = computed(() => auxiliaryTokens.value.filter((token) => !token.agent));
-const duetLyricTokens = computed(() =>
-  auxiliaryTokens.value.filter((token) => Boolean(token.agent))
-);
+const auxiliaryLines = wordPlayback.auxiliaryLines;
+const backgroundLyricLines = computed(() => auxiliaryLines.value.filter((line) => !line.agent));
+const duetLyricLines = computed(() => auxiliaryLines.value.filter((line) => Boolean(line.agent)));
 
 const emit = defineEmits<{ close: []; interact: []; generatePoster: [lyrics: SelectedLyric[]] }>();
 
@@ -553,6 +579,44 @@ const getAuxiliaryLyricStyle = () => {
   return { '--lyric-aux-color': colors.active };
 };
 
+const getAuxiliaryWordState = (word: { startTime: number; duration: number }) => {
+  const now = correctedTime.value * 1000;
+  const start = Number.isFinite(word.startTime) ? word.startTime : 0;
+  const duration = Math.max(0, Number(word.duration) || 0);
+  if (now >= start + Math.max(duration, 60)) return 'finished';
+  if (now >= start) return 'active';
+  return 'upcoming';
+};
+
+const getAuxiliaryWordClasses = (word: { startTime: number; duration: number }) => ({
+  [`is-${getAuxiliaryWordState(word)}`]: true
+});
+
+const getAuxiliaryWordStyle = (word: { startTime: number; duration: number }) => {
+  const colors = textColors.value || getTextColors();
+  const state = getAuxiliaryWordState(word);
+  const duration = Math.max(Number(word.duration) || 0, 60);
+  const progress =
+    state === 'active'
+      ? Math.min(Math.max((correctedTime.value * 1000 - word.startTime) / duration, 0), 1)
+      : state === 'finished'
+        ? 1
+        : 0;
+  const activeColor = `color-mix(in srgb, #fff 82%, ${colors.active})`;
+  const upcomingColor = `color-mix(in srgb, #fff 42%, ${colors.primary})`;
+  return {
+    color: state === 'upcoming' ? upcomingColor : activeColor,
+    backgroundImage:
+      state === 'active'
+        ? `linear-gradient(90deg, ${activeColor} ${Math.round(progress * 100)}%, ${upcomingColor} ${Math.round(progress * 100)}%)`
+        : 'none',
+    backgroundClip: state === 'active' ? 'text' : 'initial',
+    WebkitBackgroundClip: state === 'active' ? 'text' : 'initial',
+    WebkitTextFillColor: state === 'active' ? 'transparent' : 'initial',
+    textShadow: state === 'active' ? `0 0 10px ${colors.active}73` : 'none'
+  };
+};
+
 const getLineStyle = (lineIndex: number) => {
   if (lineIndex !== displayIndex.value) return {};
   const colors = textColors.value || getTextColors();
@@ -756,6 +820,13 @@ onBeforeUnmount(() => {
   text-align: center;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.auxiliary-timed-word {
+  display: inline;
+  transition:
+    color 120ms linear,
+    text-shadow 160ms ease;
 }
 
 .background-lyric-line {

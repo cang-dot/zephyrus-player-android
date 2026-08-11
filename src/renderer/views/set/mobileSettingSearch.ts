@@ -4,6 +4,8 @@ export interface MobileSettingSearchDefinition {
   descKey?: string;
   title?: string;
   desc?: string;
+  targetTitle?: string;
+  targetId?: string;
 }
 
 export const MOBILE_SETTING_SEARCH_DEFINITIONS: readonly MobileSettingSearchDefinition[] = [
@@ -64,6 +66,42 @@ export const MOBILE_SETTING_SEARCH_DEFINITIONS: readonly MobileSettingSearchDefi
   },
   {
     tabId: 'playback',
+    title: '逐字显示',
+    desc: '逐字或整句显示状态栏歌词',
+    targetId: 'status-bar-lyrics'
+  },
+  {
+    tabId: 'playback',
+    title: '状态栏歌词位置',
+    desc: '分别调整横屏与竖屏悬浮位置',
+    targetId: 'status-bar-lyrics'
+  },
+  {
+    tabId: 'playback',
+    title: '状态栏歌词字体',
+    desc: '选择内置字体或导入 TTF/OTF',
+    targetId: 'status-bar-lyrics'
+  },
+  {
+    tabId: 'playback',
+    title: '状态栏歌词字号和字重',
+    desc: '调整悬浮歌词大小与粗细',
+    targetId: 'status-bar-lyrics'
+  },
+  {
+    tabId: 'playback',
+    title: '状态栏歌词配色',
+    desc: '设置已唱、当前、未唱和表面颜色',
+    targetId: 'status-bar-lyrics'
+  },
+  {
+    tabId: 'playback',
+    title: '状态栏歌词预览',
+    desc: '在当前屏幕显示五秒真实悬浮窗',
+    targetId: 'status-bar-lyrics'
+  },
+  {
+    tabId: 'playback',
     title: '智能混音引擎',
     desc: '切歌时自动平滑过渡，避免硬切中断'
   },
@@ -106,6 +144,11 @@ export const MOBILE_SETTING_SEARCH_DEFINITIONS: readonly MobileSettingSearchDefi
     tabId: 'about',
     titleKey: 'settings.about.author',
     descKey: 'settings.about.authorDesc'
+  },
+  {
+    tabId: 'about',
+    titleKey: 'settings.about.website',
+    descKey: 'settings.about.websiteDesc'
   },
   { tabId: 'about', title: '用户协议', desc: '查看用户协议' },
   { tabId: 'about', title: '开源协议', desc: '查看开源协议' },

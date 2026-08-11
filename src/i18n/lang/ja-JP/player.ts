@@ -150,6 +150,7 @@ export default {
     mainLyric: 'メイン歌詞',
     auxiliary: '背景 / デュエット',
     auxiliaryCenterDisplay: '背景 / デュエットを中央に巨大表示',
+    forceNoWrap: '強制的に1行表示',
     translation: '翻訳',
     climaxEffects: 'クライマックス効果',
     lyricRecolor: '歌詞の色変化',

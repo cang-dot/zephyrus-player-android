@@ -1,148 +1,138 @@
 <p align="center">
-  <img src="src/renderer/assets/icon.png" alt="Zephyrus Player" width="120" style="border-radius: 24px;" />
+  <img src="src/renderer/assets/icon.png" alt="Zephyrus Player" width="112" />
 </p>
 
 <div align="center">
 
 # Zephyrus Player
 
-**西风播放器** — 沉浸式音乐播放器 · Android
+**西风播放器，一款只为 Android 手机设计的音乐播放器。**
 
-[![Version](https://img.shields.io/badge/version-v1.2.0-blue)](https://github.com/cang-dot/zephyrus-player-android/releases)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Vue](https://img.shields.io/badge/Vue_3.5-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript_5.9-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Android](https://img.shields.io/badge/Capacitor_8-3ddc84?logo=android&logoColor=white)](https://capacitorjs.com/)
-[![Docs](https://img.shields.io/badge/文档-mucang.xyz-8b5cf6)](https://www.mucang.xyz/zephyrus/docs)
+[![版本](https://img.shields.io/badge/version-v1.2.0-b48b52)](https://github.com/cang-dot/zephyrus-player-android/releases)
+[![Android](https://img.shields.io/badge/Android-Capacitor_8-3ddc84?logo=android&logoColor=white)](https://capacitorjs.com/)
+[![Vue](https://img.shields.io/badge/Vue_3-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![文档](https://img.shields.io/badge/文档-mucang.xyz-b48b52)](https://www.mucang.xyz/zephyrus/docs/)
 
 </div>
 
----
+## 这是什么
 
-## 简介
+Zephyrus Player 把音乐播放、逐字歌词和视觉设计放在同一个移动端工作流里。首页、歌单、发现和个人页围绕手机单手操作设计，播放栏、播放列表和播放设置共享同一套形变表面，页面切换使用可中断的短弹簧动画。
 
-Zephyrus Player 是一款以**视觉体验为核心**的 Android 音乐播放器，深度集成网易云音乐生态，同时支持
-QQ 音乐、酷狗音乐等多平台账号登录与跨平台搜索。内置 7 种全屏播放器样式，通过实时高潮检测、鼓点跟踪、
-封面取色等技术驱动视觉动画与歌词渲染，让每一首歌都有独特的视觉表达。
+它不是一个桌面播放器的缩小版。本仓库的发布目标是 Android 手机，桌面代码仅作为历史兼容资料保留，不在本项目中提供桌面体验保证。
 
-> 本项目基于 [AlgerMusicPlayer](https://github.com/algerkong/AlgerMusicPlayer) 深度二次开发。
-> 桌面版（Electron）见 [zephyrus-player](https://github.com/cang-dot/zephyrus-player)。
-> 📖 **使用文档**：[mucang.xyz/zephyrus/docs](https://www.mucang.xyz/zephyrus/docs)
+## 立即下载
 
----
+- [下载 v1.2.0 APK](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.2.0)
+- [服务器直链](https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk)
+- [Android 版产品页](https://mucang.xyz/zephyrus/)
+- [使用文档](https://www.mucang.xyz/zephyrus/docs/)
 
-## 下载
+安装 Android 8.0 或更高版本。首次运行时按系统提示允许通知和悬浮窗权限，状态栏歌词、后台播放和更新提示会根据权限启用。
 
-| 渠道 | 地址 |
-|------|------|
-| **正式版** | [GitHub Releases](https://github.com/cang-dot/zephyrus-player-android/releases) |
-| **服务器直链** | [zephyrus-player-latest.apk](https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk) |
-| **预览版（Beta）** | 见[文档站 · 安装指南](https://www.mucang.xyz/zephyrus/docs/guide/installation.html) |
+## 核心体验
 
-当前版本：**v1.1.3-beta**（预览版）。安装版 App 会在启动时自动检查更新并提示下载。
+### 逐字歌词
 
----
+歌词按照来源优先级加载：
 
-## 核心特性
+1. 自有 Zephyrus TTML 歌词库
+2. AMLL TTML 歌词库
+3. 网易云 YRC
+4. QQ 音乐 QRC
+5. 普通 LRC
 
-### 模块化首页
+TTML 保留主唱、背景词和对唱声部，YRC 与 QRC 保留接口提供的原始分词粒度。中文通常按字同步，英文按接口词组同步，不会把一个完整词再次拆成单字。没有逐字源时会自然退回普通滚动歌词。
 
-Apple Music 风格的可定制首页，所有组件可自由拖拽排列：
+### 播放器样式
 
-- 卡片轮播区 + 4 列可变大小功能网格（1-4 宽 × 1-2 高）
-- 长按进入编辑模式：拖拽排序、跨区域移动、缩放尺寸、增删组件
-- FLIP 弹簧动画：组件位置/尺寸变化时平滑过渡，拖动时其他组件实时避让
+每种样式都有独立的背景、基础歌词色、字体、字重和高潮效果配置。原始设置使用内置视觉，自定义设置只影响当前样式，一键还原不会清除其他样式。
 
-### 7 种播放器样式
+| 样式 | 视觉方向                     | 高潮能力             |
+| ---- | ---------------------------- | -------------------- |
+| 默认 | 封面取色、滚动歌词、轻量过渡 | 主题色与基础动画     |
+| 舞台 | 巨幅居中歌词、背景声部       | 变色、逐字砸下       |
+| 诡谲 | 噪点、重点字、超大背景词     | 重点字与逐字砸下互斥 |
+| 狂热 | 强对比构图、冲击性文字       | CRT、变色、逐字砸下  |
+| 陈旧 | 旧印刷质感、霓虹边缘         | 字色与强制单行       |
+| 杂志 | 版式化歌词和封面构图         | 海报式高潮排版       |
+| 雨夜 | 雨幕、反射和动态封面         | 音频响应雨幕         |
+| 星盘 | 星轨和夜空层次               | 星轨与歌词呼吸       |
+| 烟雾 | WebGL 流体烟雾和暗角         | 响度响应、高潮暗角   |
 
-| 样式 | 说明 |
-|------|------|
-| 默认 | 封面取色背景 + 逐字歌词 + 渐变遮罩 |
-| 舞台 Stage | 深色背景 + 居中大字歌词 + 高潮鼓点闪白 |
-| 诡谲 Eerie | 噪点底 + 书法字 + VHS 效果 + 高潮关键词闪现 |
-| 陈旧 Neon | 混凝土底 + 霓虹描边字 + 脉冲光晕 |
-| 狂热 Frenzy | 极简色块 + 巨字歌词分屏 |
-| 杂志 Magazine | 色块拼贴 + 期刊式歌词 |
-| 雨夜 Rain | 3D 封面 + Canvas 雨水 + 歌词叠加 + 底部反射 |
-| 星图 Star Chart（预览） | 星座星图背景 + 星轨歌词 |
+舞台、诡谲、狂热和烟雾共享 TTML 背景词与对唱层。每句声部显示完整句子，逐字卡拉 OK 只应用于其内部的分词进度。间奏和尾奏判断不要求处于高潮，只要求存在有效 TTML，当前主句已经结束且距离下一句至少 15 秒或没有后续主句。
 
-### 多平台账号
+### Android 状态栏歌词
 
-- **QQ 音乐扫码登录**：获取真实昵称/头像，拉取创建歌单、收藏歌单、收藏专辑
-- **酷狗音乐扫码登录**：歌单/收藏数据
-- 登录后自动**解锁对应平台的搜索**，结果按匹配度统一排序
-- 网易云账号沿用原有登录体系
+打开悬浮窗权限后，状态栏歌词会由 Android 原生 `TextView` 渲染，不是应用内的模拟预览。可以单独设置：
 
-### 云端歌曲库
+- 横屏和竖屏位置
+- 系统字体、内置字体或导入的 TTF/OTF
+- 字体大小和字重
+- 是否逐字
+- 已唱、当前、未唱和表面四层颜色
+- 五秒真实悬浮窗预览
 
-- 服务器托管被封禁/独立音乐（FLAC/MP3），带完整元数据与歌词
-- 多段**高潮时段**标注：只依赖人工标注，不使用 LRC 推断
-- 点击专辑名可进入**云端同名专辑详情页**
+状态栏歌词只显示主歌词，不复制 TTML 背景词和对唱声部。普通 LRC 会自动退化为整句显示。
 
-### 高潮段落与鼓点
+### 多平台与本地音乐
 
-- 社区高潮标注 + 实时音频能量检测双通道
-- 高潮期间驱动颜色模式切换、鼓点闪白、故障特效
+- 网易云、QQ 音乐、酷狗等来源可以在搜索和歌单页中筛选。
+- QQ QRC 通过网关解密后进入统一逐字播放状态，失败时回退到 LRC 或已有匹配源。
+- 本地音乐支持 MP3、FLAC、M4A、OGG、Opus 等常见格式，歌词文件支持 LRC、YRC、TTML 和纯文本。
+- 用户维护的 TTML 可以放入自有仓库，再在构建环境中配置 Zephyrus TTML 地址。
 
-### 其他
-
-- 跨平台搜索（网易云 / QQ / 酷狗 / 咪咕 / 酷我等）自动去重合并、来源筛选
-- 深度链接分享、本地音乐原生扫描、智能混音、定时关闭
-- 后台保活：保持音频焦点，降低被录音/其他播放打断的概率
-- 开机自启动、电池优化等系统权限快捷入口
-
----
-
-## 技术栈
-
-| 层 | 技术 |
-|---|---|
-| 前端 | Vue 3.5 + TypeScript 5.9 + Vite 6 + Pinia + Tailwind/SCSS |
-| 原生壳 | Capacitor 8（Android WebView + Java 原生桥接） |
-| 音频 | Howler.js + Web Audio API |
-| 动画 | GSAP + CSS/WAAPI 动画 |
-| 服务端 | 网易云 API + 自建扫码登录网关 + 云端歌曲/社区标注服务 |
-
----
-
-## 开发与构建
+## 快速开始
 
 ```bash
 npm install
-npm run dev:web        # 浏览器调试
-npm run typecheck      # 类型检查
-npm run build          # 构建 Web 资源 → out/renderer
-npx cap sync android   # 同步到 Android 工程
-cd android && ./gradlew.bat assembleDebug   # 构建 debug APK
+npm run dev:web
 ```
 
-APK 输出：`android/app/build/outputs/apk/debug/app-debug.apk`
+常用检查：
 
-发布预览版/正式版：推送 `v*` 标签，GitHub Actions 自动构建签名 APK 并创建 Release。
+```bash
+npm run test:lyrics
+npm run typecheck
+npm run lint:i18n
+npm run build
+npx cap sync android
+cd android
+./gradlew.bat assembleRelease --no-daemon
+```
 
----
+APK 输出在 `android/app/build/outputs/apk/release/app-release.apk`。真机安装需要 Android SDK 和一台已授权的设备：
+
+```bash
+adb install -r android/app/build/outputs/apk/release/app-release.apk
+```
 
 ## 项目结构
 
+```text
+src/renderer/
+├── api/                 平台搜索、歌词、云端歌曲和高潮接口
+├── components/          移动布局、播放栏、播放器样式和设置
+├── composables/         逐字播放、播放器形变和手势状态
+├── services/            TTML、音频、原生桥接和缓存服务
+├── store/               播放、歌词、样式、账号和设置状态
+├── utils/               QRC/YRC/LRC 解析、海报和字体工具
+└── views/               首页、歌单、发现、我的、搜索和设置
+android/                 Capacitor Android 壳和原生状态栏歌词
+website/                 VitePress 使用文档
+product-site/            Zephyrus Player Android 产品官网
+profile/                 GitHub 个人主页 README 卡片草稿
 ```
-src/
-├── main/                 # Electron 主进程（桌面兼容）
-├── renderer/             # ★ Vue 渲染层（核心）
-│   ├── api/              # 平台/音乐/云端歌曲 API
-│   ├── components/       # 播放器样式、登录、通用组件
-│   ├── layout/           # 移动端主布局
-│   ├── playerStyles/     # 播放器样式注册表
-│   ├── store/            # Pinia 状态
-│   └── views/            # 页面（首页/搜索/我的/设置…）
-├── shared/               # 跨平台共享代码
-android/                  # Capacitor Android 原生壳
-website/                  # VitePress 文档站
-server-platform-login.js  # 多平台扫码登录网关（部署于 mucang.xyz）
-```
 
----
+## 文档与贡献
 
-## 开源声明
+先阅读 [安装指南](https://www.mucang.xyz/zephyrus/docs/guide/installation.html)，再看 [歌词源说明](https://www.mucang.xyz/zephyrus/docs/features/lyric-sources.html) 和 [播放器样式总览](https://www.mucang.xyz/zephyrus/docs/styles/overview.html)。
 
-本项目仅用于学习与技术交流，音乐内容版权归原平台所有；请遵守所在地区法律法规。
-基于 [AlgerMusicPlayer](https://github.com/algerkong/AlgerMusicPlayer)（MIT License）二次开发。
+提交代码前运行歌词测试、类型检查、改动文件 ESLint 和生产构建。新增翻译必须同步 `zh-CN`、`zh-Hant`、`en-US`、`ja-JP`、`ko-KR` 五份语言文件。不要提交 Cookie、令牌、服务器密码、个人歌词原稿或本机 `AIREADEME`。
+
+## 开源与版权
+
+应用代码沿用上游项目的开源声明，并在各依赖目录保留对应许可证。音乐、封面和歌词的版权归原作者与平台所有。请只在拥有合法使用权的范围内播放、保存和分享内容。
+
+<!-- 需要发布到个人主页时，可直接使用 profile/README.md。 -->

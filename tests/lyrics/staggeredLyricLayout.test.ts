@@ -99,4 +99,12 @@ describe('arrangeStaggeredWords', () => {
         .auxiliaryCenterDisplay
     ).toBe(false);
   });
+
+  it('keeps the giant lyric no-wrap setting style-local and normalized', () => {
+    expect(resolvePlayerStyleConfig('stage').forceNoWrap).toBe(false);
+    expect(resolvePlayerStyleConfig('stage', { forceNoWrap: true }).forceNoWrap).toBe(true);
+    expect(resolvePlayerStyleConfig('stage', { forceNoWrap: 'yes' as never }).forceNoWrap).toBe(
+      false
+    );
+  });
 });

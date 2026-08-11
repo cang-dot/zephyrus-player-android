@@ -150,6 +150,7 @@ export default {
     mainLyric: 'Main Lyric',
     auxiliary: 'Background / Duet',
     auxiliaryCenterDisplay: 'Center Background / Duet Word',
+    forceNoWrap: 'Force Single Line',
     translation: 'Translation',
     climaxEffects: 'Climax Effects',
     lyricRecolor: 'Lyric Recolor',

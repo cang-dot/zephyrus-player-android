@@ -1,6 +1,7 @@
 <template>
   <setting-section :title="t('settings.sections.basic')">
     <setting-item
+      mode="direct"
       :title="t('settings.basic.themeMode')"
       :description="t('settings.basic.themeModeDesc')"
     >
@@ -116,7 +117,7 @@
       </template>
     </setting-item>
 
-    <setting-item :title="t('settings.basic.animation')">
+    <setting-item mode="direct" :title="t('settings.basic.animation')">
       <template #description>
         <div class="flex items-center gap-2">
           <n-switch v-model:value="setData.noAnimate">

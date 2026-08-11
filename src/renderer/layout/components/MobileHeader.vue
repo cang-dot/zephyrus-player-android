@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="topbarRootRef"
     class="floating-topbar"
     :class="{
       'safe-area-top': hasSafeArea,
@@ -7,20 +8,31 @@
       'has-back': showBack,
       'menu-expanded': topbarMenu.expanded.value,
       'filter-expanded': searchTypeExpanded,
-      'wide-detail-topbar': usesWideDetailTopbar
+      'assist-expanded': showSearchAssist,
+      'wide-detail-topbar': usesWideDetailTopbar,
+      'legacy-content-topbar': usesLegacyContentTopbar,
+      'player-surface-active': playerHeaderMounted
     }"
+    :style="{ '--player-header-progress': String(playerTransition.progress.value) }"
   >
     <button v-if="showBack" type="button" class="topbar-pill topbar-back" @click="onTitleClick">
       <i class="ri-arrow-left-s-line" />
     </button>
 
-    <div v-if="!isSearchPage" class="topbar-morph-anchor">
+    <div
+      v-if="showPageCapsule"
+      ref="morphAnchorRef"
+      class="topbar-morph-anchor"
+      :class="{ expanded: topbarMenu.expanded.value }"
+      :style="morphAnchorStyle"
+    >
       <section
+        ref="morphPanelRef"
         class="topbar-pill topbar-morph"
         :class="{ expanded: topbarMenu.expanded.value, 'has-menu': hasMorphMenu }"
         @pointerdown.stop
       >
-        <header class="morph-trigger" @click.stop="toggleMorphMenu">
+        <header ref="morphTriggerRef" class="morph-trigger" @click.stop="toggleMorphMenu">
           <img
             v-if="topbarMenu.presentation.value?.imageUrl"
             :src="topbarMenu.presentation.value.imageUrl"
@@ -41,7 +53,7 @@
         <div v-if="topbarMenu.presentation.value?.badge" class="morph-badge">
           {{ topbarMenu.presentation.value.badge }}
         </div>
-        <div class="morph-content" @click.stop>
+        <div ref="morphContentRef" class="morph-content" @click.stop>
           <section v-if="topbarMenu.presentation.value?.description" class="morph-description">
             <header v-if="topbarMenu.presentation.value.descriptionTitle">
               <i class="ri-information-line" />
@@ -112,31 +124,115 @@
     </div>
 
     <!-- 搜索框（非搜索页：点击跳转；搜索页：真实输入框） -->
-    <button
+    <section
       class="topbar-pill topbar-search-pill"
-      :class="{ 'search-circle': usesWideDetailTopbar }"
+      :class="{
+        'search-circle': usesWideDetailTopbar,
+        'assist-expanded': showSearchAssist
+      }"
+      :style="searchPillStyle"
       @click="!isSearchPage && !isSettingsPage && openSearch()"
       :aria-label="t('comp.searchBar.searchPlaceholder')"
+      @pointerdown.stop
     >
-      <i class="ri-search-line search-icon"></i>
-      <input
-        ref="searchInputRef"
-        :value="isSettingsPage ? settingsSearchValue : isSearchPage ? searchStore.searchValue : ''"
-        type="text"
-        class="search-input"
-        :readonly="!isSearchPage && !isSettingsPage"
-        :placeholder="isSettingsPage ? topbarSearchPlaceholder : searchStore.placeholder"
-        @input="onTopbarInput"
-        @focus="(isSearchPage || isSettingsPage) && handleSearchFocus()"
-        @click="(isSearchPage || isSettingsPage) && handleSearchFocus()"
-        @keydown.enter="isSearchPage && handleSearchSubmit()"
-      />
-      <i
-        v-if="(isSearchPage && searchStore.searchValue) || (isSettingsPage && settingsSearchValue)"
-        class="ri-close-circle-fill clear-icon"
-        @click.stop="isSettingsPage ? clearSettingsSearch() : clearSearch()"
-      ></i>
-    </button>
+      <div class="topbar-search-row">
+        <i class="ri-search-line search-icon"></i>
+        <input
+          ref="searchInputRef"
+          :value="
+            isSettingsPage ? settingsSearchValue : isSearchPage ? searchStore.searchValue : ''
+          "
+          type="text"
+          class="search-input"
+          :readonly="!isSearchPage && !isSettingsPage"
+          :placeholder="isSettingsPage ? topbarSearchPlaceholder : searchStore.placeholder"
+          @input="onTopbarInput"
+          @focus="(isSearchPage || isSettingsPage) && handleSearchFocus()"
+          @click="(isSearchPage || isSettingsPage) && handleSearchFocus()"
+          @keydown.enter="isSearchPage && handleSearchSubmit()"
+        />
+        <i
+          v-if="
+            (isSearchPage && searchStore.searchValue) || (isSettingsPage && settingsSearchValue)
+          "
+          class="ri-close-circle-fill clear-icon"
+          @click.stop="isSettingsPage ? clearSettingsSearch() : clearSearch()"
+        ></i>
+      </div>
+
+      <div class="search-assist-panel" :aria-hidden="!showSearchAssist" @click.stop>
+        <header class="search-assist-header">
+          <div class="search-assist-title">
+            <i
+              :class="
+                isSettingsPage
+                  ? 'ri-settings-3-line'
+                  : showingHistory
+                    ? 'ri-time-line'
+                    : 'ri-search-line'
+              "
+            />
+            <span>
+              {{
+                isSettingsPage
+                  ? '设置建议'
+                  : showingHistory
+                    ? t('search.title.searchHistory')
+                    : t('search.suggestions')
+              }}
+            </span>
+          </div>
+          <button
+            v-if="!isSettingsPage && showingHistory && searchHistory.length"
+            type="button"
+            class="search-assist-clear"
+            @click="clearSearchHistory"
+          >
+            {{ t('search.button.clear') }}
+          </button>
+        </header>
+
+        <div v-if="suggestionsLoading" class="search-assist-loading">
+          <i class="ri-loader-4-line" />
+        </div>
+
+        <div v-else-if="isSettingsPage && settingsAssistItems.length" class="search-assist-list">
+          <button
+            v-for="(item, itemIndex) in settingsAssistItems"
+            :key="`settings-${item.tabId}-${item.title}-${itemIndex}`"
+            type="button"
+            class="search-assist-item search-assist-item--setting"
+            @click="selectSettingsAssistItem(item)"
+          >
+            <span class="settings-assist-section">{{ item.tabLabel }}</span>
+            <span class="settings-assist-copy">
+              <strong>{{ item.title }}</strong>
+              <small>{{ item.desc }}</small>
+            </span>
+            <i class="ri-arrow-right-s-line item-arrow" />
+          </button>
+        </div>
+
+        <div v-else-if="!isSettingsPage && assistItems.length" class="search-assist-list">
+          <button
+            v-for="(item, itemIndex) in assistItems"
+            :key="`${showingHistory ? 'history' : 'suggestion'}-${item}-${itemIndex}`"
+            type="button"
+            class="search-assist-item"
+            @click="selectSearchAssistItem(item)"
+          >
+            <i :class="showingHistory ? 'ri-history-line' : 'ri-search-line'" />
+            <span>{{ item }}</span>
+            <i class="ri-arrow-right-up-line item-arrow" />
+          </button>
+        </div>
+
+        <div v-else class="search-assist-empty">
+          <i :class="showingHistory ? 'ri-history-line' : 'ri-search-eye-line'" />
+          <span>{{ t('common.noData') }}</span>
+        </div>
+      </div>
+    </section>
 
     <div v-if="isSearchPage" class="topbar-morph-anchor topbar-search-morph-anchor">
       <section
@@ -144,10 +240,7 @@
         :class="{ expanded: searchTypeExpanded }"
         @pointerdown.stop
       >
-        <header
-          class="morph-trigger search-filter-trigger"
-          @click.stop="searchTypeExpanded = !searchTypeExpanded"
-        >
+        <header class="morph-trigger search-filter-trigger" @click.stop="toggleSearchTypeMenu">
           <span>{{ activeSearchTypeLabel }}</span>
           <i class="ri-arrow-down-s-line" />
         </header>
@@ -226,109 +319,62 @@
         </div>
       </template>
     </div>
+
+    <div
+      v-if="playerHeaderMounted"
+      class="player-header-layer no-toggle"
+      :style="playerHeaderStyle"
+    >
+      <button
+        type="button"
+        class="player-header-button"
+        aria-label="收起播放器"
+        :style="playerCloseMorphStyle"
+        @click="closePlayer"
+      >
+        <i class="ri-arrow-down-s-line" />
+      </button>
+      <div class="player-header-song-pill" :style="playerSongMorphStyle">
+        <img v-if="playerCover" :src="playerCover" alt="" />
+        <span>
+          <strong>{{ playerSong?.name || 'Zephyrus' }}</strong>
+          <small>{{ playerArtistText }}</small>
+        </span>
+      </div>
+      <button
+        type="button"
+        class="player-header-button"
+        aria-label="播放设置"
+        :style="playerSettingsMorphStyle"
+        @click="openPlayerSettings"
+      >
+        <i class="ri-more-2-fill" />
+      </button>
+    </div>
   </div>
 
   <div
-    v-if="topbarMenu.expanded.value || searchTypeExpanded"
+    v-if="topbarMenu.expanded.value || searchTypeExpanded || showSearchAssist"
     class="morph-dismiss-layer"
     @pointerdown="closeFloatingMenus"
   />
-
-  <Teleport to="body">
-    <Transition name="search-assist">
-      <div
-        v-if="showSearchAssist"
-        class="search-assist-layer"
-        @pointerdown.self="closeSearchAssist"
-      >
-        <section class="search-assist-panel" @pointerdown.stop>
-          <header class="search-assist-header">
-            <div class="search-assist-title">
-              <i
-                :class="
-                  isSettingsPage
-                    ? 'ri-settings-3-line'
-                    : showingHistory
-                      ? 'ri-time-line'
-                      : 'ri-search-line'
-                "
-              />
-              <span>
-                {{
-                  isSettingsPage
-                    ? '设置建议'
-                    : showingHistory
-                      ? t('search.title.searchHistory')
-                      : t('search.suggestions')
-                }}
-              </span>
-            </div>
-            <button
-              v-if="!isSettingsPage && showingHistory && searchHistory.length"
-              type="button"
-              class="search-assist-clear"
-              @click="clearSearchHistory"
-            >
-              {{ t('search.button.clear') }}
-            </button>
-          </header>
-
-          <div v-if="suggestionsLoading" class="search-assist-loading">
-            <i class="ri-loader-4-line" />
-          </div>
-
-          <div v-else-if="isSettingsPage && settingsAssistItems.length" class="search-assist-list">
-            <button
-              v-for="(item, itemIndex) in settingsAssistItems"
-              :key="`settings-${item.tabId}-${item.title}-${itemIndex}`"
-              type="button"
-              class="search-assist-item search-assist-item--setting"
-              @click="selectSettingsAssistItem(item)"
-            >
-              <span class="settings-assist-section">{{ item.tabLabel }}</span>
-              <span class="settings-assist-copy">
-                <strong>{{ item.title }}</strong>
-                <small>{{ item.desc }}</small>
-              </span>
-              <i class="ri-arrow-right-s-line item-arrow" />
-            </button>
-          </div>
-
-          <div v-else-if="!isSettingsPage && assistItems.length" class="search-assist-list">
-            <button
-              v-for="(item, itemIndex) in assistItems"
-              :key="`${showingHistory ? 'history' : 'suggestion'}-${item}-${itemIndex}`"
-              type="button"
-              class="search-assist-item"
-              @click="selectSearchAssistItem(item)"
-            >
-              <i :class="showingHistory ? 'ri-history-line' : 'ri-search-line'" />
-              <span>{{ item }}</span>
-              <i class="ri-arrow-right-up-line item-arrow" />
-            </button>
-          </div>
-
-          <div v-else class="search-assist-empty">
-            <i :class="showingHistory ? 'ri-history-line' : 'ri-search-eye-line'" />
-            <span>{{ t('common.noData') }}</span>
-          </div>
-        </section>
-      </div>
-    </Transition>
-  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core';
+import type { CSSProperties } from 'vue';
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import { getSearchSuggestions } from '@/api/search';
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
+import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useMobileTopbarMenu } from '@/composables/useMobileTopbarMenu';
 import { SEARCH_TYPES } from '@/const/bar-const';
+import { artistList, playMusic } from '@/hooks/MusicHook';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
+import { usePlayerStore } from '@/store/modules/player';
 import { useSearchStore } from '@/store/modules/search';
 import { useUserStore } from '@/store/modules/user';
 import { getImgUrl } from '@/utils';
@@ -339,6 +385,8 @@ const { t } = useI18n();
 const userStore = useUserStore();
 const accountStore = usePlatformAccountsStore();
 const searchStore = useSearchStore();
+const playerStore = usePlayerStore();
+const playerTransition = useMobilePlayerTransition();
 
 const hasSafeArea = inject('hasSafeArea', false);
 
@@ -348,9 +396,13 @@ const isSearchPage = computed(
   () => route.path === '/mobile-search' || route.path === '/mobile-search-result'
 );
 const isSettingsPage = computed(() => route.path === '/set');
+const showPageCapsule = computed(
+  () => !isSearchPage.value && !['/', '/discover', '/user'].includes(route.path)
+);
 const usesWideDetailTopbar = computed(
   () => route.path.startsWith('/music-list/') || route.path.startsWith('/artist/detail/')
 );
+const usesLegacyContentTopbar = computed(() => showPageCapsule.value);
 const isSearchResultPage = computed(() => route.path === '/mobile-search-result');
 const searchTypes = computed(() =>
   SEARCH_TYPES.map((type) => ({ key: type.key, label: t(type.label) }))
@@ -380,9 +432,112 @@ const avatarUrl = computed(() => {
 const topbarSearchPlaceholder = computed(() =>
   route.path === '/set' ? '搜索设置项...' : t('comp.searchBar.searchPlaceholder')
 );
+const playerHeaderMounted = computed(
+  () => playerStore.musicFull || playerTransition.progress.value > 0.015
+);
+const playerHeaderVisible = computed(
+  () => playerTransition.controlsVisible.value || playerTransition.surfaceMode.value !== 'controls'
+);
+type HeaderMorphRect = { left: number; top: number; width: number; height: number };
+const playerHeaderOrigins = ref<{
+  close: HeaderMorphRect;
+  song: HeaderMorphRect;
+  settings: HeaderMorphRect;
+} | null>(null);
+const playerSong = computed(() => {
+  const hookSong = playMusic?.value;
+  if (hookSong?.name) return hookSong;
+  const storedSong = playerStore.playMusic;
+  if (storedSong?.name) return storedSong;
+  return playerStore.currentSong;
+});
+const playerHeaderStyle = computed<CSSProperties>(() => {
+  const progressReveal = Math.min(1, Math.max(0, playerTransition.progress.value * 2.6));
+  const reveal = progressReveal * (playerHeaderVisible.value ? 1 : 0);
+  return {
+    opacity: String(reveal),
+    pointerEvents: reveal > 0.05 ? 'auto' : 'none'
+  };
+});
+const playerCover = computed(() =>
+  playerSong.value?.picUrl ? getImgUrl(playerSong.value.picUrl, '100y100') : ''
+);
+const playerArtistText = computed(() => {
+  const artists =
+    playerSong.value?.ar || playerSong.value?.song?.artists || artistList?.value || [];
+  return artists.map((artist) => artist.name).join(' / ');
+});
+
+const headerTargetTop = () =>
+  Number.parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-top') || '0'
+  ) + 8;
+const morphFromHeaderRect = (
+  source: HeaderMorphRect | undefined,
+  target: HeaderMorphRect
+): CSSProperties => {
+  if (!source) return {};
+  const progress = Math.min(1, Math.max(0, playerTransition.progress.value));
+  const inverse = 1 - progress;
+  const sourceCenterX = source.left + source.width / 2;
+  const sourceCenterY = source.top + source.height / 2;
+  const targetCenterX = target.left + target.width / 2;
+  const targetCenterY = target.top + target.height / 2;
+  return {
+    transform: `translate3d(${(sourceCenterX - targetCenterX) * inverse}px, ${(sourceCenterY - targetCenterY) * inverse}px, 0) scale(${1 + (source.width / target.width - 1) * inverse}, ${1 + (source.height / target.height - 1) * inverse})`
+  };
+};
+const playerCloseMorphStyle = computed<CSSProperties>(() =>
+  morphFromHeaderRect(playerHeaderOrigins.value?.close, {
+    left: 12,
+    top: headerTargetTop(),
+    width: 42,
+    height: 42
+  })
+);
+const playerSongMorphStyle = computed<CSSProperties>(() => {
+  const width = Math.min(260, Math.max(176, window.innerWidth - 130));
+  return morphFromHeaderRect(playerHeaderOrigins.value?.song, {
+    left: (window.innerWidth - width) / 2,
+    top: headerTargetTop(),
+    width,
+    height: 42
+  });
+});
+const playerSettingsMorphStyle = computed<CSSProperties>(() =>
+  morphFromHeaderRect(playerHeaderOrigins.value?.settings, {
+    left: window.innerWidth - 54,
+    top: headerTargetTop(),
+    width: 42,
+    height: 42
+  })
+);
+
+const closePlayer = () => {
+  playerTransition.setSurfaceMode('controls');
+  playerStore.setMusicFull(false);
+  playerTransition.animateTo(0);
+};
+const openPlayerSettings = () => playerTransition.setSurfaceMode('settings');
 
 const searchInputRef = ref<HTMLInputElement | null>(null);
 const morphSearchInputRef = ref<HTMLInputElement | null>(null);
+const topbarRootRef = ref<HTMLElement | null>(null);
+const morphAnchorRef = ref<HTMLElement | null>(null);
+const morphPanelRef = ref<HTMLElement | null>(null);
+const morphTriggerRef = ref<HTMLElement | null>(null);
+const morphContentRef = ref<HTMLElement | null>(null);
+const morphExpandedWidth = ref<number | null>(null);
+const settingsAssistOverlapWidth = ref(72);
+const morphAnchorStyle = computed(() =>
+  !usesLegacyContentTopbar.value && topbarMenu.expanded.value && morphExpandedWidth.value
+    ? { '--topbar-morph-expanded-width': `${morphExpandedWidth.value}px` }
+    : undefined
+);
+const searchPillStyle = computed<CSSProperties | undefined>(() => {
+  if (!showSearchAssist.value || !isSettingsPage.value) return undefined;
+  return { marginLeft: `-${settingsAssistOverlapWidth.value}px` };
+});
 const settingsSearchValue = ref('');
 const searchTypeExpanded = ref(false);
 const expandedMorphActionId = ref<string | null>(null);
@@ -410,6 +565,40 @@ const activeSearchTypeLabel = computed(
 );
 const HISTORY_KEY = 'mobile_search_history';
 let suggestionRequestId = 0;
+let morphResizeObserver: ResizeObserver | undefined;
+
+const readHeaderRect = (element: Element | null): HeaderMorphRect | null => {
+  if (!(element instanceof HTMLElement)) return null;
+  const rect = element.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+};
+
+const capturePlayerHeaderOrigins = () => {
+  const root = topbarRootRef.value;
+  if (!root) return;
+  const back = readHeaderRect(root.querySelector('.topbar-back'));
+  const title = readHeaderRect(root.querySelector('.topbar-morph'));
+  const search = readHeaderRect(root.querySelector('.topbar-search-pill'));
+  const action = readHeaderRect(root.querySelector('.topbar-action-pill'));
+  const center = title || search;
+  if (!center) return;
+  playerHeaderOrigins.value = {
+    close: back || search || center,
+    song: center,
+    settings: action || search || center
+  };
+};
+
+watch(
+  () => playerTransition.state.value,
+  (state, previous) => {
+    if ((state === 'dragging' || state === 'opening') && previous === 'idle') {
+      capturePlayerHeaderOrigins();
+    }
+  },
+  { flush: 'sync' }
+);
 
 const loadSearchHistory = () => {
   try {
@@ -454,7 +643,11 @@ const debouncedLoadSuggestions = useDebounceFn(loadSuggestions, 240);
 const openSearchAssist = () => {
   if (!isSearchResultPage.value && !isSettingsPage.value) return;
 
-  showSearchAssist.value = isSettingsPage.value;
+  searchTypeExpanded.value = false;
+  if (isSettingsPage.value) {
+    settingsAssistOverlapWidth.value = (morphAnchorRef.value?.offsetWidth || 64) + 8;
+  }
+  showSearchAssist.value = true;
   if (isSettingsPage.value) return;
   if (showingHistory.value) {
     suggestionRequestId++;
@@ -500,10 +693,18 @@ watch(
   }
 );
 
+watch(
+  () => playerTransition.progress.value,
+  (progress) => {
+    if (progress > 0.015) closeFloatingMenus();
+  }
+);
+
 const closeFloatingMenus = () => {
   topbarMenu.close();
   searchTypeExpanded.value = false;
   expandedMorphActionId.value = null;
+  closeSearchAssist();
 };
 
 const onTitleClick = () => {
@@ -520,6 +721,50 @@ const toggleMorphMenu = () => {
   if (!hasMorphMenu.value) return;
   topbarMenu.expanded.value = !topbarMenu.expanded.value;
   if (!topbarMenu.expanded.value) expandedMorphActionId.value = null;
+};
+
+const measureMorphWidth = () => {
+  if (
+    usesLegacyContentTopbar.value ||
+    !topbarMenu.expanded.value ||
+    !morphTriggerRef.value ||
+    !morphContentRef.value
+  ) {
+    morphExpandedWidth.value = null;
+    return;
+  }
+
+  const fixedSearchWidth = usesWideDetailTopbar.value ? 40 : 72;
+  const backWidth = showBack.value ? 40 : 0;
+  const visibleItemCount = 3 + (showBack.value ? 1 : 0);
+  const availableWidth = Math.max(
+    64,
+    window.innerWidth - 24 - backWidth - fixedSearchWidth - 40 - (visibleItemCount - 1) * 8
+  );
+  const measurableRows = Array.from(
+    morphContentRef.value.querySelectorAll<HTMLElement>(
+      '.morph-description, .morph-search, .morph-group > button, .morph-action-trigger, .morph-action-options > button'
+    )
+  );
+  const desiredWidth = Math.max(
+    morphTriggerRef.value.scrollWidth,
+    ...measurableRows.map((row) => row.scrollWidth + 28),
+    64
+  );
+  morphExpandedWidth.value = Math.min(availableWidth, desiredWidth);
+};
+
+const scheduleMorphMeasurement = () => {
+  nextTick(() => {
+    [
+      topbarRootRef.value,
+      morphAnchorRef.value,
+      morphPanelRef.value,
+      morphTriggerRef.value,
+      morphContentRef.value
+    ].forEach((element) => element && morphResizeObserver?.observe(element));
+    requestAnimationFrame(measureMorphWidth);
+  });
 };
 
 const selectMorphOption = (group: any, value: string | number) => {
@@ -581,7 +826,7 @@ const onSearchInput = (e: Event) => {
   searchStore.setSearchValue(value);
   if (!isSearchResultPage.value) return;
 
-  showSearchAssist.value = isSettingsPage.value;
+  showSearchAssist.value = true;
   if (value.trim()) {
     debouncedLoadSuggestions(value);
   } else {
@@ -593,6 +838,11 @@ const onSearchInput = (e: Event) => {
 };
 
 const handleSearchFocus = () => openSearchAssist();
+
+const toggleSearchTypeMenu = () => {
+  closeSearchAssist();
+  searchTypeExpanded.value = !searchTypeExpanded.value;
+};
 
 const clearSearch = () => {
   searchStore.setSearchValue('');
@@ -627,18 +877,57 @@ const platformForSearchSource = (source: string) => {
 };
 
 const selectSettingsAssistItem = (item: SettingsAssistItem) => {
+  settingsSearchValue.value = '';
+  settingsAssistItems.value = [];
   closeSearchAssist();
   searchInputRef.value?.blur();
   window.dispatchEvent(new CustomEvent('mobile-settings-search-select', { detail: item }));
 };
 
+const onSettingsSearchReset = () => {
+  settingsSearchValue.value = '';
+  settingsAssistItems.value = [];
+  closeSearchAssist();
+  searchInputRef.value?.blur();
+};
+
 onMounted(() => {
   window.addEventListener('mobile-settings-search-results', onSettingsSearchResults);
+  window.addEventListener('mobile-settings-search-reset', onSettingsSearchReset);
+  window.addEventListener('resize', scheduleMorphMeasurement);
+  nextTick(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    morphResizeObserver = new ResizeObserver(scheduleMorphMeasurement);
+    [
+      topbarRootRef.value,
+      morphAnchorRef.value,
+      morphPanelRef.value,
+      morphTriggerRef.value,
+      morphContentRef.value
+    ].forEach((element) => element && morphResizeObserver?.observe(element));
+  });
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('mobile-settings-search-results', onSettingsSearchResults);
+  window.removeEventListener('mobile-settings-search-reset', onSettingsSearchReset);
+  window.removeEventListener('resize', scheduleMorphMeasurement);
+  morphResizeObserver?.disconnect();
+  morphResizeObserver = undefined;
 });
+
+watch(
+  () => [
+    topbarMenu.expanded.value,
+    expandedMorphActionId.value,
+    topbarMenu.activeLabel.value,
+    topbarMenu.groups.value.length,
+    topbarMenu.actions.value.length,
+    route.path
+  ],
+  scheduleMorphMeasurement,
+  { flush: 'post' }
+);
 
 const clearSearchHistory = () => {
   searchHistory.value = [];
@@ -653,7 +942,11 @@ const navigateToSearchResult = (keyword: string) => {
 
   const location = {
     path: '/mobile-search-result',
-    query: { keyword, type: searchStore.searchType }
+    query: {
+      keyword,
+      type: searchStore.searchType,
+      ...(searchStore.searchSource ? { source: searchStore.searchSource } : {})
+    }
   };
   if (isSearchResultPage.value) {
     router.replace(location);
@@ -692,14 +985,122 @@ const handleSearchSubmit = () => {
   padding-bottom: 8px;
   pointer-events: none; /* allow scroll-through on gaps */
   transition: padding-top 220ms ease;
+
+  &.player-surface-active {
+    z-index: 100150;
+  }
+
+  &.player-surface-active > .topbar-back,
+  &.player-surface-active > .topbar-morph-anchor,
+  &.player-surface-active > .topbar-search-pill,
+  &.player-surface-active > .topbar-search-morph-anchor,
+  &.player-surface-active > .topbar-action-pill {
+    opacity: calc(1 - var(--player-header-progress, 0));
+    transform: scale(calc(1 - var(--player-header-progress, 0) * 0.08));
+    pointer-events: none;
+  }
+}
+
+.player-header-layer {
+  position: absolute;
+  top: calc(var(--safe-area-inset-top, 0px) + 8px);
+  right: 12px;
+  left: 12px;
+  display: grid;
+  grid-template-columns: 42px minmax(176px, 260px) 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  transform-origin: center top;
+  will-change: transform, opacity;
+}
+
+.player-header-button,
+.player-header-song-pill {
+  height: 42px;
+  border: 1px solid color-mix(in srgb, #fff 22%, transparent);
+  background: color-mix(in srgb, var(--accent-color, #777) 10%, rgba(20, 20, 22, 0.58));
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 8px 24px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(26px) saturate(170%);
+  -webkit-backdrop-filter: blur(26px) saturate(170%);
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.player-header-button {
+  display: grid;
+  width: 42px;
+  padding: 0;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 21px;
+}
+
+.player-header-song-pill {
+  display: flex;
+  width: clamp(176px, calc(100vw - 130px), 260px);
+  min-width: 0;
+  align-items: center;
+  justify-self: center;
+  gap: 9px;
+  padding: 3px 13px 3px 4px;
+  border-radius: 999px;
+}
+
+.player-header-song-pill img {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.player-header-song-pill span {
+  display: grid;
+  min-width: 0;
+  text-align: left;
+}
+
+.player-header-song-pill strong,
+.player-header-song-pill small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-header-song-pill strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.player-header-song-pill small {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 10px;
 }
 
 .topbar-morph-anchor {
   position: relative;
-  width: 80px;
+  width: fit-content;
+  min-width: 64px;
+  max-width: 44vw;
   height: 40px;
-  flex: 0 0 80px;
+  flex: 0 1 auto;
   pointer-events: auto;
+  transition:
+    width 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    flex-basis 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    max-width 360ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  &.expanded {
+    width: var(--topbar-morph-expanded-width, 180px);
+    min-width: var(--topbar-morph-expanded-width, 180px);
+    max-width: var(--topbar-morph-expanded-width, 180px);
+    flex: 0 0 var(--topbar-morph-expanded-width, 180px);
+    z-index: 3;
+  }
 }
 
 .topbar-pill {
@@ -746,10 +1147,10 @@ const handleSearchSubmit = () => {
   position: relative;
   z-index: 3;
   flex: 0 0 auto;
-  width: 80px;
+  width: max-content;
   height: auto;
-  min-width: 72px;
-  max-width: 88px;
+  min-width: 64px;
+  max-width: 44vw;
   min-height: 40px;
   max-height: 40px;
   flex-direction: column;
@@ -769,11 +1170,11 @@ const handleSearchSubmit = () => {
     box-shadow 360ms cubic-bezier(0.32, 0.72, 0, 1);
 
   &.expanded {
-    position: fixed;
-    top: calc(var(--safe-area-inset-top, 0px) + 8px);
-    left: 12px;
-    width: min(78vw, 320px);
-    max-width: min(78vw, 320px);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    max-width: 100%;
     max-height: min(52dvh, 420px);
     min-height: 40px;
     border-radius: 18px;
@@ -785,14 +1186,16 @@ const handleSearchSubmit = () => {
 }
 
 .topbar-search-morph-anchor {
+  position: relative;
   width: 72px;
   flex-basis: 72px;
+  align-self: flex-start;
 }
 
 .topbar-search-morph {
-  position: fixed;
-  top: calc(var(--safe-area-inset-top, 0px) + 8px);
-  right: 60px;
+  position: absolute;
+  top: 0;
+  right: 0;
   left: auto;
   width: 72px;
   min-width: 72px;
@@ -813,31 +1216,34 @@ const handleSearchSubmit = () => {
   }
 }
 
-/* 歌单与歌手详情的收起胶囊填满中间轨道，让右侧按钮保持稳定。 */
+/* 详情页也按标题实际宽度收起，搜索框吸收剩余空间。 */
 .floating-topbar.wide-detail-topbar .topbar-morph-anchor {
-  width: auto;
-  min-width: 0;
-  flex: 1 1 auto;
+  width: fit-content;
+  min-width: 64px;
+  max-width: 44vw;
+  flex: 0 1 auto;
+
+  &.expanded {
+    width: var(--topbar-morph-expanded-width, 180px);
+    min-width: var(--topbar-morph-expanded-width, 180px);
+    max-width: var(--topbar-morph-expanded-width, 180px);
+    flex-basis: var(--topbar-morph-expanded-width, 180px);
+  }
 }
 
 .floating-topbar.wide-detail-topbar .topbar-morph:not(.expanded) {
-  width: 100%;
-  max-width: none;
+  width: max-content;
+  max-width: 44vw;
 }
 
-/* 展开态保持同一容器形变，并延伸到顶栏右边缘。 */
 .floating-topbar.wide-detail-topbar .topbar-morph.expanded {
-  width: min(calc(100vw - 72px), 460px);
-  max-width: min(calc(100vw - 72px), 460px);
+  width: 100%;
+  max-width: 100%;
 }
 
-.floating-topbar.has-back .topbar-morph.expanded {
-  left: 60px;
-}
-
-/* Search filter keeps the right edge of its trigger as the morph origin. */
+/* Search filter stays anchored to the trigger's top-right corner. */
 .floating-topbar.has-back .topbar-search-morph.expanded {
-  right: 60px;
+  right: 0;
   left: auto;
 }
 
@@ -1262,10 +1668,41 @@ const handleSearchSubmit = () => {
 
 /* 搜索框 */
 .topbar-search-pill {
+  position: relative;
+  z-index: 2;
   flex: 1;
-  min-width: 0;
-  padding: 0 14px;
-  gap: 8px;
+  height: auto;
+  min-height: 40px;
+  min-width: 72px;
+  max-height: 40px;
+  align-self: flex-start;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  gap: 0;
+  border-radius: 20px;
+  transform-origin: top center;
+  transition:
+    max-height 380ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 380ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 260ms ease,
+    flex 240ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  &.assist-expanded {
+    z-index: 310;
+    max-height: min(52dvh, 460px);
+    border-radius: 20px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+  }
+
+  .topbar-search-row {
+    display: flex;
+    width: 100%;
+    min-height: 38px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+  }
 
   .search-icon {
     font-size: 17px;
@@ -1303,11 +1740,14 @@ const handleSearchSubmit = () => {
 .topbar-search-pill.search-circle {
   flex: 0 0 40px;
   width: 40px;
+  min-width: 40px;
+  max-width: 40px;
   padding: 0;
   justify-content: center;
 
   .search-input,
-  .clear-icon {
+  .clear-icon,
+  .search-assist-panel {
     display: none;
   }
 }
@@ -1424,7 +1864,21 @@ const handleSearchSubmit = () => {
   }
 }
 
-.topbar-search-pill,
+.topbar-search-pill {
+  transform-origin: center right;
+  transition:
+    opacity 180ms ease,
+    transform 340ms cubic-bezier(0.32, 0.72, 0, 1),
+    background 180ms ease,
+    border-color 180ms ease,
+    max-height 380ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 380ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 260ms ease,
+    flex 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    margin-left 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    margin-right 360ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 .topbar-action-pill {
   transform-origin: center right;
   transition:
@@ -1436,13 +1890,53 @@ const handleSearchSubmit = () => {
 
 .floating-topbar.menu-expanded {
   z-index: 300;
+}
 
-  .topbar-search-pill,
-  .topbar-search-morph,
-  .topbar-action-pill {
-    opacity: 0;
-    transform: translate3d(12px, 0, 0) scale(0.94);
-    pointer-events: none;
+/* Song lists, playlists and artists retain the established topbar geometry. */
+.floating-topbar.legacy-content-topbar {
+  &.wide-detail-topbar .topbar-morph-anchor:not(.expanded) {
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  &.wide-detail-topbar .topbar-morph:not(.expanded) {
+    width: 100%;
+    max-width: none;
+  }
+
+  .topbar-morph-anchor.expanded {
+    width: fit-content;
+    min-width: 64px;
+    max-width: 44vw;
+    flex: 0 1 auto;
+  }
+
+  .topbar-morph.expanded {
+    position: fixed;
+    top: calc(var(--safe-area-inset-top, 0px) + 8px);
+    left: 12px;
+    width: min(78vw, 320px);
+    max-width: min(78vw, 320px);
+  }
+
+  &.has-back .topbar-morph.expanded {
+    left: 60px;
+  }
+
+  &.wide-detail-topbar .topbar-morph.expanded {
+    width: min(calc(100vw - 72px), 460px);
+    max-width: min(calc(100vw - 72px), 460px);
+  }
+
+  &.menu-expanded {
+    .topbar-search-pill,
+    .topbar-action-pill {
+      opacity: 0;
+      transform: translate3d(12px, 0, 0) scale(0.94);
+      pointer-events: none;
+    }
   }
 }
 
@@ -1460,6 +1954,28 @@ const handleSearchSubmit = () => {
 
 .floating-topbar.filter-expanded {
   z-index: 300;
+}
+
+.floating-topbar.assist-expanded {
+  z-index: 300;
+  align-items: flex-start;
+}
+
+.floating-topbar.is-search.assist-expanded > .topbar-search-pill {
+  margin-right: -80px;
+  z-index: 310;
+}
+
+.floating-topbar.is-search.assist-expanded > .topbar-search-morph-anchor {
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
+}
+
+.floating-topbar:not(.is-search).assist-expanded > .topbar-morph-anchor {
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
 }
 
 .topbar-settings-pill {
@@ -1496,29 +2012,26 @@ const handleSearchSubmit = () => {
   color: #fff;
 }
 
-.search-assist-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 99;
-  background: rgba(0, 0, 0, 0.12);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+.search-assist-panel {
+  width: 100%;
+  max-height: calc(min(52dvh, 460px) - 40px);
+  overflow: hidden;
+  border-top: 1px solid var(--cover-border, rgba(255, 255, 255, 0.12));
+  color: var(--cover-text-primary, var(--text-color));
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity 180ms ease 70ms,
+    transform 300ms cubic-bezier(0.32, 0.72, 0, 1) 40ms;
 }
 
-.search-assist-panel {
-  position: absolute;
-  top: calc(var(--safe-area-inset-top, 0px) + 58px);
-  right: 12px;
-  left: 12px;
-  max-height: min(48dvh, 420px);
-  overflow: hidden;
-  border: 1px solid var(--cover-border, rgba(255, 255, 255, 0.12));
-  border-radius: 20px;
-  background: var(--m-glass-bg);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  color: var(--cover-text-primary, var(--text-color));
+.search-assist-panel[aria-hidden='true'] {
+  max-height: 0;
+  border-top-color: transparent;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0, -8px, 0);
+  transition-delay: 0ms;
 }
 
 .search-assist-header {
@@ -1564,7 +2077,7 @@ const handleSearchSubmit = () => {
 }
 
 .search-assist-list {
-  max-height: calc(min(48dvh, 420px) - 46px);
+  max-height: calc(min(52dvh, 460px) - 86px);
   overflow-y: auto;
   padding: 6px;
   overscroll-behavior: contain;

@@ -149,6 +149,7 @@ export default {
     mainLyric: '主歌词',
     auxiliary: '背景 / 对唱词',
     auxiliaryCenterDisplay: '背景 / 对唱词中央巨字',
+    forceNoWrap: '强制不换行',
     translation: '翻译',
     climaxEffects: '高潮效果',
     lyricRecolor: '歌词变色',

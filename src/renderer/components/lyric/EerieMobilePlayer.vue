@@ -54,7 +54,10 @@
           <template
             v-if="!isIntro && isInClimax && effects.keyword && climaxDisplayKeywords.length > 0"
           >
-            <div class="climax-keywords">
+            <div
+              class="climax-keywords"
+              :class="{ 'force-nowrap': isCustom && styleCfg.forceNoWrap === true }"
+            >
               <span
                 v-for="(kw, i) in climaxDisplayKeywords"
                 :key="i"
@@ -69,7 +72,10 @@
             </div>
           </template>
           <template v-else-if="!isIntro && currentChars.length > 0">
-            <div class="calligraphy-line">
+            <div
+              class="calligraphy-line"
+              :class="{ 'force-nowrap': isCustom && styleCfg.forceNoWrap === true }"
+            >
               <span
                 v-for="(charData, i) in currentChars"
                 :key="i"
@@ -709,6 +715,13 @@ onBeforeUnmount(() => {
   justify-content: center;
   flex-wrap: wrap;
   max-width: 100%;
+}
+.calligraphy-line.force-nowrap,
+.climax-keywords.force-nowrap {
+  width: max-content;
+  max-width: none;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 .calligraphy-char {
   font-family: v-bind(fontFamily);

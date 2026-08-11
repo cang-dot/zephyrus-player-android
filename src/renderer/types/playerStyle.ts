@@ -62,6 +62,7 @@ export interface PlayerStyleCustomConfig {
   giantSize?: number;
   wordDropFontWeight?: number;
   auxiliaryCenterDisplay?: boolean;
+  forceNoWrap?: boolean;
   staggeredSize?: number;
   staggeredRowGap?: number;
   staggeredOffset?: number;

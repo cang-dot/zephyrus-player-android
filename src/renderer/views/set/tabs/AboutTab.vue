@@ -39,6 +39,17 @@
       </s-btn>
     </setting-item>
 
+    <setting-item
+      :title="t('settings.about.website')"
+      :description="t('settings.about.websiteDesc')"
+      clickable
+      @click="openWebsite"
+    >
+      <s-btn @click.stop="openWebsite">
+        <i class="ri-global-line mr-1"></i>{{ t('settings.about.visitWebsite') }}
+      </s-btn>
+    </setting-item>
+
     <!-- 用户协议 / 开源协议 / 应用介绍 -->
     <setting-item
       title="用户协议"
@@ -87,7 +98,11 @@
             placeholder="联系方式（可选，方便回复你）"
             class="feedback-contact"
           />
-          <div v-if="feedbackResult" class="text-xs" :class="feedbackResult.success ? 'text-green-500' : 'text-red-400'">
+          <div
+            v-if="feedbackResult"
+            class="text-xs"
+            :class="feedbackResult.success ? 'text-green-500' : 'text-red-400'"
+          >
             {{ feedbackResult.message }}
           </div>
         </div>
@@ -143,6 +158,7 @@ import { marked } from 'marked';
 import { computed, inject, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { type FeedbackResult, type FeedbackType, submitFeedback } from '@/api/feedback';
 import { openUpdateModal } from '@/composables/useUpdateModal';
 import { useSettingsStore } from '@/store/modules/settings';
 import { isElectron } from '@/utils';
@@ -152,7 +168,6 @@ import licenseText from '../../../../../LICENSE?raw';
 import config from '../../../../../package.json';
 import readmeText from '../../../../../README.md?raw';
 import userAgreementText from '../../../../../用户协议.md?raw';
-import { submitFeedback, type FeedbackType, type FeedbackResult } from '@/api/feedback';
 import { APP_UPDATE_STATUS, hasAvailableAppUpdate } from '../../../../shared/appUpdate';
 import { SETTINGS_DATA_KEY, SETTINGS_MESSAGE_KEY } from '../keys';
 import SBtn from '../SBtn.vue';
@@ -278,8 +293,12 @@ const openAuthor = () => {
   window.open(setData.value.authorUrl);
 };
 
+const openWebsite = () => {
+  window.open('https://mucang.xyz/zephyrus/');
+};
+
 const openDocs = () => {
-  window.open('https://www.mucang.xyz/zephyrus/docs');
+  window.open('https://mucang.xyz/zephyrus/docs/');
 };
 
 // ==================== 意见反馈 ====================

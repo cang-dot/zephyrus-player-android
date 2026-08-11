@@ -52,6 +52,7 @@
         <!-- 巨字歌词（点击切换滚动歌词） -->
         <div
           class="giant-text-container"
+          :class="{ 'force-nowrap': isCustom && styleCfg.forceNoWrap === true }"
           v-show="
             !showFullLyrics &&
             !wordPlayback.interludeState.value.active &&
@@ -67,9 +68,10 @@
               fontFamily: frenzyFontFamily
             }"
           >
-            {{ lyricPart1 }}
+            {{ isCustom && styleCfg.forceNoWrap ? currentLyricText : lyricPart1 }}
           </div>
           <div
+            v-if="!(isCustom && styleCfg.forceNoWrap)"
             class="giant-text line-2"
             :style="{
               fontSize: fontSizePx,
@@ -405,6 +407,7 @@ const currentLyricParts = computed(() => {
 
 const lyricPart1 = computed(() => currentLyricParts.value[0] || '');
 const lyricPart2 = computed(() => currentLyricParts.value[1] || '');
+const currentLyricText = computed(() => wordPlayback.currentDisplayLine.value?.text || '');
 
 // ==================== 音频响应视觉 ====================
 
@@ -519,6 +522,14 @@ function formatTime(seconds: number): string {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+
+  &.force-nowrap {
+    width: max-content;
+    max-width: none;
+    flex-direction: row;
+    padding: 0;
+    white-space: nowrap;
+  }
 }
 
 /* 四角圆点装饰 */

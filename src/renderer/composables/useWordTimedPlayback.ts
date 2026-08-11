@@ -14,7 +14,8 @@ import {
   type TtmlBackgroundLine,
   type TtmlLine,
   ttmlToTimedLines,
-  type TtmlWord
+  type TtmlWord,
+  ttmlWordsToTimedWords
 } from '@/services/ttmlParser';
 import { useAmllStore } from '@/store/modules/amll';
 import type { ILyricText, IWordData, LyricFormat } from '@/types/music';
@@ -31,6 +32,14 @@ export interface WordPlaybackToken {
 export interface WordAuxiliaryToken extends WordPlaybackToken {
   slot: number;
   sourceKey: string;
+  agent?: string;
+}
+
+export interface WordAuxiliaryLine {
+  text: string;
+  words: IWordData[];
+  sourceKey: string;
+  slot: number;
   agent?: string;
 }
 
@@ -178,6 +187,26 @@ export function useWordTimedPlayback() {
     }
     return tokens;
   });
+  const auxiliaryLines = computed<WordAuxiliaryLine[]>(() => {
+    if (!usingTtml.value || !lyric.value) return [];
+    const seen = new Set<string>();
+    const lines: WordAuxiliaryLine[] = [];
+    for (const line of getTtmlBackgroundLines(lyric.value, correctedTime.value)) {
+      const sourceKey = auxiliarySourceKey(line);
+      const text = line.text.trim();
+      if (!text || seen.has(sourceKey)) continue;
+      seen.add(sourceKey);
+      lines.push({
+        text,
+        words: ttmlWordsToTimedWords(line.words),
+        sourceKey,
+        slot: lines.length,
+        agent: line.agent
+      });
+      if (lines.length === 3) break;
+    }
+    return lines;
+  });
 
   const source = computed<LyricFormat | 'none'>(() => {
     if (usingTtml.value) return 'ttml';
@@ -230,6 +259,7 @@ export function useWordTimedPlayback() {
     currentLine,
     currentMainToken,
     auxiliaryTokens,
+    auxiliaryLines,
     stableAnimationKey,
     displayLines,
     displayTimes,

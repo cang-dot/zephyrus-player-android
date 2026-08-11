@@ -2,14 +2,6 @@
   <div class="settings-page">
     <!-- Full-screen scrollable content -->
     <div ref="contentRef" class="settings-scroll">
-      <glow-tabs
-        v-show="!isSearching"
-        v-model="currentSection"
-        :tabs="navSections.map((s) => ({ key: s.id, label: s.title }))"
-        scrollable
-        class="section-bar-glow"
-      />
-
       <!-- Content -->
       <div class="settings-content">
         <!-- Search results mode -->
@@ -84,8 +76,11 @@ import { useDialog, useMessage } from 'naive-ui';
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import GlowTabs from '@/components/common/GlowTabs.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
+import {
+  registerMobileTopbarGroup,
+  unregisterMobileTopbarGroup
+} from '@/composables/useMobileTopbarMenu';
 import { useSettingsStore } from '@/store/modules/settings';
 import { isElectron } from '@/utils';
 
@@ -140,6 +135,7 @@ watch(
 
 onUnmounted(() => {
   settingsStore.setSetData(localSetData.value);
+  unregisterMobileTopbarGroup('settings-sections');
   window.removeEventListener('mobile-settings-search-input', onTopbarSearchInput);
   window.removeEventListener('mobile-settings-search-select', onTopbarSearchSelect);
 });
@@ -177,6 +173,21 @@ const navSections = computed(() => {
 
 const currentSection = ref('basic');
 
+const syncSettingsTopbar = () => {
+  registerMobileTopbarGroup({
+    id: 'settings-sections',
+    routePath: '/set',
+    options: navSections.value.map((section) => ({ key: section.id, label: section.title })),
+    value: currentSection.value,
+    select: (value) => {
+      currentSection.value = String(value);
+      contentRef.value?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  });
+};
+
+watch([currentSection, navSections], syncSettingsTopbar, { immediate: true });
+
 // ==================== Settings search ====================
 const searchQuery = ref('');
 const isSearching = ref(false);
@@ -188,6 +199,8 @@ interface SearchResult {
   title: string;
   desc: string;
   titlePath: string;
+  targetTitle?: string;
+  targetId?: string;
 }
 
 function fuzzyMatch(query: string, target: string): boolean {
@@ -237,7 +250,9 @@ const settingIndex = computed<SearchResult[]>(() => {
       tabLabel: tabLabels[item.tabId],
       title,
       desc,
-      titlePath: title
+      titlePath: item.targetTitle || title,
+      targetTitle: item.targetTitle,
+      targetId: item.targetId
     };
   }).filter((item) => item.title && item.tabLabel);
 });
@@ -267,6 +282,7 @@ const clearSearch = () => {
   searchQuery.value = '';
   isSearching.value = false;
   searchResults.value = [];
+  window.dispatchEvent(new CustomEvent('mobile-settings-search-reset'));
 };
 
 const onTopbarSearchInput = (event: Event) => {
@@ -284,12 +300,27 @@ const jumpToResult = (result: SearchResult) => {
   currentSection.value = result.tabId;
   nextTick(() => {
     nextTick(() => {
+      const targetedItem = result.targetId
+        ? contentRef.value?.querySelector<HTMLElement>(`#${CSS.escape(result.targetId)}`)
+        : null;
+      if (targetedItem) {
+        targetedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (targetedItem.getAttribute('aria-expanded') !== 'true') {
+          targetedItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        }
+        targetedItem.classList.add('setting-item-flash');
+        setTimeout(() => targetedItem.classList.remove('setting-item-flash'), 2000);
+        return;
+      }
       const items = contentRef.value?.querySelectorAll('.setting-item, .keep-alive-item');
       if (items) {
         for (const item of items) {
           const titleEl = item.querySelector('.setting-item-title, .item-title, [class*="title"]');
           if (titleEl && titleEl.textContent?.includes(result.titlePath)) {
             item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (item.getAttribute('aria-expanded') !== 'true') {
+              item.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            }
             item.classList.add('setting-item-flash');
             setTimeout(() => item.classList.remove('setting-item-flash'), 2000);
             break;
@@ -302,6 +333,7 @@ const jumpToResult = (result: SearchResult) => {
 
 // ==================== Init ====================
 onMounted(() => {
+  syncSettingsTopbar();
   window.addEventListener('mobile-settings-search-input', onTopbarSearchInput);
   window.addEventListener('mobile-settings-search-select', onTopbarSearchSelect);
   if (isElectron && settingsStore.appUpdateState.currentVersion === '') {

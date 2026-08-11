@@ -36,7 +36,7 @@
       @pointercancel="onMiniPointerCancel"
     >
       <!-- 歌曲信息 -->
-      <div class="mini-song-info" @click="onMiniSongInfoClick">
+      <div class="mini-song-info" :style="miniSongInfoStyle" @click="onMiniSongInfoClick">
         <n-image
           :src="getImgUrl(playMusic?.picUrl, '100y100')"
           class="mini-song-cover"
@@ -59,7 +59,7 @@
         </div>
       </div>
 
-      <div class="mini-playback-controls" @pointerdown.stop>
+      <div class="mini-playback-controls" :style="miniPlaybackControlsStyle" @pointerdown.stop>
         <div class="mini-control-btn play" role="button" tabindex="0" @click.stop="playMusicEvent">
           <i class="iconfont icon" :class="play ? 'icon-stop' : 'icon-play'"></i>
         </div>
@@ -75,21 +75,23 @@
     <!-- 全屏播放器 -->
     <music-full-wrapper
       ref="MusicFullRef"
-      v-model="playerStore.musicFull"
+      v-model="playerSurfaceVisible"
       :background="background"
     />
   </div>
 </template>
 
 <script lang="ts" setup>
-import type { Ref } from 'vue';
+import type { CSSProperties, Ref } from 'vue';
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
 
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
+import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl, setAnimationClass } from '@/utils';
+import { shouldOpenMobilePlayer } from '@/utils/mobileGestureThresholds';
 
 const shouldShowMobileMenu = inject('shouldShowMobileMenu') as Ref<boolean>;
 const isCompactNav = inject('isCompactNav', ref(false)) as Ref<boolean>;
@@ -102,6 +104,7 @@ const emit = defineEmits<{
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
 const idleCollapsed = ref(false);
+const playerTransition = useMobilePlayerTransition();
 let miniLongPressTimer: ReturnType<typeof setTimeout> | undefined;
 let miniLongPressTriggered = false;
 let miniPointerStartedCollapsed = false;
@@ -122,14 +125,34 @@ function handlePrev() {
 
 // 全屏播放器引用
 const MusicFullRef = ref<any>(null);
+const playerSurfaceVisible = computed({
+  get: () => playerStore.musicFull || playerTransition.progress.value > 0.015,
+  set: (visible: boolean) => {
+    if (!visible && playerStore.musicFull) {
+      playerTransition.setSurfaceMode('controls');
+      playerStore.setMusicFull(false);
+      playerTransition.animateTo(0);
+    }
+  }
+});
+
+const openMusicFull = (initialVelocity = 0) => {
+  idleCollapsed.value = false;
+  playerTransition.setDragging(Math.max(0.016, playerTransition.progress.value));
+  playerStore.setMusicFull(true);
+  requestAnimationFrame(() => playerTransition.animateTo(1, initialVelocity));
+  settingsStore.showArtistDrawer = false;
+};
 
 // 设置 musicFull
 const setMusicFull = () => {
   idleCollapsed.value = false;
-  playerStore.setMusicFull(!playerStore.musicFull);
   if (playerStore.musicFull) {
-    settingsStore.showArtistDrawer = false;
+    playerStore.setMusicFull(false);
+    playerTransition.animateTo(0);
+    return;
   }
+  openMusicFull(1.2);
 };
 
 const onMiniSongInfoClick = () => {
@@ -186,12 +209,27 @@ const miniSwipeStyle = computed(() => ({
   '--mini-swipe-rotation': `${miniSwipeOffset.value * 0.018}deg`,
   '--mini-swipe-content-shift': `${miniSwipeOffset.value * 0.05}px`
 }));
+const miniSongInfoStyle = computed(() => {
+  const progress = playerTransition.progress.value;
+  return {
+    opacity: String(1 - progress),
+    transform: `translate3d(0, ${-progress * 8}px, 0) scale(${1 - progress * 0.025})`,
+    transformOrigin: 'center center',
+    pointerEvents: progress > 0.1 ? ('none' as const) : undefined
+  };
+});
+const miniPlaybackControlsStyle = computed<CSSProperties>(() => ({
+  opacity: String(1 - playerTransition.progress.value),
+  transform: `translate3d(0, ${playerTransition.progress.value * 12}px, 0)`,
+  pointerEvents: playerTransition.progress.value > 0.1 ? 'none' : undefined
+}));
 
 let miniPointerStartX = 0;
 let miniPointerStartY = 0;
 let miniPointerStartTime = 0;
 let miniPointerActive = false;
 let miniPointerId: number | null = null;
+let verticalSamples: Array<{ y: number; time: number }> = [];
 let miniSwipeTimer: ReturnType<typeof setTimeout> | undefined;
 let miniClickTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -228,13 +266,14 @@ const onMiniPointerDown = (event: PointerEvent) => {
   miniSwipeAnimating.value = false;
   miniVerticalOffset.value = 0;
   miniPointerStartedCollapsed = idleCollapsed.value;
+  verticalSamples = [{ y: event.clientY, time: performance.now() }];
   miniLongPressTriggered = false;
   if (idleCollapsed.value) {
     miniLongPressTimer = setTimeout(() => {
       if (!miniPointerActive || miniSwipeAxis.value !== 'none') return;
       miniLongPressTriggered = true;
       setMiniClickSuppressed();
-      playerStore.setMusicFull(true);
+      openMusicFull(1.1);
       idleCollapsed.value = false;
       if (navigator.vibrate) navigator.vibrate(8);
     }, 520);
@@ -259,7 +298,22 @@ const onMiniPointerMove = (event: PointerEvent) => {
     }
     event.preventDefault();
     setMiniClickSuppressed();
-    miniVerticalOffset.value = Math.max(-68, Math.min(68, deltaY));
+    const now = performance.now();
+    verticalSamples.push({ y: event.clientY, time: now });
+    verticalSamples = verticalSamples.filter((sample) => now - sample.time <= 100);
+    if (deltaY < 0 && !miniPointerStartedCollapsed) {
+      const progress = Math.min(1, Math.max(0, -deltaY / Math.max(240, window.innerHeight * 0.68)));
+      const first = verticalSamples[0];
+      const velocity =
+        verticalSamples.length > 1
+          ? (verticalSamples[verticalSamples.length - 1].y - first.y) /
+            Math.max(1, now - first.time)
+          : 0;
+      playerTransition.setDragging(progress, (velocity * 1000) / Math.max(1, window.innerHeight));
+      miniVerticalOffset.value = 0;
+    } else {
+      miniVerticalOffset.value = Math.max(-42, Math.min(42, deltaY));
+    }
     return;
   }
   if (miniSwipeAxis.value !== 'horizontal') return;
@@ -348,14 +402,24 @@ const onMiniPointerUp = (event: PointerEvent) => {
     finishMiniSwipeAnimation();
   } else if (verticalCommit && !miniPointerStartedCollapsed && deltaY < 0) {
     idleCollapsed.value = false;
-    playerStore.setMusicFull(true);
+    const velocity =
+      verticalSamples.length > 1
+        ? (verticalSamples[verticalSamples.length - 1].y - verticalSamples[0].y) /
+          Math.max(1, verticalSamples[verticalSamples.length - 1].time - verticalSamples[0].time)
+        : 0;
+    const shouldOpen = shouldOpenMobilePlayer(playerTransition.progress.value, -velocity);
+    if (shouldOpen) playerStore.setMusicFull(true);
+    playerTransition.animateTo(shouldOpen ? 1 : 0, -velocity);
     if (navigator.vibrate) navigator.vibrate(8);
     finishMiniSwipeAnimation();
   } else if (verticalCommit && !miniPointerStartedCollapsed && deltaY > 0) {
     idleCollapsed.value = true;
     if (navigator.vibrate) navigator.vibrate(8);
     finishMiniSwipeAnimation();
-  } else finishMiniSwipeAnimation();
+  } else {
+    if (playerTransition.state.value === 'dragging') playerTransition.animateTo(0);
+    finishMiniSwipeAnimation();
+  }
 };
 
 const onMiniPointerCancel = (event: PointerEvent) => {
@@ -366,6 +430,7 @@ const onMiniPointerCancel = (event: PointerEvent) => {
     clearTimeout(miniLongPressTimer);
     miniLongPressTimer = undefined;
   }
+  if (playerTransition.state.value === 'dragging') playerTransition.animateTo(0);
   finishMiniSwipeAnimation();
 };
 
@@ -380,6 +445,14 @@ watch(
   (isFull) => {
     if (isFull) {
       idleCollapsed.value = false;
+      if (playerTransition.state.value === 'idle' && playerTransition.progress.value < 1) {
+        playerTransition.setDragging(Math.max(0.016, playerTransition.progress.value));
+        playerTransition.animateTo(1, 1);
+      } else if (playerTransition.progress.value >= 1) {
+        playerTransition.markOpen();
+      }
+    } else if (playerTransition.progress.value > 0) {
+      playerTransition.animateTo(0);
     }
   }
 );

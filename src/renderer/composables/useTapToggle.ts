@@ -19,6 +19,7 @@
  */
 import { type Ref, ref } from 'vue';
 
+import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { isMobile } from '@/utils';
 
 export function useTapToggle(options?: {
@@ -37,23 +38,35 @@ export function useTapToggle(options?: {
   hideControls: () => void;
   resetHideTimer: () => void;
 } {
+  const mobilePlayerTransition = useMobilePlayerTransition();
+  const useSharedMobileState = isMobile.value;
   const autoHideDelay = options?.autoHideDelay ?? 3000;
   const initial = options?.initialVisible ?? (isMobile.value ? false : true);
   const onDoubleClick = options?.onDoubleClick;
   const doubleTapDelay = options?.doubleTapDelay ?? 300;
 
-  const controlsVisible = ref(initial);
+  const controlsVisible = useSharedMobileState
+    ? (mobilePlayerTransition.controlsVisible as Ref<boolean>)
+    : ref(initial);
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
   let tapTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** 显示控件，启动自动隐藏计时器（所有平台） */
   function showControls() {
+    if (useSharedMobileState) {
+      mobilePlayerTransition.showControls();
+      return;
+    }
     controlsVisible.value = true;
     resetHideTimer();
   }
 
   /** 隐藏控件 */
   function hideControls() {
+    if (useSharedMobileState) {
+      mobilePlayerTransition.hideControls();
+      return;
+    }
     controlsVisible.value = false;
     if (hideTimer) {
       clearTimeout(hideTimer);
@@ -63,6 +76,10 @@ export function useTapToggle(options?: {
 
   /** 重置自动隐藏计时器 */
   function resetHideTimer() {
+    if (useSharedMobileState) {
+      mobilePlayerTransition.resetControlsHideTimer();
+      return;
+    }
     if (hideTimer) {
       clearTimeout(hideTimer);
     }

@@ -1058,14 +1058,15 @@ const handleLoginSuccess = () => {
   display: grid;
   min-width: 0;
   min-height: 104px;
-  align-content: end;
+  place-items: center;
+  align-content: center;
   gap: 3px;
   padding: 13px;
   border-radius: 22px;
 }
 
 .listening-overview i {
-  margin-bottom: auto;
+  margin-bottom: 2px;
   color: var(--accent-color);
   font-size: 20px;
 }
@@ -1074,6 +1075,11 @@ const handleLoginSuccess = () => {
   overflow: hidden;
   font-size: 21px;
   text-overflow: ellipsis;
+  text-align: center;
+}
+
+.listening-overview span {
+  text-align: center;
 }
 
 .glass-section {

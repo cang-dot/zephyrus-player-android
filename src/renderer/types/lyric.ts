@@ -1,5 +1,132 @@
 import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from './playerStyle';
 
+export type StatusBarLyricColorSource = {
+  source: 'theme' | 'custom';
+  color: string;
+};
+
+export interface StatusBarLyricConfig {
+  enabled: boolean;
+  wordByWord: boolean;
+  positions: {
+    portrait: { x: number; y: number };
+    landscape: { x: number; y: number };
+  };
+  font: {
+    source: 'system' | 'builtin' | 'imported';
+    id?: string;
+    sizeSp: number;
+    weight: number;
+  };
+  colors: {
+    sung: StatusBarLyricColorSource;
+    current: StatusBarLyricColorSource;
+    upcoming: StatusBarLyricColorSource;
+    surface: {
+      fill: StatusBarLyricColorSource;
+      border: StatusBarLyricColorSource;
+      opacity: number;
+    };
+  };
+}
+
+export const DEFAULT_STATUS_BAR_LYRIC_CONFIG: StatusBarLyricConfig = {
+  enabled: false,
+  wordByWord: true,
+  positions: {
+    portrait: { x: 0.5, y: 0.035 },
+    landscape: { x: 0.5, y: 0.045 }
+  },
+  font: { source: 'system', sizeSp: 12, weight: 700 },
+  colors: {
+    sung: { source: 'theme', color: '#ffffff' },
+    current: { source: 'theme', color: '#ffffff' },
+    upcoming: { source: 'custom', color: '#d7d7d7' },
+    surface: {
+      fill: { source: 'custom', color: '#121212' },
+      border: { source: 'theme', color: '#ffffff' },
+      opacity: 0.72
+    }
+  }
+};
+
+export type StatusBarLyricConfigInput = Omit<
+  Partial<StatusBarLyricConfig>,
+  'positions' | 'font' | 'colors'
+> & {
+  positions?: {
+    portrait?: Partial<StatusBarLyricConfig['positions']['portrait']>;
+    landscape?: Partial<StatusBarLyricConfig['positions']['landscape']>;
+  };
+  font?: Partial<StatusBarLyricConfig['font']>;
+  colors?: {
+    sung?: Partial<StatusBarLyricColorSource>;
+    current?: Partial<StatusBarLyricColorSource>;
+    upcoming?: Partial<StatusBarLyricColorSource>;
+    surface?: {
+      fill?: Partial<StatusBarLyricColorSource>;
+      border?: Partial<StatusBarLyricColorSource>;
+      opacity?: number;
+    };
+  };
+};
+
+const clamp = (value: unknown, min: number, max: number, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+};
+
+const normalizeColorSource = (
+  value: Partial<StatusBarLyricColorSource> | undefined,
+  fallback: StatusBarLyricColorSource
+): StatusBarLyricColorSource => ({
+  source:
+    value?.source === 'custom' ? 'custom' : value?.source === 'theme' ? 'theme' : fallback.source,
+  color: /^#[0-9a-f]{6}$/i.test(value?.color || '') ? value!.color! : fallback.color
+});
+
+export function normalizeStatusBarLyricConfig(
+  value?: StatusBarLyricConfigInput,
+  legacyEnabled = false
+): StatusBarLyricConfig {
+  const fallback = DEFAULT_STATUS_BAR_LYRIC_CONFIG;
+  return {
+    enabled: value?.enabled ?? legacyEnabled,
+    wordByWord: value?.wordByWord ?? fallback.wordByWord,
+    positions: {
+      portrait: {
+        x: clamp(value?.positions?.portrait?.x, 0, 1, fallback.positions.portrait.x),
+        y: clamp(value?.positions?.portrait?.y, 0, 1, fallback.positions.portrait.y)
+      },
+      landscape: {
+        x: clamp(value?.positions?.landscape?.x, 0, 1, fallback.positions.landscape.x),
+        y: clamp(value?.positions?.landscape?.y, 0, 1, fallback.positions.landscape.y)
+      }
+    },
+    font: {
+      source: ['system', 'builtin', 'imported'].includes(value?.font?.source || '')
+        ? value!.font!.source!
+        : fallback.font.source,
+      id: typeof value?.font?.id === 'string' ? value.font.id : undefined,
+      sizeSp: clamp(value?.font?.sizeSp, 9, 28, fallback.font.sizeSp),
+      weight: Math.round(clamp(value?.font?.weight, 100, 900, fallback.font.weight) / 100) * 100
+    },
+    colors: {
+      sung: normalizeColorSource(value?.colors?.sung, fallback.colors.sung),
+      current: normalizeColorSource(value?.colors?.current, fallback.colors.current),
+      upcoming: normalizeColorSource(value?.colors?.upcoming, fallback.colors.upcoming),
+      surface: {
+        fill: normalizeColorSource(value?.colors?.surface?.fill, fallback.colors.surface.fill),
+        border: normalizeColorSource(
+          value?.colors?.surface?.border,
+          fallback.colors.surface.border
+        ),
+        opacity: clamp(value?.colors?.surface?.opacity, 0, 1, fallback.colors.surface.opacity)
+      }
+    }
+  };
+}
+
 export interface LyricConfig {
   hideCover: boolean;
   centerLyrics: boolean;
@@ -10,6 +137,7 @@ export interface LyricConfig {
   showTranslation: boolean;
   showRomanization: boolean;
   statusBarLyricsEnabled: boolean;
+  statusBarLyricConfig: StatusBarLyricConfig;
   theme: 'default' | 'light' | 'dark';
   hidePlayBar: boolean;
   translationEngine?: 'none' | 'opencc';
@@ -84,6 +212,7 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   showTranslation: true,
   showRomanization: false,
   statusBarLyricsEnabled: false,
+  statusBarLyricConfig: DEFAULT_STATUS_BAR_LYRIC_CONFIG,
   theme: 'default',
   hidePlayBar: true,
   hideMiniPlayBar: false,

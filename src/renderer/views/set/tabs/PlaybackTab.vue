@@ -14,13 +14,13 @@
 
       <setting-item
         v-if="!isElectron"
+        item-id="status-bar-lyrics"
+        mode="expandable"
         :title="t('settings.lyricSettings.statusBarLyrics')"
         :description="t('settings.lyricSettings.statusBarLyricsDescription')"
       >
-        <n-switch :value="statusBarLyricsEnabled" @update:value="updateStatusBarLyricsEnabled">
-          <template #checked>{{ t('common.on') }}</template>
-          <template #unchecked>{{ t('common.off') }}</template>
-        </n-switch>
+        <template #value>{{ statusBarLyricsEnabled ? t('common.on') : t('common.off') }}</template>
+        <status-bar-lyric-settings @update:enabled="statusBarLyricsEnabled = $event" />
       </setting-item>
 
       <setting-item v-if="isElectron" :title="t('settings.playback.musicSources')">
@@ -49,6 +49,7 @@
 
       <setting-item
         v-if="platform === 'darwin'"
+        mode="direct"
         :title="t('settings.playback.showStatusBar')"
         :description="t('settings.playback.showStatusBarContent')"
       >
@@ -61,6 +62,7 @@
       <setting-item
         :title="t('settings.playback.autoPlay')"
         :description="t('settings.playback.autoPlayDesc')"
+        mode="direct"
       >
         <n-switch v-model:value="setData.autoPlay">
           <template #checked>{{ t('common.on') }}</template>
@@ -92,21 +94,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onMounted, onUnmounted, ref } from 'vue';
+import { computed, inject, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import AudioDeviceSettings from '@/components/settings/AudioDeviceSettings.vue';
 import MusicSourceSettings from '@/components/settings/MusicSourceSettings.vue';
 import SmartMixSettings from '@/components/settings/SmartMixSettings.vue';
-import {
-  hasStatusBarLyricPermission,
-  isAndroidNative,
-  refreshStatusBarLyric,
-  requestStatusBarLyricPermission
-} from '@/services/androidNative';
+import { readStatusBarLyricConfig } from '@/services/androidNative';
 import { type Platform } from '@/types/music';
 import { isElectron } from '@/utils';
 
+import StatusBarLyricSettings from '../components/StatusBarLyricSettings.vue';
 import { SETTINGS_DATA_KEY } from '../keys';
 import SBtn from '../SBtn.vue';
 import SettingItem from '../SettingItem.vue';
@@ -121,47 +119,7 @@ const platform = window.electron ? window.electron.ipcRenderer.sendSync('get-pla
 
 const showMusicSourcesModal = ref(false);
 
-function readStatusBarLyricsEnabled(): boolean {
-  try {
-    const saved = localStorage.getItem('music-full-config');
-    return Boolean(saved && JSON.parse(saved).statusBarLyricsEnabled);
-  } catch {
-    return false;
-  }
-}
-
-const statusBarLyricsEnabled = ref(readStatusBarLyricsEnabled());
-
-function syncStatusBarLyricsEnabled() {
-  statusBarLyricsEnabled.value = readStatusBarLyricsEnabled();
-}
-
-function updateStatusBarLyricsEnabled(enabled: boolean) {
-  try {
-    const saved = localStorage.getItem('music-full-config');
-    const config = saved ? JSON.parse(saved) : {};
-    config.statusBarLyricsEnabled = enabled;
-    localStorage.setItem('music-full-config', JSON.stringify(config));
-    statusBarLyricsEnabled.value = enabled;
-    window.dispatchEvent(new CustomEvent('music-full-config-updated'));
-
-    if (enabled && isAndroidNative() && !hasStatusBarLyricPermission()) {
-      requestStatusBarLyricPermission();
-      window.$message?.info('请允许 Zephyrus 显示在其他应用上层');
-    }
-    refreshStatusBarLyric();
-  } catch (error) {
-    console.error('更新状态栏歌词设置失败:', error);
-  }
-}
-
-onMounted(() => {
-  window.addEventListener('music-full-config-updated', syncStatusBarLyricsEnabled);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('music-full-config-updated', syncStatusBarLyricsEnabled);
-});
+const statusBarLyricsEnabled = ref(readStatusBarLyricConfig().enabled);
 
 const qualityOptions = computed(() => [
   { label: t('settings.playback.qualityOptions.standard'), value: 'standard' },

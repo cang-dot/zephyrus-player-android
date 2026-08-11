@@ -46,6 +46,7 @@
         <!-- 中央：歌词 + 翻译（点击切换滚动歌词） -->
         <div
           class="lyrics-center"
+          :class="{ 'force-nowrap': isCustom && styleCfg.forceNoWrap === true }"
           v-show="
             !showFullLyrics &&
             !wordPlayback.interludeState.value.active &&
@@ -414,6 +415,16 @@ function formatTime(seconds: number): string {
   align-items: center;
   padding: 0 20px;
   max-width: 800px;
+
+  &.force-nowrap {
+    width: max-content;
+    max-width: none;
+    padding-inline: 0;
+
+    .lyrics-main {
+      white-space: nowrap;
+    }
+  }
 }
 
 .lyrics-main {

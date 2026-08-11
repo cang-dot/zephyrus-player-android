@@ -1,63 +1,68 @@
 <template>
-  <div
-    class="setting-item flex items-start justify-between p-4 transition-colors bg-transparent"
+  <article
+    :id="itemId"
+    class="setting-item"
     :class="[
-      // 移动端垂直布局
-      { 'max-md:flex-col max-md:items-start max-md:gap-3': !inline },
-      // 可点击样式
-      {
-        'cursor-pointer': clickable
-      },
+      `setting-item--${effectiveMode}`,
+      { 'is-expanded': expanded, 'is-clickable': clickable },
       customClass
     ]"
-    @click="handleClick"
+    :data-setting-title="title"
+    :aria-expanded="effectiveMode === 'expandable' ? expanded : undefined"
+    @click="handleRootClick"
   >
-    <!-- 左侧：标题和描述 -->
-    <div class="flex-1 min-w-0 mr-4">
-      <div class="text-base font-medium mb-0.5 setting-item-title">
-        <slot name="title">{{ title }}</slot>
+    <div class="setting-item-summary">
+      <div class="setting-item-copy">
+        <div class="setting-item-title">
+          <slot name="title">{{ title }}</slot>
+        </div>
+        <div v-if="description || $slots.description" class="setting-item-desc">
+          <slot name="description">{{ description }}</slot>
+        </div>
       </div>
+
       <div
-        v-if="description || $slots.description"
-        class="text-sm leading-normal setting-item-desc"
+        v-if="effectiveMode === 'direct' && ($slots.action || $slots.default)"
+        class="setting-item-direct-control"
       >
-        <slot name="description">{{ description }}</slot>
+        <slot name="action"><slot /></slot>
       </div>
-      <!-- 额外内容插槽 -->
-      <div v-if="$slots.extra" class="mt-2">
-        <slot name="extra"></slot>
+      <div v-else-if="effectiveMode === 'expandable'" class="setting-item-current">
+        <slot name="value" />
+        <i class="ri-arrow-down-s-line" />
       </div>
     </div>
 
-    <!-- 右侧：操作区 -->
     <div
-      v-if="$slots.action || $slots.default"
-      class="flex items-center gap-2 flex-shrink-0"
-      :class="{ 'max-md:w-full max-md:justify-end': !inline }"
+      v-if="effectiveMode === 'expandable'"
+      class="setting-item-details"
+      :aria-hidden="!expanded"
     >
-      <slot name="action">
-        <slot></slot>
-      </slot>
+      <div class="setting-item-details-inner">
+        <div v-if="$slots.extra" class="setting-item-extra"><slot name="extra" /></div>
+        <div v-if="$slots.action || $slots.default" class="setting-item-actions">
+          <slot name="action"><slot /></slot>
+        </div>
+      </div>
     </div>
-  </div>
+  </article>
 </template>
 
 <script setup lang="ts">
-defineOptions({
-  name: 'SettingItem'
-});
+import { computed, getCurrentInstance, inject } from 'vue';
+
+import { SETTING_ACCORDION_KEY } from './settingAccordion';
+
+defineOptions({ name: 'SettingItem' });
 
 interface Props {
-  /** 设置项标题 */
   title?: string;
-  /** 设置项描述 */
   description?: string;
-  /** 是否可点击 */
   clickable?: boolean;
-  /** 是否保持水平布局（不响应移动端） */
   inline?: boolean;
-  /** 自定义类名 */
   customClass?: string;
+  mode?: 'direct' | 'expandable';
+  itemId?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -65,43 +70,146 @@ const props = withDefaults(defineProps<Props>(), {
   description: '',
   clickable: false,
   inline: false,
-  customClass: ''
+  customClass: '',
+  mode: 'expandable',
+  itemId: ''
 });
 
-const emit = defineEmits<{
-  click: [event: MouseEvent];
-}>();
+const emit = defineEmits<{ click: [event: MouseEvent] }>();
+const accordion = inject(SETTING_ACCORDION_KEY, null);
+const uid = getCurrentInstance()?.uid ?? Math.round(Math.random() * 100000);
+const resolvedId = computed(() => props.itemId || `setting-item-${uid}`);
+const effectiveMode = computed(() => (props.clickable ? 'direct' : props.mode));
+const expanded = computed(
+  () => effectiveMode.value === 'expandable' && accordion?.openItemId.value === resolvedId.value
+);
 
-const handleClick = (event: MouseEvent) => {
+const isInteractiveTarget = (target: EventTarget | null) =>
+  target instanceof Element &&
+  Boolean(target.closest('button, input, select, textarea, [role="switch"], [role="slider"], a'));
+
+const handleRootClick = (event: MouseEvent) => {
   if (props.clickable) {
     emit('click', event);
+    return;
   }
+  if (effectiveMode.value !== 'expandable' || isInteractiveTarget(event.target)) return;
+  accordion?.toggle(resolvedId.value);
 };
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .setting-item {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--m-white, #fff) 24%, transparent);
+  border-radius: 20px;
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--accent-color) 8%, transparent),
+      color-mix(in srgb, var(--accent-color) 8%, transparent)
+    ),
+    var(--m-glass-bg, color-mix(in srgb, var(--m-surface, #eee) 68%, transparent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
   color: var(--m-text-primary, var(--d-text-primary));
-  border-bottom: 1px solid var(--m-border, var(--d-border-light));
+  backdrop-filter: blur(24px) saturate(165%);
+  -webkit-backdrop-filter: blur(24px) saturate(165%);
+  transition:
+    border-radius 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 180ms ease,
+    box-shadow 260ms ease,
+    transform 180ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.setting-item:last-child {
-  border-bottom: none;
+.setting-item-summary {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
 }
 
-.setting-item:hover {
-  background: var(--m-surface-alt, var(--d-surface-hover));
+.setting-item-copy {
+  min-width: 0;
+  flex: 1;
 }
-
-.setting-item:active {
-  background: var(--m-surface, var(--d-surface-active));
-}
-
 .setting-item-title {
   color: var(--m-text-primary, var(--d-text-primary));
+  font-size: 15px;
+  font-weight: 650;
+}
+.setting-item-desc {
+  margin-top: 3px;
+  color: var(--m-text-secondary, var(--d-text-secondary));
+  font-size: 12px;
+  line-height: 1.45;
+}
+.setting-item-direct-control {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+.setting-item-current {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  color: var(--m-text-secondary);
+}
+.setting-item-current i {
+  font-size: 18px;
+  transition: transform 360ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.setting-item.is-expanded .setting-item-current i {
+  transform: rotate(180deg);
 }
 
-.setting-item-desc {
-  color: var(--m-text-secondary, var(--d-text-secondary));
+.setting-item--expandable {
+  cursor: pointer;
+}
+.setting-item--expandable:active,
+.setting-item.is-clickable:active {
+  transform: scale(0.988);
+}
+
+.setting-item-details {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translate3d(0, -8px, 0);
+  transition:
+    grid-template-rows 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 170ms ease,
+    transform 360ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.setting-item-details-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.setting-item.is-expanded .setting-item-details {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: none;
+  transition-delay: 0ms, 80ms, 30ms;
+}
+.setting-item-actions,
+.setting-item-extra {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 16px;
+}
+.setting-item-actions {
+  justify-content: flex-end;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setting-item,
+  .setting-item-details,
+  .setting-item-current i {
+    transition-duration: 120ms;
+  }
 }
 </style>

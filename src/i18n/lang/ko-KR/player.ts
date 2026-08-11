@@ -150,6 +150,7 @@ export default {
     mainLyric: '메인 가사',
     auxiliary: '배경 / 듀엣',
     auxiliaryCenterDisplay: '배경 / 듀엣 단어 중앙 크게 표시',
+    forceNoWrap: '강제로 한 줄 표시',
     translation: '번역',
     climaxEffects: '클라이맥스 효과',
     lyricRecolor: '가사 색상 변경',

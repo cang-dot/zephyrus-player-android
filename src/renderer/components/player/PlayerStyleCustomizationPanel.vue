@@ -239,6 +239,23 @@
         </button>
       </label>
 
+      <label
+        v-if="['frenzy', 'stage', 'smoke', 'eerie', 'neon'].includes(styleKey)"
+        class="setting-row"
+      >
+        <span>{{ tr('player.styleCustomization.forceNoWrap', '强制不换行') }}</span>
+        <button
+          type="button"
+          class="toggle-switch"
+          :class="{ on: local.forceNoWrap === true }"
+          role="switch"
+          :aria-checked="local.forceNoWrap === true"
+          @click="local.forceNoWrap = !local.forceNoWrap"
+        >
+          <span></span>
+        </button>
+      </label>
+
       <div v-if="hasStyleSpecificSettings" class="section-label">
         {{ tr('player.styleCustomization.styleEffects', '样式参数') }}
       </div>

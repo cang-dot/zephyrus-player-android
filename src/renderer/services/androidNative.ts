@@ -6,11 +6,18 @@
 
 import { nextTick, watch } from 'vue';
 
+import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import { allTime, artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
-import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
+import {
+  DEFAULT_LYRIC_CONFIG,
+  type LyricConfig,
+  normalizeStatusBarLyricConfig,
+  type StatusBarLyricConfig
+} from '@/types/lyric';
 import { getImgUrl } from '@/utils';
+import { getFontAssetUrl } from '@/utils/fontLoader';
 
 type NativeBridge = {
   setStatusBarDark: (isDark: boolean) => void;
@@ -36,6 +43,10 @@ type NativeBridge = {
   canDrawOverlays: () => boolean;
   setStatusBarLyricEnabled: (enabled: boolean) => boolean;
   updateStatusBarLyric: (text: string, accentColor: string) => void;
+  applyStatusBarLyricConfig?: (configJson: string) => boolean;
+  updateStatusBarLyricState?: (stateJson: string) => void;
+  installStatusBarLyricFont?: (name: string, base64Data: string) => string;
+  setBackgroundKeepAlive: (enabled: boolean) => void;
   installApkFromCache: (fileName: string) => void;
   startApkDownload: (url: string, expectedSize: number) => void;
   getApkDownloadState: () => string;
@@ -273,20 +284,125 @@ function readLyricConfig(): LyricConfig {
   }
 }
 
+export function readStatusBarLyricConfig(): StatusBarLyricConfig {
+  const config = readLyricConfig();
+  return normalizeStatusBarLyricConfig(
+    config.statusBarLyricConfig,
+    Boolean(config.statusBarLyricsEnabled)
+  );
+}
+
+export function saveStatusBarLyricConfig(value: StatusBarLyricConfig) {
+  const normalized = normalizeStatusBarLyricConfig(value);
+  const stored = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('music-full-config') || '{}');
+    } catch {
+      return {};
+    }
+  })();
+  stored.statusBarLyricConfig = normalized;
+  stored.statusBarLyricsEnabled = normalized.enabled;
+  localStorage.setItem('music-full-config', JSON.stringify(stored));
+  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  applyStatusBarLyricConfig(normalized);
+  return normalized;
+}
+
+function nativeStatusBarLyricConfig(config: StatusBarLyricConfig): StatusBarLyricConfig {
+  if (config.font.source !== 'builtin' || !config.font.id) return config;
+  return {
+    ...config,
+    font: { ...config.font, id: getFontAssetUrl(config.font.id) || config.font.id }
+  };
+}
+
+export function applyStatusBarLyricConfig(value = readStatusBarLyricConfig()): boolean {
+  if (!isAndroidNative()) return false;
+  const config = normalizeStatusBarLyricConfig(value);
+  const permitted = hasStatusBarLyricPermission();
+  try {
+    if (window.AndroidNative!.applyStatusBarLyricConfig) {
+      return Boolean(
+        window.AndroidNative!.applyStatusBarLyricConfig(
+          JSON.stringify({
+            ...nativeStatusBarLyricConfig(config),
+            enabled: config.enabled && permitted
+          })
+        )
+      );
+    }
+    return window.AndroidNative!.setStatusBarLyricEnabled(config.enabled && permitted);
+  } catch (error) {
+    console.warn('[NativeBridge] 应用状态栏歌词配置失败:', error);
+    return false;
+  }
+}
+
+export function installStatusBarLyricFont(file: File): Promise<string> {
+  if (!isAndroidNative() || !window.AndroidNative!.installStatusBarLyricFont) {
+    return Promise.reject(new Error('当前环境不支持原生字体安装'));
+  }
+  if (file.size > 20 * 1024 * 1024) return Promise.reject(new Error('字体文件不能超过 20MB'));
+  if (!/\.(ttf|otf)$/i.test(file.name)) return Promise.reject(new Error('仅支持 TTF/OTF 字体'));
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('字体读取失败'));
+    reader.onload = () => {
+      try {
+        const data =
+          String(reader.result || '')
+            .split(',')
+            .pop() || '';
+        const id = window.AndroidNative!.installStatusBarLyricFont!(file.name, data);
+        if (!id) throw new Error('字体安装失败');
+        resolve(id);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+let wordTimedPlayback: ReturnType<typeof useWordTimedPlayback> | null = null;
+
 export function refreshStatusBarLyric() {
   if (!isAndroidNative()) return;
-  const enabled = Boolean(readLyricConfig().statusBarLyricsEnabled);
+  const config = readStatusBarLyricConfig();
+  const enabled = config.enabled;
   const permitted = hasStatusBarLyricPermission();
 
   try {
-    window.AndroidNative!.setStatusBarLyricEnabled(enabled && permitted);
+    applyStatusBarLyricConfig(config);
     if (!enabled || !permitted) return;
 
     const song = playMusic?.value;
-    const line = lrcArray.value[nowIndex.value];
+    const line = wordTimedPlayback?.currentDisplayLine.value || lrcArray.value[nowIndex.value];
     const text = line?.text?.trim() || song?.name?.trim() || '';
     const accentColor = song?.primaryColor || '#ffffff';
-    window.AndroidNative!.updateStatusBarLyric(text, accentColor);
+    if (window.AndroidNative!.updateStatusBarLyricState) {
+      const words = (line?.words || []).filter((word) => word.text);
+      const currentMs = (wordTimedPlayback?.correctedTime.value ?? nowTime.value) * 1000;
+      let currentWordIndex = -1;
+      for (let index = 0; index < words.length; index++) {
+        if (currentMs < words[index].startTime) break;
+        const wordEnd = words[index].startTime + Math.max(0, words[index].duration || 0);
+        currentWordIndex = currentMs <= wordEnd ? index : index + 1;
+      }
+      window.AndroidNative!.updateStatusBarLyricState(
+        JSON.stringify({
+          text,
+          words: words.map((word) => ({ ...word, text: `${word.text}${word.space ? ' ' : ''}` })),
+          currentWordIndex: config.wordByWord ? currentWordIndex : -1,
+          wordByWord: config.wordByWord && words.length > 0,
+          themeColor: accentColor,
+          paused: !usePlayerStore().isPlay
+        })
+      );
+    } else {
+      window.AndroidNative!.updateStatusBarLyric(text, accentColor);
+    }
   } catch (e) {
     console.warn('[NativeBridge] 更新状态栏歌词失败:', e);
   }
@@ -297,13 +413,49 @@ let statusBarLyricBridgeInitialized = false;
 function setupStatusBarLyricBridge() {
   if (statusBarLyricBridgeInitialized) return;
   statusBarLyricBridgeInitialized = true;
+  wordTimedPlayback = useWordTimedPlayback();
+  const playerStore = usePlayerStore();
 
-  watch([nowIndex, lrcArray, () => playMusic?.value?.id], refreshStatusBarLyric, {
-    immediate: true
-  });
+  watch(
+    [
+      nowIndex,
+      lrcArray,
+      () => playMusic?.value?.id,
+      () => playerStore.isPlay,
+      () => wordTimedPlayback?.displayLineKey.value,
+      () => wordTimedPlayback?.stableAnimationKey.value
+    ],
+    refreshStatusBarLyric,
+    { immediate: true }
+  );
   window.addEventListener('music-full-config-updated', refreshStatusBarLyric);
   window.addEventListener('focus', refreshStatusBarLyric);
   (window as any).__statusBarLyricPermissionChanged = () => refreshStatusBarLyric();
+}
+
+export function previewStatusBarLyric(config = readStatusBarLyricConfig()) {
+  if (!isAndroidNative()) return false;
+  if (!hasStatusBarLyricPermission()) {
+    requestStatusBarLyricPermission();
+    return false;
+  }
+  applyStatusBarLyricConfig({ ...config, enabled: true });
+  window.AndroidNative!.updateStatusBarLyricState?.(
+    JSON.stringify({
+      text: '风吹过城市的夜',
+      words: [
+        { text: '风吹过', startTime: 0, duration: 900 },
+        { text: '城市', startTime: 900, duration: 700 },
+        { text: '的夜', startTime: 1600, duration: 900 }
+      ],
+      currentWordIndex: config.wordByWord ? 1 : -1,
+      wordByWord: config.wordByWord,
+      themeColor: playMusic?.value?.primaryColor || '#ff6b55',
+      paused: false
+    })
+  );
+  window.setTimeout(refreshStatusBarLyric, 5000);
+  return true;
 }
 
 /**

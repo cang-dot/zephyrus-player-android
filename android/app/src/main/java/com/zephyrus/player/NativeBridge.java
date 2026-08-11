@@ -826,6 +826,42 @@ public class NativeBridge {
         StatusBarLyricOverlay.getInstance(activity).update(text, accentColor);
     }
 
+    /** Applies the complete overlay appearance and position configuration. */
+    @JavascriptInterface
+    public boolean applyStatusBarLyricConfig(String configJson) {
+        return StatusBarLyricOverlay.getInstance(activity).applyConfig(configJson);
+    }
+
+    /** Updates word-boundary lyric state without recreating the overlay window. */
+    @JavascriptInterface
+    public void updateStatusBarLyricState(String stateJson) {
+        StatusBarLyricOverlay.getInstance(activity).updateState(stateJson);
+    }
+
+    /** Installs a TTF/OTF into the app-private font directory and returns its stable file id. */
+    @JavascriptInterface
+    public String installStatusBarLyricFont(String name, String base64Data) {
+        try {
+            String safeName = new File(name == null ? "font.ttf" : name).getName();
+            if (!safeName.toLowerCase().endsWith(".ttf") && !safeName.toLowerCase().endsWith(".otf")) {
+                return "";
+            }
+            byte[] bytes = Base64.decode(base64Data, Base64.DEFAULT);
+            if (bytes.length == 0 || bytes.length > 20 * 1024 * 1024) return "";
+            File directory = new File(activity.getFilesDir(), "status-bar-fonts");
+            if (!directory.exists() && !directory.mkdirs()) return "";
+            String storedName = System.currentTimeMillis() + "-" + safeName.replaceAll("[^A-Za-z0-9._-]", "_");
+            File output = new File(directory, storedName);
+            try (FileOutputStream stream = new FileOutputStream(output)) {
+                stream.write(bytes);
+            }
+            return storedName;
+        } catch (Exception error) {
+            Log.e("NativeBridge", "installStatusBarLyricFont error", error);
+            return "";
+        }
+    }
+
     /** Notifies the WebView after returning from the system overlay-permission page. */
     public void notifyOverlayPermissionState() {
         boolean granted = StatusBarLyricOverlay.getInstance(activity).hasPermission();

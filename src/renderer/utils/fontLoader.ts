@@ -29,6 +29,11 @@ function getFontUrl(fontDef: FontDef): string {
   return fontAssetUrls[`../assets/fonts/${fontDef.file}`] || `./assets/fonts/${fontDef.file}`;
 }
 
+export function getFontAssetUrl(fontId: string): string | undefined {
+  const font = BUILTIN_FONTS.find((item) => item.id === fontId);
+  return font ? getFontUrl(font) : undefined;
+}
+
 /**
  * 加载单个字体
  * @param fontDef 字体定义

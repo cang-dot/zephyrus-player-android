@@ -1,7 +1,11 @@
 <template>
   <div
     class="mobile-controls no-toggle"
-    :class="{ visible: visible, 'fullscreen-mode': isFullscreen }"
+    :class="{
+      visible,
+      'fullscreen-mode': isFullscreen,
+      'shared-surface-content': sharedSurface
+    }"
     @click.stop
     @touchstart.stop="emitInteract"
     @touchend.stop
@@ -9,10 +13,6 @@
   >
     <!-- 进度条 -->
     <div class="progress-container">
-      <div class="time-info">
-        <span class="current-time">{{ secondToMinute(nowTime) }}</span>
-        <span class="total-time">{{ secondToMinute(allTime) }}</span>
-      </div>
       <div
         class="apple-style-progress"
         @click="handleProgressBarClick"
@@ -54,6 +54,10 @@
           ></div>
         </div>
       </div>
+      <div class="time-info">
+        <span class="current-time">{{ secondToMinute(nowTime) }}</span>
+        <span class="total-time">{{ secondToMinute(allTime) }}</span>
+      </div>
     </div>
 
     <!-- 控制按钮 -->
@@ -85,8 +89,8 @@ import { computed, ref } from 'vue';
 
 import { allTime, nowTime, pause, play, sound } from '@/hooks/MusicHook';
 import { usePlayMode } from '@/hooks/usePlayMode';
-import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { usePlayerStore } from '@/store/modules/player';
+import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useTransitionStore } from '@/store/modules/transition';
 import { secondToMinute } from '@/utils';
 
@@ -105,7 +109,7 @@ const nextFillStyle = computed(() => {
   return {
     width: `${transitionStore.nextProgress}%`,
     background: color,
-    boxShadow: `0 0 8px ${color}80`,
+    boxShadow: `0 0 8px ${color}80`
   };
 });
 
@@ -117,9 +121,10 @@ const thumbPosition = computed(() => {
   return `${(nowTime.value / Math.max(1, allTime.value)) * 100}%`;
 });
 
-const props = defineProps<{
+defineProps<{
   visible?: boolean;
   isFullscreen?: boolean;
+  sharedSurface?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -219,10 +224,18 @@ const handleThumbTouchEnd = () => {
 .mobile-controls {
   position: absolute;
   bottom: 0;
-  left: 0;
-  right: 0;
+  left: 14px;
+  right: 14px;
   z-index: 30;
-  padding: 0 24px calc(env(safe-area-inset-bottom, 0px) + 32px);
+  padding: 14px 16px calc(var(--safe-area-inset-bottom, 0px) + 16px);
+  border: 1px solid color-mix(in srgb, #fff 22%, transparent);
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--accent-color, #777) 10%, rgba(18, 18, 20, 0.56));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 12px 30px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;
@@ -233,7 +246,24 @@ const handleThumbTouchEnd = () => {
   }
 
   &.fullscreen-mode {
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+    padding-bottom: calc(var(--safe-area-inset-bottom, 0px) + 18px);
+  }
+
+  &.shared-surface-content {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    padding: 14px 16px;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+
+    .progress-container {
+      transform: translate3d(0, 4px, 0);
+    }
   }
 }
 
@@ -246,7 +276,7 @@ const handleThumbTouchEnd = () => {
   justify-content: space-between;
   font-size: 12px;
   opacity: 0.6;
-  margin-bottom: 8px;
+  margin-top: 8px;
 }
 
 .apple-style-progress {
@@ -277,7 +307,9 @@ const handleThumbTouchEnd = () => {
   &.fading-out {
     background: rgba(255, 255, 255, 0.15) !important;
     box-shadow: none;
-    transition: background 0.6s ease, box-shadow 0.6s ease;
+    transition:
+      background 0.6s ease,
+      box-shadow 0.6s ease;
   }
 }
 

@@ -1,20 +1,29 @@
 <template>
-  <Teleport to="body">
-    <Transition name="settings-drawer">
+  <Teleport to="body" :disabled="embedded">
+    <Transition name="settings-drawer" :css="!embedded">
       <div
         v-if="visible"
-        class="fixed inset-0 z-[99999] flex items-end justify-center"
+        class="player-settings-overlay fixed inset-0 z-[99999] flex items-end justify-center"
+        :class="{ embedded }"
         @click.self="close"
       >
         <!-- 遮罩层 -->
-        <div class="absolute inset-0 bg-black/50" @click="close"></div>
+        <div v-if="!embedded" class="absolute inset-0 bg-black/50" @click="close"></div>
 
         <!-- 弹窗内容 - 磨砂玻璃效果 -->
         <div
-          class="relative w-full max-w-lg bg-gray-900/70 backdrop-blur-2xl rounded-t-3xl overflow-hidden max-h-[85vh] flex flex-col border-t border-white/10 shadow-2xl"
+          class="player-settings-surface relative w-full max-w-lg overflow-hidden max-h-[78vh] flex flex-col"
+          :style="settingsDragStyle"
+          @pointermove="onSettingsDragMove"
+          @pointerup="onSettingsDragEnd"
+          @pointercancel="onSettingsDragEnd"
         >
           <!-- 顶部拖拽条 -->
-          <div class="flex justify-center pt-3 pb-2 flex-shrink-0">
+          <div
+            v-if="!embedded"
+            class="settings-drag-region flex justify-center pt-3 pb-2 flex-shrink-0"
+            @pointerdown="onSettingsDragStart"
+          >
             <div class="w-10 h-1 rounded-full bg-white/30"></div>
           </div>
 
@@ -745,7 +754,7 @@ import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useUserStore } from '@/store/modules/user';
 import type { LyricConfig } from '@/types/lyric';
-import { DEFAULT_LYRIC_CONFIG } from '@/types/lyric';
+import { DEFAULT_LYRIC_CONFIG, normalizeStatusBarLyricConfig } from '@/types/lyric';
 import type { SongResult } from '@/types/music';
 import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from '@/types/playerStyle';
 import { isMobilePlayerStyleKey } from '@/types/playerStyle';
@@ -1228,6 +1237,10 @@ function loadStoredLyricConfig(): LyricConfig {
     return {
       ...DEFAULT_LYRIC_CONFIG,
       ...parsed,
+      statusBarLyricConfig: normalizeStatusBarLyricConfig(
+        parsed.statusBarLyricConfig,
+        Boolean(parsed.statusBarLyricsEnabled)
+      ),
       playerStyle: isMobilePlayerStyleKey(parsed.playerStyle) ? parsed.playerStyle : 'default'
     };
   } catch {
@@ -1236,6 +1249,37 @@ function loadStoredLyricConfig(): LyricConfig {
 }
 
 const lyricConfig = ref<LyricConfig>(loadStoredLyricConfig());
+const settingsDragOffset = ref(0);
+const settingsDragging = ref(false);
+let settingsDragPointer = -1;
+let settingsDragStart = 0;
+const isLandscapeSettings = () => window.innerWidth > window.innerHeight;
+const settingsDragStyle = computed(() => ({
+  transform: isLandscapeSettings()
+    ? `translate3d(${Math.max(0, settingsDragOffset.value)}px, 0, 0)`
+    : `translate3d(0, ${Math.max(0, settingsDragOffset.value)}px, 0)`,
+  transition: settingsDragging.value ? 'none' : 'transform 360ms cubic-bezier(0.32, 0.72, 0, 1)'
+}));
+
+const onSettingsDragStart = (event: PointerEvent) => {
+  settingsDragging.value = true;
+  settingsDragPointer = event.pointerId;
+  settingsDragStart = isLandscapeSettings() ? event.clientX : event.clientY;
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+};
+const onSettingsDragMove = (event: PointerEvent) => {
+  if (!settingsDragging.value || event.pointerId !== settingsDragPointer) return;
+  const current = isLandscapeSettings() ? event.clientX : event.clientY;
+  settingsDragOffset.value = Math.max(0, current - settingsDragStart);
+};
+const onSettingsDragEnd = (event: PointerEvent) => {
+  if (!settingsDragging.value || event.pointerId !== settingsDragPointer) return;
+  settingsDragging.value = false;
+  settingsDragPointer = -1;
+  const threshold = isLandscapeSettings() ? window.innerWidth * 0.18 : window.innerHeight * 0.14;
+  if (settingsDragOffset.value >= threshold) close();
+  settingsDragOffset.value = 0;
+};
 
 watch(
   lyricConfig,
@@ -1383,6 +1427,13 @@ function toggleShowRomanization() {
 
 function toggleStatusBarLyrics() {
   lyricConfig.value.statusBarLyricsEnabled = !lyricConfig.value.statusBarLyricsEnabled;
+  lyricConfig.value.statusBarLyricConfig = normalizeStatusBarLyricConfig(
+    {
+      ...lyricConfig.value.statusBarLyricConfig,
+      enabled: lyricConfig.value.statusBarLyricsEnabled
+    },
+    lyricConfig.value.statusBarLyricsEnabled
+  );
   localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
   window.dispatchEvent(new CustomEvent('music-full-config-updated'));
   if (lyricConfig.value.statusBarLyricsEnabled && !hasStatusBarLyricPermission()) {
@@ -1411,9 +1462,13 @@ function setShareDefaultLayout(layout: 'torn-paper' | 'immersive') {
 }
 
 // Props & Emits
-defineProps<{
-  visible: boolean;
-}>();
+withDefaults(
+  defineProps<{
+    visible: boolean;
+    embedded?: boolean;
+  }>(),
+  { embedded: false }
+);
 
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void;
@@ -1466,6 +1521,7 @@ const timerDisplayText = computed(() => {
 
 // 方法
 const close = () => {
+  settingsDragOffset.value = 0;
   emit('update:visible', false);
 };
 
@@ -1559,6 +1615,76 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.player-settings-overlay {
+  z-index: 100200 !important;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.player-settings-overlay.embedded {
+  position: absolute !important;
+  inset: 0;
+  z-index: auto !important;
+  display: block;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.player-settings-overlay.embedded .player-settings-surface {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  padding-top: 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.player-settings-surface {
+  border: 1px solid color-mix(in srgb, #fff 22%, transparent);
+  border-bottom: 0;
+  border-radius: 30px 30px 0 0;
+  background: color-mix(in srgb, var(--accent-color, #666) 12%, rgba(20, 20, 22, 0.76));
+  box-shadow:
+    0 -18px 50px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(32px) saturate(175%);
+  -webkit-backdrop-filter: blur(32px) saturate(175%);
+  touch-action: pan-y;
+}
+
+.settings-drag-region {
+  cursor: grab;
+  touch-action: none;
+}
+
+@media (orientation: landscape) {
+  .player-settings-overlay {
+    align-items: stretch !important;
+    justify-content: flex-end !important;
+  }
+  .player-settings-surface {
+    width: min(430px, 48vw) !important;
+    max-height: 100dvh !important;
+    border-right: 0;
+    border-bottom: 1px solid color-mix(in srgb, #fff 22%, transparent);
+    border-radius: 30px 0 0 30px;
+  }
+
+  .player-settings-overlay.embedded .player-settings-surface {
+    width: 100% !important;
+    max-height: none !important;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
 /* 弹窗动画 */
 .settings-drawer-enter-active,
 .settings-drawer-leave-active {

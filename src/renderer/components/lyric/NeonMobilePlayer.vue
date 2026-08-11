@@ -26,6 +26,7 @@
         <div class="lyrics-layer" v-show="!showFullLyrics">
           <div
             class="neon-lyrics"
+            :class="{ 'force-nowrap': isCustom && styleCfg.forceNoWrap === true }"
             :style="{ fontSize: lyricFontSize, fontFamily: selectedFontFamily || undefined }"
           >
             <template v-for="(char, i) in currentChars" :key="i">
@@ -42,6 +43,7 @@
           <div
             v-if="!hasAnyStrokes && currentText"
             class="fallback-lyrics"
+            :class="{ 'force-nowrap': isCustom && styleCfg.forceNoWrap === true }"
             :style="{ color: neonBright }"
           >
             {{ currentText }}
@@ -140,6 +142,7 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
 const controlsRef = ref();
 const {
+  config: styleCfg,
   styleVars,
   isCustom,
   customBackgroundActive,
@@ -350,6 +353,12 @@ function formatTime(s: number): string {
   gap: 0.05em;
   line-height: 1.2;
 }
+.neon-lyrics.force-nowrap {
+  width: max-content;
+  max-width: none;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
 .neon-space {
   display: inline-block;
   width: 0.3em;
@@ -363,6 +372,11 @@ function formatTime(s: number): string {
     0 0 8px var(--neon-dim);
   text-align: center;
   letter-spacing: 0.05em;
+}
+.fallback-lyrics.force-nowrap {
+  width: max-content;
+  max-width: none;
+  white-space: nowrap;
 }
 
 .top-controls {

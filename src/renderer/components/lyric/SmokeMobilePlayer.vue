@@ -36,6 +36,7 @@
         />
         <div
           class="smoke-lyrics"
+          :class="{ 'force-nowrap': isCustom && styleCfg.forceNoWrap === true }"
           v-show="
             !showFullLyrics &&
             !wordPlayback.interludeState.value.active &&
@@ -242,11 +243,19 @@ function openPlaylist() {
   width: min(92vw, 920px);
   text-align: center;
 }
+.smoke-lyrics.force-nowrap {
+  width: max-content;
+  max-width: none;
+}
 .smoke-lyric-text {
   font-size: clamp(48px, 12vw, 150px);
   line-height: 0.94;
   transform-origin: center;
   text-wrap: balance;
+}
+.smoke-lyrics.force-nowrap .smoke-lyric-text {
+  white-space: nowrap;
+  text-wrap: nowrap;
 }
 .smoke-translation {
   margin-top: 18px;

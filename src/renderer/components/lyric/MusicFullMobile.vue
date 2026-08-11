@@ -437,6 +437,7 @@ import { useI18n } from 'vue-i18n';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { useSwipeClose } from '@/composables/useSwipeClose';
+import { useTapToggle } from '@/composables/useTapToggle';
 import {
   allTime,
   artistList,
@@ -687,7 +688,7 @@ const scrollToCurrentLyric = (immediate = false, customScrollerRef?: HTMLElement
 };
 
 // 监听歌词变化，自动滚动
-watch(nowIndex, (newIndex, oldIndex) => {
+watch(nowIndex, () => {
   // 歌曲切换时不自动滚动
   if (isSongChanging.value) return;
 
@@ -1123,15 +1124,7 @@ const closeMusicFull = () => {
   playerStore.setMusicFull(false);
 };
 
-// 移动端控件显隐状态（默认隐藏，点击屏幕弹出）
-const controlsVisible = ref(false);
-
-// 移动端：点击屏幕切换控件显隐
-function handleTapToggle(e: MouseEvent) {
-  const target = e.target as HTMLElement;
-  if (target?.closest('.no-toggle')) return;
-  controlsVisible.value = !controlsVisible.value;
-}
+const { controlsVisible, handleTapToggle } = useTapToggle();
 
 // 添加对 playMusic.id 的监听，歌曲切换时滚动到顶部
 watch(

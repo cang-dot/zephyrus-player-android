@@ -6,7 +6,6 @@
         :key="item.key"
         type="button"
         class="discover-card"
-        data-no-page-swipe
         @click="openShortcut(item)"
       >
         <i :class="item.icon" />
@@ -67,7 +66,8 @@ const openShortcut = (item: (typeof shortcuts)[number]) => {
 <style scoped lang="scss">
 .discover-page {
   min-height: 100%;
-  padding: calc(var(--safe-area-inset-top, 0px) + 72px) 16px 150px;
+  padding: calc(var(--safe-area-inset-top, 0px) + 72px) 16px
+    calc(var(--mobile-dock-content-inset, 132px) + var(--safe-area-inset-bottom, 0px));
   color: var(--m-text-primary, var(--text-color));
 }
 .discover-grid {

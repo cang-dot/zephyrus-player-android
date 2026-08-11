@@ -2,9 +2,17 @@
   <div
     id="layout-main"
     class="mobile-layout mobile"
-    :class="{ 'has-safe-area': isPhone, 'nav-compact': isCompactNav, 'nav-default': !isCompactNav }"
-    @touchstart="onLayoutTouchStart"
-    @touchend="onLayoutTouchEnd"
+    :class="{
+      'has-safe-area': isPhone,
+      'nav-compact': isCompactNav,
+      'nav-default': !isCompactNav,
+      'player-transitioning': playerTransition.progress.value > 0,
+      'player-full': playerTransition.state.value === 'open'
+    }"
+    :style="{
+      '--mobile-dock-content-inset': `${mobileDockContentInset}px`,
+      '--player-open-progress': String(playerTransition.progress.value)
+    }"
   >
     <!-- 浮动顶栏（所有页面统一显示） -->
     <mobile-header />
@@ -24,6 +32,7 @@
         <Transition
           :name="pageTransitionName"
           :mode="pageTransitionDirection ? undefined : 'out-in'"
+          :css="!gestureNavigationInProgress"
         >
           <keep-alive :include="keepAliveInclude">
             <component :is="Component" />
@@ -33,6 +42,7 @@
     </div>
 
     <div
+      ref="dockRef"
       class="mobile-bottom-dock"
       :class="{
         visible: shouldShowBottomMenu,
@@ -40,8 +50,16 @@
         'player-collapsed': isPlay && miniPlayerIdleCollapsed,
         'player-open': isPlay && !miniPlayerIdleCollapsed,
         'playlist-mounted': isPlay && playlistSurfaceMounted,
-        'playlist-open': isPlay && playlistSurfaceExpanded
+        'playlist-open': isPlay && playlistSurfaceExpanded,
+        'player-transitioning': playerTransition.progress.value > 0,
+        'player-full': playerTransition.state.value === 'open'
       }"
+      :style="dockTransitionStyle"
+      @click.capture="onDockClickCapture"
+      @pointerdown="onDockPointerDown"
+      @pointermove="onDockPointerMove"
+      @pointerup="onDockPointerUp"
+      @pointercancel="onDockPointerCancel"
     >
       <!-- 播放条与导航共用同一个 Dock 玻璃表面。 -->
       <mobile-play-bar v-if="isPlay" @idle-collapse-change="miniPlayerIdleCollapsed = $event" />
@@ -49,7 +67,7 @@
       <!-- 普通页面的播放列表只在 Dock 内形变，不与全屏播放器共用承载容器。 -->
       <playing-list-drawer v-if="isPlay && !playerStore.musicFull" embedded />
 
-      <Transition name="glow-nav-in">
+      <Transition name="glow-nav-in" :css="playerTransition.state.value === 'idle'">
         <div
           v-if="shouldShowBottomMenu"
           class="mobile-glow-nav-wrap"
@@ -62,7 +80,7 @@
             <router-link
               v-for="item in menuStore.menus"
               :key="item.path"
-              :to="item.path"
+              :to="menuTarget(item.path)"
               class="glow-nav-item"
               :class="{ active: isActive(item.path) }"
               @click="prepareMenuTransition(item.path)"
@@ -84,27 +102,42 @@
         </div>
       </Transition>
     </div>
-    <!-- 全屏播放器使用独立播放列表：竖屏为底部浮层，横屏为右侧抽屉。 -->
-    <playing-list-drawer v-if="isPlay && playerStore.musicFull" fullscreen />
+    <mobile-player-bottom-surface v-if="isPlay" />
     <!-- 其他弹窗/抽屉 -->
     <playlist-drawer v-model="showPlaylistDrawer" :song="currentSong" :song-id="currentSongId" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, provide, ref, watch } from 'vue';
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onBeforeUnmount,
+  provide,
+  ref,
+  watch
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
+import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import homeRouter from '@/router/home';
 import otherRouter from '@/router/other';
 import { useMenuStore } from '@/store/modules/menu';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import type { SongResult } from '@/types/music';
+import {
+  shouldCommitMobilePageSwipe,
+  shouldOpenMobilePlayer
+} from '@/utils/mobileGestureThresholds';
 
 import MobileHeader from './components/MobileHeader.vue';
 const MobilePlayBar = defineAsyncComponent(() => import('@/components/player/MobilePlayBar.vue'));
+const MobilePlayerBottomSurface = defineAsyncComponent(
+  () => import('@/components/player/MobilePlayerBottomSurface.vue')
+);
 const PlayingListDrawer = defineAsyncComponent(
   () => import('@/components/player/PlayingListDrawer.vue')
 );
@@ -120,30 +153,113 @@ const playerStore = usePlayerStore();
 const menuStore = useMenuStore();
 const settingsStore = useSettingsStore();
 const { t } = useI18n();
+const playerTransition = useMobilePlayerTransition();
+const playerTransitionStartedWithMenu = ref(false);
+const dockRef = ref<HTMLElement | null>(null);
+const playerTransitionOrigin = ref<{
+  left: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+  borderRadius: number;
+} | null>(null);
+const syncPlayerSurfaceProgress = () => {
+  const progress = playerTransition.progress.value;
+  const reveal = Math.min(1, Math.max(0, (progress - 0.035) / 0.62));
+  document.documentElement.style.setProperty('--player-open-progress', String(progress));
+  document.documentElement.style.setProperty('--player-surface-reveal', String(reveal));
+  document.documentElement.style.setProperty('--player-ripple-radius', `${progress * 150}vmax`);
+  document.body.classList.toggle(
+    'mobile-player-surface-active',
+    progress > 0 || playerTransition.state.value !== 'idle'
+  );
+};
+watch(
+  () => [playerTransition.progress.value, playerTransition.state.value] as const,
+  syncPlayerSurfaceProgress,
+  { immediate: true }
+);
+onBeforeUnmount(() => {
+  document.documentElement.style.removeProperty('--player-open-progress');
+  document.documentElement.style.removeProperty('--player-surface-reveal');
+  document.documentElement.style.removeProperty('--player-ripple-radius');
+  document.body.classList.remove('mobile-player-surface-active');
+});
+watch(
+  () => playerTransition.state.value,
+  (state, previous) => {
+    if ((state === 'dragging' || state === 'opening') && previous === 'idle') {
+      playerTransitionStartedWithMenu.value = shouldShowBottomMenu.value;
+      const source = shouldShowBottomMenu.value
+        ? dockRef.value
+        : document.querySelector<HTMLElement>('.mobile-play-bar .mobile-mini-controls');
+      const rect = source?.getBoundingClientRect();
+      if (rect) {
+        playerTransitionOrigin.value = {
+          left: rect.left,
+          right: window.innerWidth - rect.right,
+          bottom: window.innerHeight - rect.bottom,
+          width: rect.width,
+          height: rect.height,
+          borderRadius: shouldShowBottomMenu.value ? 32 : rect.height / 2
+        };
+        playerTransition.setSourceRect({
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+          borderRadius: shouldShowBottomMenu.value ? 32 : rect.height / 2
+        });
+      }
+    }
+  },
+  { flush: 'sync' }
+);
+const dockTransitionStyle = computed(() => {
+  const progress = playerTransition.progress.value;
+  if (progress <= 0) return undefined;
+  const startedWithMenu = playerTransitionStartedWithMenu.value;
+  const fallbackHeight = startedWithMenu ? 112 : 56;
+  const origin = playerTransitionOrigin.value ?? {
+    left: startedWithMenu ? 12 : 0,
+    right: startedWithMenu ? 12 : 0,
+    bottom: startedWithMenu ? 12 : 8,
+    width: window.innerWidth - (startedWithMenu ? 24 : 0),
+    height: fallbackHeight,
+    borderRadius: startedWithMenu ? 32 : 28
+  };
+  return {
+    height: `${origin.height + (window.innerHeight - origin.height) * progress}px`,
+    right: `${origin.right * (1 - progress)}px`,
+    bottom: `${origin.bottom * (1 - progress)}px`,
+    left: `${origin.left * (1 - progress)}px`,
+    borderRadius: `${origin.borderRadius * (1 - progress)}px`,
+    '--player-transition-surface-opacity': String(1 - progress)
+  };
+});
 
 type PageTransitionDirection = 'next' | 'prev';
 
 const pageTransitionDirection = ref<PageTransitionDirection | null>(null);
+const menuRouteMemory = ref<Record<string, string>>({});
 const miniPlayerIdleCollapsed = ref(false);
 const playlistSurfaceMounted = ref(false);
 const playlistSurfaceExpanded = ref(false);
 const pageSwipeOffset = ref(0);
 const pageSwipeAnimating = ref(false);
+const gestureNavigationInProgress = ref(false);
 const pageTransitionName = computed(() =>
   pageTransitionDirection.value ? `page-slide-${pageTransitionDirection.value}` : 'page-fade'
 );
 const pageSwipeStyle = computed(() => ({
   transform: pageSwipeOffset.value ? `translate3d(${pageSwipeOffset.value}px, 0, 0)` : undefined,
-  transition: pageSwipeAnimating.value
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      ? 'transform 160ms ease-out'
-      : 'transform 250ms cubic-bezier(0.22, 0.84, 0.24, 1.08)'
-    : 'none',
+  transition: 'none',
   willChange: pageSwipeOffset.value || pageSwipeAnimating.value ? 'transform' : undefined
 }));
 
 let pageTransitionTimer: ReturnType<typeof setTimeout> | undefined;
-let pageSwipeResetTimer: ReturnType<typeof setTimeout> | undefined;
+let pageSwipeAnimationFrame = 0;
 let playlistSurfaceUnmountTimer: ReturnType<typeof setTimeout> | undefined;
 let playlistSurfaceFrame = 0;
 
@@ -206,10 +322,21 @@ watch(
   }
 );
 
+watch(
+  () => route.fullPath,
+  (fullPath) => {
+    if (menuStore.menus.some((item: any) => item.path === route.path)) {
+      menuRouteMemory.value = { ...menuRouteMemory.value, [route.path]: fullPath };
+    }
+  },
+  { immediate: true }
+);
+
+const menuTarget = (path: string) => menuRouteMemory.value[path] || path;
+
 // 页面横滑：只有在底栏页面且明确判断为横向意图后才接管手势，垂直滚动保持原生行为。
 let pagePointerStartX = 0;
 let pagePointerStartY = 0;
-let pagePointerStartTime = 0;
 let pagePointerAxis: 'none' | 'horizontal' | 'vertical' = 'none';
 let pagePointerActive = false;
 let pagePointerId: number | null = null;
@@ -234,7 +361,67 @@ const onPageClickCapture = (event: MouseEvent) => {
 
 const isPageSwipeTarget = (target: EventTarget | null) => {
   if (!(target instanceof Element)) return true;
-  return !target.closest('button, input, textarea, select, [role="button"], [data-no-page-swipe]');
+  return !target.closest(
+    'input, textarea, select, [role="slider"], [data-no-page-swipe], [data-horizontal-scroll], .n-slider, .n-carousel'
+  );
+};
+
+type PointerSample = { x: number; time: number };
+let pagePointerSamples: PointerSample[] = [];
+
+const pushPagePointerSample = (x: number) => {
+  const time = performance.now();
+  pagePointerSamples.push({ x, time });
+  pagePointerSamples = pagePointerSamples.filter((sample) => time - sample.time <= 100);
+};
+
+const recentPageVelocity = () => {
+  if (pagePointerSamples.length < 2) return 0;
+  const first = pagePointerSamples[0];
+  const last = pagePointerSamples[pagePointerSamples.length - 1];
+  return (last.x - first.x) / Math.max(1, last.time - first.time);
+};
+
+const animatePageOffset = (target: number, initialVelocity = 0, done?: () => void) => {
+  if (pageSwipeAnimationFrame) cancelAnimationFrame(pageSwipeAnimationFrame);
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    pageSwipeAnimating.value = true;
+    const start = pageSwipeOffset.value;
+    const startedAt = performance.now();
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / 160);
+      pageSwipeOffset.value = start + (target - start) * (1 - Math.pow(1 - progress, 3));
+      if (progress < 1) pageSwipeAnimationFrame = requestAnimationFrame(tick);
+      else {
+        pageSwipeAnimationFrame = 0;
+        pageSwipeAnimating.value = false;
+        done?.();
+      }
+    };
+    pageSwipeAnimationFrame = requestAnimationFrame(tick);
+    return;
+  }
+  let value = pageSwipeOffset.value;
+  let velocity = initialVelocity * 1000;
+  let previous = performance.now();
+  pageSwipeAnimating.value = true;
+  const tick = (now: number) => {
+    const dt = Math.min(0.032, Math.max(0.001, (now - previous) / 1000));
+    previous = now;
+    const acceleration = -420 * (value - target) - 38 * velocity;
+    velocity += acceleration * dt;
+    value += velocity * dt;
+    pageSwipeOffset.value = value;
+    if (Math.abs(value - target) < 0.5 && Math.abs(velocity) < 5) {
+      pageSwipeOffset.value = target;
+      pageSwipeAnimating.value = false;
+      pageSwipeAnimationFrame = 0;
+      done?.();
+      return;
+    }
+    pageSwipeAnimationFrame = requestAnimationFrame(tick);
+  };
+  pageSwipeAnimationFrame = requestAnimationFrame(tick);
 };
 
 const onContentPointerDown = (event: PointerEvent) => {
@@ -251,11 +438,11 @@ const onContentPointerDown = (event: PointerEvent) => {
   }
   pagePointerStartX = event.clientX;
   pagePointerStartY = event.clientY;
-  pagePointerStartTime = Date.now();
   pagePointerAxis = 'none';
   pagePointerActive = true;
   pagePointerId = event.pointerId;
-  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  pagePointerSamples = [{ x: event.clientX, time: performance.now() }];
+  if (pageSwipeAnimationFrame) cancelAnimationFrame(pageSwipeAnimationFrame);
   pageSwipeAnimating.value = false;
 };
 
@@ -266,11 +453,15 @@ const onContentPointerMove = (event: PointerEvent) => {
 
   if (pagePointerAxis === 'none' && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 10) {
     pagePointerAxis = Math.abs(deltaX) > Math.abs(deltaY) ? 'horizontal' : 'vertical';
+    if (pagePointerAxis === 'horizontal') {
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    }
   }
   if (pagePointerAxis !== 'horizontal') return;
 
   event.preventDefault();
   if (Math.abs(deltaX) >= 16) setPageClickSuppressed();
+  pushPagePointerSample(event.clientX);
 
   const currentIndex = menuStore.menus.findIndex((item: any) => item.path === route.path);
   const movingToNext = deltaX < 0;
@@ -279,13 +470,7 @@ const onContentPointerMove = (event: PointerEvent) => {
 };
 
 const resetPageSwipe = () => {
-  pageSwipeAnimating.value = true;
-  pageSwipeOffset.value = 0;
-  if (pageSwipeResetTimer) clearTimeout(pageSwipeResetTimer);
-  pageSwipeResetTimer = setTimeout(() => {
-    pageSwipeAnimating.value = false;
-    pageSwipeResetTimer = undefined;
-  }, 280);
+  animatePageOffset(0, recentPageVelocity());
 };
 
 const triggerPageHaptic = () => {
@@ -301,18 +486,16 @@ const releasePagePointer = (event: PointerEvent) => {
 const onContentPointerUp = (event: PointerEvent) => {
   if (!pagePointerActive || event.pointerId !== pagePointerId) return;
   const deltaX = event.clientX - pagePointerStartX;
-  const elapsed = Math.max(1, Date.now() - pagePointerStartTime);
-  const projectedX = deltaX + (deltaX / elapsed) * 140;
+  pushPagePointerSample(event.clientX);
+  const velocity = recentPageVelocity();
   const currentIndex = menuStore.menus.findIndex((item: any) => item.path === route.path);
   const direction = deltaX < 0 ? 'next' : 'prev';
   const targetIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
   const target = menuStore.menus[targetIndex];
-  const swipeThreshold = Math.min(62, Math.max(42, window.innerWidth * 0.15));
-  const projectedThreshold = Math.min(92, Math.max(64, window.innerWidth * 0.22));
   const commit =
     pagePointerAxis === 'horizontal' &&
     Boolean(target) &&
-    (Math.abs(deltaX) >= swipeThreshold || Math.abs(projectedX) >= projectedThreshold);
+    shouldCommitMobilePageSwipe(deltaX, window.innerWidth, velocity, Boolean(target));
 
   releasePagePointer(event);
   pagePointerActive = false;
@@ -322,38 +505,37 @@ const onContentPointerUp = (event: PointerEvent) => {
     return;
   }
 
-  prepareMenuTransition(target.path);
+  pageTransitionDirection.value = null;
+  gestureNavigationInProgress.value = true;
   triggerPageHaptic();
-  resetPageSwipe();
-  void router.push(target.path);
+  const exitTarget = direction === 'next' ? -window.innerWidth : window.innerWidth;
+  animatePageOffset(exitTarget, velocity, async () => {
+    try {
+      await router.push(menuTarget(target.path));
+      pageSwipeOffset.value = direction === 'next' ? window.innerWidth : -window.innerWidth;
+      await nextTick();
+      animatePageOffset(0, velocity * 0.35, () => {
+        gestureNavigationInProgress.value = false;
+      });
+    } catch (error) {
+      console.warn('[MobilePager] 页面切换失败:', error);
+      gestureNavigationInProgress.value = false;
+      animatePageOffset(0);
+    }
+  });
 };
 
 const onContentPointerCancel = (event: PointerEvent) => {
   if (!pagePointerActive || event.pointerId !== pagePointerId) return;
-  const deltaX = pageSwipeOffset.value;
-  const currentIndex = menuStore.menus.findIndex((item: any) => item.path === route.path);
-  const direction = deltaX < 0 ? 'next' : 'prev';
-  const targetIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-  const target = menuStore.menus[targetIndex];
-  const swipeThreshold = Math.min(62, Math.max(42, window.innerWidth * 0.15));
-  const commit =
-    pagePointerAxis === 'horizontal' && Boolean(target) && Math.abs(deltaX) >= swipeThreshold;
   releasePagePointer(event);
   pagePointerActive = false;
   pagePointerAxis = 'none';
-  if (commit) {
-    prepareMenuTransition(target.path);
-    triggerPageHaptic();
-    resetPageSwipe();
-    void router.push(target.path);
-    return;
-  }
   resetPageSwipe();
 };
 
 onBeforeUnmount(() => {
   if (pageTransitionTimer) clearTimeout(pageTransitionTimer);
-  if (pageSwipeResetTimer) clearTimeout(pageSwipeResetTimer);
+  if (pageSwipeAnimationFrame) cancelAnimationFrame(pageSwipeAnimationFrame);
   if (pageClickTimer) clearTimeout(pageClickTimer);
   if (playlistSurfaceUnmountTimer) clearTimeout(playlistSurfaceUnmountTimer);
   if (playlistSurfaceFrame) cancelAnimationFrame(playlistSurfaceFrame);
@@ -368,42 +550,84 @@ const isCompactNav = computed(() => navLayoutMode.value === 'compact');
 // - 竖屏：返回状态栏高度（含挖孔避让）
 // - 横屏沉浸：返回挖孔安全区域高度
 
-// 上滑打开播放界面的手势检测（绑在根元素上，覆盖迷你播放栏区域）
-let touchStartY = 0;
-let touchStartX = 0;
-let touchStartTime = 0;
+// Dock 的纵向手势与迷你播放栏横向切歌分离。只有确认纵向意图后才捕获指针。
+let dockPointerId: number | null = null;
+let dockStartX = 0;
+let dockStartY = 0;
+let dockAxis: 'none' | 'horizontal' | 'vertical' = 'none';
+let dockSamples: Array<{ y: number; time: number }> = [];
+let suppressDockClick = false;
 
-const onLayoutTouchStart = (e: TouchEvent) => {
-  if (
-    !isPlay.value ||
-    playerStore.musicFull ||
-    (e.target instanceof Element && e.target.closest('.mobile-play-bar, .mobile-bottom-dock'))
-  ) {
-    touchStartY = 0;
-    return;
-  }
-  const touch = e.touches[0];
-  touchStartY = touch.clientY;
-  touchStartX = touch.clientX;
-  touchStartTime = Date.now();
+const dockVelocity = () => {
+  if (dockSamples.length < 2) return 0;
+  const first = dockSamples[0];
+  const last = dockSamples[dockSamples.length - 1];
+  return (last.y - first.y) / Math.max(1, last.time - first.time);
 };
 
-const onLayoutTouchEnd = (e: TouchEvent) => {
-  if (!isPlay.value || playerStore.musicFull || touchStartY === 0) return;
-  // 紧凑模式下播放栏更靠下，手势触发区域下调
-  const gestureThreshold = isCompactNav.value ? 100 : 160;
-  const windowHeight = window.innerHeight;
-  if (touchStartY < windowHeight - gestureThreshold) return;
+const onDockPointerDown = (event: PointerEvent) => {
+  if (
+    !event.isPrimary ||
+    !isPlay.value ||
+    playerStore.musicFull ||
+    (event.target instanceof Element && event.target.closest('.mobile-play-bar'))
+  )
+    return;
+  dockPointerId = event.pointerId;
+  dockStartX = event.clientX;
+  dockStartY = event.clientY;
+  dockAxis = 'none';
+  dockSamples = [{ y: event.clientY, time: performance.now() }];
+  suppressDockClick = false;
+};
 
-  const touch = e.changedTouches[0];
-  const deltaY = touch.clientY - touchStartY;
-  const deltaX = Math.abs(touch.clientX - touchStartX);
-  const elapsed = Date.now() - touchStartTime;
-
-  // 快速上滑：Y位移为负（向上），且大于50px，横向位移小于纵向位移，时间小于600ms
-  if (deltaY < -50 && deltaX < Math.abs(deltaY) && elapsed < 600) {
-    playerStore.setMusicFull(true);
+const onDockPointerMove = (event: PointerEvent) => {
+  if (dockPointerId !== event.pointerId) return;
+  const deltaX = event.clientX - dockStartX;
+  const deltaY = event.clientY - dockStartY;
+  if (dockAxis === 'none' && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
+    dockAxis = Math.abs(deltaY) > Math.abs(deltaX) * 1.08 ? 'vertical' : 'horizontal';
+    if (dockAxis === 'vertical') {
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+      suppressDockClick = true;
+    }
   }
+  if (dockAxis !== 'vertical') return;
+  event.preventDefault();
+  const now = performance.now();
+  dockSamples.push({ y: event.clientY, time: now });
+  dockSamples = dockSamples.filter((sample) => now - sample.time <= 100);
+  playerTransition.setDragging(
+    Math.min(1, Math.max(0, -deltaY / Math.max(240, window.innerHeight * 0.68))),
+    (-dockVelocity() * 1000) / Math.max(1, window.innerHeight)
+  );
+};
+
+const releaseDockPointer = (event: PointerEvent, cancelled = false) => {
+  if (dockPointerId !== event.pointerId) return;
+  const target = event.currentTarget as HTMLElement;
+  if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+  const velocity = dockVelocity();
+  const shouldOpen =
+    !cancelled &&
+    dockAxis === 'vertical' &&
+    shouldOpenMobilePlayer(playerTransition.progress.value, -velocity);
+  if (dockAxis === 'vertical') {
+    if (shouldOpen) playerStore.setMusicFull(true);
+    playerTransition.animateTo(shouldOpen ? 1 : 0, -velocity);
+    if (shouldOpen && navigator.vibrate) navigator.vibrate(8);
+  }
+  dockPointerId = null;
+  dockAxis = 'none';
+};
+
+const onDockPointerUp = (event: PointerEvent) => releaseDockPointer(event);
+const onDockPointerCancel = (event: PointerEvent) => releaseDockPointer(event, true);
+const onDockClickCapture = (event: MouseEvent) => {
+  if (!suppressDockClick) return;
+  event.preventDefault();
+  event.stopPropagation();
+  suppressDockClick = false;
 };
 
 // 提供是否有安全区域
@@ -416,6 +640,11 @@ const isPlay = computed(() => playerStore.playMusic && playerStore.playMusic.id)
 const shouldShowBottomMenu = computed(() => {
   const menuPaths = menuStore.menus.map((item: any) => item.path);
   return menuPaths.includes(route.path) && !playerStore.musicFull;
+});
+const mobileDockContentInset = computed(() => {
+  if (!shouldShowBottomMenu.value) return isPlay.value ? 82 : 20;
+  if (!isPlay.value || miniPlayerIdleCollapsed.value) return 76;
+  return 134;
 });
 
 const isActive = (itemPath: string) => route.path === itemPath;
@@ -524,6 +753,59 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
     pointer-events: auto;
   }
 
+  &.player-transitioning {
+    z-index: 9997;
+    overflow: hidden;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    pointer-events: auto;
+    transition: none;
+  }
+
+  &.player-transitioning::before {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border: 1px solid color-mix(in srgb, #fff 18%, transparent);
+    border-radius: inherit;
+    background: color-mix(in srgb, var(--accent-color, #555) 13%, var(--m-glass-bg));
+    box-shadow:
+      0 18px 48px rgba(0, 0, 0, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    content: '';
+    opacity: var(--player-transition-surface-opacity, 1);
+    pointer-events: none;
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+  }
+
+  &.player-full {
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  &.player-full::before {
+    opacity: 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  &.player-full > :deep(.mobile-play-bar) {
+    pointer-events: none;
+  }
+
+  &.player-transitioning .mobile-glow-nav-wrap {
+    opacity: calc(1 - var(--player-open-progress, 0));
+    pointer-events: none;
+  }
+
+  &.player-transitioning > :deep(.mobile-play-bar) {
+    z-index: 1;
+  }
+
   &.visible.player-open {
     height: 112px;
     border-radius: 32px;
@@ -602,6 +884,52 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 
   :deep(.mobile-play-bar) {
     pointer-events: auto;
+  }
+}
+
+/* Teleported players share the same rAF progress as the Dock surface. */
+:global(body.mobile-player-surface-active .n-drawer-container:has(#mobile-drawer-target)),
+:global(body.mobile-player-surface-active .stage-mobile-player),
+:global(body.mobile-player-surface-active .rain-mobile-player),
+:global(body.mobile-player-surface-active .star-chart-player),
+:global(body.mobile-player-surface-active .frenzy-mobile-player),
+:global(body.mobile-player-surface-active .eerie-mobile-player),
+:global(body.mobile-player-surface-active .magazine-mobile-player),
+:global(body.mobile-player-surface-active .neon-mobile-player),
+:global(body.mobile-player-surface-active .smoke-mobile-player) {
+  opacity: var(--player-surface-reveal, 1) !important;
+  transition: none !important;
+  animation: none !important;
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 100%,
+    #000 0,
+    #000 calc(var(--player-ripple-radius, 150vmax) - 18px),
+    rgba(0, 0, 0, 0.45) calc(var(--player-ripple-radius, 150vmax) - 8px),
+    transparent var(--player-ripple-radius, 150vmax)
+  );
+  mask-image: radial-gradient(
+    circle at 50% 100%,
+    #000 0,
+    #000 calc(var(--player-ripple-radius, 150vmax) - 18px),
+    rgba(0, 0, 0, 0.45) calc(var(--player-ripple-radius, 150vmax) - 8px),
+    transparent var(--player-ripple-radius, 150vmax)
+  );
+}
+
+:global(body.mobile-player-surface-active .player-style-surface .mobile-controls),
+:global(body.mobile-player-surface-active #mobile-drawer-target .unified-controls),
+:global(body.mobile-player-surface-active #mobile-drawer-target .landscape-main-controls),
+:global(body.mobile-player-surface-active .player-style-surface .top-controls),
+:global(body.mobile-player-surface-active .player-style-surface > .song-header),
+:global(body.mobile-player-surface-active #mobile-drawer-target > .control-btn.absolute) {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(body.mobile-player-surface-active .n-drawer-container:has(#mobile-drawer-target)),
+  :global(body.mobile-player-surface-active .player-style-surface) {
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 }
 

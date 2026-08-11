@@ -12,6 +12,21 @@ describe('mobile settings search registry', () => {
     );
   });
 
+  it('indexes every status-bar lyric customization under the expandable item', () => {
+    const related = MOBILE_SETTING_SEARCH_DEFINITIONS.filter(
+      (item) => item.targetId === 'status-bar-lyrics'
+    );
+    expect(related.map((item) => item.title)).toEqual(
+      expect.arrayContaining([
+        '逐字显示',
+        '状态栏歌词位置',
+        '状态栏歌词字体',
+        '状态栏歌词配色',
+        '状态栏歌词预览'
+      ])
+    );
+  });
+
   it('does not expose desktop-only settings', () => {
     const serialized = JSON.stringify(MOBILE_SETTING_SEARCH_DEFINITIONS);
     const desktopOnlyTerms = [

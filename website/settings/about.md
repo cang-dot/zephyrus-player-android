@@ -1,28 +1,23 @@
 # 关于
 
-## 版本信息
+## 当前版本
 
-当前版本：**v1.1.3**
+Zephyrus Player for Android 当前文档对应 **v1.2.0**。
 
-点击「检查更新」可检查是否有新版本。
+- [打开官方网站](https://mucang.xyz/zephyrus/)
+- [下载最新正式版 APK](https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk)
+- [查看源代码](https://github.com/cang-dot/zephyrus-player-android)
 
-## 开源信息
+应用内路径为“设置 > 关于 > 官方网站”。官网提供产品介绍、APK 下载和文档入口；GitHub 仓库保留源码、提交记录与 Issue。
 
-- **开源协议**：MIT License
-- **GitHub 仓库**：[cang-dot/zephyrus-player-android](https://github.com/cang-dot/zephyrus-player-android)
-- **桌面版**：[cang-dot/zephyrus-player](https://github.com/cang-dot/zephyrus-player)
-- **原项目**：[AlgerMusicPlayer](https://github.com/algerkong/AlgerMusicPlayer)
+## 开源与致谢
 
-本项目基于 AlgerMusicPlayer 深度二次开发，感谢原作者 Alger。
+项目以 MIT License 发布，并基于 AlgerMusicPlayer 持续演进。AMLL TTML 数据源和其他开源依赖的许可证与来源保留在仓库及应用内。
 
-## 用户协议
+## 隐私
 
-点击「用户协议」查看完整的用户使用协议，包含字体导入免责声明等内容。
+平台 Cookie 只用于用户主动发起的账号能力和歌词增强请求，不写入歌词缓存、不回传到无关接口。状态栏歌词字体保存在应用私有目录，歌词悬浮窗只渲染当前播放状态。
 
-## 开源协议
+## 问题反馈
 
-点击「开源协议」查看 MIT License 全文。
-
-## 应用介绍
-
-点击「应用介绍」查看项目 README。
+反馈时请附上应用版本、Android 版本、歌曲来源、歌曲名称和可复现步骤。歌词问题最好同时说明当前命中的格式，例如 TTML、YRC、QRC 或 LRC。

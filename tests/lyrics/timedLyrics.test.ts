@@ -3,9 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { convertTextPreservingSymbols } from '../../src/renderer/services/translation-engines/opencc';
 import {
+  getTtmlBackgroundLines,
   parseTtml,
   type TtmlLyric,
-  ttmlToTimedLines
+  ttmlToTimedLines,
+  ttmlWordsToTimedWords
 } from '../../src/renderer/services/ttmlParser';
 import { extractQrcLyricContent, parseQrcLyrics } from '../../src/renderer/utils/qrcParser';
 import {
@@ -213,6 +215,11 @@ describe('timed lyric parsing', () => {
         { text: '太', begin: 31.224, end: 31.735, role: 'background' },
         { text: '多', begin: 31.735, end: 32.387, role: 'background' }
       ]);
+      expect(ttmlWordsToTimedWords(lyric!.lines[0].background[0].words)).toEqual([
+        { text: '太', startTime: 31224, duration: 511, space: false },
+        { text: '多', startTime: 31735, duration: 652, space: false }
+      ]);
+      expect(getTtmlBackgroundLines(lyric!, 31.4)[0].text).toBe('太多');
     } finally {
       vi.unstubAllGlobals();
     }
