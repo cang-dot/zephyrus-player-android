@@ -1,4 +1,4 @@
-﻿﻿<template>
+<template>
   <div>
     <setting-section :title="t('settings.sections.playback')">
       <setting-item
@@ -10,6 +10,17 @@
           :options="qualityOptions"
           width="w-40 max-md:w-full"
         />
+      </setting-item>
+
+      <setting-item
+        v-if="!isElectron"
+        :title="t('settings.lyricSettings.statusBarLyrics')"
+        :description="t('settings.lyricSettings.statusBarLyricsDescription')"
+      >
+        <n-switch :value="statusBarLyricsEnabled" @update:value="updateStatusBarLyricsEnabled">
+          <template #checked>{{ t('common.on') }}</template>
+          <template #unchecked>{{ t('common.off') }}</template>
+        </n-switch>
       </setting-item>
 
       <setting-item v-if="isElectron" :title="t('settings.playback.musicSources')">
@@ -66,12 +77,8 @@
       </setting-item>
     </setting-section>
 
-    <!-- 智能混音引擎 -->
     <setting-section title="智能混音">
-      <setting-item
-        title="智能混音引擎"
-        description="切歌时自动平滑过渡，避免硬切中断"
-      >
+      <setting-item title="智能混音引擎" description="切歌时自动平滑过渡，避免硬切中断">
         <smart-mix-settings />
       </setting-item>
     </setting-section>
@@ -85,12 +92,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue';
+import { computed, inject, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import AudioDeviceSettings from '@/components/settings/AudioDeviceSettings.vue';
 import MusicSourceSettings from '@/components/settings/MusicSourceSettings.vue';
 import SmartMixSettings from '@/components/settings/SmartMixSettings.vue';
+import {
+  hasStatusBarLyricPermission,
+  isAndroidNative,
+  refreshStatusBarLyric,
+  requestStatusBarLyricPermission
+} from '@/services/androidNative';
 import { type Platform } from '@/types/music';
 import { isElectron } from '@/utils';
 
@@ -107,6 +120,48 @@ const setData = inject(SETTINGS_DATA_KEY)!;
 const platform = window.electron ? window.electron.ipcRenderer.sendSync('get-platform') : 'web';
 
 const showMusicSourcesModal = ref(false);
+
+function readStatusBarLyricsEnabled(): boolean {
+  try {
+    const saved = localStorage.getItem('music-full-config');
+    return Boolean(saved && JSON.parse(saved).statusBarLyricsEnabled);
+  } catch {
+    return false;
+  }
+}
+
+const statusBarLyricsEnabled = ref(readStatusBarLyricsEnabled());
+
+function syncStatusBarLyricsEnabled() {
+  statusBarLyricsEnabled.value = readStatusBarLyricsEnabled();
+}
+
+function updateStatusBarLyricsEnabled(enabled: boolean) {
+  try {
+    const saved = localStorage.getItem('music-full-config');
+    const config = saved ? JSON.parse(saved) : {};
+    config.statusBarLyricsEnabled = enabled;
+    localStorage.setItem('music-full-config', JSON.stringify(config));
+    statusBarLyricsEnabled.value = enabled;
+    window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+
+    if (enabled && isAndroidNative() && !hasStatusBarLyricPermission()) {
+      requestStatusBarLyricPermission();
+      window.$message?.info('请允许 Zephyrus 显示在其他应用上层');
+    }
+    refreshStatusBarLyric();
+  } catch (error) {
+    console.error('更新状态栏歌词设置失败:', error);
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('music-full-config-updated', syncStatusBarLyricsEnabled);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('music-full-config-updated', syncStatusBarLyricsEnabled);
+});
 
 const qualityOptions = computed(() => [
   { label: t('settings.playback.qualityOptions.standard'), value: 'standard' },

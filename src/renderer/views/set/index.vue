@@ -92,6 +92,7 @@ import { isElectron } from '@/utils';
 import config from '../../../../package.json';
 import { createDefaultAppUpdateState } from '../../../shared/appUpdate';
 import { SETTINGS_DATA_KEY, SETTINGS_DIALOG_KEY, SETTINGS_MESSAGE_KEY } from './keys';
+import { MOBILE_SETTING_SEARCH_DEFINITIONS } from './mobileSettingSearch';
 import AboutTab from './tabs/AboutTab.vue';
 import ApplicationTab from './tabs/ApplicationTab.vue';
 import BasicTab from './tabs/BasicTab.vue';
@@ -218,146 +219,27 @@ function highlight(text: string): string {
 }
 
 const settingIndex = computed<SearchResult[]>(() => {
-  const items: SearchResult[] = [];
   const tabLabels: Record<string, string> = {};
   navSections.value.forEach((s) => {
     tabLabels[s.id] = s.title;
   });
 
-  const basicItems = [
-    { title: t('settings.basic.themeMode'), desc: t('settings.basic.themeModeDesc') },
-    { title: t('settings.basic.language'), desc: t('settings.basic.languageDesc') },
-    { title: t('settings.basic.font'), desc: t('settings.basic.fontDesc') },
-    { title: t('settings.basic.animation'), desc: t('settings.basic.animationDesc') },
-    { title: t('settings.basic.animation'), desc: t('settings.basic.animationDesc') },
-    { title: t('settings.interface.defaultPage'), desc: t('settings.interface.defaultPageDesc') }
-  ];
-  basicItems.forEach((item) => {
-    items.push({
-      tabId: 'basic',
-      tabLabel: tabLabels['basic'],
-      title: item.title,
-      desc: item.desc,
-      titlePath: item.title
-    });
-  });
+  return MOBILE_SETTING_SEARCH_DEFINITIONS.map((item) => {
+    const translatedTitle = item.titleKey ? t(item.titleKey) : '';
+    const translatedDesc = item.descKey ? t(item.descKey) : '';
+    const title =
+      translatedTitle && translatedTitle !== item.titleKey ? translatedTitle : item.title || '';
+    const desc =
+      translatedDesc && translatedDesc !== item.descKey ? translatedDesc : item.desc || '';
 
-  const interfaceItems = [
-    { title: '界面布局', desc: '经典：传统侧边栏+页面 / 浮动覆盖：播放界面为主+悬浮窗口' },
-    { title: '自动收起', desc: '无操作时自动将侧栏和搜索栏移出屏幕' },
-    { title: '收起延迟', desc: '无操作后多少秒自动收起' },
-    { title: '播放器样式', desc: '默认 / 舞台 / 杂志 / 狂躁' },
-    { title: '底栏样式', desc: '贯穿：全宽底栏 / 迷你：浮动圆角底栏' },
-    { title: '快捷组件', desc: '迷你底栏悬停时显示的组件' },
-    { title: '本地歌词文件', desc: '为当前歌曲指定本地 TTML/LRC 歌词文件' },
-    { title: '桌面歌词字体', desc: '选择已安装的系统字体' },
-    { title: '桌面歌词文本颜色', desc: '歌词文字颜色' },
-    { title: '桌面歌词已播放颜色', desc: '当前播放行的高亮颜色' },
-    { title: '桌面歌词未播放颜色', desc: '未播放歌词行的文字颜色' },
-    { title: '桌面歌词描边颜色', desc: '歌词文字描边/阴影颜色' },
-    { title: '封面取色', desc: '自动跟随当前播放歌曲封面提取颜色' },
-    { title: t('settings.interface.sidebarOrder'), desc: t('settings.interface.sidebarOrderDesc') }
-  ];
-  interfaceItems.forEach((item) => {
-    items.push({
-      tabId: 'interface',
-      tabLabel: tabLabels['interface'],
-      title: item.title,
-      desc: item.desc,
-      titlePath: item.title
-    });
-  });
-
-  const playbackItems = [
-    { title: t('settings.playback.quality'), desc: t('settings.playback.qualityDesc') },
-    { title: t('settings.playback.autoPlay'), desc: t('settings.playback.autoPlayDesc') },
-    { title: t('settings.playback.audioDevice'), desc: t('settings.playback.audioDeviceDesc') }
-  ];
-  playbackItems.forEach((item) => {
-    items.push({
-      tabId: 'playback',
-      tabLabel: tabLabels['playback'],
-      title: item.title,
-      desc: item.desc,
-      titlePath: item.title
-    });
-  });
-
-  if (isElectron) {
-    const appItems = [
-      { title: t('settings.basic.gpuAcceleration'), desc: t('settings.basic.gpuAccelerationDesc') },
-      { title: t('settings.system.diskCache'), desc: t('settings.system.diskCacheDesc') },
-      { title: t('settings.system.cacheMaxSize'), desc: t('settings.system.cacheMaxSizeDesc') },
-      {
-        title: t('settings.application.downloadPath'),
-        desc: t('settings.application.downloadPathDesc')
-      },
-      {
-        title: t('settings.application.closeAction'),
-        desc: t('settings.application.closeActionDesc')
-      }
-    ];
-    appItems.forEach((item) => {
-      items.push({
-        tabId: 'application',
-        tabLabel: tabLabels['application'],
-        title: item.title,
-        desc: item.desc,
-        titlePath: item.title
-      });
-    });
-
-    const networkItems = [
-      { title: t('settings.network.proxy'), desc: t('settings.network.proxyDesc') },
-      { title: t('settings.network.realIP'), desc: t('settings.network.realIPDesc') },
-      {
-        title: t('settings.playback.musicUnblockEnable'),
-        desc: t('settings.playback.musicUnblockEnableDesc')
-      },
-      { title: t('settings.playback.musicSources'), desc: t('settings.playback.musicSourcesDesc') }
-    ];
-    networkItems.forEach((item) => {
-      items.push({
-        tabId: 'network',
-        tabLabel: tabLabels['network'],
-        title: item.title,
-        desc: item.desc,
-        titlePath: item.title
-      });
-    });
-
-    const systemItems = [
-      { title: t('settings.about.checkUpdate'), desc: t('settings.about.manualUpdate') },
-      { title: t('settings.system.restart'), desc: t('settings.system.restartDesc') },
-      { title: t('settings.system.cache'), desc: t('settings.system.cacheDesc') }
-    ];
-    systemItems.forEach((item) => {
-      items.push({
-        tabId: 'system',
-        tabLabel: tabLabels['system'],
-        title: item.title,
-        desc: item.desc,
-        titlePath: item.title
-      });
-    });
-  }
-
-  const aboutItems = [
-    { title: t('settings.about.version'), desc: t('settings.about.authorDesc') },
-    { title: t('settings.about.gotoGithub'), desc: t('settings.about.manualUpdate') },
-    { title: t('settings.about.checkUpdate'), desc: t('settings.about.gotoUpdate') }
-  ];
-  aboutItems.forEach((item) => {
-    items.push({
-      tabId: 'about',
-      tabLabel: tabLabels['about'],
-      title: item.title,
-      desc: item.desc,
-      titlePath: item.title
-    });
-  });
-
-  return items;
+    return {
+      tabId: item.tabId,
+      tabLabel: tabLabels[item.tabId],
+      title,
+      desc,
+      titlePath: title
+    };
+  }).filter((item) => item.title && item.tabLabel);
 });
 
 const performSearch = useDebounceFn(() => {
@@ -402,10 +284,10 @@ const jumpToResult = (result: SearchResult) => {
   currentSection.value = result.tabId;
   nextTick(() => {
     nextTick(() => {
-      const items = contentRef.value?.querySelectorAll('.setting-item');
+      const items = contentRef.value?.querySelectorAll('.setting-item, .keep-alive-item');
       if (items) {
         for (const item of items) {
-          const titleEl = item.querySelector('.setting-item-title, [class*="title"]');
+          const titleEl = item.querySelector('.setting-item-title, .item-title, [class*="title"]');
           if (titleEl && titleEl.textContent?.includes(result.titlePath)) {
             item.scrollIntoView({ behavior: 'smooth', block: 'center' });
             item.classList.add('setting-item-flash');

@@ -37,17 +37,6 @@
     </setting-item>
 
     <setting-item
-      v-if="!isElectron"
-      :title="t('settings.basic.tabletMode')"
-      :description="t('settings.basic.tabletModeDesc')"
-    >
-      <n-switch v-model:value="setData.tabletMode">
-        <template #checked><i class="ri-tablet-line"></i></template>
-        <template #unchecked><i class="ri-smartphone-line"></i></template>
-      </n-switch>
-    </setting-item>
-
-    <setting-item
       :title="t('settings.translationEngine')"
       :description="t('settings.translationEngine')"
     >
@@ -171,15 +160,9 @@
         <div v-if="unlockKeyValid" class="text-sm text-green-500 mb-1">
           <i class="ri-shield-check-line mr-1"></i>VIP 歌曲已解锁
         </div>
-        <div v-else class="text-sm text-gray-500 mb-1">
-          输入口令解锁 VIP 歌曲播放
-        </div>
+        <div v-else class="text-sm text-gray-500 mb-1">输入口令解锁 VIP 歌曲播放</div>
         <div v-if="!unlockKeyValid" class="flex gap-2 items-start">
-          <s-input
-            v-model="unlockKeyInput"
-            placeholder="输入口令..."
-            width="flex-1"
-          />
+          <s-input v-model="unlockKeyInput" placeholder="输入口令..." width="flex-1" />
           <s-btn
             variant="primary"
             :disabled="!unlockKeyInput.trim() || unlockKeyVerifying"
@@ -192,9 +175,7 @@
         <div v-if="unlockKeyError" class="text-xs text-red-400 mt-1">{{ unlockKeyError }}</div>
       </template>
       <template #action>
-        <s-btn v-if="unlockKeyValid" variant="danger" @click="removeUnlockKey">
-          移除口令
-        </s-btn>
+        <s-btn v-if="unlockKeyValid" variant="danger" @click="removeUnlockKey"> 移除口令 </s-btn>
       </template>
     </setting-item>
 
@@ -230,7 +211,7 @@ import { computed, h, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { getUserDetail } from '@/api/login';
-import { verifyUnlockKey, saveUnlockKey, getUnlockKey, clearUnlockKey } from '@/api/unlockKey';
+import { clearUnlockKey, getUnlockKey, saveUnlockKey, verifyUnlockKey } from '@/api/unlockKey';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 import CookieSettingsModal from '@/components/settings/CookieSettingsModal.vue';
 import { useSettingsStore } from '@/store/modules/settings';
@@ -400,7 +381,7 @@ function removeUnlockKey() {
 
 onMounted(() => {
   if (window.electron) {
-    window.electron.ipcRenderer.on('gpu-acceleration-updated', (_, enabled: boolean) => {
+    window.electron.ipcRenderer.on('gpu-acceleration-updated', (_, _enabled: boolean) => {
       gpuAccelerationChanged.value = true;
     });
 
@@ -426,23 +407,47 @@ onUnmounted(() => {
 
 <style scoped>
 /* 覆盖写死的 Tailwind 颜色，统一跟随 --m-* 令牌 */
-.bg-gray-100 { background-color: var(--m-surface-alt, #e0dbd3) !important; }
-.bg-gray-50 { background-color: var(--m-surface, #eae6df) !important; }
-.bg-white { background-color: var(--m-surface, #eae6df) !important; }
+.bg-gray-100 {
+  background-color: var(--m-surface-alt, #e0dbd3) !important;
+}
+.bg-gray-50 {
+  background-color: var(--m-surface, #eae6df) !important;
+}
+.bg-white {
+  background-color: var(--m-surface, #eae6df) !important;
+}
 .dark .dark\:bg-white\/5,
-.dark .dark\:bg-white\/10 { background-color: var(--m-surface-alt, #2a2a2a) !important; }
-.dark .dark\:bg-black\/20 { background-color: var(--m-surface-alt, #2a2a2a) !important; }
+.dark .dark\:bg-white\/10 {
+  background-color: var(--m-surface-alt, #2a2a2a) !important;
+}
+.dark .dark\:bg-black\/20 {
+  background-color: var(--m-surface-alt, #2a2a2a) !important;
+}
 
-.text-gray-900 { color: var(--m-text-primary, #2c2c2c) !important; }
+.text-gray-900 {
+  color: var(--m-text-primary, #2c2c2c) !important;
+}
 .text-gray-500,
-.text-gray-400 { color: var(--m-text-muted, #9a9590) !important; }
-.dark .dark\:text-white { color: var(--m-text-primary, #f0ece4) !important; }
-.dark .dark\:text-gray-400 { color: var(--m-text-muted, #666666) !important; }
-.dark .dark\:text-gray-100 { color: var(--m-text-primary, #f0ece4) !important; }
+.text-gray-400 {
+  color: var(--m-text-muted, #9a9590) !important;
+}
+.dark .dark\:text-white {
+  color: var(--m-text-primary, #f0ece4) !important;
+}
+.dark .dark\:text-gray-400 {
+  color: var(--m-text-muted, #666666) !important;
+}
+.dark .dark\:text-gray-100 {
+  color: var(--m-text-primary, #f0ece4) !important;
+}
 
 .hover\:bg-gray-50:hover,
-.dark .hover\:dark\:bg-white\/5:hover { background-color: var(--m-surface, #eae6df) !important; }
+.dark .hover\:dark\:bg-white\/5:hover {
+  background-color: var(--m-surface, #eae6df) !important;
+}
 
 .border-gray-100,
-.dark .dark\:border-gray-800 { border-color: var(--m-border, #d5d0c9) !important; }
+.dark .dark\:border-gray-800 {
+  border-color: var(--m-border, #d5d0c9) !important;
+}
 </style>
