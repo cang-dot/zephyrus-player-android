@@ -275,11 +275,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onDestroy() {
-        // 清理媒体通知
-        try {
-            MediaNotificationManager.getInstance(this).release();
-        } catch (Exception e) {
-            // ignore
+        if (nativeBridge != null) {
+            nativeBridge.detachAudioEngine();
         }
         try {
             StatusBarLyricOverlay.getInstance(this).destroy();

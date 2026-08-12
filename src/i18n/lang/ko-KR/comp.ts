@@ -202,7 +202,10 @@ export default {
   },
   musicList: {
     searchSongs: '곡 검색',
+    playlistDescription: '재생목록 소개',
+    albumDescription: '앨범 소개',
     noSearchResults: '관련 곡을 찾을 수 없습니다',
+    toggleLayout: '레이아웃 전환',
     switchToNormal: '기본 레이아웃으로 전환',
     switchToCompact: '컴팩트 레이아웃으로 전환',
     playAll: '모두 재생',

@@ -172,11 +172,13 @@ const neonColor = computed(() =>
   isCustom.value ? climaxColors.value.main : primaryColor.value || '#c9a96e'
 );
 const neonBright = computed(() => {
+  if (isCustom.value) return climaxColors.value.main;
   const rgb = neonColor.value.match(/\d+/g);
   if (!rgb) return '#e8d5a8';
   return `rgb(${Math.min(255, Number(rgb[0]) + 50)}, ${Math.min(255, Number(rgb[1]) + 50)}, ${Math.min(255, Number(rgb[2]) + 50)})`;
 });
 const neonDim = computed(() => {
+  if (isCustom.value) return climaxColors.value.auxiliary;
   const rgb = neonColor.value.match(/\d+/g);
   if (!rgb) return '#5c4a2e';
   return `rgb(${Math.round(Number(rgb[0]) * 0.4)}, ${Math.round(Number(rgb[1]) * 0.4)}, ${Math.round(Number(rgb[2]) * 0.4)})`;

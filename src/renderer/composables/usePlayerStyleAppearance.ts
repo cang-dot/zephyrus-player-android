@@ -88,6 +88,13 @@ export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
   });
 
   const styleVars = computed<PlayerAppearanceVars>(() => ({
+    ...(isCustom.value
+      ? {
+          '--player-style-custom-main-color': climaxColors.value.main,
+          '--player-style-custom-auxiliary-color': climaxColors.value.auxiliary,
+          '--player-style-custom-translation-color': climaxColors.value.translation
+        }
+      : {}),
     '--player-style-background': background.value,
     '--player-style-background-blur': `${
       customBackgroundActive.value && config.value.backgroundMode === 'image'

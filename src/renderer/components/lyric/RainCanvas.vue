@@ -1,9 +1,5 @@
 <template>
-  <canvas
-    ref="canvasRef"
-    class="rain-canvas"
-    :style="{ opacity: rainOpacity }"
-  />
+  <canvas ref="canvasRef" class="rain-canvas" :style="{ opacity: rainOpacity }" />
 </template>
 
 <script setup lang="ts">
@@ -19,7 +15,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import { drumDetector } from '@/services/drumDetector';
+import { audioService } from '@/services/audioService';
 import type { LyricConfig } from '@/types/lyric';
 
 interface Raindrop {
@@ -124,14 +120,14 @@ function resizeCanvas() {
 function initPuddles() {
   const canvasHeight = window.innerHeight;
   const canvasWidth = window.innerWidth;
-  
+
   puddles = [];
   const puddleCount = 3 + Math.floor(Math.random() * 4);
-  
+
   for (let i = 0; i < puddleCount; i++) {
     const width = 80 + Math.random() * 120;
     const height = width * (0.3 + Math.random() * 0.2);
-    
+
     puddles.push({
       x: Math.random() * (canvasWidth - width) + width / 2,
       y: canvasHeight - 50 - Math.random() * 100,
@@ -151,7 +147,9 @@ function createRaindrop(): Raindrop {
   const canvasWidth = window.innerWidth;
   const canvasHeight = window.innerHeight;
 
-  const x = Math.random() * (canvasWidth + Math.abs(Math.tan(angleRad) * canvasHeight)) - Math.abs(Math.tan(angleRad) * canvasHeight) / 2;
+  const x =
+    Math.random() * (canvasWidth + Math.abs(Math.tan(angleRad) * canvasHeight)) -
+    Math.abs(Math.tan(angleRad) * canvasHeight) / 2;
   const y = -Math.random() * 100 - rainLength.value;
 
   const lengthVariation = 0.5 + Math.random() * 0.5;
@@ -172,7 +170,7 @@ function isPointInPuddle(x: number, y: number): { inPuddle: boolean; intensity: 
     const normalizedDx = dx / (puddle.width / 2);
     const normalizedDy = dy / (puddle.height / 2);
     const distance = Math.sqrt(normalizedDx * normalizedDx + normalizedDy * normalizedDy);
-    
+
     if (distance <= 1) {
       // 在水洼中心强度最大，边缘较小
       const intensity = 1 - distance * 0.5;
@@ -215,7 +213,7 @@ function updateAudioEnergy() {
     return;
   }
 
-  const energies = drumDetector.getBandEnergies();
+  const energies = audioService.getBandEnergies();
   const avgEnergy = (energies.low + energies.mid + energies.high) / 3;
   audioEnergy.value = audioEnergy.value * 0.8 + avgEnergy * 0.2;
 }
@@ -224,7 +222,7 @@ function updateAudioEnergy() {
 function drawPuddles() {
   if (!ctx) return;
 
-  puddles.forEach(puddle => {
+  puddles.forEach((puddle) => {
     const { x, y, width, height, opacity } = puddle;
 
     // 水洼底色
@@ -243,7 +241,7 @@ function drawPuddles() {
 
     // 内部反射
     ctx!.beginPath();
-    ctx!.ellipse(x, y - height * 0.1, width / 2 * 0.8, height / 2 * 0.6, 0, 0, Math.PI * 2);
+    ctx!.ellipse(x, y - height * 0.1, (width / 2) * 0.8, (height / 2) * 0.6, 0, 0, Math.PI * 2);
     ctx!.fillStyle = `rgba(100, 120, 140, ${opacity * 0.2})`;
     ctx!.fill();
     ctx!.restore();
@@ -296,7 +294,7 @@ function draw() {
     if (drop.y >= groundYMin && drop.y <= groundYMax) {
       // 检查是否在水洼内，获取强度
       const { intensity } = isPointInPuddle(drop.x, drop.y);
-      
+
       // 随机决定是否创建涟漪（水洼内概率更高）
       const createChance = 0.1 + intensity * 0.4;
       if (Math.random() < createChance) {
@@ -305,9 +303,11 @@ function draw() {
     }
 
     // 重置超出屏幕的雨滴
-    if (drop.y > canvasHeight + drop.length ||
-        (rainAngle.value > 0 && drop.x > canvasWidth + drop.length) ||
-        (rainAngle.value < 0 && drop.x < -drop.length)) {
+    if (
+      drop.y > canvasHeight + drop.length ||
+      (rainAngle.value > 0 && drop.x > canvasWidth + drop.length) ||
+      (rainAngle.value < 0 && drop.x < -drop.length)
+    ) {
       const newDrop = createRaindrop();
       Object.assign(drop, newDrop);
     }
@@ -315,14 +315,14 @@ function draw() {
 
   // 绘制和更新地面涟漪
   ctx.globalAlpha = 1;
-  groundRipples = groundRipples.filter(ripple => {
+  groundRipples = groundRipples.filter((ripple) => {
     ripple.radius += ripple.speed;
     ripple.opacity -= 0.008;
 
     if (ripple.opacity > 0) {
       // 根据强度调整涟漪大小和颜色
       const intensity = ripple.intensity;
-      
+
       // 外圈
       ctx!.beginPath();
       ctx!.strokeStyle = `rgba(200, 220, 240, ${ripple.opacity})`;
@@ -335,7 +335,15 @@ function draw() {
         ctx!.beginPath();
         ctx!.strokeStyle = `rgba(220, 235, 255, ${ripple.opacity * 0.7})`;
         ctx!.lineWidth = 0.5 + intensity * 0.5;
-        ctx!.ellipse(ripple.x, ripple.y, ripple.radius * 0.6, ripple.radius * 0.18, 0, 0, Math.PI * 2);
+        ctx!.ellipse(
+          ripple.x,
+          ripple.y,
+          ripple.radius * 0.6,
+          ripple.radius * 0.18,
+          0,
+          0,
+          Math.PI * 2
+        );
         ctx!.stroke();
       }
     }

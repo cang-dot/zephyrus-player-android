@@ -212,6 +212,7 @@ const {
   styleVars,
   isCustom,
   customBackgroundActive,
+  climaxColors,
   selectedFontFamily,
   customFontActive
 } = usePlayerStyleAppearance('frenzy');
@@ -426,11 +427,13 @@ const fontSizePx = computed(() => {
  * 颜色：高潮时切换为强调色
  */
 const textColorDark = computed(() => {
+  if (isCustom.value) return climaxColors.value.main;
   if (styleEngine.isInClimax && effects.value.lyricColor) return primaryColor.value;
   return '#1a1a1a';
 });
 
 const textColorGray = computed(() => {
+  if (isCustom.value) return climaxColors.value.auxiliary;
   if (styleEngine.isInClimax && effects.value.lyricColor) return averageColor.value;
   return '#6b6b6b';
 });

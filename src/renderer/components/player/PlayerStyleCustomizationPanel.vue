@@ -36,10 +36,13 @@
       <div class="setting-row">
         <span>{{ tr('player.styleCustomization.font', '字体') }}</span>
         <div class="font-actions">
-          <button type="button" class="command-button" @click="showFontSelector = true">
-            <i class="ri-font-size-2"></i>
-            {{ selectedBuiltinFontName }}
-          </button>
+          <morphing-font-selector
+            :selected-id="local.builtinFontId || ''"
+            :label="selectedBuiltinFontName"
+            allow-default
+            default-label="样式默认"
+            @select="selectBuiltinFont"
+          />
           <button type="button" class="command-button icon-command" @click="importFont">
             <i class="ri-upload-2-line"></i>
             <span>{{
@@ -401,22 +404,13 @@
       </label>
     </div>
   </section>
-
-  <font-selector
-    v-if="showFontSelector"
-    :selected-id="local.builtinFontId || ''"
-    allow-default
-    default-label="样式默认"
-    @select="selectBuiltinFont"
-    @close="showFontSelector = false"
-  />
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import FontSelector from '@/components/share/FontSelector.vue';
+import MorphingFontSelector from '@/components/share/MorphingFontSelector.vue';
 import { resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
 import type {
   MobilePlayerStyleKey,
@@ -486,7 +480,6 @@ const customFontSelected = computed(() =>
   Boolean(local.value.builtinFontId || local.value.customFontData)
 );
 const backgroundInput = ref<HTMLInputElement | null>(null);
-const showFontSelector = ref(false);
 const selectedBuiltinFontName = computed(() => {
   if (local.value.customFontName) return '内置字体';
   return (
@@ -500,7 +493,6 @@ async function selectBuiltinFont(fontId: string) {
   local.value.customFontFamily = undefined;
   local.value.customFontName = undefined;
   local.value.customFontData = undefined;
-  showFontSelector.value = false;
   if (fontId) await ensureFontLoaded(fontId);
 }
 
@@ -645,10 +637,13 @@ function importFont() {
   font-size: 12px;
 }
 .font-actions {
+  position: relative;
+  z-index: 2;
   display: flex;
   min-width: 0;
   justify-content: flex-end;
   gap: 6px;
+  overflow: visible;
 }
 .font-actions .command-button {
   max-width: 148px;

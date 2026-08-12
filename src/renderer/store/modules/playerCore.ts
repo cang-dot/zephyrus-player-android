@@ -6,8 +6,9 @@ import { computed, ref } from 'vue';
 import i18n from '@/../i18n/renderer';
 import { isCrossPlatformSong } from '@/api/crossPlatformSearch';
 import { getParsingMusicUrl } from '@/api/music';
-import { isLocalSong,useLocalMusic } from '@/hooks/useLocalMusic';
+import { isLocalSong, useLocalMusic } from '@/hooks/useLocalMusic';
 import { useLyrics, useSongDetail } from '@/hooks/usePlayerHooks';
+import { isAndroidNative } from '@/services/androidNative';
 import { audioService } from '@/services/audioService';
 import { playbackRequestManager } from '@/services/playbackRequestManager';
 import { preloadService } from '@/services/preloadService';
@@ -140,9 +141,6 @@ export const usePlayerCoreStore = defineStore(
       const sound = audioService.getCurrentSound();
       if (!sound) return;
 
-      // 如果没有提供 requestId，创建一个临时标识
-      const actualRequestId = requestId || `check_${Date.now()}`;
-
       const onPlayHandler = () => {
         audioService.off('play', onPlayHandler);
         audioService.off('playerror', onPlayErrorHandler);
@@ -173,7 +171,10 @@ export const usePlayerCoreStore = defineStore(
         if (userPlayIntent.value && play.value) {
           checkPlaybackRetryCount++;
           // 本地音乐和云端歌曲不需要刷新 URL
-          if (!playMusic.value.playMusicUrl?.startsWith('local://') && playMusic.value.platform !== 'server') {
+          if (
+            !playMusic.value.playMusicUrl?.startsWith('local://') &&
+            playMusic.value.platform !== 'server'
+          ) {
             playMusic.value.playMusicUrl = undefined;
           }
           const refreshedSong = { ...song, isFirstPlay: true };
@@ -233,7 +234,10 @@ export const usePlayerCoreStore = defineStore(
           checkPlaybackRetryCount++;
 
           // 本地音乐和云端歌曲不需要刷新 URL
-          if (!playMusic.value.playMusicUrl?.startsWith('local://') && playMusic.value.platform !== 'server') {
+          if (
+            !playMusic.value.playMusicUrl?.startsWith('local://') &&
+            playMusic.value.platform !== 'server'
+          ) {
             playMusic.value.playMusicUrl = undefined;
           }
           (async () => {
@@ -466,7 +470,7 @@ export const usePlayerCoreStore = defineStore(
         const isLocal = isLocalSong(playMusic.value);
         let sound: Howl | undefined;
 
-        if (!isLocal) {
+        if (!isLocal && !isAndroidNative()) {
           // 非本地歌曲：使用 PreloadService 获取音频
           try {
             const preloadedSound = preloadService.consume(playMusic.value.id) as Howl | undefined;
@@ -479,7 +483,6 @@ export const usePlayerCoreStore = defineStore(
             console.error('PreloadService 加载失败:', error);
             throw error;
           }
-        } else {
         }
 
         // 播放新音频，传入已加载的 sound 实例（本地歌曲传入 undefined）
@@ -518,7 +521,6 @@ export const usePlayerCoreStore = defineStore(
 
         // 操作锁错误不应该停止播放状态，只需要重试
         if (errorMsg.includes('操作锁激活')) {
-
           try {
             audioService.forceResetOperationLock();
           } catch (e) {
@@ -605,7 +607,6 @@ export const usePlayerCoreStore = defineStore(
         const numericId =
           typeof currentSong.id === 'string' ? parseInt(currentSong.id, 10) : currentSong.id;
 
-
         const songData = cloneDeep(currentSong);
         const res = await getParsingMusicUrl(numericId, songData);
 
@@ -655,7 +656,7 @@ export const usePlayerCoreStore = defineStore(
             {
               ...playMusic.value,
               isFirstPlay: true,
-              playMusicUrl: (isLocalMusic || isServerMusic) ? playMusic.value.playMusicUrl : undefined
+              playMusicUrl: isLocalMusic || isServerMusic ? playMusic.value.playMusicUrl : undefined
             },
             isPlaying
           );

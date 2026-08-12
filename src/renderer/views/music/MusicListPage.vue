@@ -8,6 +8,15 @@
           :label="t('common.loading')"
         />
 
+        <section v-else-if="initialLoadError" class="list-error" role="alert">
+          <i class="ri-error-warning-line" aria-hidden="true" />
+          <p>{{ initialLoadError }}</p>
+          <button type="button" @click="fetchData">
+            <i class="ri-refresh-line" aria-hidden="true" />
+            {{ t('common.retry') }}
+          </button>
+        </section>
+
         <template v-else>
           <section class="list-topbar-spacer" aria-hidden="true">
             <span>{{ name }}</span>
@@ -198,7 +207,7 @@
         </Teleport>
 
         <!-- List Content -->
-        <section class="song-list-section">
+        <section v-if="!loading && !initialLoadError" class="song-list-section">
           <div v-if="filteredSongs.length === 0 && searchKeyword" class="empty-state">
             <i class="ri-search-line"></i>
             <p>{{ t('comp.musicList.noSearchResults') }}</p>
@@ -235,6 +244,13 @@
               <n-spin :size="18" />
               <span>{{ t('common.loading') }}</span>
             </div>
+            <div v-else-if="pagingLoadError" class="list-retry">
+              <span>{{ t('common.loadFailed') }}</span>
+              <button type="button" @click="loadMoreSongs">
+                <i class="ri-refresh-line" aria-hidden="true" />
+                {{ t('common.retry') }}
+              </button>
+            </div>
             <div
               v-else-if="
                 !hasMore &&
@@ -268,6 +284,7 @@ import {
   subscribePlaylist,
   updatePlaylistTracks
 } from '@/api/music';
+import { fetchPlatformPlaylistTracks } from '@/api/platformQrApi';
 import playlistPlaceholder from '@/assets/icon_512.png';
 import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
@@ -284,10 +301,16 @@ import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { useScrollTitle } from '@/hooks/useScrollTitle';
 import { useMusicStore, usePlayerStore, useRecommendStore, useUserStore } from '@/store';
 import { useLocalPlaylistStore } from '@/store/modules/localPlaylist';
+import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayHistoryStore } from '@/store/modules/playHistory';
 import { SongResult } from '@/types/music';
 import { calculateAnimationDelay, getImgUrl, isElectron, isMobile } from '@/utils';
 import { getLoginErrorMessage, hasPermission } from '@/utils/auth';
+import {
+  getMissingTrackIds,
+  isSameMusicListSource,
+  orderSongsByTrackIds
+} from '@/utils/playlistSource';
 
 defineOptions({
   name: 'MusicList'
@@ -303,22 +326,68 @@ const playerStore = usePlayerStore();
 const musicStore = useMusicStore();
 const recommendStore = useRecommendStore();
 const userStore = useUserStore();
+const accountStore = usePlatformAccountsStore();
 const message = useMessage();
 const playHistoryStore = usePlayHistoryStore();
 
 const loading = ref(true);
+const initialLoadError = ref('');
+let detailRequestId = 0;
+
+const sourceAccount = computed(() => {
+  const accountId = typeof route.query.accountId === 'string' ? route.query.accountId : '';
+  return accountStore.accounts.find((account) => account.accountId === accountId) || null;
+});
+
+const routeSourceContext = computed(() => {
+  const platform = route.query.platform;
+  const accountId = route.query.accountId;
+  const sourceId = route.query.sourceId;
+  const kind = route.query.type;
+  if (
+    (platform !== 'netease' && platform !== 'qq' && platform !== 'kugou') ||
+    typeof accountId !== 'string' ||
+    typeof sourceId !== 'string' ||
+    (kind !== 'playlist' && kind !== 'album')
+  ) {
+    return null;
+  }
+  return { platform, accountId, sourceId, kind } as const;
+});
+
+const isRenderableSong = (song: any): song is SongResult =>
+  Boolean(song?.id && song?.name && (song?.ar?.length || song?.artists?.length));
+
+const hydrateNeteasePlaylist = async (playlist: any, cookie?: string) => {
+  const tracks = Array.isArray(playlist?.tracks) ? playlist.tracks.filter(isRenderableSong) : [];
+  const trackIds = Array.isArray(playlist?.trackIds)
+    ? playlist.trackIds.map((track: any) => Number(track?.id)).filter(Number.isFinite)
+    : [];
+  if (!trackIds.length) return tracks;
+
+  const firstIds = trackIds.slice(0, 40);
+  const songsById = new Map(tracks.map((song: any) => [Number(song.id), song]));
+  const missingIds = firstIds.filter((id: number) => !songsById.has(id));
+  if (missingIds.length) {
+    const detail = await getMusicDetail(missingIds, cookie);
+    for (const song of detail.data?.songs || []) {
+      if (isRenderableSong(song)) songsById.set(Number(song.id), song);
+    }
+  }
+  return firstIds.map((id: number) => songsById.get(id)).filter(isRenderableSong);
+};
 
 const fetchData = async () => {
+  const requestId = ++detailRequestId;
+  initialLoadError.value = '';
   const id = route.params.id;
   const type = route.query.type;
+  const platform = typeof route.query.platform === 'string' ? route.query.platform : '';
+  const sourceId =
+    typeof route.query.sourceId === 'string' ? route.query.sourceId : id?.toString() || '';
+  const account = sourceAccount.value;
 
   if (!id || type === 'dailyRecommend') {
-    loading.value = false;
-    return;
-  }
-
-  // 平台歌单（QQ/酷狗等）：曲目由来源页异步写入 musicStore，这里不做网易云拉取
-  if (type === 'playlist' && route.query.from === 'platform') {
     loading.value = false;
     return;
   }
@@ -326,6 +395,11 @@ const fetchData = async () => {
   // 检查是否需要加载数据
   if (
     musicStore.currentListInfo?.id?.toString() === id.toString() &&
+    (!routeSourceContext.value ||
+      isSameMusicListSource(
+        musicStore.currentListInfo?._sourceContext,
+        routeSourceContext.value
+      )) &&
     musicStore.currentMusicList &&
     musicStore.currentMusicList.length > 0
   ) {
@@ -338,31 +412,66 @@ const fetchData = async () => {
   try {
     let data: any;
     if (type === 'album') {
-      const res = await getAlbum(Number(id));
+      if (platform && platform !== 'netease') {
+        throw new Error('该平台暂不支持加载专辑详情');
+      }
+      const res = await getAlbum(Number(id), account?.cookie);
       data = res.data;
-      if (data.code === 200) {
+      if (requestId !== detailRequestId) return;
+      if (data.code === 200 && Array.isArray(data.songs)) {
         musicStore.setCurrentMusicList(
           data.songs,
           data.album.name,
-          { ...data.album, picUrl: data.album.picUrl },
+          {
+            ...data.album,
+            picUrl: data.album.picUrl,
+            _sourceContext: routeSourceContext.value || musicStore.currentListInfo?._sourceContext
+          },
           false
         );
       } else {
-        message.error(t('common.loadFailed'));
+        throw new Error(t('common.loadFailed'));
       }
     } else if (type === 'playlist') {
-      const res = await getListDetail(id.toString());
-      data = res.data;
-      if (data.code === 200) {
-        const playlist = data.playlist;
+      if (platform === 'qq' || platform === 'kugou') {
+        if (!account?.cookie) throw new Error('歌单所属账号的登录凭据不可用');
+        const result = await fetchPlatformPlaylistTracks(platform, account.cookie, sourceId);
+        if (requestId !== detailRequestId) return;
+        if (!result.songs.length) throw new Error('这个歌单暂时没有可播放的歌曲');
+        const currentInfo = musicStore.currentListInfo || {};
         musicStore.setCurrentMusicList(
-          playlist.tracks || [],
-          playlist.name,
-          playlist,
-          playlist.creator?.userId === userStore.user?.userId
+          result.songs,
+          String((result.playlist as any)?.name || currentInfo.name || name.value),
+          {
+            ...currentInfo,
+            ...(result.playlist || {}),
+            id: sourceId,
+            _sourceContext: routeSourceContext.value || currentInfo._sourceContext
+          },
+          false
         );
       } else {
-        message.error(t('common.loadFailed'));
+        const res = await getListDetail(sourceId, account?.cookie);
+        data = res.data;
+        if (requestId !== detailRequestId) return;
+        if (data.code === 200 && data.playlist) {
+          const playlist = data.playlist;
+          const songs = await hydrateNeteasePlaylist(playlist, account?.cookie);
+          if (requestId !== detailRequestId) return;
+          if (!songs.length && playlist.trackIds?.length) {
+            throw new Error('歌单歌曲详情加载失败');
+          }
+          const sourceContext =
+            routeSourceContext.value || musicStore.currentListInfo?._sourceContext;
+          musicStore.setCurrentMusicList(
+            songs,
+            playlist.name,
+            { ...playlist, _sourceContext: sourceContext },
+            String(playlist.creator?.userId || '') === String(account?.userId || '')
+          );
+        } else {
+          throw new Error(t('common.loadFailed'));
+        }
       }
     } else if (type === 'server-album') {
       // 云端同名专辑：从 songs.json 按专辑名聚合
@@ -383,14 +492,17 @@ const fetchData = async () => {
           false
         );
       } else {
-        message.error(t('common.loadFailed'));
+        throw new Error(t('common.loadFailed'));
       }
     }
   } catch (error) {
     console.error('加载列表数据失败:', error);
-    message.error(t('common.loadFailed'));
+    if (requestId === detailRequestId) {
+      initialLoadError.value = error instanceof Error ? error.message : t('common.loadFailed');
+      message.error(initialLoadError.value);
+    }
   } finally {
-    loading.value = false;
+    if (requestId === detailRequestId) loading.value = false;
   }
 };
 
@@ -438,6 +550,16 @@ const listInfo = computed(() => {
   return musicStore.currentListInfo || null;
 });
 
+const listDescription = computed(() => {
+  const info = listInfo.value as {
+    description?: string;
+    desc?: string;
+    briefDesc?: string;
+    introduction?: string;
+  } | null;
+  return (info?.description || info?.desc || info?.briefDesc || info?.introduction || '').trim();
+});
+
 const canRemove = computed(() => {
   if (isDailyRecommend.value) return false;
   return musicStore.canRemoveSong || false;
@@ -450,6 +572,7 @@ const initialAnimateCount = 20; // 仅前 20 项有入场动画
 const displayedSongs = ref<SongResult[]>([]);
 const renderLimit = ref(pageSize); // DOM 渲染上限，数据全部在内存
 const loadingList = ref(false);
+const pagingLoadError = ref(false);
 const loadedIds = ref(new Set<number>());
 const isPlaylistLoading = ref(false);
 const completePlaylist = ref<SongResult[]>([]);
@@ -484,6 +607,10 @@ const registerMusicListTopbar = () => {
     title: name.value || '歌单',
     subtitle: `${topbarSource.value} · ${total.value} 首`,
     imageUrl: getImgUrl(getCoverImgUrl.value, '100y100'),
+    descriptionTitle: isAlbum.value
+      ? t('comp.musicList.albumDescription')
+      : t('comp.musicList.playlistDescription'),
+    description: listDescription.value || undefined,
     searchPlaceholder: t('comp.musicList.searchSongs'),
     searchValue: searchKeyword.value,
     onSearchInput: (value) => {
@@ -633,6 +760,7 @@ const resetListState = () => {
   completePlaylist.value = [];
   hasMore.value = true;
   isFullPlaylistLoaded.value = false;
+  pagingLoadError.value = false;
 };
 
 const formatSong = (item: any) => {
@@ -652,10 +780,14 @@ const formatSong = (item: any) => {
 
 const loadSongs = async (ids: number[], appendToList = true, updateComplete = false) => {
   if (ids.length === 0) return [];
+  const requestId = detailRequestId;
+  const requestSource = routeSourceContext.value;
   try {
-    const { data } = await getMusicDetail(ids);
+    const { data } = await getMusicDetail(ids, sourceAccount.value?.cookie);
+    if (requestId !== detailRequestId) return [];
+    if (requestSource && !isSameMusicListSource(requestSource, routeSourceContext.value)) return [];
     if (data?.songs) {
-      const { songs } = data;
+      const songs = orderSongsByTrackIds<SongResult>(ids, data.songs).filter(isRenderableSong);
       songs.forEach((song: any) => loadedIds.value.add(song.id));
       if (appendToList) displayedSongs.value.push(...songs);
       if (updateComplete) completePlaylist.value.push(...songs);
@@ -663,13 +795,16 @@ const loadSongs = async (ids: number[], appendToList = true, updateComplete = fa
     }
   } catch (error) {
     console.error('加载歌曲失败:', error);
+    throw error;
   }
-  return [];
+  throw new Error(t('common.loadFailed'));
 };
 
 const loadFullPlaylist = async () => {
   if (isPlaylistLoading.value || isFullPlaylistLoaded.value) return;
+  const requestId = detailRequestId;
   isPlaylistLoading.value = true;
+  pagingLoadError.value = false;
   try {
     if (!listInfo.value?.trackIds) {
       isFullPlaylistLoaded.value = true;
@@ -689,15 +824,23 @@ const loadFullPlaylist = async () => {
     for (let i = 0; i < unloadedIds.length; i += batchSize) {
       const batchIds = unloadedIds.slice(i, i + batchSize);
       const loadedBatch = await loadSongs(batchIds, false, false);
-      if (loadedBatch.length > 0) {
-        displayedSongs.value = [...displayedSongs.value, ...loadedBatch];
-        completePlaylist.value = [...completePlaylist.value, ...loadedBatch];
-      }
+      if (requestId !== detailRequestId) return;
+      if (loadedBatch.length === 0) throw new Error(t('common.loadFailed'));
+      displayedSongs.value = orderSongsByTrackIds<SongResult>(
+        allIds,
+        displayedSongs.value,
+        loadedBatch
+      );
+      completePlaylist.value = [...displayedSongs.value];
+    }
+    if (getMissingTrackIds(allIds, displayedSongs.value, allIds.length).length > 0) {
+      throw new Error(t('common.loadFailed'));
     }
     isFullPlaylistLoaded.value = true;
     hasMore.value = false;
   } catch (error) {
     console.error('加载完整播放列表失败:', error);
+    pagingLoadError.value = true;
   } finally {
     isPlaylistLoading.value = false;
   }
@@ -719,12 +862,30 @@ const handlePlayAll = () => {
 };
 
 const handlePlayItem = (item: any) => {
-  confirmPlaylistReplace(() => {
-    playerStore.setPlay(formatSong(item));
-    if (!playerStore.playList.some((s) => s.id === item.id)) {
-      playerStore.addToNextPlay(formatSong(item));
-    }
-  });
+  saveHistory();
+  const selectedSong = formatSong(item);
+  const queue = allFilteredSongs.value.map(formatSong).filter(Boolean) as SongResult[];
+  if (!selectedSong || queue.length === 0) return;
+
+  const isCurrentSong =
+    playerStore.playMusic?.id === selectedSong.id &&
+    (playerStore.playMusic?.source || '') === (selectedSong.source || '');
+  playerStore.setPlayList(queue);
+  if (!isCurrentSong || !playerStore.isPlay) void playerStore.setPlay(selectedSong);
+
+  if (!isFullPlaylistLoaded.value) {
+    const initialQueueIds = new Set(queue.map((song) => `${song.source || ''}:${song.id}`));
+    void loadFullPlaylist().then(() => {
+      const queueWasNotReplaced =
+        playerStore.playList.length === initialQueueIds.size &&
+        playerStore.playList.every((song) =>
+          initialQueueIds.has(`${song.source || ''}:${song.id}`)
+        );
+      if (!queueWasNotReplaced || !isFullPlaylistLoaded.value) return;
+      const fullQueue = allFilteredSongs.value.map(formatSong).filter(Boolean) as SongResult[];
+      playerStore.setPlayList(fullQueue);
+    });
+  }
 };
 
 const handleRemoveSong = async (songId: number) => {
@@ -810,20 +971,28 @@ const loadMoreSongs = async () => {
     displayedSongs.value.length >= total.value
   )
     return;
+  const requestId = detailRequestId;
   loadingList.value = true;
+  pagingLoadError.value = false;
   try {
-    const start = displayedSongs.value.length;
-    const end = Math.min(start + pageSize, total.value);
     if (listInfo.value?.trackIds) {
-      const ids = listInfo.value.trackIds
-        .slice(start, end)
-        .map((i) => i.id)
-        .filter((id) => !loadedIds.value.has(id));
-      if (ids.length > 0) await loadSongs(ids);
+      const ids = getMissingTrackIds(
+        listInfo.value.trackIds.map((item) => item.id),
+        displayedSongs.value,
+        pageSize
+      );
+      if (ids.length > 0) {
+        const loaded = await loadSongs(ids);
+        if (requestId !== detailRequestId) return;
+        if (loaded.length === 0) throw new Error(t('common.loadFailed'));
+      }
     }
     hasMore.value = displayedSongs.value.length < total.value;
     // 新数据加载后扩展渲染窗口
     renderLimit.value = displayedSongs.value.length;
+  } catch (error) {
+    console.error('加载更多歌曲失败:', error);
+    pagingLoadError.value = true;
   } finally {
     loadingList.value = false;
   }
@@ -1056,7 +1225,16 @@ onMounted(() => {
 });
 
 watch(
-  [name, total, getCoverImgUrl, isCollected, isCompactLayout, searchKeyword],
+  [
+    name,
+    total,
+    getCoverImgUrl,
+    listDescription,
+    isAlbum,
+    isCollected,
+    isCompactLayout,
+    searchKeyword
+  ],
   () => registerMusicListTopbar(),
   { flush: 'post' }
 );
@@ -1513,6 +1691,40 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   padding: 24px 0;
   gap: 8px;
   color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  font-size: 14px;
+}
+.list-error,
+.list-retry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 14px;
+    border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+    border-radius: 999px;
+    color: inherit;
+    background: color-mix(in srgb, var(--cover-background, transparent) 75%, transparent);
+  }
+}
+.list-error {
+  min-height: 50dvh;
+  flex-direction: column;
+  padding: 32px 20px;
+  text-align: center;
+
+  > i {
+    font-size: 30px;
+  }
+}
+.list-retry {
+  padding: 18px 0 24px;
   font-size: 14px;
 }
 .list-end {

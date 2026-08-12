@@ -5,8 +5,9 @@ import { defineStore, storeToRefs } from 'pinia';
 import { computed, ref, shallowRef, triggerRef } from 'vue';
 
 import i18n from '@/../i18n/renderer';
-import { isLocalSong,useLocalMusic } from '@/hooks/useLocalMusic';
+import { isLocalSong, useLocalMusic } from '@/hooks/useLocalMusic';
 import { useSongDetail } from '@/hooks/usePlayerHooks';
+import { isAndroidNative } from '@/services/androidNative';
 import { preloadService } from '@/services/preloadService';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
@@ -149,7 +150,7 @@ export const usePlaylistStore = defineStore(
         if (nextSong) {
           if (nextSong.playMusicUrl) {
             try {
-              await preloadService.load(nextSong);
+              if (!isAndroidNative()) await preloadService.load(nextSong);
             } catch (error) {
               console.warn('预加载下一首音频失败:', error);
             }
@@ -159,8 +160,14 @@ export const usePlaylistStore = defineStore(
               const smartAudio = getSmartAudio();
               const { useMixEngineStore } = await import('./mixEngine');
               const mixEngine = useMixEngineStore();
-              if (smartAudio && mixEngine.bpmPreAnalysis && !mixEngine.getCachedBpm(String(nextSong.id))) {
-                smartAudio.preloadAndAnalyzeBpm(String(nextSong.id), nextSong.playMusicUrl).catch(() => {});
+              if (
+                smartAudio &&
+                mixEngine.bpmPreAnalysis &&
+                !mixEngine.getCachedBpm(String(nextSong.id))
+              ) {
+                smartAudio
+                  .preloadAndAnalyzeBpm(String(nextSong.id), nextSong.playMusicUrl)
+                  .catch(() => {});
               }
             } catch (e) {
               console.warn('BPM 预分析触发失败:', e);
@@ -230,7 +237,6 @@ export const usePlaylistStore = defineStore(
       // 确保触发 shallowRef 的响应式
       playList.value = [...shuffled];
       playListIndex.value = 0;
-
     };
 
     /**
@@ -450,7 +456,6 @@ export const usePlaylistStore = defineStore(
           return;
         }
 
-        const currentIndex = playListIndex.value;
         const nowPlayListIndex = (playListIndex.value + 1) % playList.value.length;
         const nextSong = { ...playList.value[nowPlayListIndex] };
 
@@ -464,7 +469,6 @@ export const usePlaylistStore = defineStore(
           nextSong.playMusicUrl = undefined;
           nextSong.expiredAt = undefined;
         }
-
 
         // 先尝试播放歌曲
         const success = await playerCore.handlePlayMusic(nextSong, true);
@@ -533,7 +537,6 @@ export const usePlaylistStore = defineStore(
           (playListIndex.value - 1 + playList.value.length) % playList.value.length;
 
         const prevSong = { ...playList.value[nowPlayListIndex] };
-
 
         let success = false;
         let retryCount = 0;

@@ -30,9 +30,87 @@ import java.net.URL;
  */
 public class NativeBridge {
     private final MainActivity activity;
+    private final NativeAudioEngine audioEngine;
 
     public NativeBridge(MainActivity activity) {
         this.activity = activity;
+        this.audioEngine = MusicPlaybackService.getOrCreateAudioEngine(activity);
+        this.audioEngine.attachActivity(activity);
+    }
+
+    // ==================== Android 原生音频引擎 ====================
+
+    @JavascriptInterface
+    public String nativeAudioLoad(String trackJson, boolean preload) {
+        return audioEngine.load(trackJson, preload);
+    }
+
+    @JavascriptInterface
+    public void nativeAudioPlay(String token) {
+        audioEngine.play(token);
+    }
+
+    @JavascriptInterface
+    public void nativeAudioPause(String token) {
+        audioEngine.pause(token);
+    }
+
+    @JavascriptInterface
+    public void nativeAudioStop(String token) {
+        audioEngine.stop(token);
+    }
+
+    @JavascriptInterface
+    public void nativeAudioUnload(String token) {
+        audioEngine.unload(token);
+    }
+
+    @JavascriptInterface
+    public void nativeAudioSeekTo(String token, double positionMs) {
+        audioEngine.seekTo(token, Math.max(0, Math.round(positionMs)));
+    }
+
+    @JavascriptInterface
+    public void nativeAudioSetPlaybackRate(String token, float rate) {
+        audioEngine.setPlaybackRate(token, rate);
+    }
+
+    @JavascriptInterface
+    public void nativeAudioSetVolume(float volume) {
+        audioEngine.setVolume(volume);
+    }
+
+    @JavascriptInterface
+    public void nativeAudioSetEqGains(float low, float mid, float high) {
+        audioEngine.setEqGains(low, mid, high);
+    }
+
+    @JavascriptInterface
+    public String nativeAudioStartCrossfade(
+            String fromToken,
+            String toToken,
+            double durationSeconds,
+            int level) {
+        return audioEngine.startCrossfade(fromToken, toToken, durationSeconds, level);
+    }
+
+    @JavascriptInterface
+    public void nativeAudioCancelCrossfade() {
+        audioEngine.cancelCrossfade();
+    }
+
+    @JavascriptInterface
+    public String nativeAudioGetPlaybackState(String token) {
+        return audioEngine.getState(token);
+    }
+
+    @JavascriptInterface
+    public String nativeAudioGetAnalysis() {
+        return audioEngine.getAnalysis();
+    }
+
+    void detachAudioEngine() {
+        audioEngine.detachActivity(activity);
     }
 
     /**

@@ -1,59 +1,41 @@
 <template>
-  <Teleport to="body">
-    <Transition name="font-selector">
-      <div v-if="visible" class="font-selector-overlay" @click.self="close">
-        <div class="font-selector-sheet">
-          <!-- 拖拽条 -->
-          <div class="drag-handle">
-            <div class="drag-bar"></div>
-          </div>
-
-          <!-- 标题 -->
-          <div class="sheet-header">
-            <h3>选择字体</h3>
-            <button @click="close" class="close-btn">
-              <i class="ri-close-line"></i>
-            </button>
-          </div>
-
-          <!-- 字体列表 -->
-          <div ref="fontListRef" class="font-list">
-            <button
-              v-if="allowDefault"
-              class="font-item"
-              :class="{ active: !selectedId }"
-              @click="select('')"
-            >
-              <div class="font-preview default-font-preview">默认</div>
-              <div class="font-info">
-                <div class="font-name">{{ defaultLabel }}</div>
-                <div class="font-usage">保留当前播放器样式的内置字体</div>
-              </div>
-              <i v-if="!selectedId" class="ri-check-line font-check"></i>
-            </button>
-            <button
-              v-for="font in fonts"
-              :key="font.id"
-              class="font-item"
-              :class="{ active: selectedId === font.id }"
-              :data-font-id="font.id"
-              :data-license-url="getFontLicenseUrl(font.id)"
-              @click="select(font.id)"
-            >
-              <div class="font-preview" :style="getPreviewStyle(font)">
-                {{ previewText }}
-              </div>
-              <div class="font-info">
-                <div class="font-name">{{ font.name }}</div>
-                <div class="font-usage">{{ font.usage }}{{ font.license ? ' · OFL' : '' }}</div>
-              </div>
-              <i v-if="selectedId === font.id" class="ri-check-line font-check"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  <div ref="fontListRef" class="font-list" role="listbox" aria-label="选择字体">
+    <button
+      v-if="allowDefault"
+      type="button"
+      class="font-item"
+      :class="{ active: !selectedId }"
+      role="option"
+      :aria-selected="!selectedId"
+      @click="select('')"
+    >
+      <span class="font-preview default-font-preview">默认</span>
+      <span class="font-info">
+        <span class="font-name">{{ defaultLabel }}</span>
+        <span class="font-usage">保留当前样式的内置字体</span>
+      </span>
+      <i v-if="!selectedId" class="ri-check-line font-check" />
+    </button>
+    <button
+      v-for="font in fonts"
+      :key="font.id"
+      type="button"
+      class="font-item"
+      :class="{ active: selectedId === font.id }"
+      :data-font-id="font.id"
+      :data-license-url="getFontLicenseUrl(font.id)"
+      role="option"
+      :aria-selected="selectedId === font.id"
+      @click="select(font.id)"
+    >
+      <span class="font-preview" :style="getPreviewStyle(font)">{{ previewText }}</span>
+      <span class="font-info">
+        <span class="font-name">{{ font.name }}</span>
+        <span class="font-usage">{{ font.usage }}{{ font.license ? ' · OFL' : '' }}</span>
+      </span>
+      <i v-if="selectedId === font.id" class="ri-check-line font-check" />
+    </button>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -62,39 +44,32 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { BUILTIN_FONTS, type FontDef } from '@/types/share';
 import { ensureFontLoaded, getFontFamily, getFontLicenseUrl } from '@/utils/fontLoader';
 
-// Props
-const props = defineProps<{
-  selectedId: string;
-  allowDefault?: boolean;
-  defaultLabel?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    selectedId: string;
+    allowDefault?: boolean;
+    defaultLabel?: string;
+  }>(),
+  { allowDefault: false, defaultLabel: '默认字体' }
+);
 
-// Emits
-const emit = defineEmits<{
-  (e: 'select', fontId: string): void;
-  (e: 'close'): void;
-}>();
-
-const visible = ref(true);
-const fonts = ref<FontDef[]>(BUILTIN_FONTS);
+const emit = defineEmits<{ select: [fontId: string] }>();
+const fonts = BUILTIN_FONTS;
 const previewText = '雨夜听歌';
-const allowDefault = props.allowDefault ?? false;
-const defaultLabel = props.defaultLabel || '默认字体';
 const fontListRef = ref<HTMLElement | null>(null);
 let previewObserver: IntersectionObserver | null = null;
 
-// Only decode visible previews. Loading every CJK font at once can exhaust a mobile WebView.
 onMounted(async () => {
   await nextTick();
   if (props.selectedId) void ensureFontLoaded(props.selectedId);
   previewObserver = new IntersectionObserver(
     (entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
         const fontId = (entry.target as HTMLElement).dataset.fontId;
         if (fontId) void ensureFontLoaded(fontId);
         previewObserver?.unobserve(entry.target);
-      }
+      });
     },
     { root: fontListRef.value, rootMargin: '80px 0px' }
   );
@@ -106,178 +81,90 @@ onMounted(async () => {
 onBeforeUnmount(() => previewObserver?.disconnect());
 
 function getPreviewStyle(font: FontDef): Record<string, string> {
-  return {
-    fontFamily: getFontFamily(font.id)
-  };
+  return { fontFamily: getFontFamily(font.id) };
 }
 
 function select(fontId: string) {
   emit('select', fontId);
 }
-
-function close() {
-  visible.value = false;
-  emit('close');
-}
 </script>
 
 <style scoped lang="scss">
-.font-selector-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100001;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-
-.font-selector-sheet {
-  width: 100%;
-  max-width: 500px;
-  max-height: 70vh;
-  background: rgba(18, 18, 24, 0.95);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  border-radius: 24px 24px 0 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.drag-handle {
-  display: flex;
-  justify-content: center;
-  padding: 10px 0 6px;
-
-  .drag-bar {
-    width: 36px;
-    height: 4px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.25);
-  }
-}
-
-.sheet-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 20px 16px;
-
-  h3 {
-    font-size: 18px;
-    font-weight: 700;
-    color: #fff;
-  }
-
-  .close-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 18px;
-  }
-}
-
 .font-list {
-  flex: 1;
+  display: grid;
+  max-height: min(300px, 42dvh);
+  gap: 5px;
+  padding: 3px 5px 6px;
   overflow-y: auto;
-  padding: 0 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-
-  &::-webkit-scrollbar {
-    width: 3px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 2px;
-  }
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .font-item {
-  display: flex;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 42px minmax(0, 1fr) 18px;
   align-items: center;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
+  gap: 9px;
+  padding: 8px;
   border: 1px solid transparent;
-  transition: all 0.2s;
+  border-radius: 14px;
+  background: color-mix(in srgb, #fff 5%, transparent);
+  color: rgba(255, 255, 255, 0.9);
+  text-align: left;
+  transition:
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
 
-  &.active {
-    background: rgba(var(--accent-color-rgb, 99, 102, 241), 0.12);
-    border-color: rgba(var(--accent-color-rgb, 99, 102, 241), 0.3);
-  }
+.font-item.active {
+  border-color: color-mix(in srgb, var(--accent-color) 42%, transparent);
+  background: color-mix(in srgb, var(--accent-color) 17%, transparent);
+}
 
-  &:active {
-    transform: scale(0.98);
-  }
+.font-item:active {
+  transform: scale(0.985);
 }
 
 .font-preview {
-  flex-shrink: 0;
-  width: 64px;
-  height: 64px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  color: rgba(255, 255, 255, 0.9);
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
   overflow: hidden;
-  line-height: 1.2;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 15px;
+  line-height: 1.1;
   text-align: center;
 }
 
 .font-info {
-  flex: 1;
-  text-align: left;
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.font-name,
+.font-usage {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .font-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
-  margin-bottom: 3px;
+  font-size: 13px;
+  font-weight: 650;
 }
 
 .font-usage {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.46);
+  font-size: 10px;
 }
 
 .font-check {
-  font-size: 22px;
-  color: rgba(var(--accent-color-rgb, 99, 102, 241), 1);
-  flex-shrink: 0;
-}
-
-/* 过渡动画 */
-.font-selector-enter-active,
-.font-selector-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.font-selector-enter-active .font-selector-sheet,
-.font-selector-leave-active .font-selector-sheet {
-  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.font-selector-enter-from,
-.font-selector-leave-to {
-  opacity: 0;
-}
-
-.font-selector-enter-from .font-selector-sheet,
-.font-selector-leave-to .font-selector-sheet {
-  transform: translateY(100%);
+  color: var(--accent-color);
+  font-size: 17px;
 }
 </style>

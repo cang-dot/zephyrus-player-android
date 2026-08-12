@@ -1404,10 +1404,16 @@ const handleSearchSubmit = () => {
   }
 
   p {
+    max-height: min(24dvh, 180px);
     margin: 0;
+    padding-right: 4px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     color: var(--cover-text-secondary, var(--text-color));
     font-size: 12px;
     line-height: 1.65;
+    scrollbar-width: thin;
+    touch-action: pan-y;
     white-space: pre-line;
   }
 }

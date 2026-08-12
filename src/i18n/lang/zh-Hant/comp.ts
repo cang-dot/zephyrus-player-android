@@ -197,7 +197,10 @@ export default {
   },
   musicList: {
     searchSongs: '搜尋歌曲',
+    playlistDescription: '歌單簡介',
+    albumDescription: '專輯簡介',
     noSearchResults: '沒有找到相關歌曲',
+    toggleLayout: '切換版面',
     switchToNormal: '切換到預設版面',
     switchToCompact: '切換到緊湊版面',
     playAll: '播放全部',

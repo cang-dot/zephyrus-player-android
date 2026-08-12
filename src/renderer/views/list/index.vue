@@ -56,6 +56,8 @@
           <div class="cover-text">
             <p class="cover-name">{{ item.alt }}</p>
             <span class="cover-type-badge" :class="item.type">
+              <platform-logo :platform="item.platform" :size="13" />
+              {{ platformName(item.platform) }} ·
               {{ item.type === 'album' ? 'Album' : 'Playlist' }}
             </span>
           </div>
@@ -78,9 +80,9 @@ import { useMessage } from 'naive-ui';
 import { computed, defineAsyncComponent } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import { fetchPlatformPlaylistTracks } from '@/api/platformQrApi';
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
+import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import { useUserStore } from '@/store';
 import { type MusicPlatform, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { getImgUrl } from '@/utils';
@@ -98,8 +100,6 @@ const playlistSourceFilter = computed<'all' | MusicPlatform | 'local'>({
   get: () => (typeof route.query.source === 'string' ? route.query.source : 'all') as any,
   set: (source) => void router.replace({ query: { ...route.query, source } })
 });
-const platformPlaylistTracksCache = new Map<string, any[]>();
-
 // 加载状态：用户未登录或歌单数据未加载完成
 const isLoading = computed(() => {
   return !accountStore.accounts.length && !userStore.user;
@@ -112,6 +112,9 @@ const playlistSourceTabs = computed(() => [
   { key: 'qq', label: 'QQ 音乐' },
   { key: 'kugou', label: '酷狗音乐' }
 ]);
+
+const platformName = (platform: MusicPlatform) =>
+  ({ netease: '网易云', qq: 'QQ 音乐', kugou: '酷狗音乐', spotify: 'Spotify' })[platform];
 
 const items = computed(() => {
   const result: any[] = [];
@@ -159,50 +162,21 @@ const items = computed(() => {
   return result;
 });
 
-const handleItemClick = async (item: any) => {
+const handleItemClick = (item: any) => {
   const account = accountStore.accounts.find((candidate) => candidate.accountId === item.accountId);
   if (!account) return;
 
-  accountStore.setActiveAccount(account.accountId);
-
-  if (item.type === 'playlist' && account.platform === 'kugou' && account.cookie) {
-    const listId = String(
-      item.raw.listId ||
-        item.raw.list_id ||
-        item.raw.globalCollectionId ||
-        item.raw.global_collection_id ||
-        item.id ||
-        ''
-    ).trim();
-    if (!listId) {
-      message.warning('这个酷狗歌单缺少可加载的标识');
-      return;
-    }
-
-    const cacheKey = `${account.accountId}:${listId}`;
-    try {
-      let songs = platformPlaylistTracksCache.get(cacheKey) || [];
-      if (!songs.length) {
-        const result = await fetchPlatformPlaylistTracks('kugou', account.cookie, listId);
-        songs = result.songs;
-        platformPlaylistTracksCache.set(cacheKey, songs);
-      }
-      if (!songs.length) {
-        message.warning('这个酷狗歌单暂时没有可播放的歌曲');
-        return;
-      }
-      navigateToMusicList(router, {
-        id: item.id,
-        type: 'playlist',
-        name: item.alt,
-        songList: songs,
-        listInfo: item.raw,
-        canRemove: false
-      });
-    } catch (error: any) {
-      console.error('加载酷狗歌单失败:', error);
-      message.error(error?.message || '酷狗歌单加载失败');
-    }
+  const sourceId = String(
+    item.raw.listId ||
+      item.raw.list_id ||
+      item.raw.tid ||
+      item.raw.globalCollectionId ||
+      item.raw.global_collection_id ||
+      item.id ||
+      ''
+  ).trim();
+  if (!sourceId) {
+    message.warning('这个歌单缺少可加载的标识');
     return;
   }
 
@@ -211,7 +185,16 @@ const handleItemClick = async (item: any) => {
     type: item.type,
     name: item.alt,
     listInfo: item.raw,
-    canRemove: account.platform === 'netease' && item.type === 'playlist'
+    canRemove: account.platform === 'netease' && item.type === 'playlist',
+    sourceContext:
+      account.platform === 'netease' || account.platform === 'qq' || account.platform === 'kugou'
+        ? {
+            platform: account.platform,
+            accountId: account.accountId,
+            sourceId,
+            kind: item.type
+          }
+        : undefined
   });
 };
 
@@ -371,7 +354,9 @@ const handleItemClick = async (item: any) => {
 }
 
 .cover-type-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-top: 4px;
   font-size: 10px;
   font-weight: 600;

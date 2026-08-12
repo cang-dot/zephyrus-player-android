@@ -83,8 +83,8 @@ export const getMusicUrl = async (id: number, isDownloaded: boolean = false) => 
 };
 
 // 获取歌曲详情
-export const getMusicDetail = (ids: Array<number>) => {
-  return request.get('/song/detail', { params: { ids: ids.join(',') } });
+export const getMusicDetail = (ids: Array<number>, cookie?: string) => {
+  return request.get('/song/detail', { params: { ids: ids.join(','), cookie } });
 };
 
 // 根据音乐Id获取音乐歌词

@@ -60,6 +60,7 @@ export default {
   accountSwitcher: {
     title: 'アカウント切替',
     addAccount: 'アカウント追加',
+    deleteAccount: 'アカウントを削除？',
     close: '閉じる'
   }
 };

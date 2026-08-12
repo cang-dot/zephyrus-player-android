@@ -10,16 +10,16 @@
  * 不创建新的 AudioContext，复用 audioService 的 context 和 Howler.ctx
  */
 
-import { Howl } from 'howler';
-
 import { isLocalSong } from '@/hooks/useLocalMusic';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 import { getImageLinearBackground } from '@/utils/linearColor';
 
-import { audioService } from './audioService';
+import { isAndroidNative } from './androidNative';
+import { type AudioHandle, audioService } from './audioService';
 import { drumDetector } from './drumDetector';
 import { LocalAudioPlayer } from './localAudioPlayer';
+import { NativeAudioPlayer } from './nativeAudioPlayer';
 import { preloadService } from './preloadService';
 
 class SmartMixService {
@@ -37,41 +37,119 @@ class SmartMixService {
   /** 署名/致谢/结尾类关键词：命中时绕过门控直接开始渐变切歌 */
   private static readonly ATTRIBUTION_KEYWORDS: readonly string[] = [
     // ===== 中文 — 制作人员 =====
-    '作词', '作曲', '编曲', '填词', '谱曲',
-    '制作人', '监制', '统筹', '企划',
-    '吉他', '贝斯', '鼓', '键盘', '钢琴', '小提琴', '大提琴', '萨克斯', '笛子', '二胡', '琵琶', '古筝',
-    '和声', '伴唱', '合唱', '童声',
-    '混音', '母带', '录音', '后期', '编曲混音',
-    '录音室', '录音棚', '混音棚',
+    '作词',
+    '作曲',
+    '编曲',
+    '填词',
+    '谱曲',
+    '制作人',
+    '监制',
+    '统筹',
+    '企划',
+    '吉他',
+    '贝斯',
+    '鼓',
+    '键盘',
+    '钢琴',
+    '小提琴',
+    '大提琴',
+    '萨克斯',
+    '笛子',
+    '二胡',
+    '琵琶',
+    '古筝',
+    '和声',
+    '伴唱',
+    '合唱',
+    '童声',
+    '混音',
+    '母带',
+    '录音',
+    '后期',
+    '编曲混音',
+    '录音室',
+    '录音棚',
+    '混音棚',
     // ===== 中文 — 出品/版权 =====
-    '出品', '出品人', '出品方', '发行', '发行公司', '唱片公司',
-    '版权', '著作权', '制作公司', '工作室', '厂牌',
+    '出品',
+    '出品人',
+    '出品方',
+    '发行',
+    '发行公司',
+    '唱片公司',
+    '版权',
+    '著作权',
+    '制作公司',
+    '工作室',
+    '厂牌',
     // ===== 中文 — 致谢/结尾 =====
-    '感谢', '鸣谢', '致谢', '特别感谢', '献给', '谨以此歌',
-    '谢谢', '晚安', '再见', '感谢聆听', '未完待续', '敬请期待', '下期再见',
+    '感谢',
+    '鸣谢',
+    '致谢',
+    '特别感谢',
+    '献给',
+    '谨以此歌',
+    '谢谢',
+    '晚安',
+    '再见',
+    '感谢聆听',
+    '未完待续',
+    '敬请期待',
+    '下期再见',
     // ===== 英文 — 制作人员 =====
-    'lyrics by', 'written by', 'composed by', 'arranged by',
-    'produced by', 'executive producer', 'co-producer',
-    'guitar', 'bass', 'drums', 'keyboard', 'piano', 'violin', 'cello', 'saxophone', 'flute',
-    'backing vocals', 'chorus', 'choir', 'featuring', 'feat.',
-    'mixed by', 'mastered by', 'recorded by', 'editing',
-    'recording studio', 'mixing studio',
+    'lyrics by',
+    'written by',
+    'composed by',
+    'arranged by',
+    'produced by',
+    'executive producer',
+    'co-producer',
+    'guitar',
+    'bass',
+    'drums',
+    'keyboard',
+    'piano',
+    'violin',
+    'cello',
+    'saxophone',
+    'flute',
+    'backing vocals',
+    'chorus',
+    'choir',
+    'featuring',
+    'feat.',
+    'mixed by',
+    'mastered by',
+    'recorded by',
+    'editing',
+    'recording studio',
+    'mixing studio',
     // ===== 英文 — 出品/版权 =====
-    'presented by', 'released by', 'record label',
-    'copyright', 'all rights reserved',
-    'production company', 'studio', 'label',
+    'presented by',
+    'released by',
+    'record label',
+    'copyright',
+    'all rights reserved',
+    'production company',
+    'studio',
+    'label',
     // ===== 英文 — 致谢/结尾 =====
-    'thanks to', 'acknowledgments', 'dedicated to', 'special thanks',
-    'goodbye', 'goodnight', 'thank you', 'thanks for listening', 'to be continued'
+    'thanks to',
+    'acknowledgments',
+    'dedicated to',
+    'special thanks',
+    'goodbye',
+    'goodnight',
+    'thank you',
+    'thanks for listening',
+    'to be continued'
   ];
 
   /** 检测当前歌词行是否为署名/致谢/结尾类 */
   private isAttributionLyric(lineText: string): boolean {
     if (!lineText) return false;
     const lower = lineText.toLowerCase();
-    return SmartMixService.ATTRIBUTION_KEYWORDS.some((kw) =>
-      lower.includes(kw.toLowerCase())
-    );
+    return SmartMixService.ATTRIBUTION_KEYWORDS.some((kw) => lower.includes(kw.toLowerCase()));
   }
 
   /**
@@ -171,9 +249,31 @@ class SmartMixService {
     }
 
     // 解析下一首的音频实例
-    let nextSound: Howl | LocalAudioPlayer | null = null;
+    let nextSound: AudioHandle | null = null;
 
-    if (isLocalSong(nextSong) && nextSong.playMusicUrl) {
+    if (isAndroidNative()) {
+      if (!nextSong.playMusicUrl) {
+        try {
+          const { useSongDetail } = await import('@/hooks/usePlayerHooks');
+          const { getSongDetail } = useSongDetail();
+          const detailed = await getSongDetail(nextSong);
+          if (detailed?.playMusicUrl) {
+            nextSong.playMusicUrl = detailed.playMusicUrl;
+            if (list[nextIndex]) list[nextIndex] = { ...list[nextIndex], ...detailed };
+          }
+        } catch (error) {
+          console.warn('[SmartMix] 原生预加载 URL 解析失败:', error);
+        }
+      }
+      if (!nextSong.playMusicUrl) return;
+      try {
+        nextSound = new NativeAudioPlayer(nextSong.playMusicUrl, nextSong, true);
+        await nextSound.load();
+      } catch (error) {
+        console.warn('[SmartMix] Media3 预加载失败:', error);
+        return;
+      }
+    } else if (isLocalSong(nextSong) && nextSong.playMusicUrl) {
       // 本地歌曲
       try {
         nextSound = new LocalAudioPlayer(nextSong.playMusicUrl);
@@ -233,14 +333,14 @@ class SmartMixService {
     );
 
     // crossfade 成功启动后才从预加载缓存中移除
-    if (crossfadeStarted && !isLocalSong(nextSong)) {
+    if (crossfadeStarted && !isAndroidNative() && !isLocalSong(nextSong)) {
       preloadService.consume(nextSong.id);
     }
   }
 
   /** 执行 crossfade 并监听完成/取消事件，返回是否成功启动 */
   private async doCrossfade(
-    nextSound: Howl | LocalAudioPlayer,
+    nextSound: AudioHandle,
     nextSong: SongResult,
     nextIndex: number,
     duration: number,
@@ -289,10 +389,7 @@ class SmartMixService {
   }
 
   /** crossfade 完成后更新播放状态（不重新播放音频） */
-  private async completeTransition(
-    nextSong: SongResult,
-    nextIndex: number
-  ): Promise<void> {
+  private async completeTransition(nextSong: SongResult, nextIndex: number): Promise<void> {
     try {
       // 更新播放列表索引
       const { usePlaylistStore } = await import('@/store/modules/playlist');
@@ -310,9 +407,7 @@ class SmartMixService {
       const localMusic = useLocalMusic();
 
       const [lyrics, bg] = await Promise.all([
-        isLocalSong(nextSong)
-          ? localMusic.loadLocalLyrics(nextSong)
-          : loadLrc(nextSong.id),
+        isLocalSong(nextSong) ? localMusic.loadLocalLyrics(nextSong) : loadLrc(nextSong.id),
         nextSong.backgroundColor && nextSong.primaryColor
           ? Promise.resolve({
               backgroundColor: nextSong.backgroundColor,
@@ -367,7 +462,9 @@ class SmartMixService {
         try {
           const { cloneDeep } = await import('lodash');
           (window as any).api?.sendSong?.(cloneDeep(nextSong));
-        } catch {}
+        } catch {
+          // Desktop companion sync is optional on Android.
+        }
       }
     } catch (error) {
       console.error('[SmartMix] 状态更新失败:', error);
@@ -378,7 +475,9 @@ class SmartMixService {
       try {
         const { useTransitionStore } = await import('@/store/modules/transition');
         useTransitionStore().end();
-      } catch { /* transition store 不可用 */ }
+      } catch {
+        /* transition store 不可用 */
+      }
     }
   }
 

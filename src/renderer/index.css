@@ -894,3 +894,12 @@
 .player-style-surface.player-style-customized .lyric-translation {
   color: var(--player-style-translation-color) !important;
 }
+
+.player-style-surface.player-style-customized .split-lyrics .lyric-word,
+.player-style-surface.player-style-customized .secondary-line {
+  color: var(--player-style-auxiliary-color) !important;
+}
+
+.player-style-surface.player-style-customized .split-lyrics .lyric-word.active {
+  color: var(--player-style-lyric-color) !important;
+}

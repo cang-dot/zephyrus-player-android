@@ -5,6 +5,7 @@ export default {
   volume: '音量',
   settings: '設定',
   search: '検索',
+  sort: '並べ替え',
   loading: '読み込み中...',
   loadingMore: 'さらに読み込み中...',
   alipay: 'Alipay',

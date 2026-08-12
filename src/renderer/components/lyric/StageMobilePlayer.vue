@@ -207,6 +207,7 @@ const {
   styleVars,
   isCustom,
   customBackgroundActive,
+  climaxColors,
   selectedFontFamily,
   customFontActive
 } = usePlayerStyleAppearance('stage');
@@ -303,6 +304,7 @@ const currentRomanization = computed(() => {
  * 歌词颜色：高潮时切换为强调色
  */
 const lyricColor = computed(() => {
+  if (isCustom.value) return climaxColors.value.main;
   if (styleEngine.isInClimax && effects.value.lyricColor) return accentColor.value;
   return '#f0ece4';
 });

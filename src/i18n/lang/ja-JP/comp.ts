@@ -204,7 +204,10 @@ export default {
   },
   musicList: {
     searchSongs: '楽曲を検索',
+    playlistDescription: 'プレイリスト紹介',
+    albumDescription: 'アルバム紹介',
     noSearchResults: '関連する楽曲が見つかりませんでした',
+    toggleLayout: 'レイアウトを切り替え',
     switchToNormal: 'デフォルトレイアウトに切り替え',
     switchToCompact: 'コンパクトレイアウトに切り替え',
     playAll: 'すべて再生',

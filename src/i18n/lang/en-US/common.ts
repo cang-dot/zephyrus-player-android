@@ -5,6 +5,7 @@ export default {
   volume: 'Volume',
   settings: 'Settings',
   search: 'Search',
+  sort: 'Sort',
   loading: 'Loading...',
   loadingMore: 'Loading more...',
   alipay: 'Alipay',

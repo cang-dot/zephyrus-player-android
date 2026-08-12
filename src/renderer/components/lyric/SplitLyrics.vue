@@ -10,12 +10,13 @@
             :key="`left-${index}`"
             class="lyric-word"
             :class="{ active: isWordActive(index, 'left') }"
+            :style="{ color: isWordActive(index, 'left') ? props.mainColor : props.auxiliaryColor }"
           >
             {{ word }}
           </span>
         </div>
       </template>
-      
+
       <!-- 只显示右边 -->
       <template v-else-if="side === 'right'">
         <div class="lyric-column right-column single-side">
@@ -24,12 +25,15 @@
             :key="`right-${index}`"
             class="lyric-word"
             :class="{ active: isWordActive(index, 'right') }"
+            :style="{
+              color: isWordActive(index, 'right') ? props.mainColor : props.auxiliaryColor
+            }"
           >
             {{ word }}
           </span>
         </div>
       </template>
-      
+
       <!-- 显示两边（中间有分隔线） -->
       <template v-else>
         <div class="lyric-column left-column">
@@ -38,6 +42,7 @@
             :key="`left-${index}`"
             class="lyric-word"
             :class="{ active: isWordActive(index, 'left') }"
+            :style="{ color: isWordActive(index, 'left') ? props.mainColor : props.auxiliaryColor }"
           >
             {{ word }}
           </span>
@@ -49,6 +54,9 @@
             :key="`right-${index}`"
             class="lyric-word"
             :class="{ active: isWordActive(index, 'right') }"
+            :style="{
+              color: isWordActive(index, 'right') ? props.mainColor : props.auxiliaryColor
+            }"
           >
             {{ word }}
           </span>
@@ -62,12 +70,14 @@
         <div
           class="lyric-line primary-line"
           :class="{ active: true }"
+          :style="{ color: props.mainColor }"
         >
           {{ currentLine?.text || '' }}
         </div>
         <div
           v-if="nextLine"
           class="lyric-line secondary-line"
+          :style="{ color: props.auxiliaryColor }"
         >
           {{ nextLine.text }}
         </div>
@@ -83,7 +93,7 @@
  * 支持两种模式：
  * 1. split: 将当前歌词按词分割，左右两列显示
  * 2. group: 同时显示当前行和下一行，当前行高亮
- * 
+ *
  * 新增 side 属性：
  * - 'left': 只显示左边部分
  * - 'right': 只显示右边部分
@@ -104,6 +114,8 @@ interface Props {
     startTime: number;
     duration: number;
   }>;
+  mainColor?: string;
+  auxiliaryColor?: string;
 }
 
 const props = defineProps<Props>();
@@ -151,7 +163,7 @@ function splitIntoWords(text: string): string[] {
     words.push(currentWord);
   }
 
-  return words.filter(w => w.trim());
+  return words.filter((w) => w.trim());
 }
 
 // 模式 A: 左右分词
@@ -190,8 +202,7 @@ function isWordActive(index: number, column: 'left' | 'right'): boolean {
   const word = props.words[wordIndex];
   if (!word) return false;
 
-  return currentTimeMs >= word.startTime &&
-         currentTimeMs < word.startTime + word.duration;
+  return currentTimeMs >= word.startTime && currentTimeMs < word.startTime + word.duration;
 }
 </script>
 
@@ -238,12 +249,7 @@ function isWordActive(index: number, column: 'left' | 'right'): boolean {
 .lyric-divider {
   width: 2px;
   height: 80px;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    rgba(255, 255, 255, 0.3),
-    transparent
-  );
+  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.3), transparent);
   flex-shrink: 0;
 }
 

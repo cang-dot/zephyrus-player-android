@@ -48,10 +48,11 @@
             <!-- 字体选择 -->
             <div class="config-section">
               <div class="config-label">字体</div>
-              <button class="font-selector-btn" @click="showFontSelector = true">
-                <span>{{ currentFontName }}</span>
-                <i class="ri-arrow-right-s-line"></i>
-              </button>
+              <morphing-font-selector
+                :selected-id="config.fontId"
+                :label="currentFontName"
+                @select="onFontSelected"
+              />
             </div>
 
             <div class="config-section">
@@ -347,14 +348,6 @@
       </div>
     </Transition>
 
-    <!-- 字体选择器 -->
-    <font-selector
-      v-if="showFontSelector"
-      :selectedId="config.fontId"
-      @select="onFontSelected"
-      @close="showFontSelector = false"
-    />
-
     <!-- Toast 提示 -->
     <Transition name="toast">
       <div v-if="toastMessage" class="poster-toast">
@@ -369,7 +362,7 @@
 import { computed, ref, watch } from 'vue';
 
 import logoUrl from '@/assets/logo.png';
-import FontSelector from '@/components/share/FontSelector.vue';
+import MorphingFontSelector from '@/components/share/MorphingFontSelector.vue';
 import { artistList, playMusic } from '@/hooks/MusicHook';
 import {
   BUILTIN_FONTS,
@@ -398,7 +391,6 @@ const emit = defineEmits<{
 const generating = ref(false);
 const posterDataUrl = ref('');
 const posterCanvas = ref<HTMLCanvasElement | null>(null);
-const showFontSelector = ref(false);
 const toastMessage = ref('');
 const toastIcon = ref('ri-check-line');
 
@@ -475,7 +467,6 @@ function setConfig(key: keyof PosterConfig, value: any) {
 
 function onFontSelected(fontId: string) {
   config.value.fontId = fontId;
-  showFontSelector.value = false;
   regenerate();
 }
 

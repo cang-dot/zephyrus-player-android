@@ -203,7 +203,10 @@ export default {
   },
   musicList: {
     searchSongs: 'Search Songs',
+    playlistDescription: 'Playlist description',
+    albumDescription: 'Album description',
     noSearchResults: 'No search results',
+    toggleLayout: 'Change layout',
     switchToNormal: 'Switch to normal layout',
     switchToCompact: 'Switch to compact layout',
     playAll: 'Play All',

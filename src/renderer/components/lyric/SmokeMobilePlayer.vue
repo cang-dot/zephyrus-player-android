@@ -122,6 +122,7 @@ import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
+import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 
@@ -201,8 +202,9 @@ const smokeChaos = computed(() =>
 const smokeLoudness = computed(() =>
   Math.min(
     1,
-    styleEngine.energyLevel * Number(styleCfg.value.smokeLoudnessResponse || 0.72) +
-      styleEngine.kickEnergy * 0.3
+    Math.max(styleEngine.energyLevel, audioService.getLoudness()) *
+      Number(styleCfg.value.smokeLoudnessResponse || 0.72) +
+      Math.max(styleEngine.kickEnergy, audioService.getBandEnergies().low) * 0.3
   )
 );
 const smokeOpacity = computed(() => Number(styleCfg.value.smokeOpacity || 0.76));

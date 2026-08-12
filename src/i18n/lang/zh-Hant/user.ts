@@ -60,6 +60,7 @@ export default {
   accountSwitcher: {
     title: '切換帳號',
     addAccount: '新增帳號',
+    deleteAccount: '刪除帳號？',
     close: '關閉'
   }
 };

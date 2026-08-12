@@ -23,8 +23,8 @@ describe('status bar lyric config', () => {
       },
       font: { source: 'builtin', id: 'noto-serif-sc', sizeSp: 80, weight: 655 }
     });
-    expect(config.positions.portrait).toEqual({ x: 0, y: 1 });
-    expect(config.positions.landscape).toEqual({ x: 0.28, y: 0.7 });
+    expect(config.positions.portrait).toEqual({ x: 0, y: 0.1 });
+    expect(config.positions.landscape).toEqual({ x: 0.28, y: 0.1 });
     expect(config.font.sizeSp).toBe(28);
     expect(config.font.weight).toBe(700);
   });
@@ -35,5 +35,20 @@ describe('status bar lyric config', () => {
     });
     expect(config.colors.sung).toEqual({ source: 'custom', color: '#ffffff' });
     expect(DEFAULT_STATUS_BAR_LYRIC_CONFIG.colors.sung.source).toBe('theme');
+  });
+
+  it('normalizes capsule width modes and surface visibility', () => {
+    const fixed = normalizeStatusBarLyricConfig({
+      capsule: { widthMode: 'fixed', fixedWidthDp: 999 },
+      colors: { surface: { fillEnabled: false, borderEnabled: false } }
+    });
+    expect(fixed.capsule).toEqual({ widthMode: 'fixed', fixedWidthDp: 420 });
+    expect(fixed.colors.surface.fillEnabled).toBe(false);
+    expect(fixed.colors.surface.borderEnabled).toBe(false);
+
+    const migrated = normalizeStatusBarLyricConfig({ capsule: { fixedWidthDp: 40 } });
+    expect(migrated.capsule).toEqual({ widthMode: 'fit', fixedWidthDp: 48 });
+    expect(migrated.colors.surface.fillEnabled).toBe(true);
+    expect(migrated.colors.surface.borderEnabled).toBe(true);
   });
 });

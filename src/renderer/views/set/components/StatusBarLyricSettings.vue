@@ -22,26 +22,48 @@
 
     <div class="position-grid">
       <label>
-        <span>X {{ Math.round(currentPosition.x * 100) }}%</span>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          :value="currentPosition.x"
-          @input="setPosition('x', $event)"
-        />
+        <span>X {{ formatPositionPercent(currentPosition.x) }}%</span>
+        <div class="position-stepper">
+          <button type="button" aria-label="X -0.5%" @click="adjustPosition('x', -0.005)">
+            <i class="ri-subtract-line" />
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.005"
+            :value="currentPosition.x"
+            @input="setPosition('x', $event)"
+            @change="finishLivePreview"
+            @pointercancel="finishLivePreview"
+            @pointerup="finishLivePreview"
+          />
+          <button type="button" aria-label="X +0.5%" @click="adjustPosition('x', 0.005)">
+            <i class="ri-add-line" />
+          </button>
+        </div>
       </label>
       <label>
-        <span>Y {{ Math.round(currentPosition.y * 100) }}%</span>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          :value="currentPosition.y"
-          @input="setPosition('y', $event)"
-        />
+        <span>Y {{ formatPositionPercent(currentPosition.y) }}%</span>
+        <div class="position-stepper">
+          <button type="button" aria-label="Y -0.1%" @click="adjustPosition('y', -0.001)">
+            <i class="ri-subtract-line" />
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="0.1"
+            step="0.001"
+            :value="currentPosition.y"
+            @input="setPosition('y', $event)"
+            @change="finishLivePreview"
+            @pointercancel="finishLivePreview"
+            @pointerup="finishLivePreview"
+          />
+          <button type="button" aria-label="Y +0.1%" @click="adjustPosition('y', 0.001)">
+            <i class="ri-add-line" />
+          </button>
+        </div>
       </label>
     </div>
 
@@ -52,6 +74,38 @@
       </div>
       <n-switch v-model:value="config.wordByWord" />
     </div>
+
+    <div class="setting-line width-mode-line">
+      <div>
+        <strong>{{ st('capsuleWidth') }}</strong>
+        <small>{{ st('capsuleWidthDesc') }}</small>
+      </div>
+      <div class="segmented">
+        <button
+          :class="{ active: config.capsule.widthMode === 'fit' }"
+          @click="config.capsule.widthMode = 'fit'"
+        >
+          {{ st('widthFit') }}
+        </button>
+        <button
+          :class="{ active: config.capsule.widthMode === 'fixed' }"
+          @click="config.capsule.widthMode = 'fixed'"
+        >
+          {{ st('widthFixed') }}
+        </button>
+      </div>
+    </div>
+
+    <label v-if="config.capsule.widthMode === 'fixed'" class="control-block opacity-control">
+      <span>{{ st('fixedWidth') }} {{ Math.round(config.capsule.fixedWidthDp) }}dp</span>
+      <input
+        v-model.number="config.capsule.fixedWidthDp"
+        type="range"
+        min="48"
+        max="420"
+        step="2"
+      />
+    </label>
 
     <label class="control-block">
       <span
@@ -114,7 +168,41 @@
       </article>
     </section>
 
-    <label class="control-block opacity-control">
+    <section class="surface-grid">
+      <article v-for="part in surfaceParts" :key="part.key" class="color-control surface-control">
+        <div class="surface-control-heading">
+          <strong>{{ part.label }}</strong>
+          <n-switch
+            :value="surfaceEnabled(part.key)"
+            @update:value="setSurfaceEnabled(part.key, $event)"
+          />
+        </div>
+        <template v-if="surfaceEnabled(part.key)">
+          <div class="segmented color-source">
+            <button
+              :class="{ active: getColor(part.key).source === 'theme' }"
+              @click="setColorSource(part.key, 'theme')"
+            >
+              {{ st('theme') }}
+            </button>
+            <button
+              :class="{ active: getColor(part.key).source === 'custom' }"
+              @click="setColorSource(part.key, 'custom')"
+            >
+              {{ st('custom') }}
+            </button>
+          </div>
+          <input
+            v-if="getColor(part.key).source === 'custom'"
+            type="color"
+            :value="getColor(part.key).color"
+            @input="setColorValue(part.key, ($event.target as HTMLInputElement).value)"
+          />
+        </template>
+      </article>
+    </section>
+
+    <label v-if="config.colors.surface.fillEnabled" class="control-block opacity-control">
       <span>{{ st('opacity') }} {{ Math.round(config.colors.surface.opacity * 100) }}%</span>
       <input
         v-model.number="config.colors.surface.opacity"
@@ -129,16 +217,19 @@
 
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core';
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import {
+  applyStatusBarLyricConfig,
+  finishStatusBarLyricPreview,
   hasStatusBarLyricPermission,
   installStatusBarLyricFont,
   previewStatusBarLyric,
   readStatusBarLyricConfig,
   requestStatusBarLyricPermission,
-  saveStatusBarLyricConfig
+  saveStatusBarLyricConfig,
+  updateStatusBarLyricPreview
 } from '@/services/androidNative';
 import {
   normalizeStatusBarLyricConfig,
@@ -157,7 +248,9 @@ const nativeFonts = BUILTIN_FONTS.filter((font) => font.format !== 'woff2');
 const colorParts: Array<{ key: ColorKey; label: string }> = [
   { key: 'sung', label: st('sung') },
   { key: 'current', label: st('current') },
-  { key: 'upcoming', label: st('upcoming') },
+  { key: 'upcoming', label: st('upcoming') }
+];
+const surfaceParts: Array<{ key: 'fill' | 'border'; label: string }> = [
   { key: 'fill', label: st('surfaceFill') },
   { key: 'border', label: st('surfaceBorder') }
 ];
@@ -173,12 +266,74 @@ const fontSelection = computed({
 });
 
 const currentPosition = computed(() => config.positions[orientation.value]);
+const previewActive = ref(false);
+let previewActivityTimer: number | null = null;
+let livePreviewFrame: number | null = null;
+let livePreviewFinishFrame: number | null = null;
+const formatPositionPercent = (value: number) => (value * 100).toFixed(1).replace(/\.0$/, '');
+const keepPreviewActive = () => {
+  previewActive.value = true;
+  if (previewActivityTimer !== null) window.clearTimeout(previewActivityTimer);
+  previewActivityTimer = window.setTimeout(() => {
+    previewActive.value = false;
+    previewActivityTimer = null;
+  }, 5000);
+};
+const updateLivePreview = () => {
+  keepPreviewActive();
+  if (livePreviewFrame !== null) return;
+  livePreviewFrame = window.requestAnimationFrame(() => {
+    livePreviewFrame = null;
+    updateStatusBarLyricPreview(normalizeStatusBarLyricConfig(config));
+  });
+};
+const finishLivePreview = () => {
+  if (livePreviewFinishFrame !== null) window.cancelAnimationFrame(livePreviewFinishFrame);
+  livePreviewFinishFrame = window.requestAnimationFrame(() => {
+    livePreviewFinishFrame = null;
+    if (livePreviewFrame !== null) {
+      window.cancelAnimationFrame(livePreviewFrame);
+      livePreviewFrame = null;
+      updateStatusBarLyricPreview(normalizeStatusBarLyricConfig(config));
+    }
+    const saved = saveStatusBarLyricConfig(normalizeStatusBarLyricConfig(config), {
+      applyNative: false,
+      notify: false
+    });
+    previewActive.value = false;
+    if (previewActivityTimer !== null) {
+      window.clearTimeout(previewActivityTimer);
+      previewActivityTimer = null;
+    }
+    emit('update:enabled', saved.enabled);
+    finishStatusBarLyricPreview();
+  });
+};
 const setPosition = (axis: 'x' | 'y', event: Event) => {
-  currentPosition.value[axis] = Number((event.target as HTMLInputElement).value);
+  const max = axis === 'y' ? 0.1 : 1;
+  currentPosition.value[axis] = Math.min(
+    max,
+    Math.max(0, Number((event.target as HTMLInputElement).value))
+  );
+  updateLivePreview();
+};
+const adjustPosition = (axis: 'x' | 'y', amount: number) => {
+  const max = axis === 'y' ? 0.1 : 1;
+  currentPosition.value[axis] = Math.min(
+    max,
+    Math.max(0, Number((currentPosition.value[axis] + amount).toFixed(3)))
+  );
+  updateLivePreview();
+  finishLivePreview();
 };
 
 const persist = useDebounceFn(() => {
-  const saved = saveStatusBarLyricConfig(normalizeStatusBarLyricConfig(config));
+  const normalized = normalizeStatusBarLyricConfig(config);
+  const saved = saveStatusBarLyricConfig(normalized, {
+    applyNative: !previewActive.value,
+    notify: !previewActive.value
+  });
+  if (previewActive.value) applyStatusBarLyricConfig({ ...normalized, enabled: true });
   emit('update:enabled', saved.enabled);
 }, 120);
 watch(config, persist, { deep: true });
@@ -201,11 +356,19 @@ const setColorSource = (key: ColorKey, source: 'theme' | 'custom') => {
 const setColorValue = (key: ColorKey, color: string) => {
   getColor(key).color = color;
 };
+const surfaceEnabled = (key: 'fill' | 'border') =>
+  key === 'fill' ? config.colors.surface.fillEnabled : config.colors.surface.borderEnabled;
+const setSurfaceEnabled = (key: 'fill' | 'border', enabled: boolean) => {
+  if (key === 'fill') config.colors.surface.fillEnabled = enabled;
+  else config.colors.surface.borderEnabled = enabled;
+};
 
 const showActualPreview = () => {
   if (!previewStatusBarLyric(normalizeStatusBarLyricConfig(config))) {
     window.$message?.info(st('previewPermission'));
+    return;
   }
+  keepPreviewActive();
 };
 
 const importFont = async (event: Event) => {
@@ -223,6 +386,17 @@ const importFont = async (event: Event) => {
     input.value = '';
   }
 };
+
+onBeforeUnmount(() => {
+  if (previewActivityTimer !== null) window.clearTimeout(previewActivityTimer);
+  if (livePreviewFrame !== null) window.cancelAnimationFrame(livePreviewFrame);
+  if (livePreviewFinishFrame !== null) window.cancelAnimationFrame(livePreviewFinishFrame);
+  saveStatusBarLyricConfig(normalizeStatusBarLyricConfig(config), {
+    applyNative: false,
+    notify: false
+  });
+  finishStatusBarLyricPreview();
+});
 </script>
 
 <style scoped lang="scss">
@@ -251,6 +425,9 @@ const importFont = async (event: Event) => {
 .control-block small {
   color: var(--m-text-muted);
   font-size: 11px;
+}
+.width-mode-line {
+  align-items: flex-start;
 }
 .preview-toolbar {
   display: flex;
@@ -304,6 +481,28 @@ const importFont = async (event: Event) => {
   color: var(--m-text-secondary);
   font-size: 11px;
 }
+.position-stepper {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 6px;
+}
+.position-stepper input {
+  min-width: 0;
+}
+.position-stepper button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, #fff 20%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-color) 12%, transparent);
+  color: var(--m-text-primary);
+}
+.position-stepper button:active {
+  transform: scale(0.92);
+}
 .slider-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -334,6 +533,18 @@ input[type='range'] {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+.surface-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.surface-control-heading {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 .color-control {
   display: grid;

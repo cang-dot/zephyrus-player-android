@@ -72,6 +72,9 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation "androidx.media:media:1.7.0"
+    implementation "androidx.media3:media3-exoplayer:1.11.0"
+    implementation "androidx.media3:media3-datasource:1.11.0"
+    implementation "androidx.media3:media3-database:1.11.0"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

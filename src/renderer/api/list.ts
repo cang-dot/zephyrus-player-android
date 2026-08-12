@@ -32,13 +32,13 @@ export function getRecommendList(limit: number = 30) {
 }
 
 // 获取歌单详情
-export function getListDetail(id: number | string) {
-  return request.get<IListDetail>('/playlist/detail', { params: { id } });
+export function getListDetail(id: number | string, cookie?: string) {
+  return request.get<IListDetail>('/playlist/detail', { params: { id, cookie } });
 }
 
 // 获取专辑内容
-export function getAlbum(id: number | string) {
-  return request.get('/album', { params: { id } });
+export function getAlbum(id: number | string, cookie?: string) {
+  return request.get('/album', { params: { id, cookie } });
 }
 
 // 获取排行榜列表

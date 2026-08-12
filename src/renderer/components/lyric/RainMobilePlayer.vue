@@ -62,7 +62,11 @@
             <!-- 歌词叠加在封面上 -->
             <div class="cover-lyrics-overlay">
               <transition name="lyric-change" mode="out-in">
-                <div :key="nowIndex" class="lyric-line primary-line">
+                <div
+                  :key="nowIndex"
+                  class="lyric-line primary-line"
+                  :style="{ color: climaxColors.main }"
+                >
                   {{ currentLine?.text || '' }}
                 </div>
               </transition>
@@ -85,6 +89,8 @@
                 :nextLine="nextLine"
                 :currentTime="nowTime"
                 :words="currentLine?.words"
+                :main-color="climaxColors.main"
+                :auxiliary-color="climaxColors.auxiliary"
               />
               <div v-else class="lyric-group">
                 <div class="lyric-line primary-line">{{ currentLine?.text || '' }}</div>
@@ -108,6 +114,8 @@
                 :nextLine="nextLine"
                 :currentTime="nowTime"
                 :words="currentLine?.words"
+                :main-color="climaxColors.main"
+                :auxiliary-color="climaxColors.auxiliary"
               />
               <div v-else class="lyric-group">
                 <div v-if="nextLine" class="lyric-line secondary-line">{{ nextLine.text }}</div>
@@ -210,7 +218,7 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 
 // 海报分享
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
-const { styleVars, isCustom, customBackgroundActive, customFontActive } =
+const { styleVars, isCustom, customBackgroundActive, customFontActive, climaxColors } =
   usePlayerStyleAppearance('rain');
 
 const isVisible = computed({

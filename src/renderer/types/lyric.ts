@@ -8,6 +8,10 @@ export type StatusBarLyricColorSource = {
 export interface StatusBarLyricConfig {
   enabled: boolean;
   wordByWord: boolean;
+  capsule: {
+    widthMode: 'fit' | 'fixed';
+    fixedWidthDp: number;
+  };
   positions: {
     portrait: { x: number; y: number };
     landscape: { x: number; y: number };
@@ -23,6 +27,8 @@ export interface StatusBarLyricConfig {
     current: StatusBarLyricColorSource;
     upcoming: StatusBarLyricColorSource;
     surface: {
+      fillEnabled: boolean;
+      borderEnabled: boolean;
       fill: StatusBarLyricColorSource;
       border: StatusBarLyricColorSource;
       opacity: number;
@@ -33,6 +39,7 @@ export interface StatusBarLyricConfig {
 export const DEFAULT_STATUS_BAR_LYRIC_CONFIG: StatusBarLyricConfig = {
   enabled: false,
   wordByWord: true,
+  capsule: { widthMode: 'fit', fixedWidthDp: 220 },
   positions: {
     portrait: { x: 0.5, y: 0.035 },
     landscape: { x: 0.5, y: 0.045 }
@@ -43,6 +50,8 @@ export const DEFAULT_STATUS_BAR_LYRIC_CONFIG: StatusBarLyricConfig = {
     current: { source: 'theme', color: '#ffffff' },
     upcoming: { source: 'custom', color: '#d7d7d7' },
     surface: {
+      fillEnabled: true,
+      borderEnabled: true,
       fill: { source: 'custom', color: '#121212' },
       border: { source: 'theme', color: '#ffffff' },
       opacity: 0.72
@@ -52,8 +61,9 @@ export const DEFAULT_STATUS_BAR_LYRIC_CONFIG: StatusBarLyricConfig = {
 
 export type StatusBarLyricConfigInput = Omit<
   Partial<StatusBarLyricConfig>,
-  'positions' | 'font' | 'colors'
+  'capsule' | 'positions' | 'font' | 'colors'
 > & {
+  capsule?: Partial<StatusBarLyricConfig['capsule']>;
   positions?: {
     portrait?: Partial<StatusBarLyricConfig['positions']['portrait']>;
     landscape?: Partial<StatusBarLyricConfig['positions']['landscape']>;
@@ -66,6 +76,8 @@ export type StatusBarLyricConfigInput = Omit<
     surface?: {
       fill?: Partial<StatusBarLyricColorSource>;
       border?: Partial<StatusBarLyricColorSource>;
+      fillEnabled?: boolean;
+      borderEnabled?: boolean;
       opacity?: number;
     };
   };
@@ -93,14 +105,18 @@ export function normalizeStatusBarLyricConfig(
   return {
     enabled: value?.enabled ?? legacyEnabled,
     wordByWord: value?.wordByWord ?? fallback.wordByWord,
+    capsule: {
+      widthMode: value?.capsule?.widthMode === 'fixed' ? 'fixed' : 'fit',
+      fixedWidthDp: clamp(value?.capsule?.fixedWidthDp, 48, 420, fallback.capsule.fixedWidthDp)
+    },
     positions: {
       portrait: {
         x: clamp(value?.positions?.portrait?.x, 0, 1, fallback.positions.portrait.x),
-        y: clamp(value?.positions?.portrait?.y, 0, 1, fallback.positions.portrait.y)
+        y: clamp(value?.positions?.portrait?.y, 0, 0.1, fallback.positions.portrait.y)
       },
       landscape: {
         x: clamp(value?.positions?.landscape?.x, 0, 1, fallback.positions.landscape.x),
-        y: clamp(value?.positions?.landscape?.y, 0, 1, fallback.positions.landscape.y)
+        y: clamp(value?.positions?.landscape?.y, 0, 0.1, fallback.positions.landscape.y)
       }
     },
     font: {
@@ -116,6 +132,9 @@ export function normalizeStatusBarLyricConfig(
       current: normalizeColorSource(value?.colors?.current, fallback.colors.current),
       upcoming: normalizeColorSource(value?.colors?.upcoming, fallback.colors.upcoming),
       surface: {
+        fillEnabled: value?.colors?.surface?.fillEnabled ?? fallback.colors.surface.fillEnabled,
+        borderEnabled:
+          value?.colors?.surface?.borderEnabled ?? fallback.colors.surface.borderEnabled,
         fill: normalizeColorSource(value?.colors?.surface?.fill, fallback.colors.surface.fill),
         border: normalizeColorSource(
           value?.colors?.surface?.border,

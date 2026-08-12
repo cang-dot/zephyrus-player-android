@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
+import { resolveReplacementAccount } from '@/utils/platformAccountSelection';
+
 export const MUSIC_PLATFORMS = ['netease', 'qq', 'kugou', 'spotify'] as const;
 const DEPRECATED_LOGIN_PLATFORMS = ['kuwo', 'migu'] as const;
 
@@ -205,10 +207,7 @@ export const usePlatformAccountsStore = defineStore(
       accounts.value = accounts.value.filter((item) => item.accountId !== accountId);
       delete accountCache.value[accountId];
 
-      const replacement =
-        accounts.value.find((item) => item.platform === account.platform) ||
-        accounts.value[0] ||
-        null;
+      const replacement = resolveReplacementAccount(accounts.value, account);
 
       if (activeAccountId.value === accountId) {
         if (replacement) {
@@ -228,7 +227,10 @@ export const usePlatformAccountsStore = defineStore(
         );
         if (platformReplacement.cookie) {
           localStorage.setItem(`platform-cookie-${account.platform}`, platformReplacement.cookie);
+        } else {
+          localStorage.removeItem(`platform-cookie-${account.platform}`);
         }
+        syncRuntimePlatformCookie(account.platform, platformReplacement.cookie || '');
       } else {
         localStorage.removeItem(`platform-user-${account.platform}`);
         localStorage.removeItem(`platform-cookie-${account.platform}`);

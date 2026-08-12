@@ -197,7 +197,10 @@ export default {
   },
   musicList: {
     searchSongs: '搜索歌曲',
+    playlistDescription: '歌单简介',
+    albumDescription: '专辑简介',
     noSearchResults: '没有找到相关歌曲',
+    toggleLayout: '切换布局',
     switchToNormal: '切换到默认布局',
     switchToCompact: '切换到紧凑布局',
     playAll: '播放全部',

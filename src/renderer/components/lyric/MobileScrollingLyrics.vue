@@ -552,6 +552,8 @@ const getTimedWordClasses = (lineIndex: number, word: { startTime: number; durat
 
 const getTimedWordStyle = (lineIndex: number, word: { startTime: number; duration: number }) => {
   const colors = textColors.value || getTextColors();
+  const upcomingColor = `var(--player-style-custom-main-color, ${colors.primary})`;
+  const activeColor = `var(--player-style-custom-main-color, ${colors.active})`;
   const state = getTimedWordState(lineIndex, word);
   const duration = Math.max(Number(word.duration) || 0, 60);
   const progress =
@@ -563,20 +565,24 @@ const getTimedWordStyle = (lineIndex: number, word: { startTime: number; duratio
   const active = state === 'active';
   const longSyllable = duration >= 420;
   return {
-    color: state === 'upcoming' ? colors.primary : colors.active,
+    color: state === 'upcoming' ? upcomingColor : activeColor,
     backgroundImage: active
-      ? `linear-gradient(90deg, ${colors.active} ${Math.round(progress * 100)}%, ${colors.primary} ${Math.round(progress * 100)}%)`
+      ? `linear-gradient(90deg, ${activeColor} ${Math.round(progress * 100)}%, ${upcomingColor} ${Math.round(progress * 100)}%)`
       : 'none',
     backgroundClip: active ? 'text' : 'initial',
     WebkitBackgroundClip: active ? 'text' : 'initial',
     WebkitTextFillColor: active ? 'transparent' : 'initial',
-    textShadow: active ? `0 0 ${longSyllable ? 14 : 9}px ${colors.active}99` : 'none'
+    textShadow: active
+      ? `0 0 ${longSyllable ? 14 : 9}px color-mix(in srgb, ${activeColor} 60%, transparent)`
+      : 'none'
   };
 };
 
 const getAuxiliaryLyricStyle = () => {
   const colors = textColors.value || getTextColors();
-  return { '--lyric-aux-color': colors.active };
+  return {
+    '--lyric-aux-color': `var(--player-style-custom-auxiliary-color, ${colors.active})`
+  };
 };
 
 const getAuxiliaryWordState = (word: { startTime: number; duration: number }) => {
@@ -602,8 +608,9 @@ const getAuxiliaryWordStyle = (word: { startTime: number; duration: number }) =>
       : state === 'finished'
         ? 1
         : 0;
-  const activeColor = `color-mix(in srgb, #fff 82%, ${colors.active})`;
-  const upcomingColor = `color-mix(in srgb, #fff 42%, ${colors.primary})`;
+  const customAuxiliary = `var(--player-style-custom-auxiliary-color, ${colors.active})`;
+  const activeColor = `color-mix(in srgb, #fff 82%, ${customAuxiliary})`;
+  const upcomingColor = `color-mix(in srgb, #fff 42%, ${customAuxiliary})`;
   return {
     color: state === 'upcoming' ? upcomingColor : activeColor,
     backgroundImage:
@@ -613,7 +620,10 @@ const getAuxiliaryWordStyle = (word: { startTime: number; duration: number }) =>
     backgroundClip: state === 'active' ? 'text' : 'initial',
     WebkitBackgroundClip: state === 'active' ? 'text' : 'initial',
     WebkitTextFillColor: state === 'active' ? 'transparent' : 'initial',
-    textShadow: state === 'active' ? `0 0 10px ${colors.active}73` : 'none'
+    textShadow:
+      state === 'active'
+        ? `0 0 10px color-mix(in srgb, ${customAuxiliary} 45%, transparent)`
+        : 'none'
   };
 };
 

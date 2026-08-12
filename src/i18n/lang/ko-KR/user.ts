@@ -60,6 +60,7 @@ export default {
   accountSwitcher: {
     title: '계정 전환',
     addAccount: '계정 추가',
+    deleteAccount: '계정을 삭제할까요?',
     close: '닫기'
   }
 };

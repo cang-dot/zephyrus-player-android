@@ -1,11 +1,9 @@
-import { Howl } from 'howler';
 import { cloneDeep } from 'lodash';
 import { createDiscreteApi } from 'naive-ui';
 import { computed, type ComputedRef, nextTick, ref, watch } from 'vue';
 
 import useIndexedDB from '@/hooks/IndexDBHook';
-import { audioService } from '@/services/audioService';
-import { LocalAudioPlayer } from '@/services/localAudioPlayer';
+import { type AudioHandle, audioService } from '@/services/audioService';
 import { smartMixService } from '@/services/smartMixService';
 import type { usePlayerStore } from '@/store';
 import type { Artist, ILyricText, SongResult } from '@/types/music';
@@ -48,7 +46,7 @@ export const nowTime = ref(0); // 当前播放时间
 export const allTime = ref(0); // 总播放时间
 export const nowIndex = ref(0); // 当前播放歌词
 export const currentLrcProgress = ref(0); // 来存储当前歌词的进度
-export const sound = ref<Howl | LocalAudioPlayer | null>(audioService.getCurrentSound());
+export const sound = ref<AudioHandle | null>(audioService.getCurrentSound());
 export const isLyricWindowOpen = ref(false); // 新增状态
 export const textColors = ref<any>(getTextColors());
 
@@ -76,7 +74,7 @@ export async function getMusicDB(): Promise<Awaited<ReturnType<typeof useIndexed
         { name: 'community_lyric_cache', keyPath: 'id' }
       ],
       5
-    ).then(db => {
+    ).then((db) => {
       _musicDB = db;
       return db;
     });
@@ -188,7 +186,6 @@ const setupMusicWatchers = () => {
       }
 
       await nextTick(async () => {
-
         // 检查是否有原始歌词字符串需要解析
         const lyricData = playMusic.value.lyric;
         if (lyricData && typeof lyricData === 'string') {
@@ -311,7 +308,9 @@ const setupAudioListeners = () => {
                 if (typeof nextTime === 'number' && typeof nextDur === 'number' && nextDur > 0) {
                   ts.updateNextProgress((nextTime / nextDur) * 100);
                 }
-              } catch {}
+              } catch {
+                // Smart mix preview state is optional.
+              }
             }
             // 检测上一首是否播放到尽头
             if (!ts.currentSongEnded && allTime.value > 0 && currentTime >= allTime.value - 0.3) {
@@ -568,9 +567,7 @@ const setupAudioListeners = () => {
   audioService.on('crossfade-start', (payload: { track: SongResult; duration: number }) => {
     // 获取下一首主体色
     const nextColor =
-      payload.track.backgroundColor ||
-      (payload.track as any).primaryColor ||
-      '#ffffff';
+      payload.track.backgroundColor || (payload.track as any).primaryColor || '#ffffff';
 
     // 获取上一首主体色
     const currentColor =
@@ -849,7 +846,6 @@ export const sendLyricToWin = () => {
       // 发送数据到歌词窗口
       window.api.sendLyric(JSON.stringify(updateData));
     } else {
-
       // 发送没有歌词的提示
       const emptyLyricData = {
         type: 'empty',
@@ -915,7 +911,6 @@ export const openLyric = () => {
   if (!playMusic.value || !playMusic.value.id) {
     return;
   }
-
 
   isLyricWindowOpen.value = !isLyricWindowOpen.value;
   if (isLyricWindowOpen.value) {
@@ -1061,7 +1056,6 @@ export const initAudioListeners = async () => {
 audioService.on('url_expired', async (expiredTrack) => {
   if (!expiredTrack) return;
 
-
   try {
     // 使用 handlePlayMusic 重新播放，它会自动处理 URL 获取和状态跟踪
     // 我们将 isFirstPlay 设为 true 以强制获取新 URL
@@ -1096,7 +1090,6 @@ window.addEventListener('audio-ready', ((event: CustomEvent) => {
       if (typeof currentPosition === 'number' && !Number.isNaN(currentPosition)) {
         nowTime.value = currentPosition;
       }
-
     }
   } catch (error) {
     console.error('处理音频就绪事件出错:', error);

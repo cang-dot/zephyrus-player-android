@@ -60,6 +60,7 @@ export default {
   accountSwitcher: {
     title: 'Switch Account',
     addAccount: 'Add Account',
+    deleteAccount: 'Delete account?',
     close: 'Close'
   }
 };

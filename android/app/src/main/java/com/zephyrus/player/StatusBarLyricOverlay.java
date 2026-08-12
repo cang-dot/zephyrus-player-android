@@ -5,6 +5,7 @@ import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Typeface;
+import android.graphics.Paint;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Handler;
@@ -15,6 +16,7 @@ import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.style.ForegroundColorSpan;
 import android.util.TypedValue;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -29,18 +31,25 @@ import java.util.List;
 
 /** Non-touch lyric capsule rendered by an Android application overlay. */
 public final class StatusBarLyricOverlay {
+    private static final String TAG = "StatusBarLyricOverlay";
     private static volatile StatusBarLyricOverlay instance;
 
     private final Context context;
     private final WindowManager windowManager;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable renderRunnable = this::render;
+    private final Runnable scrollRunnable = this::applyWordProgressScroll;
+    private final Runnable removeRunnable = this::removeView;
     private TextView lyricView;
     private boolean attached;
     private boolean enabled;
     private boolean wordByWord = true;
+    private String widthMode = "fit";
+    private int fixedWidthDp = 240;
     private String lyric = "";
     private final List<String> words = new ArrayList<>();
     private int currentWordIndex = -1;
+    private float currentWordProgress = 0f;
     private int themeColor = Color.WHITE;
     private double portraitX = 0.5;
     private double portraitY = 0.035;
@@ -58,8 +67,10 @@ public final class StatusBarLyricOverlay {
     private String upcomingColor = "#d7d7d7";
     private String fillSource = "custom";
     private String fillColor = "#121212";
+    private boolean fillEnabled = true;
     private String borderSource = "theme";
     private String borderColor = "#ffffff";
+    private boolean borderEnabled = true;
     private double surfaceOpacity = 0.72;
 
     private StatusBarLyricOverlay(Context context) {
@@ -83,10 +94,10 @@ public final class StatusBarLyricOverlay {
     public boolean setEnabled(boolean value) {
         enabled = value;
         if (!value || !hasPermission()) {
-            mainHandler.post(this::removeView);
+            scheduleRemove();
             return !value;
         }
-        mainHandler.post(this::render);
+        scheduleRender();
         return true;
     }
 
@@ -95,17 +106,23 @@ public final class StatusBarLyricOverlay {
             JSONObject config = new JSONObject(configJson == null ? "{}" : configJson);
             enabled = config.optBoolean("enabled", false);
             wordByWord = config.optBoolean("wordByWord", true);
+            JSONObject capsule = config.optJSONObject("capsule");
+            if (capsule != null) {
+                widthMode = "fixed".equals(capsule.optString("widthMode", widthMode))
+                        ? "fixed" : "fit";
+                fixedWidthDp = (int) clamp(capsule.optInt("fixedWidthDp", fixedWidthDp), 48, 420);
+            }
             JSONObject positions = config.optJSONObject("positions");
             if (positions != null) {
                 JSONObject portrait = positions.optJSONObject("portrait");
                 JSONObject landscape = positions.optJSONObject("landscape");
                 if (portrait != null) {
                     portraitX = clamp01(portrait.optDouble("x", portraitX));
-                    portraitY = clamp01(portrait.optDouble("y", portraitY));
+                    portraitY = clamp(portrait.optDouble("y", portraitY), 0, 0.1);
                 }
                 if (landscape != null) {
                     landscapeX = clamp01(landscape.optDouble("x", landscapeX));
-                    landscapeY = clamp01(landscape.optDouble("y", landscapeY));
+                    landscapeY = clamp(landscape.optDouble("y", landscapeY), 0, 0.1);
                 }
             }
             JSONObject font = config.optJSONObject("font");
@@ -125,6 +142,8 @@ public final class StatusBarLyricOverlay {
                 upcomingSource = upcoming[0]; upcomingColor = upcoming[1];
                 JSONObject surface = colors.optJSONObject("surface");
                 if (surface != null) {
+                    fillEnabled = surface.optBoolean("fillEnabled", fillEnabled);
+                    borderEnabled = surface.optBoolean("borderEnabled", borderEnabled);
                     String[] fill = readColorSource(surface.optJSONObject("fill"), fillSource, fillColor);
                     fillSource = fill[0]; fillColor = fill[1];
                     String[] border = readColorSource(surface.optJSONObject("border"), borderSource, borderColor);
@@ -135,30 +154,44 @@ public final class StatusBarLyricOverlay {
         } catch (Exception ignored) {
             return false;
         }
-        mainHandler.post(this::render);
+        scheduleRender();
         return !enabled || hasPermission();
     }
 
     public void updateState(String stateJson) {
         try {
             JSONObject state = new JSONObject(stateJson == null ? "{}" : stateJson);
-            lyric = state.optString("text", "").trim();
-            themeColor = parseColor(state.optString("themeColor", "#ffffff"));
-            currentWordIndex = state.optInt("currentWordIndex", -1);
-            wordByWord = state.optBoolean("wordByWord", wordByWord);
-            words.clear();
+            String nextLyric = state.optString("text", "").trim();
+            int nextThemeColor = parseColor(state.optString("themeColor", "#ffffff"));
+            int nextWordIndex = state.optInt("currentWordIndex", -1);
+            float nextWordProgress = (float) clamp(state.optDouble("currentWordProgress", 0), 0, 1);
+            boolean nextWordByWord = state.optBoolean("wordByWord", wordByWord);
+            List<String> nextWords = new ArrayList<>();
             JSONArray values = state.optJSONArray("words");
             if (values != null) {
                 for (int index = 0; index < values.length(); index++) {
                     JSONObject word = values.optJSONObject(index);
                     String text = word == null ? "" : word.optString("text", "");
-                    if (!text.isEmpty()) words.add(text);
+                    if (!text.isEmpty()) nextWords.add(text);
                 }
             }
+            boolean needsRender = !lyric.equals(nextLyric)
+                    || themeColor != nextThemeColor
+                    || currentWordIndex != nextWordIndex
+                    || wordByWord != nextWordByWord
+                    || !words.equals(nextWords);
+            lyric = nextLyric;
+            themeColor = nextThemeColor;
+            currentWordIndex = nextWordIndex;
+            currentWordProgress = nextWordProgress;
+            wordByWord = nextWordByWord;
+            words.clear();
+            words.addAll(nextWords);
+            if (needsRender) scheduleRender();
+            else scheduleScroll();
         } catch (Exception ignored) {
             return;
         }
-        mainHandler.post(this::render);
     }
 
     public void update(String text, String color) {
@@ -166,12 +199,31 @@ public final class StatusBarLyricOverlay {
         words.clear();
         currentWordIndex = -1;
         themeColor = parseColor(color);
-        mainHandler.post(this::render);
+        scheduleRender();
     }
 
     public void destroy() {
         enabled = false;
-        mainHandler.post(this::removeView);
+        scheduleRemove();
+    }
+
+    private void scheduleRender() {
+        mainHandler.removeCallbacks(renderRunnable);
+        mainHandler.removeCallbacks(scrollRunnable);
+        mainHandler.removeCallbacks(removeRunnable);
+        mainHandler.post(renderRunnable);
+    }
+
+    private void scheduleScroll() {
+        mainHandler.removeCallbacks(scrollRunnable);
+        mainHandler.post(scrollRunnable);
+    }
+
+    private void scheduleRemove() {
+        mainHandler.removeCallbacks(renderRunnable);
+        mainHandler.removeCallbacks(scrollRunnable);
+        mainHandler.removeCallbacks(removeRunnable);
+        mainHandler.post(removeRunnable);
     }
 
     private void render() {
@@ -179,21 +231,24 @@ public final class StatusBarLyricOverlay {
             removeView();
             return;
         }
-        ensureView();
-        if (lyricView == null) return;
-        applyTypography();
-        lyricView.setText(buildStyledLyric());
-        lyricView.setBackground(createBackground());
-        WindowManager.LayoutParams params = createLayoutParams();
-        if (!attached && windowManager != null) {
-            try {
+        try {
+            ensureView();
+            if (lyricView == null) return;
+            applyTypography();
+            lyricView.setText(buildStyledLyric());
+            lyricView.setBackground(createBackground());
+            WindowManager.LayoutParams params = createLayoutParams();
+            if (!attached && windowManager != null) {
                 windowManager.addView(lyricView, params);
                 attached = true;
-            } catch (Exception ignored) {
-                attached = false;
+            } else if (attached && windowManager != null) {
+                windowManager.updateViewLayout(lyricView, params);
             }
-        } else if (attached && windowManager != null) {
-            try { windowManager.updateViewLayout(lyricView, params); } catch (Exception ignored) { }
+            lyricView.removeCallbacks(scrollRunnable);
+            lyricView.post(scrollRunnable);
+        } catch (RuntimeException exception) {
+            Log.e(TAG, "Unable to render status bar lyric overlay", exception);
+            removeView();
         }
     }
 
@@ -230,7 +285,7 @@ public final class StatusBarLyricOverlay {
         lyricView = new TextView(context);
         lyricView.setGravity(Gravity.CENTER);
         lyricView.setSingleLine(true);
-        lyricView.setEllipsize(TextUtils.TruncateAt.END);
+        lyricView.setSelected(true);
         lyricView.setIncludeFontPadding(false);
         lyricView.setPadding(dp(14), dp(4), dp(14), dp(4));
         lyricView.setElevation(dp(6));
@@ -266,32 +321,68 @@ public final class StatusBarLyricOverlay {
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                 | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
-        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                overlayType, flags, PixelFormat.TRANSLUCENT);
         int width = context.getResources().getDisplayMetrics().widthPixels;
+        int fixedWidth = Math.min(dp(fixedWidthDp), Math.max(dp(48), width - dp(16)));
+        boolean fixed = "fixed".equals(widthMode);
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                fixed ? fixedWidth : WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                overlayType, flags, PixelFormat.TRANSLUCENT);
         int height = context.getResources().getDisplayMetrics().heightPixels;
-        int maxWidth = Math.max(dp(160), width - dp(32));
+        int maxWidth = fixed ? fixedWidth : Math.max(dp(160), width - dp(16));
+        lyricView.setEllipsize(fixed ? null : TextUtils.TruncateAt.END);
+        lyricView.setHorizontallyScrolling(fixed);
+        lyricView.setSelected(false);
+        lyricView.setMarqueeRepeatLimit(0);
+        lyricView.setGravity(fixed ? Gravity.START | Gravity.CENTER_VERTICAL : Gravity.CENTER);
+        lyricView.setMaxLines(1);
         lyricView.setMaxWidth(maxWidth);
-        lyricView.measure(View.MeasureSpec.makeMeasureSpec(maxWidth, View.MeasureSpec.AT_MOST),
-                View.MeasureSpec.makeMeasureSpec(dp(54), View.MeasureSpec.AT_MOST));
-        int viewWidth = Math.max(dp(120), lyricView.getMeasuredWidth());
-        int viewHeight = Math.max(dp(30), lyricView.getMeasuredHeight());
+        String visibleText = lyricView.getText() == null ? "" : lyricView.getText().toString();
+        int textWidth = (int) Math.ceil(lyricView.getPaint().measureText(visibleText));
+        Paint.FontMetricsInt metrics = lyricView.getPaint().getFontMetricsInt();
+        int desiredWidth = textWidth + lyricView.getPaddingLeft() + lyricView.getPaddingRight();
+        int desiredHeight = metrics.bottom - metrics.top
+                + lyricView.getPaddingTop() + lyricView.getPaddingBottom();
+        int viewWidth = fixed ? fixedWidth : Math.min(maxWidth, Math.max(dp(120), desiredWidth));
+        int viewHeight = Math.max(dp(30), desiredHeight);
+        params.width = viewWidth;
+        params.height = viewHeight;
         double x = isLandscape() ? landscapeX : portraitX;
         double y = isLandscape() ? landscapeY : portraitY;
-        int safeTop = isLandscape() ? dp(2) : getStatusBarHeight() + dp(2);
         params.gravity = Gravity.TOP | Gravity.LEFT;
-        params.x = (int) clamp(x * width - viewWidth / 2.0, dp(8), width - viewWidth - dp(8));
-        params.y = (int) clamp(safeTop + y * (height - safeTop - viewHeight), safeTop,
-                height - viewHeight - dp(8));
+        params.x = (int) clamp(x * width - viewWidth / 2.0, 0, width - viewWidth);
+        params.y = (int) clamp(y * height - viewHeight / 2.0, 0, height * 0.1 - viewHeight);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            params.flags |= WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
-            params.setBlurBehindRadius(dp(18));
-        }
         return params;
+    }
+
+    private void applyWordProgressScroll() {
+        if (lyricView == null || !"fixed".equals(widthMode) || !wordByWord || words.isEmpty()) {
+            if (lyricView != null) lyricView.scrollTo(0, 0);
+            return;
+        }
+        String fullText = lyricView.getText() == null ? "" : lyricView.getText().toString();
+        float contentWidth = lyricView.getPaint().measureText(fullText)
+                + lyricView.getPaddingLeft() + lyricView.getPaddingRight();
+        int viewportWidth = lyricView.getWidth() > 0 ? lyricView.getWidth() : dp(fixedWidthDp);
+        int maxScroll = Math.max(0, Math.round(contentWidth - viewportWidth));
+        if (maxScroll == 0) {
+            lyricView.scrollTo(0, 0);
+            return;
+        }
+
+        int index = Math.max(0, Math.min(currentWordIndex, words.size()));
+        StringBuilder completed = new StringBuilder();
+        for (int i = 0; i < index; i++) completed.append(words.get(i));
+        float currentWidth = index < words.size()
+                ? lyricView.getPaint().measureText(words.get(index)) * currentWordProgress
+                : 0f;
+        float progressPoint = lyricView.getPaddingLeft()
+                + lyricView.getPaint().measureText(completed.toString()) + currentWidth;
+        int target = (int) clamp(progressPoint - viewportWidth * 0.58f, 0, maxScroll);
+        lyricView.scrollTo(target, 0);
     }
 
     private GradientDrawable createBackground() {
@@ -300,9 +391,13 @@ public final class StatusBarLyricOverlay {
         GradientDrawable drawable = new GradientDrawable();
         drawable.setShape(GradientDrawable.RECTANGLE);
         drawable.setCornerRadius(dp(18));
-        drawable.setColor(Color.argb((int) Math.round(surfaceOpacity * 255),
-                Color.red(fill), Color.green(fill), Color.blue(fill)));
-        drawable.setStroke(dp(1), Color.argb(150, Color.red(border), Color.green(border), Color.blue(border)));
+        drawable.setColor(fillEnabled
+                ? Color.argb((int) Math.round(surfaceOpacity * 255),
+                    Color.red(fill), Color.green(fill), Color.blue(fill))
+                : Color.TRANSPARENT);
+        drawable.setStroke(borderEnabled ? dp(1) : 0, borderEnabled
+                ? Color.argb(180, Color.red(border), Color.green(border), Color.blue(border))
+                : Color.TRANSPARENT);
         return drawable;
     }
 

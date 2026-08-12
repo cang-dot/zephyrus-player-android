@@ -50,11 +50,30 @@ type NativeBridge = {
   installApkFromCache: (fileName: string) => void;
   startApkDownload: (url: string, expectedSize: number) => void;
   getApkDownloadState: () => string;
+  nativeAudioLoad: (trackJson: string, preload: boolean) => string;
+  nativeAudioPlay: (token: string) => void;
+  nativeAudioPause: (token: string) => void;
+  nativeAudioStop: (token: string) => void;
+  nativeAudioUnload: (token: string) => void;
+  nativeAudioSeekTo: (token: string, positionMs: number) => void;
+  nativeAudioSetPlaybackRate: (token: string, rate: number) => void;
+  nativeAudioSetVolume: (volume: number) => void;
+  nativeAudioSetEqGains: (low: number, mid: number, high: number) => void;
+  nativeAudioStartCrossfade: (
+    fromToken: string,
+    toToken: string,
+    durationSeconds: number,
+    level: number
+  ) => string;
+  nativeAudioCancelCrossfade: () => void;
+  nativeAudioGetPlaybackState: (token: string) => string;
+  nativeAudioGetAnalysis: () => string;
 };
 
 declare global {
   interface Window {
     AndroidNative?: NativeBridge;
+    __nativeAudioEvent?: (payload: string | Record<string, unknown>) => void;
   }
 }
 
@@ -292,8 +311,12 @@ export function readStatusBarLyricConfig(): StatusBarLyricConfig {
   );
 }
 
-export function saveStatusBarLyricConfig(value: StatusBarLyricConfig) {
+export function saveStatusBarLyricConfig(
+  value: StatusBarLyricConfig,
+  options: { applyNative?: boolean; notify?: boolean } = {}
+) {
   const normalized = normalizeStatusBarLyricConfig(value);
+  const { applyNative = true, notify = true } = options;
   const stored = (() => {
     try {
       return JSON.parse(localStorage.getItem('music-full-config') || '{}');
@@ -304,8 +327,8 @@ export function saveStatusBarLyricConfig(value: StatusBarLyricConfig) {
   stored.statusBarLyricConfig = normalized;
   stored.statusBarLyricsEnabled = normalized.enabled;
   localStorage.setItem('music-full-config', JSON.stringify(stored));
-  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
-  applyStatusBarLyricConfig(normalized);
+  if (notify) window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  if (applyNative) applyStatusBarLyricConfig(normalized);
   return normalized;
 }
 
@@ -367,14 +390,14 @@ export function installStatusBarLyricFont(file: File): Promise<string> {
 
 let wordTimedPlayback: ReturnType<typeof useWordTimedPlayback> | null = null;
 
-export function refreshStatusBarLyric() {
+export function refreshStatusBarLyric(applyConfig = true) {
   if (!isAndroidNative()) return;
   const config = readStatusBarLyricConfig();
   const enabled = config.enabled;
   const permitted = hasStatusBarLyricPermission();
 
   try {
-    applyStatusBarLyricConfig(config);
+    if (applyConfig) applyStatusBarLyricConfig(config);
     if (!enabled || !permitted) return;
 
     const song = playMusic?.value;
@@ -385,16 +408,26 @@ export function refreshStatusBarLyric() {
       const words = (line?.words || []).filter((word) => word.text);
       const currentMs = (wordTimedPlayback?.correctedTime.value ?? nowTime.value) * 1000;
       let currentWordIndex = -1;
+      let currentWordProgress = 0;
       for (let index = 0; index < words.length; index++) {
         if (currentMs < words[index].startTime) break;
         const wordEnd = words[index].startTime + Math.max(0, words[index].duration || 0);
-        currentWordIndex = currentMs <= wordEnd ? index : index + 1;
+        if (currentMs <= wordEnd) {
+          currentWordIndex = index;
+          currentWordProgress = Math.min(
+            1,
+            Math.max(0, (currentMs - words[index].startTime) / Math.max(1, words[index].duration))
+          );
+          break;
+        }
+        currentWordIndex = index + 1;
       }
       window.AndroidNative!.updateStatusBarLyricState(
         JSON.stringify({
           text,
           words: words.map((word) => ({ ...word, text: `${word.text}${word.space ? ' ' : ''}` })),
           currentWordIndex: config.wordByWord ? currentWordIndex : -1,
+          currentWordProgress: config.wordByWord ? currentWordProgress : 0,
           wordByWord: config.wordByWord && words.length > 0,
           themeColor: accentColor,
           paused: !usePlayerStore().isPlay
@@ -425,36 +458,67 @@ function setupStatusBarLyricBridge() {
       () => wordTimedPlayback?.displayLineKey.value,
       () => wordTimedPlayback?.stableAnimationKey.value
     ],
-    refreshStatusBarLyric,
+    () => refreshStatusBarLyric(),
     { immediate: true }
   );
-  window.addEventListener('music-full-config-updated', refreshStatusBarLyric);
-  window.addEventListener('focus', refreshStatusBarLyric);
+  watch(
+    () => Math.round(nowTime.value * 20),
+    () => refreshStatusBarLyric(false)
+  );
+  window.addEventListener('music-full-config-updated', () => refreshStatusBarLyric());
+  window.addEventListener('focus', () => refreshStatusBarLyric());
   (window as any).__statusBarLyricPermissionChanged = () => refreshStatusBarLyric();
 }
 
-export function previewStatusBarLyric(config = readStatusBarLyricConfig()) {
+let statusBarLyricPreviewTimer: number | null = null;
+
+const statusBarLyricPreviewState = (config: StatusBarLyricConfig) => ({
+  text: '风吹过城市的夜',
+  words: [
+    { text: '风吹过', startTime: 0, duration: 900 },
+    { text: '城市', startTime: 900, duration: 700 },
+    { text: '的夜', startTime: 1600, duration: 900 }
+  ],
+  currentWordIndex: config.wordByWord ? 1 : -1,
+  currentWordProgress: config.wordByWord ? 0.5 : 0,
+  wordByWord: config.wordByWord,
+  themeColor: playMusic?.value?.primaryColor || '#ff6b55',
+  paused: false
+});
+
+export function updateStatusBarLyricPreview(config = readStatusBarLyricConfig()) {
   if (!isAndroidNative()) return false;
   if (!hasStatusBarLyricPermission()) {
     requestStatusBarLyricPermission();
     return false;
   }
+  if (statusBarLyricPreviewTimer !== null) {
+    window.clearTimeout(statusBarLyricPreviewTimer);
+    statusBarLyricPreviewTimer = null;
+  }
   applyStatusBarLyricConfig({ ...config, enabled: true });
   window.AndroidNative!.updateStatusBarLyricState?.(
-    JSON.stringify({
-      text: '风吹过城市的夜',
-      words: [
-        { text: '风吹过', startTime: 0, duration: 900 },
-        { text: '城市', startTime: 900, duration: 700 },
-        { text: '的夜', startTime: 1600, duration: 900 }
-      ],
-      currentWordIndex: config.wordByWord ? 1 : -1,
-      wordByWord: config.wordByWord,
-      themeColor: playMusic?.value?.primaryColor || '#ff6b55',
-      paused: false
-    })
+    JSON.stringify(statusBarLyricPreviewState(config))
   );
-  window.setTimeout(refreshStatusBarLyric, 5000);
+  return true;
+}
+
+export function finishStatusBarLyricPreview(delay = 0) {
+  if (statusBarLyricPreviewTimer !== null) window.clearTimeout(statusBarLyricPreviewTimer);
+  if (delay <= 0) {
+    statusBarLyricPreviewTimer = null;
+    refreshStatusBarLyric();
+    return;
+  }
+  statusBarLyricPreviewTimer = window.setTimeout(() => {
+    statusBarLyricPreviewTimer = null;
+    refreshStatusBarLyric();
+  }, delay);
+}
+
+export function previewStatusBarLyric(config = readStatusBarLyricConfig()) {
+  if (!updateStatusBarLyricPreview(config)) return false;
+  finishStatusBarLyricPreview(5000);
   return true;
 }
 
@@ -666,40 +730,55 @@ export function setupMediaButtonListener() {
 
   const playerStore = usePlayerStore();
 
-  window.addEventListener('media-button', ((e: CustomEvent) => {
+  const handleMediaButton = async (e: CustomEvent) => {
     const action = e.detail;
-    // 处理 seek 操作
+    const { audioService } = await import('@/services/audioService');
+
     if (typeof action === 'string' && action.startsWith('seek:')) {
       const pos = parseInt(action.split(':')[1], 10);
       if (!isNaN(pos)) {
-        // seek 操作通过 audioService 处理
-        const audio = document.querySelector('audio') || document.querySelector('video');
-        if (audio) {
-          audio.currentTime = pos / 1000;
-        }
+        audioService.seek(pos / 1000);
+        updateMusicNotification();
       }
       return;
     }
 
     switch (action) {
-      case 'play':
-      case 'pause':
-        if (playMusic?.value) {
-          playerStore.setPlay(playMusic.value);
+      case 'play': {
+        const sound = audioService.getCurrentSound();
+        if (sound) {
+          sound.play();
+          playerStore.setIsPlay(true);
+          playerStore.userPlayIntent = true;
+        } else if (playMusic?.value) {
+          await playerStore.setPlay({ ...playMusic.value, isFirstPlay: true });
         }
+        updateMusicNotification();
+        break;
+      }
+      case 'pause':
+        await playerStore.handlePause();
+        updateMusicNotification();
         break;
       case 'next':
-        playerStore.nextPlay();
+        await playerStore.nextPlay();
         break;
       case 'prev':
-        playerStore.prevPlay();
+        await playerStore.prevPlay();
         break;
       case 'stop':
-        playerStore.handlePause();
-        // 不再清除通知，改为更新为暂停状态
+        audioService.stop();
+        playerStore.setIsPlay(false);
+        playerStore.userPlayIntent = false;
         updateMusicNotification();
         break;
     }
+  };
+
+  window.addEventListener('media-button', ((event: Event) => {
+    void handleMediaButton(event as CustomEvent).catch((error) => {
+      console.error('[AndroidNative] 媒体按键处理失败:', error);
+    });
   }) as EventListener);
 }
 

@@ -73,32 +73,61 @@
                   </button>
                 </div>
                 <div class="account-morph-grid">
-                  <button
+                  <div
                     v-for="account in accounts"
                     :key="account.accountId"
-                    type="button"
                     class="account-morph-row"
-                    :class="{ active: account.accountId === activeAccountId }"
-                    @click="
-                      handleAccountChange(account);
-                      closeAccountPanel();
-                    "
+                    role="button"
+                    tabindex="0"
+                    :class="{
+                      active: account.accountId === activeAccountId,
+                      'confirming-delete': deletingAccountId === account.accountId
+                    }"
+                    @click="selectAccount(account)"
+                    @keydown.enter.prevent="selectAccount(account)"
+                    @keydown.space.prevent="selectAccount(account)"
                   >
-                    <img
-                      v-if="account.avatarUrl"
-                      :src="getImgUrl(account.avatarUrl, '72y72')"
-                      alt=""
-                    />
-                    <span v-else><i class="ri-user-3-line" /></span>
-                    <div>
-                      <strong>{{ account.nickname }}</strong
-                      ><small>{{ platformName(account.platform) }}</small>
+                    <div class="account-card-normal">
+                      <img
+                        v-if="account.avatarUrl"
+                        :src="getImgUrl(account.avatarUrl, '72y72')"
+                        alt=""
+                      />
+                      <span v-else><i class="ri-user-3-line" /></span>
+                      <div>
+                        <strong>{{ account.nickname }}</strong
+                        ><small>{{ platformName(account.platform) }}</small>
+                      </div>
+                      <i
+                        v-if="account.accountId === activeAccountId"
+                        class="ri-check-line account-morph-check"
+                      />
+                      <button
+                        type="button"
+                        class="account-delete-trigger"
+                        :aria-label="t('common.delete')"
+                        @click.stop="deletingAccountId = account.accountId"
+                      >
+                        <i class="ri-close-line" />
+                      </button>
                     </div>
-                    <i
-                      v-if="account.accountId === activeAccountId"
-                      class="ri-check-line account-morph-check"
-                    />
-                  </button>
+                    <div class="account-delete-confirm" @click.stop>
+                      <strong>{{ t('user.accountSwitcher.deleteAccount') }}</strong>
+                      <small>{{ account.nickname }}</small>
+                      <div class="account-delete-actions">
+                        <button type="button" @click.stop="deletingAccountId = null">
+                          {{ t('common.cancel') }}
+                        </button>
+                        <button
+                          type="button"
+                          class="danger"
+                          @click.stop="confirmRemoveAccount(account)"
+                        >
+                          {{ t('common.delete') }}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <button type="button" class="account-add-morph" @click="accountPanel = 'login'">
                   <i class="ri-user-add-line" />{{ t('user.accountSwitcher.addAccount') }}
@@ -201,6 +230,7 @@ const message = useMessage();
 const accountPanel = ref<'closed' | 'accounts' | 'login'>(
   route.query.panel === 'login' ? 'login' : 'closed'
 );
+const deletingAccountId = ref<string | null>(null);
 let avatarPressTimer: number | null = null;
 
 const { accounts, activeAccountId, activeAccount, activeAccountCache } = storeToRefs(accountStore);
@@ -255,8 +285,33 @@ const cancelAvatarPress = () => {
 const endAvatarPress = () => cancelAvatarPress();
 const closeAccountPanel = () => {
   cancelAvatarPress();
+  deletingAccountId.value = null;
   accountPanel.value = 'closed';
   if (route.query.panel) router.replace({ path: '/user' });
+};
+
+const confirmRemoveAccount = async (account: PlatformAccount) => {
+  const wasActive = account.accountId === activeAccountId.value;
+  if (!accountStore.removeAccount(account.accountId)) return;
+  deletingAccountId.value = null;
+
+  if (wasActive) {
+    userDetail.value = null;
+    recordList.value = [];
+    const replacement = activeAccount.value;
+    if (replacement) {
+      await handleAccountChange(replacement);
+    } else {
+      userStore.handleLogout();
+      accountPanel.value = 'login';
+    }
+  }
+};
+
+const selectAccount = async (account: PlatformAccount) => {
+  if (deletingAccountId.value === account.accountId) return;
+  await handleAccountChange(account);
+  closeAccountPanel();
 };
 
 const handleAccountChange = async (account: PlatformAccount) => {
@@ -951,6 +1006,103 @@ const handleLoginSuccess = () => {
 
   &:active {
     transform: scale(0.98);
+  }
+}
+
+.account-card-normal,
+.account-delete-confirm {
+  grid-area: 1 / 1;
+  display: grid;
+  width: 100%;
+  place-items: center;
+  gap: 8px;
+  transition:
+    opacity 180ms ease,
+    transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.account-card-normal > img,
+.account-card-normal > span:first-child {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border-radius: 50%;
+  object-fit: cover;
+  background: color-mix(in srgb, var(--m-surface-alt) 68%, transparent);
+}
+
+.account-card-normal > div:not(.account-delete-confirm) {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.account-delete-confirm {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+}
+
+.account-delete-confirm small {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--m-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-delete-actions {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.account-delete-actions button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-surface-alt) 72%, transparent);
+  color: var(--m-text-primary);
+}
+
+.account-delete-actions .danger {
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  color: #ef4444;
+}
+
+.account-delete-trigger {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--m-surface-alt) 72%, transparent);
+  color: var(--m-text-muted);
+}
+
+.account-morph-row.confirming-delete .account-card-normal {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
+}
+
+.account-morph-row.confirming-delete .account-delete-confirm {
+  pointer-events: auto;
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-card-normal,
+  .account-delete-confirm {
+    transition: opacity 120ms ease;
+    transform: none;
   }
 }
 

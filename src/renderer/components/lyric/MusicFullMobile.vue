@@ -465,7 +465,7 @@ const { t } = useI18n();
 const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const transitionStore = useTransitionStore();
-const { styleVars, isCustom, customBackgroundActive, customFontActive } =
+const { styleVars, isCustom, customBackgroundActive, customFontActive, climaxColors } =
   usePlayerStyleAppearance('default');
 
 // ==================== Crossfade 进度条动画 ====================
@@ -1209,7 +1209,10 @@ const { getLrcStyle: originalLrcStyle } = useLyricProgress();
 
 // 修改 getLrcStyle 函数
 const getLrcStyle = (index: number) => {
-  const colors = textColors.value || getTextColors;
+  const sourceColors = textColors.value || getTextColors();
+  const colors = isCustom.value
+    ? { primary: climaxColors.value.main, active: climaxColors.value.main }
+    : sourceColors;
   const originalStyle = originalLrcStyle(index);
 
   if (index === nowIndex.value) {
@@ -1241,7 +1244,10 @@ const getLrcStyle = (index: number) => {
 
 // 逐字歌词样式函数
 const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
-  const colors = textColors.value || getTextColors();
+  const sourceColors = textColors.value || getTextColors();
+  const colors = isCustom.value
+    ? { primary: climaxColors.value.main, active: climaxColors.value.main }
+    : sourceColors;
   // 如果不是当前行，返回普通样式
   if (lineIndex !== nowIndex.value) {
     return {

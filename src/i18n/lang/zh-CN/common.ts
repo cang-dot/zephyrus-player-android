@@ -5,6 +5,7 @@ export default {
   volume: '音量',
   settings: '设置',
   search: '搜索',
+  sort: '排序',
   loading: '加载中...',
   loadingMore: '加载更多...',
   alipay: '支付宝',
