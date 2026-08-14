@@ -384,12 +384,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import logoUrl from '@/assets/logo.png';
 import MorphingFontSelector from '@/components/share/MorphingFontSelector.vue';
 import { usePosterTransitionOrigin } from '@/composables/usePosterTransitionOrigin';
 import { artistList, playMusic } from '@/hooks/MusicHook';
+import { registerMobileBackLayer } from '@/services/mobileBackStack';
 import {
   BUILTIN_FONTS,
   DEFAULT_POSTER_CONFIG,
@@ -521,6 +522,16 @@ function close() {
   emit('update:visible', false);
 }
 
+let unregisterPosterBackLayer: (() => void) | undefined;
+onMounted(() => {
+  unregisterPosterBackLayer = registerMobileBackLayer({
+    id: 'poster-editor',
+    priority: 1100,
+    isActive: () => props.visible,
+    onBack: close
+  });
+});
+
 function setConfig(key: keyof PosterConfig, value: any) {
   (config.value as any)[key] = value;
   regenerateDebounced();
@@ -637,6 +648,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  unregisterPosterBackLayer?.();
   if (saveStateTimer) clearTimeout(saveStateTimer);
   if (toastTimer) clearTimeout(toastTimer);
   document.documentElement.classList.remove('poster-editor-open');

@@ -22,9 +22,10 @@
 
 <script setup lang="ts">
 import { onClickOutside } from '@vueuse/core';
-import { ref } from 'vue';
+import { getCurrentInstance, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import FontSelector from '@/components/share/FontSelector.vue';
+import { registerMobileBackLayer } from '@/services/mobileBackStack';
 
 withDefaults(
   defineProps<{
@@ -39,6 +40,21 @@ withDefaults(
 const emit = defineEmits<{ select: [fontId: string] }>();
 const open = ref(false);
 const rootRef = ref<HTMLElement | null>(null);
+const instanceId = getCurrentInstance()?.uid ?? Math.round(Math.random() * 1_000_000);
+let unregisterBackLayer: (() => void) | undefined;
+
+onMounted(() => {
+  unregisterBackLayer = registerMobileBackLayer({
+    id: `font-selector-${instanceId}`,
+    priority: 1000,
+    isActive: () => open.value,
+    onBack: () => {
+      open.value = false;
+    }
+  });
+});
+
+onBeforeUnmount(() => unregisterBackLayer?.());
 
 onClickOutside(rootRef, () => {
   open.value = false;

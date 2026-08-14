@@ -82,13 +82,14 @@
 <script setup lang="ts">
 import { useMediaQuery, useWindowSize } from '@vueuse/core';
 import type { CSSProperties, Ref } from 'vue';
-import { computed, inject, onMounted, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import { usePosterTransitionOrigin } from '@/composables/usePosterTransitionOrigin';
+import { registerMobileBackLayer } from '@/services/mobileBackStack';
 import { usePlayerStore } from '@/store/modules/player';
 
 import MobilePlayerSettings from './MobilePlayerSettings.vue';
@@ -111,7 +112,17 @@ const updateSafeBottomInset = () => {
     getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom') || '0'
   );
 };
-onMounted(updateSafeBottomInset);
+let unregisterSurfaceBackLayer: (() => void) | undefined;
+onMounted(() => {
+  updateSafeBottomInset();
+  unregisterSurfaceBackLayer = registerMobileBackLayer({
+    id: 'player-shared-surface-panel',
+    priority: 620,
+    isActive: () => playerStore.musicFull && surfaceMode.value !== 'controls',
+    onBack: closePanel
+  });
+});
+onBeforeUnmount(() => unregisterSurfaceBackLayer?.());
 watch([viewportWidth, viewportHeight], updateSafeBottomInset);
 
 const surfaceMode = computed(() => playerTransition.surfaceMode.value);
