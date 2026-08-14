@@ -1074,7 +1074,7 @@ const handleSearchSubmit = () => {
   &.player-surface-active > .topbar-search-morph-anchor,
   &.player-surface-active > .topbar-action-pill {
     opacity: calc(1 - var(--player-header-progress, 0));
-    transform: scale(calc(1 - var(--player-header-progress, 0) * 0.08));
+    transform: none;
     pointer-events: none;
   }
 }

@@ -339,7 +339,7 @@ const handleThumbTouchEnd = () => {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
-  opacity: clamp(0, calc((var(--player-open-progress, 0) - 0.58) * 3.6), 1);
+  opacity: clamp(0, calc((var(--player-open-progress, 0) - 0.88) * 9), 1);
   transform: translate3d(0, calc((1 - var(--player-open-progress, 0)) * 16px), 0);
 }
 

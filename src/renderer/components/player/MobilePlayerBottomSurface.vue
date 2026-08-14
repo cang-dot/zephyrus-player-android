@@ -165,14 +165,11 @@ const surfaceStyle = computed<CSSProperties>(() => {
   const sheet = sheetProgress.value;
   const playerProgress = lyricSelection.active.value ? 1 : playerTransition.progress.value;
   const landscape = isLandscape.value;
-  const baseHeight = 136;
   const controlHeight = lyricSelection.active.value ? 88 : landscape ? 154 : 168;
   const panelHeight = landscape
     ? viewportHeight.value - 28
     : Math.min(viewportHeight.value * 0.68, 560);
-  const controlProgress = surfaceMode.value === 'controls' ? playerProgress : 1;
-  const heightAtControls = baseHeight + (controlHeight - baseHeight) * controlProgress;
-  const height = heightAtControls + (panelHeight - controlHeight) * sheet;
+  const height = controlHeight + (panelHeight - controlHeight) * sheet;
   const fullWidth = viewportWidth.value - 28;
   const panelWidth = landscape ? Math.min(viewportWidth.value * 0.48, 430) : fullWidth;
   const width = fullWidth + (panelWidth - fullWidth) * sheet;
@@ -180,32 +177,8 @@ const surfaceStyle = computed<CSSProperties>(() => {
   const finalLeft = landscape && sheet > 0 ? viewportWidth.value - width - safeBottom - 14 : 14;
   const finalTop = viewportHeight.value - safeBottom - 14 - height;
   const finalRadius = 26 + sheet * 4;
-  const fallbackSource = {
-    left: 14,
-    top: viewportHeight.value - safeBottom - 126,
-    width: fullWidth,
-    height: 112,
-    borderRadius: 32
-  };
-  const source = playerTransition.sourceRect.value || fallbackSource;
-  const morphProgress = Math.min(1, Math.max(0, playerProgress));
-  const sourceTakeover = Math.min(1, Math.max(0, 1 - morphProgress * 8));
-  const morphMaterialOpacity = (1 - morphProgress) * (1 - sourceTakeover);
-  const stretchProgress = Math.min(1, morphProgress / 0.42);
-  const expandProgress = Math.min(1, Math.max(0, (morphProgress - 0.28) / 0.72));
-  const sourceScaleX = Math.max(0.01, source.width / width);
-  const sourceScaleY = Math.max(0.01, source.height / height);
-  const scaleX = sourceScaleX + (1 - sourceScaleX) * expandProgress;
-  const scaleY = sourceScaleY + (1 - sourceScaleY) * stretchProgress;
-  const sourceCenterX = source.left + source.width / 2;
-  const targetCenterX = finalLeft + width / 2;
-  const sourceBottom = source.top + source.height;
-  const targetBottom = finalTop + height;
-  const translateX = (sourceCenterX - targetCenterX) * (1 - expandProgress);
-  const translateY = (sourceBottom - targetBottom) * (1 - morphProgress);
   return {
-    '--player-open-progress': String(morphProgress),
-    '--player-morph-material-opacity': String(morphMaterialOpacity),
+    '--player-open-progress': String(playerProgress),
     top: `${finalTop}px`,
     left: `${finalLeft}px`,
     right: 'auto',
@@ -213,8 +186,7 @@ const surfaceStyle = computed<CSSProperties>(() => {
     width: `${width}px`,
     height: `${height}px`,
     borderRadius: `${finalRadius}px`,
-    transformOrigin: 'center bottom',
-    transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${scaleX}, ${scaleY})`,
+    transform: 'none',
     pointerEvents: chromeVisibility.value > 0.02 ? 'auto' : 'none'
   };
 });
@@ -377,21 +349,6 @@ const onSurfacePointerCancel = (event: PointerEvent) => {
   transition: none;
 }
 
-.shared-player-bottom-surface.player-transitioning::before {
-  position: absolute;
-  inset: -1px;
-  z-index: 0;
-  border: 1px solid var(--player-morph-border);
-  border-radius: inherit;
-  background: var(--player-morph-background);
-  box-shadow: var(--player-morph-shadow, none);
-  content: '';
-  opacity: var(--player-morph-material-opacity, 0);
-  pointer-events: none;
-  backdrop-filter: var(--player-morph-filter);
-  -webkit-backdrop-filter: var(--player-morph-filter);
-}
-
 .shared-player-bottom-surface.controls-mode:not(.player-transitioning) {
   border-color: transparent;
   background: transparent;
@@ -402,30 +359,6 @@ const onSurfacePointerCancel = (event: PointerEvent) => {
 
 .shared-player-bottom-surface.controls-mode.player-transitioning {
   border-color: transparent;
-}
-
-.shared-player-bottom-surface.controls-mode.player-transitioning.source-dock {
-  --player-morph-background: var(--m-glass-bg);
-  --player-morph-border: var(--m-glass-border);
-  --player-morph-shadow: 0 12px 26px rgba(0, 0, 0, 0.12);
-  --player-morph-filter: blur(18px) saturate(120%);
-}
-
-.shared-player-bottom-surface.controls-mode.player-transitioning.source-mini {
-  --player-morph-border: color-mix(
-    in srgb,
-    var(--accent-color, #888) 24%,
-    rgba(255, 255, 255, 0.22)
-  );
-  --player-morph-background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.18),
-      rgba(var(--accent-color-rgb, 136, 136, 136), 0.12)
-    ),
-    color-mix(in srgb, var(--cover-surface, rgba(24, 24, 28, 0.78)) 86%, transparent);
-  --player-morph-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
-  --player-morph-filter: blur(18px) saturate(122%);
 }
 
 .shared-player-bottom-surface.surface-interaction-active {

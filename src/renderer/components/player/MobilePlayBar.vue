@@ -43,10 +43,10 @@
           preview-disabled
           @click.stop="setMusicFull"
         />
-        <div class="mini-song-text">
+        <div ref="miniSongTextRef" class="mini-song-text">
           <span class="mini-song-title">{{ playMusic.name }}</span>
           <span class="mini-song-separator">-</span>
-          <span class="mini-song-artist">
+          <span ref="miniSongArtistRef" class="mini-song-artist">
             <template v-for="(artists, artistsindex) in artistList" :key="artistsindex">
               {{ artists.name }}{{ artistsindex < artistList.length - 1 ? ' / ' : '' }}
             </template>
@@ -104,6 +104,9 @@ const emit = defineEmits<{
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
 const idleCollapsed = ref(false);
+const miniSongTextRef = ref<HTMLElement | null>(null);
+const miniSongArtistRef = ref<HTMLElement | null>(null);
+const miniArtistOffset = ref(0);
 const playerTransition = useMobilePlayerTransition();
 const miniUsesMenuAnchor = computed(
   () =>
@@ -155,6 +158,7 @@ const playerSurfaceRendered = computed(
 const openMusicFull = (initialVelocity = 0) => {
   idleCollapsed.value = false;
   transitionStartedWithMenu.value = shouldShowMobileMenu.value;
+  captureMiniIdentityLayout();
   capturePlayerTransitionOrigin();
   playerTransition.setDragging(Math.max(0.016, playerTransition.progress.value));
   playerStore.setMusicFull(true);
@@ -222,10 +226,7 @@ const miniSwipeProgress = computed(() =>
 );
 const miniSwipeStyle = computed(() => ({
   transform: `translate3d(${miniSwipeOffset.value}px, ${miniVerticalOffset.value}px, 0) scale(${1 - miniSwipeProgress.value * 0.012})`,
-  opacity: String(
-    (1 - miniSwipeProgress.value * 0.12) *
-      (1 - Math.min(1, Math.max(0, (playerTransition.progress.value - 0.58) / 0.34)))
-  ),
+  opacity: String(1 - miniSwipeProgress.value * 0.12),
   pointerEvents: playerTransition.progress.value > 0.08 ? ('none' as const) : undefined,
   '--mini-swipe-rotation': `${miniSwipeOffset.value * 0.018}deg`,
   '--mini-swipe-content-shift': `${miniSwipeOffset.value * 0.05}px`
@@ -246,6 +247,9 @@ const miniSongInfoStyle = computed(() => {
     '--identity-cover-size': `${40 + progress * 4}px`,
     '--identity-cover-radius': `${20 - progress * 10}px`,
     '--identity-cover-border': `${4 * (1 - progress)}px`,
+    '--identity-progress': String(progress),
+    '--identity-artist-shift-x': `${-miniArtistOffset.value * progress}px`,
+    '--identity-artist-shift-y': `${progress * 17}px`,
     opacity: String(1 - handoff),
     transform: `translate3d(${translateX}px, ${translateY}px, 0)`,
     transformOrigin: 'left center',
@@ -267,6 +271,13 @@ let miniPointerId: number | null = null;
 let verticalSamples: Array<{ y: number; time: number }> = [];
 let miniSwipeTimer: ReturnType<typeof setTimeout> | undefined;
 let miniClickTimer: ReturnType<typeof setTimeout> | undefined;
+
+const captureMiniIdentityLayout = () => {
+  const textRect = miniSongTextRef.value?.getBoundingClientRect();
+  const artistRect = miniSongArtistRef.value?.getBoundingClientRect();
+  if (!textRect || !artistRect) return;
+  miniArtistOffset.value = Math.max(0, artistRect.left - textRect.left);
+};
 
 const setMiniClickSuppressed = () => {
   suppressMiniClick.value = true;
@@ -303,6 +314,7 @@ const onMiniPointerDown = (event: PointerEvent) => {
   miniPointerStartedCollapsed = idleCollapsed.value;
   verticalSamples = [{ y: event.clientY, time: performance.now() }];
   miniLongPressTriggered = false;
+  captureMiniIdentityLayout();
   capturePlayerTransitionOrigin();
   if (idleCollapsed.value) {
     miniLongPressTimer = setTimeout(() => {
@@ -825,8 +837,12 @@ watch(
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-          font-size: calc(14px - var(--player-open-progress, 0) * 2px);
-          color: var(--m-text-primary, #2c2c2c);
+          font-size: calc(14px + var(--identity-progress, 0) * 2px);
+          color: color-mix(
+            in srgb,
+            var(--m-text-primary, #2c2c2c) calc((1 - var(--identity-progress, 0)) * 100%),
+            rgba(255, 255, 255, 0.96)
+          );
           transition:
             color 180ms ease,
             font-size 180ms ease,
@@ -846,9 +862,17 @@ watch(
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-          font-size: calc(12px - var(--player-open-progress, 0) * 1px);
-          color: var(--m-text-muted, #9a9590);
-          transform: translate3d(0, calc(var(--player-open-progress, 0) * 7px), 0);
+          font-size: 12px;
+          color: color-mix(
+            in srgb,
+            var(--m-text-muted, #9a9590) calc((1 - var(--identity-progress, 0)) * 100%),
+            rgba(255, 255, 255, 0.64)
+          );
+          transform: translate3d(
+            var(--identity-artist-shift-x, 0),
+            var(--identity-artist-shift-y, 0),
+            0
+          );
           transition:
             color 180ms ease,
             font-size 180ms ease,

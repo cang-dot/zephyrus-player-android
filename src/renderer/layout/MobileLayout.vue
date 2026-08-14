@@ -47,7 +47,6 @@
     </div>
 
     <div
-      ref="dockRef"
       class="mobile-bottom-dock"
       :class="{
         visible:
@@ -220,44 +219,14 @@ const backgroundSuspended = computed(
     playerTransition.state.value === 'open' &&
     playerTransition.progress.value > 0.98
 );
-const dockRef = ref<HTMLElement | null>(null);
-let playerTransitionOriginReleaseFrame = 0;
+let playerSourceReleaseFrame = 0;
 let playerSurfaceClassReleaseTimer: ReturnType<typeof setTimeout> | undefined;
-const playerTransitionOrigin = ref<{
-  left: number;
-  right: number;
-  bottom: number;
-  width: number;
-  height: number;
-  borderRadius: number;
-} | null>(null);
 const capturePlayerTransitionOrigin = () => {
-  if (playerTransitionOriginReleaseFrame) {
-    cancelAnimationFrame(playerTransitionOriginReleaseFrame);
-    playerTransitionOriginReleaseFrame = 0;
+  if (playerSourceReleaseFrame) {
+    cancelAnimationFrame(playerSourceReleaseFrame);
+    playerSourceReleaseFrame = 0;
   }
   playerTransitionStartedWithMenu.value = isBottomMenuRoute.value;
-  const source = isBottomMenuRoute.value
-    ? dockRef.value
-    : document.querySelector<HTMLElement>('.mobile-play-bar .mobile-mini-controls');
-  const rect = source?.getBoundingClientRect();
-  if (!rect || rect.width <= 0 || rect.height <= 0) return;
-  const borderRadius = isBottomMenuRoute.value ? 32 : rect.height / 2;
-  playerTransitionOrigin.value = {
-    left: rect.left,
-    right: window.innerWidth - rect.right,
-    bottom: window.innerHeight - rect.bottom,
-    width: rect.width,
-    height: rect.height,
-    borderRadius
-  };
-  playerTransition.setSourceRect({
-    left: rect.left,
-    top: rect.top,
-    width: rect.width,
-    height: rect.height,
-    borderRadius
-  });
   const identity = document
     .querySelector<HTMLElement>('.mobile-play-bar .mini-song-info')
     ?.getBoundingClientRect();
@@ -309,7 +278,7 @@ watch(
   { immediate: true }
 );
 onBeforeUnmount(() => {
-  if (playerTransitionOriginReleaseFrame) cancelAnimationFrame(playerTransitionOriginReleaseFrame);
+  if (playerSourceReleaseFrame) cancelAnimationFrame(playerSourceReleaseFrame);
   if (playerSurfaceClassReleaseTimer) clearTimeout(playerSurfaceClassReleaseTimer);
   document.documentElement.style.removeProperty('--player-open-progress');
   document.documentElement.style.removeProperty('--player-surface-reveal');
@@ -329,28 +298,19 @@ watch(
   () => [playerStore.musicFull, playerTransition.state.value] as const,
   ([isFull, state]) => {
     if (isFull || state !== 'idle' || !playerTransitionStartedWithMenu.value) return;
-    if (playerTransitionOriginReleaseFrame)
-      cancelAnimationFrame(playerTransitionOriginReleaseFrame);
-    // Keep the source geometry through the frame where musicFull flips to
-    // false so the mini player never falls back to standalone coordinates.
-    playerTransitionOriginReleaseFrame = requestAnimationFrame(() => {
-      playerTransitionOriginReleaseFrame = 0;
+    if (playerSourceReleaseFrame) cancelAnimationFrame(playerSourceReleaseFrame);
+    // Keep the source identity active through the frame where musicFull flips
+    // so it lands back in the existing mini player instead of flashing.
+    playerSourceReleaseFrame = requestAnimationFrame(() => {
+      playerSourceReleaseFrame = 0;
       playerTransitionStartedWithMenu.value = false;
-      playerTransitionOrigin.value = null;
     });
   },
   { flush: 'post' }
 );
 const dockTransitionStyle = computed(() => {
-  const progress = playerTransition.progress.value;
   if (!playerTransitionStartedWithMenu.value) return undefined;
-  // Keep the dock in its normal bottom coordinate system. The shared surface
-  // owns the morph; moving the dock itself creates a second, visibly detached
-  // animation and makes its top edge fall in from the viewport top on close.
-  return {
-    opacity: '1',
-    '--player-dock-origin-height': `${playerTransitionOrigin.value?.height || (progress > 0 ? 54 : 112)}px`
-  };
+  return { opacity: '1' };
 });
 
 type PageTransitionDirection = 'next' | 'prev';
@@ -968,24 +928,12 @@ onBeforeUnmount(() => {
   &.player-transitioning {
     z-index: 100150;
     overflow: visible;
-    height: var(--player-dock-origin-height, 54px) !important;
-    min-height: var(--player-dock-origin-height, 54px) !important;
-    border-radius: 30px !important;
-    border-color: transparent;
-    background: transparent;
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
     pointer-events: auto;
-    transition: none;
+    transition: none !important;
   }
 
   &.player-transitioning::before {
-    opacity: 0;
-  }
-
-  &.player-transitioning.player-source-dock::before {
-    opacity: clamp(0, calc(1 - var(--player-open-progress, 0) * 8), 1);
+    opacity: clamp(0, calc(1 - var(--player-open-progress, 0) * 3), 1);
   }
 
   &.player-full {
@@ -1004,14 +952,14 @@ onBeforeUnmount(() => {
   }
 
   &.player-transitioning .mobile-glow-nav-wrap {
-    opacity: clamp(0, calc(1 - var(--player-open-progress, 0) * 8), 1);
+    opacity: clamp(0, calc(1 - var(--player-open-progress, 0) * 3), 1);
     pointer-events: none;
   }
 
   &.player-transitioning > :deep(.mobile-play-bar) {
     z-index: 1;
     transition: none !important;
-    opacity: clamp(0, calc((1 - var(--player-open-progress, 0)) * 5), 1);
+    opacity: 1;
   }
 
   &.visible.player-open {
