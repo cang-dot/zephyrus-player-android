@@ -12,6 +12,8 @@
 import { Mesh, Program, Renderer, Triangle } from 'ogl';
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 
+import { shouldSkipMobilePlayerFrame } from '@/utils/mobilePlayerPerformance';
+
 interface Props {
   baseColor?: string;
   accentColor?: string;
@@ -150,6 +152,9 @@ let mesh: Mesh | null = null;
 let animateId = 0;
 let startTime = 0;
 let resizeHandler: (() => void) | null = null;
+let lastRenderAt = 0;
+const baseColor = new Float32Array([0.1, 0.1, 0.2]);
+const accentColor = new Float32Array([0.9, 0.2, 0.3]);
 
 function hexToRgb(hex: string): [number, number, number] {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -161,11 +166,20 @@ function hexToRgb(hex: string): [number, number, number] {
   ];
 }
 
+function writeRgb(target: Float32Array, value: string): void {
+  const next = hexToRgb(value);
+  target[0] = next[0];
+  target[1] = next[1];
+  target[2] = next[2];
+}
+
 onMounted(() => {
   const ctn = containerRef.value;
   if (!ctn) return;
 
   try {
+    writeRgb(baseColor, props.baseColor);
+    writeRgb(accentColor, props.accentColor);
     renderer = new Renderer({
       webgl: 2,
       alpha: false,
@@ -186,8 +200,8 @@ onMounted(() => {
         iResolution: { value: new Float32Array([ctn.offsetWidth, ctn.offsetHeight]) },
         uIntensity: { value: props.intensity },
         uCrtIntensity: { value: props.crtIntensity },
-        uBaseColor: { value: new Float32Array(hexToRgb(props.baseColor)) },
-        uAccentColor: { value: new Float32Array(hexToRgb(props.accentColor)) },
+        uBaseColor: { value: baseColor },
+        uAccentColor: { value: accentColor },
         uShowScanlines: { value: props.showScanlines ? 1.0 : 0.0 }
       }
     });
@@ -200,12 +214,12 @@ onMounted(() => {
     const update = (t: number) => {
       animateId = requestAnimationFrame(update);
       if (!program || !renderer || !mesh) return;
+      if (shouldSkipMobilePlayerFrame(lastRenderAt, t)) return;
+      lastRenderAt = t;
       const elapsed = (t - startTime) * 0.001;
       program.uniforms.iTime.value = elapsed * props.speed;
       program.uniforms.uIntensity.value = props.intensity;
       program.uniforms.uCrtIntensity.value = props.crtIntensity;
-      program.uniforms.uBaseColor.value = new Float32Array(hexToRgb(props.baseColor));
-      program.uniforms.uAccentColor.value = new Float32Array(hexToRgb(props.accentColor));
       program.uniforms.uShowScanlines.value = props.showScanlines ? 1.0 : 0.0;
       renderer.render({ scene: mesh });
     };

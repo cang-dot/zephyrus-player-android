@@ -910,6 +910,12 @@ public class NativeBridge {
         return StatusBarLyricOverlay.getInstance(activity).applyConfig(configJson);
     }
 
+    /** Allows only an explicit settings preview to appear while the app is visible. */
+    @JavascriptInterface
+    public boolean setStatusBarLyricPreviewVisible(boolean visible) {
+        return StatusBarLyricOverlay.getInstance(activity).setForegroundPreviewVisible(visible);
+    }
+
     /** Updates word-boundary lyric state without recreating the overlay window. */
     @JavascriptInterface
     public void updateStatusBarLyricState(String stateJson) {

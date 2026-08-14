@@ -51,7 +51,31 @@ const setRef = (el: Element | ComponentPublicInstance | null) => {
 
 <style scoped>
 .setting-section-list {
+  position: relative;
+  z-index: 0;
   display: grid;
-  gap: 10px;
+  gap: 0;
+  padding: 4px;
+  overflow: visible;
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--cover-surface, var(--m-surface)) 72%, transparent);
+}
+.setting-section-list :deep(.setting-item.is-expanded) {
+  z-index: 1000;
+}
+.setting-section-list :deep(.setting-item) {
+  border-radius: 20px;
+}
+.setting-section-list :deep(.setting-item + .setting-item)::before {
+  position: absolute;
+  top: 0;
+  right: 16px;
+  left: 16px;
+  height: 1px;
+  background: color-mix(in srgb, var(--m-text-primary) 8%, transparent);
+  content: '';
+}
+.setting-section-list :deep(.setting-item.is-expanded)::before {
+  opacity: 0;
 }
 </style>

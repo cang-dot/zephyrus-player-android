@@ -34,7 +34,6 @@
           v-for="item in items"
           :key="`${item.accountId}-${item.type}-${item.id}`"
           class="cover-card"
-          data-no-page-swipe
           @click.stop="handleItemClick(item)"
         >
           <div class="cover-wrap">
@@ -215,9 +214,13 @@ const handleItemClick = (item: any) => {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding-top: calc(var(--safe-area-inset-top, 0px) + 68px);
+  padding-bottom: calc(
+    var(--mobile-dock-content-inset, 132px) + var(--safe-area-inset-bottom, 0px) + 180px
+  );
   &::-webkit-scrollbar {
     display: none;
   }
@@ -270,7 +273,7 @@ const handleItemClick = (item: any) => {
   position: relative;
   width: 100%;
   aspect-ratio: 1;
-  border-radius: 16px;
+  border-radius: 22px;
   overflow: hidden;
   background: var(--cover-surface, rgba(128, 128, 128, 0.1));
   box-shadow: 0 2px 12px var(--cover-shadow, rgba(0, 0, 0, 0.06));
@@ -396,7 +399,12 @@ const handleItemClick = (item: any) => {
 }
 
 .bottom-spacer {
-  height: calc(var(--safe-area-inset-bottom, 0px) + 120px);
+  width: 100%;
+  height: calc(
+    var(--mobile-dock-content-inset, 132px) + var(--safe-area-inset-bottom, 0px) + 280px
+  );
+  flex: 0 0 auto;
+  grid-column: 1 / -1;
 }
 
 .skeleton-shimmer {

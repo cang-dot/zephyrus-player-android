@@ -456,13 +456,17 @@ const handleDeleteSong = (song: SongResult) => {
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 14px);
     border-radius: 32px;
     border-left: none;
-    border: 1px solid var(--m-glass-border, rgba(255, 255, 255, 0.24));
-    box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
-    background: var(--m-glass-bg, rgba(255, 255, 255, 0.62));
-    backdrop-filter: blur(32px) saturate(180%);
-    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    border: 1px solid var(--player-glass-border, rgba(255, 255, 255, 0.24));
+    box-shadow: 0 -5px 16px rgba(0, 0, 0, 0.1);
+    background: var(--player-glass-background, rgba(20, 20, 22, 0.22));
+    backdrop-filter: var(--player-glass-filter, blur(12px) saturate(145%));
+    -webkit-backdrop-filter: var(--player-glass-filter, blur(12px) saturate(145%));
     padding-bottom: 58px;
     transform-origin: center bottom;
+
+    @supports not (backdrop-filter: blur(1px)) {
+      background: var(--player-glass-background-fallback, rgba(24, 24, 26, 0.52));
+    }
 
     &.animate__slideInUp {
       animation-name: mobile-playlist-morph-in !important;

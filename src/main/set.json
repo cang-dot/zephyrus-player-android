@@ -41,7 +41,18 @@
   "diskCacheCleanupPolicy": "lru",
   "backgroundKeepAlive": false,
   "sidebarItems": {
-    "order": ["/", "/search", "/list", "/album", "/toplist", "/podcast", "/history", "/local-music", "/user", "/set"],
+    "order": [
+      "/",
+      "/search",
+      "/list",
+      "/album",
+      "/toplist",
+      "/podcast",
+      "/history",
+      "/local-music",
+      "/user",
+      "/set"
+    ],
     "hidden": []
   },
   "defaultPage": "/",
@@ -58,6 +69,5 @@
   "layoutMode": "classic",
   "overlayAutoCollapse": true,
   "overlayAutoCollapseDelay": 5,
-  "platformCookies": {},
-  "bottomNavLayout": "default"
+  "platformCookies": {}
 }

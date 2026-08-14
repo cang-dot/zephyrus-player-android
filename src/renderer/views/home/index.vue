@@ -1,5 +1,8 @@
 <template>
-  <div class="home-container home-low-saturation h-full w-full transition-colors duration-500">
+  <div
+    class="home-container h-full w-full transition-colors duration-500"
+    :class="{ 'home-low-saturation': !isMobile }"
+  >
     <mobile-home v-if="isMobile" />
 
     <!-- Desktop: Original layout -->

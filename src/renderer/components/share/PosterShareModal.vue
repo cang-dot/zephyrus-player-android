@@ -1,9 +1,24 @@
 <template>
   <Teleport to="body">
     <Transition name="poster-modal">
-      <div v-if="visible" class="poster-modal-overlay" @click.self="close">
+      <div
+        v-if="visible"
+        class="poster-modal-overlay"
+        :style="posterTransitionStyle"
+        @click.self="close"
+      >
         <!-- 主体 -->
         <div class="poster-modal-container">
+          <header class="poster-editor-header">
+            <button type="button" class="poster-header-button" aria-label="关闭" @click="close">
+              <i class="ri-close-line" />
+            </button>
+            <div class="poster-editor-title">
+              <strong>歌词海报</strong>
+              <span>{{ songInfo.songName }} · {{ props.lyrics.length }} 句</span>
+            </div>
+            <div class="poster-header-spacer" aria-hidden="true" />
+          </header>
           <!-- 预览区域 -->
           <div class="poster-preview-area">
             <!-- 加载中 -->
@@ -330,9 +345,24 @@
 
           <!-- 底部操作栏 -->
           <div class="poster-action-bar">
-            <button class="action-btn save-btn" :disabled="generating" @click="handleSave">
-              <i class="ri-save-line"></i>
-              <span>保存</span>
+            <button
+              class="action-btn save-btn"
+              :class="{ 'is-saved': saveState === 'saved' }"
+              :disabled="generating || saveState === 'saving'"
+              @click="handleSave"
+            >
+              <i
+                :class="
+                  saveState === 'saving'
+                    ? 'ri-loader-4-line spin'
+                    : saveState === 'saved'
+                      ? 'ri-check-line'
+                      : 'ri-save-line'
+                "
+              ></i>
+              <span>{{
+                saveState === 'saving' ? '保存中' : saveState === 'saved' ? '已保存' : '保存'
+              }}</span>
             </button>
             <button class="action-btn share-btn" :disabled="generating" @click="handleShare">
               <i class="ri-share-line"></i>
@@ -340,11 +370,6 @@
             </button>
           </div>
         </div>
-
-        <!-- 关闭按钮 -->
-        <button class="poster-close-btn" @click="close">
-          <i class="ri-close-line"></i>
-        </button>
       </div>
     </Transition>
 
@@ -359,14 +384,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 import logoUrl from '@/assets/logo.png';
 import MorphingFontSelector from '@/components/share/MorphingFontSelector.vue';
+import { usePosterTransitionOrigin } from '@/composables/usePosterTransitionOrigin';
 import { artistList, playMusic } from '@/hooks/MusicHook';
 import {
   BUILTIN_FONTS,
   DEFAULT_POSTER_CONFIG,
+  normalizePosterConfig,
   POSTER_LAYOUT_OPTIONS,
   type PosterConfig,
   type SelectedLyric
@@ -386,6 +413,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void;
 }>();
+const posterTransitionOrigin = usePosterTransitionOrigin();
+const POSTER_CONFIG_STORAGE_KEY = 'zephyrus-poster-config';
 
 // 状态
 const generating = ref(false);
@@ -393,9 +422,41 @@ const posterDataUrl = ref('');
 const posterCanvas = ref<HTMLCanvasElement | null>(null);
 const toastMessage = ref('');
 const toastIcon = ref('ri-check-line');
+const saveState = ref<'idle' | 'saving' | 'saved'>('idle');
+let saveStateTimer: ReturnType<typeof setTimeout> | null = null;
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 // 配置
-const config = ref<PosterConfig>({ ...DEFAULT_POSTER_CONFIG });
+const readPosterConfig = (): PosterConfig => {
+  try {
+    const saved = localStorage.getItem(POSTER_CONFIG_STORAGE_KEY);
+    const posterConfig = saved ? JSON.parse(saved) : {};
+    const lyricConfig = JSON.parse(localStorage.getItem('music-full-config') || '{}');
+    return normalizePosterConfig({
+      ...posterConfig,
+      layout: posterConfig.layout || lyricConfig.shareDefaultPosterLayout
+    });
+  } catch {
+    return normalizePosterConfig(DEFAULT_POSTER_CONFIG);
+  }
+};
+const config = ref<PosterConfig>(readPosterConfig());
+const posterTransitionStyle = computed(() => {
+  const source = posterTransitionOrigin.origin.value;
+  const coverStyle = songInfo.value.coverUrl
+    ? { '--poster-cover-image': `url("${songInfo.value.coverUrl}")` }
+    : {};
+  if (!source) return coverStyle;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const targetWidth = Math.min(viewportWidth, 560);
+  return {
+    ...coverStyle,
+    '--poster-origin-x': `${source.left + source.width / 2 - viewportWidth / 2}px`,
+    '--poster-origin-y': `${source.top + source.height / 2 - viewportHeight / 2}px`,
+    '--poster-origin-scale': String(Math.max(0.12, Math.min(0.62, source.width / targetWidth)))
+  };
+});
 
 // 预加载 App Logo 图片，供海报水印使用
 let logoLoaded = false;
@@ -471,9 +532,10 @@ function onFontSelected(fontId: string) {
 }
 
 function showToast(message: string, icon: string = 'ri-check-line') {
+  if (toastTimer) clearTimeout(toastTimer);
   toastMessage.value = message;
   toastIcon.value = icon;
-  setTimeout(() => {
+  toastTimer = setTimeout(() => {
     toastMessage.value = '';
   }, 2500);
 }
@@ -483,6 +545,8 @@ let regenerateTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function regenerate() {
   if (props.lyrics.length === 0) return;
+  if (saveStateTimer) clearTimeout(saveStateTimer);
+  saveState.value = 'idle';
   generating.value = true;
   posterDataUrl.value = '';
 
@@ -509,13 +573,27 @@ function regenerateDebounced() {
 
 // 保存
 async function handleSave() {
-  if (!posterCanvas.value) return;
+  if (!posterCanvas.value || saveState.value === 'saving') return;
+  saveState.value = 'saving';
   showToast('正在保存...', 'ri-loader-4-line');
-  const success = await saveCanvasToGallery(posterCanvas.value);
-  showToast(
-    success ? '已保存到相册' : '保存失败',
-    success ? 'ri-check-line' : 'ri-error-warning-line'
-  );
+  try {
+    const success = await saveCanvasToGallery(posterCanvas.value);
+    saveState.value = success ? 'saved' : 'idle';
+    showToast(
+      success ? '已保存到相册' : '保存失败',
+      success ? 'ri-check-line' : 'ri-error-warning-line'
+    );
+    if (success) {
+      if (saveStateTimer) clearTimeout(saveStateTimer);
+      saveStateTimer = setTimeout(() => {
+        saveState.value = 'idle';
+      }, 3000);
+    }
+  } catch (error) {
+    console.error('[PosterShareModal] 保存失败:', error);
+    saveState.value = 'idle';
+    showToast('保存失败', 'ri-error-warning-line');
+  }
 }
 
 // 分享
@@ -532,12 +610,20 @@ async function handleShare() {
 watch(
   () => props.visible,
   (v) => {
+    document.documentElement.classList.toggle('poster-editor-open', v);
     if (v && props.lyrics.length > 0) {
       preloadLogo();
       regenerate();
+    } else if (!v) {
+      saveState.value = 'idle';
+      window.setTimeout(() => posterTransitionOrigin.clear(), 460);
     }
   }
 );
+
+watch(config, (value) => localStorage.setItem(POSTER_CONFIG_STORAGE_KEY, JSON.stringify(value)), {
+  deep: true
+});
 
 // 监听歌词变化
 watch(
@@ -549,20 +635,36 @@ watch(
   },
   { deep: true }
 );
+
+onBeforeUnmount(() => {
+  if (saveStateTimer) clearTimeout(saveStateTimer);
+  if (toastTimer) clearTimeout(toastTimer);
+  document.documentElement.classList.remove('poster-editor-open');
+  if (regenerateTimer) clearTimeout(regenerateTimer);
+});
 </script>
 
 <style scoped lang="scss">
 .poster-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 99998;
-  background: rgba(0, 0, 0, 0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  z-index: 100300;
+  background: #101112;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.poster-modal-overlay::before {
+  position: absolute;
+  inset: -42px;
+  background:
+    linear-gradient(rgba(10, 11, 12, 0.7), rgba(10, 11, 12, 0.88)),
+    var(--poster-cover-image) center / cover no-repeat;
+  content: '';
+  filter: blur(30px) saturate(72%);
+  transform: scale(1.08);
 }
 
 .poster-modal-container {
@@ -570,8 +672,63 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
-  max-width: 500px;
+  max-width: 560px;
   margin: 0 auto;
+  overflow: hidden;
+  background: rgba(15, 16, 17, 0.74);
+  transform-origin: center;
+  will-change: transform, opacity, clip-path;
+  z-index: 1;
+}
+
+.poster-editor-header {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 10px;
+  padding: calc(var(--safe-area-inset-top, 0px) + 10px) 16px 10px;
+}
+
+.poster-header-button,
+.poster-header-spacer {
+  width: 42px;
+  height: 42px;
+}
+
+.poster-header-button {
+  display: grid;
+  padding: 0;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, #fff 18%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent-color, #777) 12%, transparent);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 22px;
+}
+
+.poster-editor-title {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  line-height: 1.2;
+}
+
+.poster-editor-title strong {
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.poster-editor-title span {
+  width: 100%;
+  margin-top: 4px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 11px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ===== 预览区域 ===== */
@@ -580,7 +737,8 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 60px 20px 10px;
+  min-height: 0;
+  padding: 8px 18px 12px;
   overflow: hidden;
   position: relative;
 }
@@ -589,8 +747,8 @@ watch(
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  border-radius: 8px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  box-shadow: 0 14px 42px color-mix(in srgb, var(--accent-color, #777) 12%, rgba(0, 0, 0, 0.5));
 }
 
 .poster-loading {
@@ -635,11 +793,16 @@ watch(
 /* ===== 配置面板 ===== */
 .poster-config-panel {
   flex-shrink: 0;
-  max-height: 38vh;
+  max-height: min(40dvh, 390px);
   overflow-y: auto;
-  padding: 12px 20px;
-  background: rgba(20, 20, 25, 0.8);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin: 0 14px;
+  padding: 10px 16px 14px;
+  border: 1px solid color-mix(in srgb, #fff 14%, transparent);
+  border-radius: 24px;
+  background: rgba(24, 25, 27, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px) saturate(145%);
+  -webkit-backdrop-filter: blur(16px) saturate(145%);
 
   &::-webkit-scrollbar {
     width: 3px;
@@ -853,9 +1016,8 @@ watch(
   flex-shrink: 0;
   display: flex;
   gap: 12px;
-  padding: 12px 20px calc(var(--safe-area-inset-bottom, 0px) + 16px);
-  background: rgba(15, 15, 20, 0.9);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 12px 16px calc(var(--safe-area-inset-bottom, 0px) + 14px);
+  background: transparent;
 }
 
 .action-btn {
@@ -884,6 +1046,11 @@ watch(
   color: #fff;
 }
 
+.save-btn.is-saved {
+  background: color-mix(in srgb, #36c979 34%, rgba(255, 255, 255, 0.12));
+  color: #fff;
+}
+
 .share-btn {
   background: linear-gradient(
     135deg,
@@ -891,27 +1058,6 @@ watch(
     rgba(var(--accent-color-rgb, 99, 102, 241), 0.8)
   );
   color: #fff;
-}
-
-/* ===== 关闭按钮 ===== */
-.poster-close-btn {
-  position: fixed;
-  top: calc(var(--safe-area-inset-top, 0px) + 16px);
-  right: 20px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 22px;
-  z-index: 99999;
-
-  &:active {
-    transform: scale(0.92);
-  }
 }
 
 /* ===== Toast ===== */
@@ -936,12 +1082,52 @@ watch(
 /* ===== 过渡动画 ===== */
 .poster-modal-enter-active,
 .poster-modal-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 360ms ease;
+}
+
+.poster-modal-enter-active .poster-modal-container,
+.poster-modal-leave-active .poster-modal-container {
+  transition:
+    transform 440ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 260ms ease,
+    clip-path 440ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 440ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .poster-modal-enter-from,
 .poster-modal-leave-to {
   opacity: 0;
+}
+
+.poster-modal-enter-from .poster-modal-container,
+.poster-modal-leave-to .poster-modal-container {
+  border-radius: 999px;
+  opacity: 0.3;
+  clip-path: inset(40% 8% 40% 8% round 999px);
+  transform: translate3d(var(--poster-origin-x, 0), var(--poster-origin-y, 24vh), 0)
+    scale(var(--poster-origin-scale, 0.34));
+}
+
+:global(.poster-editor-open .floating-topbar),
+:global(.poster-editor-open .mobile-bottom-dock),
+:global(.poster-editor-open .shared-player-bottom-layer) {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poster-modal-enter-active,
+  .poster-modal-leave-active,
+  .poster-modal-enter-active .poster-modal-container,
+  .poster-modal-leave-active .poster-modal-container {
+    transition-duration: 160ms;
+  }
+
+  .poster-modal-enter-from .poster-modal-container,
+  .poster-modal-leave-to .poster-modal-container {
+    clip-path: none;
+    transform: none;
+  }
 }
 
 .toast-enter-active,

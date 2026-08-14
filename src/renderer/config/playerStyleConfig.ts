@@ -52,7 +52,11 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     smokeLoudnessResponse: 0.72,
     smokeOpacity: 0.76,
     smokeVignette: 0.48,
-    smokeFontStretch: 1.18
+    smokeFontStretch: 1.18,
+    smokeFollowThemeColor: true,
+    smokeCustomColor: '#5fffd0',
+    smokeGlowFollowThemeColor: true,
+    smokeGlowCustomColor: '#ff765f'
   }
 };
 
@@ -172,6 +176,10 @@ export function resolvePlayerStyleConfig(
       Number.isFinite(Number(config.smokeFontStretch)) ? Number(config.smokeFontStretch) : 1.18
     )
   );
+  config.smokeFollowThemeColor = config.smokeFollowThemeColor !== false;
+  config.smokeCustomColor = normalizeColor(config.smokeCustomColor, '#5fffd0');
+  config.smokeGlowFollowThemeColor = config.smokeGlowFollowThemeColor !== false;
+  config.smokeGlowCustomColor = normalizeColor(config.smokeGlowCustomColor, '#ff765f');
   if (!['solid', 'gradient', 'image'].includes(config.backgroundMode)) {
     config.backgroundMode = defaults.backgroundMode;
   }
@@ -186,6 +194,10 @@ export function resolvePlayerStyleConfig(
     config.effectWordDrop = false;
   }
   return config;
+}
+
+function normalizeColor(value: unknown, fallback: string): string {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
 }
 
 export function resolvePlayerStyleEffects(

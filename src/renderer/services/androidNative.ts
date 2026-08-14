@@ -44,6 +44,7 @@ type NativeBridge = {
   setStatusBarLyricEnabled: (enabled: boolean) => boolean;
   updateStatusBarLyric: (text: string, accentColor: string) => void;
   applyStatusBarLyricConfig?: (configJson: string) => boolean;
+  setStatusBarLyricPreviewVisible?: (visible: boolean) => boolean;
   updateStatusBarLyricState?: (stateJson: string) => void;
   installStatusBarLyricFont?: (name: string, base64Data: string) => string;
   setBackgroundKeepAlive: (enabled: boolean) => void;
@@ -496,6 +497,7 @@ export function updateStatusBarLyricPreview(config = readStatusBarLyricConfig())
     window.clearTimeout(statusBarLyricPreviewTimer);
     statusBarLyricPreviewTimer = null;
   }
+  window.AndroidNative!.setStatusBarLyricPreviewVisible?.(true);
   applyStatusBarLyricConfig({ ...config, enabled: true });
   window.AndroidNative!.updateStatusBarLyricState?.(
     JSON.stringify(statusBarLyricPreviewState(config))
@@ -508,11 +510,13 @@ export function finishStatusBarLyricPreview(delay = 0) {
   if (delay <= 0) {
     statusBarLyricPreviewTimer = null;
     refreshStatusBarLyric();
+    window.AndroidNative?.setStatusBarLyricPreviewVisible?.(false);
     return;
   }
   statusBarLyricPreviewTimer = window.setTimeout(() => {
     statusBarLyricPreviewTimer = null;
     refreshStatusBarLyric();
+    window.AndroidNative?.setStatusBarLyricPreviewVisible?.(false);
   }, delay);
 }
 

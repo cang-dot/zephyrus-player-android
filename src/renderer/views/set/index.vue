@@ -364,11 +364,47 @@ onMounted(() => {
   color: var(--cover-text-primary, var(--m-text-primary, var(--text-color, #000)));
 }
 
+/* Settings are content, not a stack of floating glass cards. Keep controls'
+   own affordances, but remove elevation and reflective edges from containers. */
+.settings-page :deep(.hero-card),
+.settings-page :deep(.setting-section-list),
+.settings-page :deep(.setting-item),
+.settings-page :deep(.search-result-card),
+.settings-page :deep(.setting-control),
+.settings-page :deep(.setting-card) {
+  box-shadow: none !important;
+}
+
+.settings-page :deep(*) {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.settings-page :deep(.setting-section),
+.settings-page :deep(.setting-section-list),
+.settings-page :deep(.setting-item),
+.settings-page :deep(.setting-item-details),
+.settings-page :deep(.setting-item-details-inner) {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .settings-page :deep(.hero-card),
+  .settings-page :deep(.setting-section-list),
+  .settings-page :deep(.setting-item),
+  .settings-page :deep(.search-result-card),
+  .settings-page :deep(.setting-control),
+  .settings-page :deep(.setting-card) {
+    border-color: transparent !important;
+  }
+}
+
 .settings-scroll {
   width: 100%;
   height: 100%;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: visible;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding-top: calc(var(--safe-area-inset-top, 0px) + 68px);
@@ -403,7 +439,7 @@ onMounted(() => {
 }
 .hero-card.compact {
   border-radius: 18px;
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: none;
   top: calc(var(--safe-area-inset-top, 0px) + 56px);
 }
 

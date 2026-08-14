@@ -46,7 +46,7 @@ export interface PlatformAccountCache {
 
 const PLATFORM_NAMES: Record<MusicPlatform, string> = {
   netease: '网易云',
-  qq: 'QQ 音乐',
+  qq: 'QQ音乐',
   kugou: '酷狗音乐',
   spotify: 'Spotify'
 };

@@ -58,6 +58,10 @@ export const useSettingsStore = defineStore('settings', () => {
       ? window.electron.ipcRenderer.sendSync('get-store-value', 'set')
       : JSON.parse(localStorage.getItem('appSettings') || '{}');
 
+    if (savedSettings && typeof savedSettings === 'object') {
+      delete savedSettings.bottomNavLayout;
+    }
+
     // 自定义合并策略：如果是数组，直接使用源数组（覆盖默认值）
     const customizer = (_objValue: any, srcValue: any) => {
       if (isArray(srcValue)) {

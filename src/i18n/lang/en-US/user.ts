@@ -60,6 +60,7 @@ export default {
   accountSwitcher: {
     title: 'Switch Account',
     addAccount: 'Add Account',
+    loginHint: 'Press and hold, then swipe down to sign in',
     deleteAccount: 'Delete account?',
     close: 'Close'
   }

@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
+import { deflateSync } from 'node:zlib';
 
 const require = createRequire(import.meta.url);
 const {
@@ -11,7 +12,8 @@ const {
   normalizeKugouSongs,
   normalizeKugouUserInfo,
   extractQQOAuthCode,
-  decodeQqLyricField
+  decodeQqLyricField,
+  decodeKugouKrc
 } = require('../server-platform-login.js');
 const { encryptQrc } = require('qrc-decoder');
 
@@ -67,6 +69,22 @@ function verifyQqLyricDecoding() {
   const decoded = decodeQqLyricField(encrypted, true);
   if (decoded !== plaintext) throw new Error('QQ QRC decryption failed');
   return { encryptedLength: encrypted.length, decodedLength: decoded.length };
+}
+
+function verifyKugouLyricDecoding() {
+  const plaintext = '[1000,500]<0,500,0>synthetic';
+  const xorKey = Buffer.from([
+    0x40, 0x47, 0x61, 0x77, 0x5e, 0x32, 0x74, 0x47, 0x51, 0x36, 0x31, 0x2d, 0xce, 0xd2, 0x6e, 0x69
+  ]);
+  const compressed = deflateSync(Buffer.from(plaintext));
+  const encrypted = Buffer.alloc(compressed.length);
+  for (let index = 0; index < compressed.length; index += 1) {
+    encrypted[index] = compressed[index] ^ xorKey[index % xorKey.length];
+  }
+  const encoded = Buffer.concat([Buffer.from('krc1'), encrypted]).toString('base64');
+  const decoded = decodeKugouKrc(encoded);
+  if (decoded !== plaintext) throw new Error('Kugou KRC decryption failed');
+  return { encodedLength: encoded.length, decodedLength: decoded.length };
 }
 
 const app = createPlatformGatewayApp();
@@ -272,6 +290,7 @@ try {
   const qqCallback = verifyQqCallbackParsing();
   const qqOAuthCode = verifyQqOAuthCodeParsing();
   const qqLyricDecode = verifyQqLyricDecoding();
+  const kugouLyricDecode = verifyKugouLyricDecoding();
   const qq = await verifyPlatform('qq');
   const kugou = await verifyPlatform('kugou');
   const normalization = verifyKugouNormalization();
@@ -287,6 +306,7 @@ try {
         qqCallback,
         qqOAuthCode,
         qqLyricDecode,
+        kugouLyricDecode,
         kugou,
         normalization,
         invalidKugouStatus,

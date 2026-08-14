@@ -43,6 +43,8 @@ public final class StatusBarLyricOverlay {
     private TextView lyricView;
     private boolean attached;
     private boolean enabled;
+    private boolean appVisible = true;
+    private boolean foregroundPreviewVisible;
     private boolean wordByWord = true;
     private String widthMode = "fit";
     private int fixedWidthDp = 240;
@@ -99,6 +101,22 @@ public final class StatusBarLyricOverlay {
         }
         scheduleRender();
         return true;
+    }
+
+    /** Hides the overlay while the app itself is visible without changing the saved setting. */
+    public void setAppVisible(boolean value) {
+        appVisible = value;
+        if (!value) foregroundPreviewVisible = false;
+        if (shouldRender()) scheduleRender();
+        else scheduleRemove();
+    }
+
+    /** Temporarily allows the settings preview to render over the foreground app. */
+    public boolean setForegroundPreviewVisible(boolean value) {
+        foregroundPreviewVisible = value;
+        if (shouldRender()) scheduleRender();
+        else scheduleRemove();
+        return !enabled || hasPermission();
     }
 
     public boolean applyConfig(String configJson) {
@@ -227,7 +245,7 @@ public final class StatusBarLyricOverlay {
     }
 
     private void render() {
-        if (!enabled || !hasPermission() || lyric.isEmpty()) {
+        if (!shouldRender() || lyric.isEmpty()) {
             removeView();
             return;
         }
@@ -250,6 +268,10 @@ public final class StatusBarLyricOverlay {
             Log.e(TAG, "Unable to render status bar lyric overlay", exception);
             removeView();
         }
+    }
+
+    private boolean shouldRender() {
+        return enabled && hasPermission() && (!appVisible || foregroundPreviewVisible);
     }
 
     private SpannableString buildStyledLyric() {

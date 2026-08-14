@@ -129,6 +129,7 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
@@ -272,7 +273,10 @@ const visibleLyrics = computed(() => {
 // ==================== 播放控制 ====================
 
 function close() {
-  isVisible.value = false;
+  useMobilePlayerTransition().close(0, () => {
+    isVisible.value = false;
+    playerStore.setMusicFull(false);
+  });
 }
 
 function handlePrev() {

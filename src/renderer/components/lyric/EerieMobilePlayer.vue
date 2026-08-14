@@ -162,6 +162,7 @@ import StaggeredClimaxLyrics from '@/components/lyric/StaggeredClimaxLyrics.vue'
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
@@ -632,7 +633,10 @@ watch(wordPlayback.displayIndex, () => {
 });
 
 function close() {
-  isVisible.value = false;
+  useMobilePlayerTransition().close(0, () => {
+    isVisible.value = false;
+    playerStore.setMusicFull(false);
+  });
 }
 function handlePrev() {
   playerStore.prevPlay();

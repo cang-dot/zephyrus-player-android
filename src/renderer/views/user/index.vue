@@ -12,23 +12,31 @@
         <!-- Personal center: profile, listening statistics and connected platforms. -->
         <div class="content-area" :class="setAnimationClass('animate__fadeIn')">
           <section
+            ref="profileGlassRef"
             class="profile-glass"
+            data-no-page-swipe
             :class="[`panel-${accountPanel}`, { 'is-expanded': accountPanel !== 'closed' }]"
           >
             <div class="profile-morph-stage">
               <div
                 class="profile-morph-view profile-closed-view"
-                :class="{ active: accountPanel === 'closed' }"
+                :style="accountCardStyle"
+                :class="{
+                  active:
+                    accountPanel === 'closed' ||
+                    (accountPanel === 'accounts' && accountGestureMode),
+                  'is-account-gesture': accountPanel === 'accounts' && accountGestureMode
+                }"
+                @pointerdown="startProfilePress"
+                @pointermove="handleAccountGestureMove"
+                @pointerup="handleAvatarPointerUp"
+                @pointercancel="handleAccountGestureCancel"
               >
                 <div class="profile-main">
                   <button
                     type="button"
                     class="profile-avatar-button"
                     aria-label="accounts"
-                    @pointerdown="startAvatarPress"
-                    @pointerup="endAvatarPress"
-                    @pointercancel="cancelAvatarPress"
-                    @pointerleave="cancelAvatarPress"
                     @contextmenu.prevent="accountPanel = 'accounts'"
                   >
                     <img
@@ -42,9 +50,11 @@
                     </span>
                   </button>
                   <div class="profile-copy">
-                    <h1>{{ user?.nickname || t('user.accountSwitcher.addAccount') }}</h1>
+                    <h1>{{ user?.nickname || t('user.accountSwitcher.loginHint') }}</h1>
                     <p>{{ userDetail?.profile?.signature || t('user.detail.noSignature') }}</p>
-                    <span class="platform-badge">{{ activePlatformLabel }}</span>
+                    <span v-if="user" class="platform-badge">{{
+                      platformName(activePlatform)
+                    }}</span>
                   </div>
                 </div>
                 <div class="profile-stats">
@@ -60,19 +70,139 @@
                     <strong>{{ userDetail?.level || 0 }}</strong>
                     <span>{{ t('user.profile.level') }}</span>
                   </div>
+                  <div>
+                    <strong>{{ totalPlayCount }}</strong>
+                    <span>{{ t('user.statistics.plays') }}</span>
+                  </div>
+                </div>
+                <div
+                  v-if="accountGestureIntent === 'confirm' || accountGestureIntent === 'deleting'"
+                  class="profile-delete-overlay"
+                  :class="{ 'is-deleting': accountGestureIntent === 'deleting' }"
+                >
+                  <strong>{{ t('user.accountSwitcher.deleteAccount') }}</strong>
+                  <div>
+                    <button type="button" @click.stop="cancelDeleteGesture">
+                      {{ t('common.cancel') }}
+                    </button>
+                    <button type="button" class="danger" @click.stop="confirmGestureDelete">
+                      {{ t('common.confirm') }}
+                    </button>
+                  </div>
                 </div>
               </div>
               <div
                 class="profile-morph-view account-morph-panel account-grid-panel"
-                :class="{ active: accountPanel === 'accounts' }"
+                :class="{
+                  active: accountPanel === 'accounts',
+                  'gesture-overlay': accountGestureMode
+                }"
               >
                 <div class="account-morph-heading">
                   <strong>{{ t('user.accountSwitcher.title') }}</strong>
-                  <button type="button" @click="closeAccountPanel">
+                  <button type="button" @click="closeAccountPanel()">
                     <i class="ri-close-line" />
                   </button>
                 </div>
-                <div class="account-morph-grid">
+                <div
+                  v-if="accountGestureMode"
+                  class="account-gesture-shell"
+                  data-no-page-swipe
+                  :style="accountCardStyle"
+                  :class="{
+                    'snap-delete': accountGestureIntent === 'delete',
+                    'snap-login': accountGestureIntent === 'login'
+                  }"
+                  @pointerdown="startAccountGestureDrag"
+                  @pointermove="handleAccountGestureMove"
+                  @pointerup="handleAccountGestureEnd"
+                  @pointercancel="handleAccountGestureCancel"
+                >
+                  <div class="account-drop-zone account-drop-zone-delete">
+                    <i class="ri-delete-bin-line" />
+                    <span>{{ t('common.delete') }}</span>
+                  </div>
+                  <div class="account-drop-zone account-drop-zone-login">
+                    <i class="ri-user-add-line" />
+                    <span>{{ t('user.accountSwitcher.addAccount') }}</span>
+                  </div>
+                  <div class="account-carousel-track">
+                    <article
+                      v-for="(account, index) in accounts"
+                      :key="account.accountId"
+                      class="account-carousel-card"
+                      :role="account.accountId === activeAccountId ? 'button' : undefined"
+                      :tabindex="account.accountId === activeAccountId ? 0 : -1"
+                      :class="{
+                        active: account.accountId === activeAccountId,
+                        'is-confirming':
+                          account.accountId === activeAccountId &&
+                          accountGestureIntent === 'confirm',
+                        'is-deleting':
+                          account.accountId === activeAccountId &&
+                          accountGestureIntent === 'deleting'
+                      }"
+                      :style="accountCarouselCardStyle(index)"
+                      @click="handleAccountCarouselCardClick(account)"
+                      @keydown.enter.prevent="handleAccountCarouselCardClick(account)"
+                      @keydown.space.prevent="handleAccountCarouselCardClick(account)"
+                    >
+                      <div class="account-carousel-main">
+                        <img
+                          v-if="account.avatarUrl"
+                          :src="getImgUrl(account.avatarUrl, '144y144')"
+                          alt=""
+                        />
+                        <span v-else><i class="ri-user-3-line" /></span>
+                        <div>
+                          <strong>{{ account.nickname }}</strong>
+                          <small>{{ accountCardDescription(account) }}</small>
+                          <em>{{ platformName(account.platform) }}</em>
+                        </div>
+                      </div>
+                      <div class="account-carousel-stats">
+                        <div>
+                          <strong>{{ accountMetric(account, 'followers') }}</strong>
+                          <span>{{ t('user.profile.followers') }}</span>
+                        </div>
+                        <div>
+                          <strong>{{ accountMetric(account, 'following') }}</strong>
+                          <span>{{ t('user.profile.following') }}</span>
+                        </div>
+                        <div>
+                          <strong>{{ accountMetric(account, 'level') }}</strong>
+                          <span>{{ t('user.profile.level') }}</span>
+                        </div>
+                        <div>
+                          <strong>{{ accountMetric(account, 'plays') }}</strong>
+                          <span>{{ t('user.statistics.plays') }}</span>
+                        </div>
+                      </div>
+                      <div
+                        v-if="
+                          account.accountId === activeAccountId &&
+                          (accountGestureIntent === 'confirm' ||
+                            accountGestureIntent === 'deleting')
+                        "
+                        class="account-delete-overlay"
+                        @pointerdown.stop
+                        @pointerup.stop
+                        @pointercancel.stop
+                      >
+                        <strong>{{ t('user.accountSwitcher.deleteAccount') }}</strong>
+                        <div>
+                          <button type="button" @click.stop="cancelDeleteGesture">
+                            {{ t('common.cancel') }}
+                          </button>
+                          <button type="button" class="danger" @click.stop="confirmGestureDelete">
+                            {{ t('common.confirm') }}
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+                <div v-else class="account-morph-grid">
                   <div
                     v-for="account in accounts"
                     :key="account.accountId"
@@ -129,7 +259,12 @@
                     </div>
                   </div>
                 </div>
-                <button type="button" class="account-add-morph" @click="accountPanel = 'login'">
+                <button
+                  v-if="!accountGestureMode"
+                  type="button"
+                  class="account-add-morph"
+                  @click="accountPanel = 'login'"
+                >
                   <i class="ri-user-add-line" />{{ t('user.accountSwitcher.addAccount') }}
                 </button>
               </div>
@@ -137,28 +272,9 @@
                 class="profile-morph-view account-morph-panel login-morph-panel"
                 :class="{ active: accountPanel === 'login' }"
               >
-                <login-component
-                  embedded
-                  @login-success="handleLoginSuccess"
-                  @close="closeAccountPanel"
-                />
+                <account-login-morph @success="handleLoginSuccess" @error="handleLoginError" />
               </div>
             </div>
-          </section>
-
-          <section class="listening-overview">
-            <article>
-              <i class="ri-headphone-line" /><strong>{{ totalPlayCount }}</strong
-              ><span>{{ t('user.statistics.plays') }}</span>
-            </article>
-            <article>
-              <i class="ri-bar-chart-box-line" /><strong>{{ displayRecordList.length }}</strong
-              ><span>{{ t('user.statistics.rankedSongs') }}</span>
-            </article>
-            <article>
-              <i class="ri-links-line" /><strong>{{ connectedPlatformCount }}</strong
-              ><span>{{ t('user.statistics.platforms') }}</span>
-            </article>
           </section>
 
           <section class="ranking-section glass-section">
@@ -208,12 +324,12 @@ import { getUserDetail, getUserPlaylist, getUserRecord } from '@/api/user';
 import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
+import AccountLoginMorph from '@/components/login/AccountLoginMorph.vue';
 import { type PlatformAccount, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { useUserStore } from '@/store/modules/user';
 import { getImgUrl, setAnimationClass } from '@/utils';
 import { checkLoginStatus as checkAuthStatus } from '@/utils/auth';
-import LoginComponent from '@/views/login/index.vue';
 
 defineOptions({ name: 'User' });
 
@@ -231,9 +347,21 @@ const accountPanel = ref<'closed' | 'accounts' | 'login'>(
   route.query.panel === 'login' ? 'login' : 'closed'
 );
 const deletingAccountId = ref<string | null>(null);
+const profileGlassRef = ref<HTMLElement | null>(null);
+const accountGestureMode = ref(false);
+const accountGestureIntent = ref<'idle' | 'delete' | 'login' | 'confirm' | 'deleting'>('idle');
+const accountDragX = ref(0);
+const accountDragY = ref(0);
+const accountPointerStart = ref({ x: 0, y: 0 });
+const accountGestureDragging = ref(false);
+let accountGestureAxis: 'none' | 'horizontal' | 'vertical' = 'none';
+let accountGestureMoved = false;
+let suppressAccountCardClickUntil = 0;
 let avatarPressTimer: number | null = null;
+let accountGestureWindowBound = false;
 
-const { accounts, activeAccountId, activeAccount, activeAccountCache } = storeToRefs(accountStore);
+const { accounts, activeAccountId, activeAccount, activeAccountCache, accountCache } =
+  storeToRefs(accountStore);
 const activePlatform = computed(() => activeAccount.value?.platform || 'netease');
 const user = computed(() => {
   if (activeAccount.value) {
@@ -258,36 +386,281 @@ const totalPlayCount = computed(() =>
     0
   )
 );
-const connectedPlatformCount = computed(
-  () => new Set(accounts.value.map((account) => account.platform)).size
+const accountIndex = computed(() =>
+  Math.max(
+    0,
+    accounts.value.findIndex((account) => account.accountId === activeAccountId.value)
+  )
 );
-const activePlatformLabel = computed(() => activePlatform.value.toUpperCase());
+const accountCardStyle = computed(() => ({
+  '--account-drag-x': `${accountDragX.value}px`,
+  '--account-drag-y': `${accountDragY.value}px`,
+  '--account-stretch-top': `${Math.max(0, -accountDragY.value) * 0.48}px`,
+  '--account-stretch-bottom': `${Math.max(0, accountDragY.value) * 0.48}px`,
+  '--account-card-shift-y': `${accountDragY.value * 0.24}px`
+}));
+
+const relativeAccountIndex = (index: number) => {
+  const length = accounts.value.length;
+  if (length < 2) return 0;
+  let relative = index - accountIndex.value;
+  if (relative > length / 2) relative -= length;
+  if (relative < -length / 2) relative += length;
+  return relative;
+};
+
+const accountCarouselCardStyle = (index: number) => ({
+  ...accountCardStyle.value,
+  '--account-offset-x': `${relativeAccountIndex(index) * 88}%`
+});
+
+const accountHistoryTotal = (account: PlatformAccount) => {
+  const history = (accountCache.value[account.accountId]?.history || []) as any[];
+  return history.reduce(
+    (total, item) => total + Number(item.playCount || item.playCountScore || 0),
+    0
+  );
+};
+
+const accountMetric = (
+  account: PlatformAccount,
+  metric: 'followers' | 'following' | 'level' | 'plays'
+) => {
+  const isActive = account.accountId === activeAccountId.value;
+  if (metric === 'plays') return isActive ? totalPlayCount.value : accountHistoryTotal(account);
+  if (!isActive) return '--';
+  if (metric === 'followers') return userDetail.value?.profile?.followeds || 0;
+  if (metric === 'following') return userDetail.value?.profile?.follows || 0;
+  return userDetail.value?.level || 0;
+};
+
+const accountCardDescription = (account: PlatformAccount) => {
+  if (account.accountId === activeAccountId.value && userDetail.value?.profile?.signature) {
+    return userDetail.value.profile.signature;
+  }
+  return account.vipLabel || `${platformName(account.platform)}账号`;
+};
 
 const platformName = (platform: PlatformAccount['platform']) =>
-  ({ netease: '网易云', qq: 'QQ 音乐', kugou: '酷狗音乐', spotify: 'Spotify' })[platform];
+  ({ netease: '网易云', qq: 'QQ音乐', kugou: '酷狗音乐', spotify: 'Spotify' })[platform];
 
 const handlePlayRecord = (item: any) => {
   playerStore.setPlayList(displayRecordList.value || []);
   playerStore.setPlay(item);
 };
 
-const startAvatarPress = () => {
+const beginPointerTracking = (event: PointerEvent) => {
+  accountPointerStart.value = { x: event.clientX, y: event.clientY };
+  accountGestureDragging.value = true;
+  accountGestureAxis = 'none';
+  accountGestureMoved = false;
+  accountDragX.value = 0;
+  accountDragY.value = 0;
+  if (accountGestureIntent.value !== 'confirm') accountGestureIntent.value = 'idle';
+  bindAccountGestureWindow();
+  const target = event.currentTarget;
+  if (target instanceof HTMLElement && target.setPointerCapture) {
+    try {
+      target.setPointerCapture(event.pointerId);
+    } catch {
+      // The window listeners remain the fallback when WebView rejects capture.
+    }
+  }
+};
+
+const startAvatarPress = (event?: PointerEvent) => {
+  if (!event) return;
+  if (accountGestureMode.value) {
+    startAccountGestureDrag(event);
+    return;
+  }
+  beginPointerTracking(event);
   if (avatarPressTimer) window.clearTimeout(avatarPressTimer);
   avatarPressTimer = window.setTimeout(() => {
     accountPanel.value = 'accounts';
+    accountGestureMode.value = true;
+    accountGestureIntent.value = 'idle';
+    accountDragX.value = 0;
+    accountDragY.value = 0;
     avatarPressTimer = null;
   }, 480);
+};
+const startProfilePress = (event: PointerEvent) => startAvatarPress(event);
+const startAccountGestureDrag = (event: PointerEvent) => {
+  if (
+    !accountGestureMode.value ||
+    accountGestureIntent.value === 'confirm' ||
+    accountGestureIntent.value === 'deleting'
+  ) {
+    return;
+  }
+  beginPointerTracking(event);
+};
+const bindAccountGestureWindow = () => {
+  if (accountGestureWindowBound) return;
+  accountGestureWindowBound = true;
+  window.addEventListener('pointermove', handleAccountGestureMove, { passive: true });
+  window.addEventListener('pointerup', handleAccountGestureEnd, { passive: true });
+  window.addEventListener('pointercancel', handleAccountGestureCancel, { passive: true });
+};
+const unbindAccountGestureWindow = () => {
+  if (!accountGestureWindowBound) return;
+  accountGestureWindowBound = false;
+  window.removeEventListener('pointermove', handleAccountGestureMove);
+  window.removeEventListener('pointerup', handleAccountGestureEnd);
+  window.removeEventListener('pointercancel', handleAccountGestureCancel);
+};
+const handleAccountGestureMove = (event: PointerEvent) => {
+  if (avatarPressTimer) {
+    if (
+      Math.hypot(
+        event.clientX - accountPointerStart.value.x,
+        event.clientY - accountPointerStart.value.y
+      ) > 12
+    ) {
+      cancelAvatarPress();
+    }
+    return;
+  }
+  if (
+    accountPanel.value !== 'accounts' ||
+    !accountGestureMode.value ||
+    !accountGestureDragging.value ||
+    accountGestureIntent.value === 'confirm' ||
+    accountGestureIntent.value === 'deleting'
+  ) {
+    return;
+  }
+  const rawX = event.clientX - accountPointerStart.value.x;
+  const rawY = event.clientY - accountPointerStart.value.y;
+  if (accountGestureAxis === 'none') {
+    if (Math.max(Math.abs(rawX), Math.abs(rawY)) < 8) return;
+    accountGestureAxis = Math.abs(rawX) > Math.abs(rawY) * 1.05 ? 'horizontal' : 'vertical';
+  }
+  accountGestureMoved = true;
+  if (accountGestureAxis === 'horizontal') {
+    accountDragX.value = Math.max(-150, Math.min(150, rawX));
+    accountDragY.value = 0;
+    accountGestureIntent.value = 'idle';
+    return;
+  }
+  accountDragX.value = 0;
+  accountDragY.value = Math.max(-130, Math.min(130, rawY));
+  if (accountDragY.value < -48) {
+    accountGestureIntent.value = 'delete';
+  } else if (accountDragY.value > 48) {
+    accountGestureIntent.value = 'login';
+  } else {
+    accountGestureIntent.value = 'idle';
+  }
+};
+const handleAccountGestureEnd = () => {
+  unbindAccountGestureWindow();
+  const longPressActivated = accountGestureMode.value && accountPanel.value === 'accounts';
+  cancelAvatarPress();
+  accountGestureDragging.value = false;
+  if (!longPressActivated) return;
+  if (accountGestureIntent.value === 'delete' && accountDragY.value < -72) {
+    accountGestureIntent.value = 'confirm';
+    accountDragX.value = 0;
+    accountDragY.value = 0;
+    accountGestureAxis = 'none';
+    accountGestureMoved = false;
+    return;
+  } else if (accountGestureIntent.value === 'login' && accountDragY.value > 72) {
+    accountPanel.value = 'login';
+    accountGestureMode.value = false;
+    accountGestureIntent.value = 'idle';
+    accountDragX.value = 0;
+    accountDragY.value = 0;
+    accountGestureAxis = 'none';
+    accountGestureMoved = false;
+    return;
+  } else if (
+    accountGestureAxis === 'horizontal' &&
+    Math.abs(accountDragX.value) > 72 &&
+    accounts.value.length > 1
+  ) {
+    const direction = accountDragX.value > 0 ? -1 : 1;
+    const targetIndex =
+      (accountIndex.value + direction + accounts.value.length) % accounts.value.length;
+    const target = accounts.value[targetIndex];
+    if (target) void handleAccountChange(target);
+    suppressAccountCardClickUntil = performance.now() + 300;
+    accountGestureIntent.value = 'idle';
+    accountDragX.value = 0;
+    accountDragY.value = 0;
+    accountGestureAxis = 'none';
+    accountGestureMoved = false;
+    return;
+  }
+  closeAccountPanel(false);
+};
+const handleAccountGestureCancel = () => {
+  unbindAccountGestureWindow();
+  cancelAvatarPress();
+  accountGestureDragging.value = false;
+  if (accountGestureIntent.value === 'confirm') return;
+  closeAccountPanel(false);
+};
+const cancelDeleteGesture = () => {
+  accountGestureIntent.value = 'idle';
+  accountDragY.value = 0;
+};
+const confirmGestureDelete = async () => {
+  const account = activeAccount.value;
+  if (!account) return;
+  accountGestureIntent.value = 'deleting';
+  await new Promise((resolve) => window.setTimeout(resolve, 460));
+  await confirmRemoveAccount(account);
+  if (accounts.value.length) {
+    accountPanel.value = 'accounts';
+    accountGestureMode.value = true;
+    accountGestureIntent.value = 'idle';
+  }
 };
 const cancelAvatarPress = () => {
   if (avatarPressTimer) window.clearTimeout(avatarPressTimer);
   avatarPressTimer = null;
 };
 const endAvatarPress = () => cancelAvatarPress();
-const closeAccountPanel = () => {
+const handleAvatarPointerUp = () => {
+  endAvatarPress();
+  handleAccountGestureEnd();
+};
+const handleAccountCarouselCardClick = (account: PlatformAccount) => {
+  if (
+    account.accountId !== activeAccountId.value ||
+    !accountGestureMode.value ||
+    accountGestureIntent.value !== 'idle' ||
+    accountGestureDragging.value ||
+    accountGestureMoved ||
+    performance.now() < suppressAccountCardClickUntil
+  ) {
+    return;
+  }
+  closeAccountPanel(false);
+};
+const handleAccountOutsidePointerDown = (event: PointerEvent) => {
+  if (accountPanel.value === 'closed') return;
+  if (profileGlassRef.value?.contains(event.target as Node)) return;
+  closeAccountPanel();
+};
+const closeAccountPanel = (updateRoute = true) => {
+  unbindAccountGestureWindow();
   cancelAvatarPress();
   deletingAccountId.value = null;
+  accountGestureMode.value = false;
+  accountGestureDragging.value = false;
+  accountGestureAxis = 'none';
+  accountGestureMoved = false;
+  accountGestureIntent.value = 'idle';
+  accountDragX.value = 0;
+  accountDragY.value = 0;
   accountPanel.value = 'closed';
-  if (route.query.panel) router.replace({ path: '/user' });
+  if (updateRoute && route.path === '/user' && route.query.panel) {
+    router.replace({ path: '/user' });
+  }
 };
 
 const confirmRemoveAccount = async (account: PlatformAccount) => {
@@ -337,6 +710,8 @@ const handleAccountChange = async (account: PlatformAccount) => {
 onBeforeUnmount(() => {
   mounted.value = false;
   cancelAvatarPress();
+  unbindAccountGestureWindow();
+  window.removeEventListener('pointerdown', handleAccountOutsidePointerDown, true);
 });
 
 const checkLoginStatus = () => {
@@ -508,6 +883,8 @@ watch(
     if (newPath === '/user') {
       checkLoginStatus();
       loadData();
+    } else if (accountPanel.value !== 'closed') {
+      closeAccountPanel(false);
     }
   }
 );
@@ -531,13 +908,18 @@ watch(
 );
 
 onMounted(() => {
+  window.addEventListener('pointerdown', handleAccountOutsidePointerDown, true);
   checkLoginStatus() && loadData();
 });
 
 const handleLoginSuccess = () => {
-  accountPanel.value = 'closed';
+  closeAccountPanel();
   checkLoginStatus();
   loadData();
+};
+
+const handleLoginError = (error: string) => {
+  message.error(error || t('login.message.loginFailed'));
 };
 </script>
 
@@ -808,13 +1190,11 @@ const handleLoginSuccess = () => {
 .profile-glass,
 .glass-section,
 .listening-overview article {
-  border: 1px solid color-mix(in srgb, var(--m-white, #fff) 24%, transparent);
-  background: color-mix(in srgb, var(--m-surface, #eae6df) 62%, transparent);
-  box-shadow:
-    0 14px 34px color-mix(in srgb, var(--m-shadow, #000) 44%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(26px) saturate(165%);
-  -webkit-backdrop-filter: blur(26px) saturate(165%);
+  border: 1px solid color-mix(in srgb, var(--m-border, #d8d3cc) 34%, transparent);
+  background: color-mix(in srgb, var(--m-surface, #f7f5f1) 78%, transparent);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--m-shadow, #000) 12%, transparent);
+  backdrop-filter: blur(22px) saturate(120%);
+  -webkit-backdrop-filter: blur(22px) saturate(120%);
 }
 
 .profile-glass {
@@ -829,11 +1209,11 @@ const handleLoginSuccess = () => {
     box-shadow 300ms ease;
 
   &.panel-closed {
-    min-height: 178px;
+    min-height: 228px;
   }
 
   &.panel-accounts {
-    min-height: 286px;
+    min-height: 340px;
   }
 
   &.panel-login {
@@ -846,6 +1226,14 @@ const handleLoginSuccess = () => {
       0 22px 48px color-mix(in srgb, var(--m-shadow, #000) 54%, transparent),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
+}
+
+.profile-glass.panel-accounts .profile-morph-stage {
+  min-height: 300px;
+}
+
+.login-morph-panel.active {
+  min-height: 500px;
 }
 
 .profile-morph-stage {
@@ -877,10 +1265,89 @@ const handleLoginSuccess = () => {
   transition-delay: 0s;
 }
 
+.profile-closed-view.active {
+  touch-action: none;
+}
+
+.profile-closed-view.is-account-gesture {
+  z-index: 4;
+  min-height: 248px;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.78);
+  transform-origin: center;
+  transition:
+    opacity 140ms ease,
+    transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.profile-closed-view.is-account-gesture .profile-avatar-button,
+.profile-closed-view.is-account-gesture .profile-copy,
+.profile-closed-view.is-account-gesture .profile-stats {
+  transition:
+    opacity 180ms ease,
+    transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.profile-closed-view.is-account-gesture .profile-avatar-button {
+  transform: scale(0.92);
+}
+
+.profile-delete-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  border-radius: inherit;
+  background: color-mix(in srgb, #ef4444 78%, transparent);
+  color: #fff;
+  text-align: center;
+}
+
+.profile-delete-overlay > div {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.profile-delete-overlay button {
+  min-width: 62px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.profile-delete-overlay button.danger {
+  background: #fff;
+  color: #b91c1c;
+}
+
+.profile-delete-overlay.is-deleting {
+  animation: profile-delete-overlay-out 460ms ease forwards;
+}
+
+@keyframes profile-delete-overlay-out {
+  0% {
+    opacity: 1;
+  }
+  42% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.86);
+  }
+}
+
 .profile-main {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
+  min-height: 126px;
 }
 
 .profile-avatar {
@@ -925,10 +1392,365 @@ const handleLoginSuccess = () => {
   border-top: 0;
 }
 
+.account-grid-panel.gesture-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: block;
+  min-height: 248px;
+  pointer-events: auto;
+}
+
+.account-grid-panel.gesture-overlay .account-morph-heading,
+.account-grid-panel.gesture-overlay .account-morph-grid,
+.account-grid-panel.gesture-overlay .account-add-morph {
+  display: none;
+}
+
+.account-grid-panel.gesture-overlay .account-gesture-shell {
+  min-height: 248px;
+}
+
 .account-morph-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.account-gesture-shell {
+  position: relative;
+  min-height: 300px;
+  overflow: visible;
+  touch-action: none;
+}
+
+.account-drop-zone {
+  position: absolute;
+  right: 0;
+  left: 0;
+  display: grid;
+  height: 46px;
+  place-items: center;
+  gap: 3px;
+  border: 1px dashed color-mix(in srgb, var(--m-text-muted) 45%, transparent);
+  border-radius: 18px;
+  color: var(--m-text-muted);
+  font-size: 11px;
+  opacity: 0.65;
+  transition:
+    transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 180ms ease,
+    background 180ms ease;
+
+  i {
+    font-size: 17px;
+  }
+}
+
+.account-drop-zone-delete {
+  top: 0;
+  transform: translateY(calc(-1 * var(--account-drag-y, 0px) * 0.16));
+}
+.account-drop-zone-login {
+  bottom: 0;
+  transform: translateY(calc(-1 * var(--account-drag-y, 0px) * 0.16));
+}
+
+.account-gesture-shell.snap-delete .account-drop-zone-delete,
+.account-gesture-shell.snap-login .account-drop-zone-login {
+  opacity: 1;
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  color: #ef4444;
+}
+
+.account-gesture-shell.snap-login .account-drop-zone-login {
+  background: color-mix(in srgb, var(--accent-color) 14%, transparent);
+  color: var(--accent-color);
+}
+
+.account-carousel-track {
+  position: absolute;
+  top: 54px;
+  right: 0;
+  bottom: 54px;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.account-carousel-card {
+  --account-card-base-height: 184px;
+
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  display: grid;
+  width: 100%;
+  height: calc(
+    var(--account-card-base-height) + var(--account-stretch-top, 0px) +
+      var(--account-stretch-bottom, 0px)
+  );
+  align-content: center;
+  gap: 14px;
+  padding: 18px 20px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--m-surface) 90%, transparent);
+  color: var(--m-text-primary);
+  opacity: 0.66;
+  transform: translate3d(
+      calc(-50% + var(--account-offset-x, 0%) + var(--account-drag-x, 0px)),
+      calc(-50% + var(--account-card-shift-y, 0px)),
+      0
+    )
+    scale(0.76);
+  transform-origin: center;
+  transition:
+    height 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 180ms ease,
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    background 180ms ease;
+  will-change: transform;
+}
+
+.account-carousel-card.active {
+  z-index: 3;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.account-carousel-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+
+  > img,
+  > span {
+    display: grid;
+    width: 66px;
+    height: 66px;
+    flex: 0 0 66px;
+    place-items: center;
+    border-radius: 50%;
+    object-fit: cover;
+    background: color-mix(in srgb, var(--m-surface-alt) 76%, transparent);
+    font-size: 24px;
+  }
+
+  > div {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  strong,
+  small,
+  em {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    font-size: 20px;
+    font-style: normal;
+    font-weight: 760;
+  }
+
+  small {
+    margin-top: 2px;
+    color: var(--m-text-muted);
+    font-size: 11px;
+  }
+
+  em {
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 7px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+    color: var(--m-text-secondary);
+    font-size: 9px;
+    font-style: normal;
+  }
+}
+
+.account-carousel-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 9px 7px;
+  border-radius: 17px;
+  background: color-mix(in srgb, var(--m-surface-alt) 50%, transparent);
+
+  > div {
+    display: grid;
+    min-width: 0;
+    place-items: center;
+  }
+
+  strong {
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  span {
+    overflow: hidden;
+    color: var(--m-text-muted);
+    font-size: 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.account-carousel-card.is-confirming {
+  background: color-mix(in srgb, #ef4444 22%, var(--m-surface));
+}
+
+.account-carousel-card.is-deleting {
+  animation: account-card-delete 460ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.account-neighbor {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  width: 42px;
+  height: 82px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--m-surface-alt) 55%, transparent);
+  opacity: 0.65;
+  transform: translateY(-50%);
+  transition:
+    transform 300ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 180ms ease;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.account-neighbor-left {
+  left: -8px;
+  transform: translate(calc(-1 * var(--account-drag-x, 0px) * 0.16), -50%);
+}
+.account-neighbor-right {
+  right: -8px;
+  transform: translate(calc(var(--account-drag-x, 0px) * 0.16), -50%);
+}
+
+.account-gesture-card {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: min(260px, 76%);
+  height: calc(142px + var(--account-stretch-top, 0px) + var(--account-stretch-bottom, 0px));
+  margin-top: calc(-1 * var(--account-stretch-top, 0px));
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent-color) 28%, transparent);
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--m-surface) 84%, transparent);
+  color: var(--m-text-primary);
+  transform: translate3d(var(--account-drag-x, 0px), 0, 0) scale(0.94);
+  transition:
+    height 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    margin-top 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 280ms cubic-bezier(0.32, 0.72, 0, 1),
+    background 180ms ease;
+}
+
+.account-gesture-card.is-confirming {
+  background: color-mix(in srgb, #ef4444 24%, var(--m-surface));
+}
+
+.account-gesture-card.is-deleting {
+  animation: account-card-delete 460ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.account-gesture-card.is-deleting .account-delete-overlay {
+  animation: account-card-content-out 180ms ease forwards;
+}
+.account-gesture-card .account-card-normal {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+}
+.account-gesture-card .account-card-normal > img,
+.account-gesture-card .account-card-normal > span {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.account-gesture-card .account-card-normal small {
+  color: var(--m-text-muted);
+  font-size: 11px;
+}
+
+.account-delete-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  pointer-events: auto;
+  background: color-mix(in srgb, #ef4444 76%, transparent);
+  color: #fff;
+  text-align: center;
+}
+
+.account-delete-overlay > div {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.account-delete-overlay button {
+  min-width: 62px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.account-delete-overlay button.danger {
+  background: #fff;
+  color: #b91c1c;
+}
+
+@keyframes account-card-delete {
+  0% {
+    height: 142px;
+    opacity: 1;
+    transform: scale(0.94);
+  }
+  62% {
+    height: 18px;
+    opacity: 1;
+    transform: scaleX(0.94);
+  }
+  100% {
+    height: 18px;
+    opacity: 0;
+    transform: scaleX(0.72);
+  }
+}
+
+@keyframes account-card-content-out {
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
 }
 
 .account-morph-heading {
@@ -1143,7 +1965,7 @@ const handleLoginSuccess = () => {
 .profile-copy h1 {
   margin: 0;
   color: var(--m-text-primary);
-  font-size: 24px;
+  font-size: clamp(22px, 6vw, 28px);
   font-weight: 760;
   line-height: 1.15;
 }
@@ -1171,10 +1993,12 @@ const handleLoginSuccess = () => {
 
 .profile-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid color-mix(in srgb, var(--m-border) 58%, transparent);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16px;
+  padding: 14px 8px;
+  border: 1px solid color-mix(in srgb, var(--m-border) 32%, transparent);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--m-surface-alt, #efede8) 46%, transparent);
 }
 
 .profile-stats div {
@@ -1184,7 +2008,7 @@ const handleLoginSuccess = () => {
 }
 
 .profile-stats div + div {
-  border-left: 1px solid color-mix(in srgb, var(--m-border) 58%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--m-border) 38%, transparent);
 }
 
 .profile-stats strong,

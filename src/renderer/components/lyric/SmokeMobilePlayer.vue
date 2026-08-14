@@ -4,9 +4,14 @@
       <div
         v-if="isVisible"
         class="smoke-mobile-player player-style-surface"
+        :class="{
+          'player-style-customized': isCustom,
+          'player-style-custom-font': customFontActive,
+          'player-style-custom-background': customBackgroundActive
+        }"
         :style="{
           ...styleVars,
-          '--smoke-color': saturatedThemeColor,
+          '--smoke-color': smokeColor,
           '--smoke-opacity': smokeOpacity,
           '--player-style-resolved-font': fontFamily
         }"
@@ -15,7 +20,7 @@
         @touchend="onSwipeCloseTouchEnd"
       >
         <smoke-background
-          :color="saturatedThemeColor"
+          :color="smokeColor"
           :density="smokeDensity"
           :chaos="smokeChaos"
           :loudness="smokeLoudness"
@@ -25,6 +30,13 @@
         <div
           class="smoke-vignette"
           :style="{ opacity: styleEngine.isInClimax ? smokeVignette : 0 }"
+        ></div>
+        <div
+          class="smoke-climax-glow"
+          :style="{
+            '--smoke-climax-glow-color': smokeClimaxGlowColor,
+            opacity: styleEngine.isInClimax ? 1 : 0
+          }"
         ></div>
         <climax-interlude-overlay :state="wordPlayback.interludeState.value" />
         <ttml-word-effect-layer
@@ -117,6 +129,7 @@ import StaggeredClimaxLyrics from '@/components/lyric/StaggeredClimaxLyrics.vue'
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
@@ -144,6 +157,8 @@ const {
   effects,
   styleVars,
   isCustom,
+  customBackgroundActive,
+  customFontActive,
   selectedFontFamily,
   saturatedThemeColor
 } = usePlayerStyleAppearance('smoke');
@@ -209,11 +224,24 @@ const smokeLoudness = computed(() =>
 );
 const smokeOpacity = computed(() => Number(styleCfg.value.smokeOpacity || 0.76));
 const smokeVignette = computed(() => Number(styleCfg.value.smokeVignette || 0.48));
+const smokeColor = computed(() =>
+  !isCustom.value || styleCfg.value.smokeFollowThemeColor !== false
+    ? saturatedThemeColor.value
+    : styleCfg.value.smokeCustomColor || '#5fffd0'
+);
+const smokeClimaxGlowColor = computed(() =>
+  !isCustom.value || styleCfg.value.smokeGlowFollowThemeColor !== false
+    ? saturatedThemeColor.value
+    : styleCfg.value.smokeGlowCustomColor || '#ff765f'
+);
 const fontFamily = computed(
   () => selectedFontFamily.value || "'KaiTi', 'STKaiti', 'Noto Serif SC', serif"
 );
 function close() {
-  isVisible.value = false;
+  useMobilePlayerTransition().close(0, () => {
+    isVisible.value = false;
+    playerStore.setMusicFull(false);
+  });
 }
 function openPlaylist() {
   playerStore.setPlayListDrawerVisible(true);
@@ -238,6 +266,21 @@ function openPlaylist() {
   z-index: 1;
   pointer-events: none;
   background: radial-gradient(circle, transparent 42%, rgba(0, 0, 0, 0.86) 100%);
+}
+.smoke-climax-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 48%,
+    color-mix(in srgb, var(--smoke-climax-glow-color, #fff) 12%, transparent) 72%,
+    color-mix(in srgb, var(--smoke-climax-glow-color, #fff) 52%, transparent) 100%
+  );
+  box-shadow: inset 0 0 clamp(42px, 11vw, 120px) clamp(8px, 2.5vw, 28px)
+    color-mix(in srgb, var(--smoke-climax-glow-color, #fff) 38%, transparent);
+  transition: opacity 240ms ease-out;
 }
 .smoke-lyrics {
   position: relative;
@@ -288,5 +331,10 @@ function openPlaylist() {
   position: absolute;
   inset: 0;
   z-index: 40;
+}
+@media (prefers-reduced-motion: reduce) {
+  .smoke-climax-glow {
+    transition: none;
+  }
 }
 </style>

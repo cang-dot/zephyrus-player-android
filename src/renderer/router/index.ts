@@ -3,6 +3,7 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import AppLayout from '@/layout/AppLayout.vue';
 import MiniLayout from '@/layout/MiniLayout.vue';
 import homeRouter from '@/router/home';
+import { isBareMobileLaunch, readMobileStartupTarget } from '@/router/mobileStartup';
 import otherRouter from '@/router/other';
 import { useSettingsStore } from '@/store/modules/settings';
 
@@ -39,20 +40,7 @@ const routes = [
   {
     path: '/',
     component: AppLayout,
-    children: [...homeRouter, loginRouter, ...otherRouter],
-    redirect: () => {
-      // 同步读取 localStorage，避免 settings store 异步加载未就绪
-      try {
-        const saved = localStorage.getItem('settings-data');
-        if (saved) {
-          const data = JSON.parse(saved);
-          if (data.defaultPage) return data.defaultPage;
-        }
-      } catch {
-        // Ignore malformed legacy settings and use the normal default route.
-      }
-      return '/';
-    }
+    children: [...homeRouter, loginRouter, ...otherRouter]
   },
   {
     path: '/lyric',
@@ -69,8 +57,21 @@ const router = createRouter({
   history: createWebHashHistory()
 });
 
+let startupRouteResolved = false;
+
 // 添加全局前置守卫
 router.beforeEach((to, _, next) => {
+  if (!startupRouteResolved) {
+    startupRouteResolved = true;
+    if (to.path === '/' && isBareMobileLaunch(window.location.hash)) {
+      const startupTarget = readMobileStartupTarget();
+      if (typeof startupTarget !== 'string' || startupTarget !== '/') {
+        next(startupTarget);
+        return;
+      }
+    }
+  }
+
   const settingsStore = getSettingsStore();
 
   // 如果是迷你模式

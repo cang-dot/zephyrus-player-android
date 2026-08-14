@@ -60,6 +60,7 @@ export default {
   accountSwitcher: {
     title: '切换账号',
     addAccount: '添加账号',
+    loginHint: '长按并向下滑动以登录账号',
     deleteAccount: '删除账号？',
     close: '关闭'
   }

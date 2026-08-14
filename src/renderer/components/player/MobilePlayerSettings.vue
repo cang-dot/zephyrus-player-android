@@ -61,655 +61,671 @@
             </div>
           </div>
 
-          <!-- 内容区域 -->
+          <!-- 内容区域：两页常驻，横向手势只移动轨道，不重建页面。 -->
           <div
-            v-if="activeTab === 'control'"
-            class="flex-1 overflow-y-auto px-5 pb-6"
-            :style="{ paddingBottom: `calc(24px + var(--safe-area-inset-bottom, 0px))` }"
+            ref="settingsTabViewportRef"
+            class="settings-tab-viewport"
+            @pointerdown="onTabPointerDown"
+            @pointermove="onTabPointerMove"
+            @pointerup="onTabPointerUp"
+            @pointercancel="onTabPointerCancel"
           >
-            <!-- 播放器样式 2×2 网格 -->
-            <div class="mb-6">
-              <div class="flex items-center justify-between mb-3">
-                <span class="text-sm font-medium text-white/80">
-                  {{ t('player.settings.playerStyle') || '播放器样式' }}
-                </span>
-              </div>
-              <div class="grid grid-cols-2 gap-3">
-                <button
-                  v-for="style in playerStyles"
-                  :key="style.key"
-                  @click="setPlayerStyle(style.key)"
-                  class="style-card relative flex flex-col items-center gap-2 rounded-2xl p-4 transition-all duration-300"
-                  :class="
-                    currentPlayerStyle === style.key
-                      ? 'style-card-active'
-                      : 'bg-white/5 hover:bg-white/10'
-                  "
-                >
-                  <i :class="style.icon" class="text-2xl" :style="{ color: style.color }" />
-                  <span
-                    class="text-xs font-medium"
-                    :class="currentPlayerStyle === style.key ? 'text-white' : 'text-white/60'"
-                  >
-                    {{ style.label }}
+            <div
+              class="settings-tab-page overflow-y-auto px-5 pb-6"
+              :aria-hidden="activeTab !== 'control'"
+              :inert="activeTab !== 'control'"
+              :style="getSettingsTabPageStyle('control')"
+            >
+              <!-- 播放器样式 2×2 网格 -->
+              <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-sm font-medium text-white/80">
+                    {{ t('player.settings.playerStyle') || '播放器样式' }}
                   </span>
-                </button>
-              </div>
-            </div>
-
-            <player-style-customization-panel
-              :key="currentPlayerStyle"
-              v-model="styleConfig"
-              :style-key="currentPlayerStyle"
-              @reset="resetCurrentStyleConfig"
-            />
-
-            <!-- 分隔线 -->
-            <div class="h-px bg-white/10 my-5"></div>
-
-            <!-- 手动标记高潮段落 -->
-            <div class="mb-6">
-              <div class="flex items-center justify-between mb-3">
-                <span class="text-sm font-medium text-white/80">
-                  <i class="ri-fire-line mr-1"></i>
-                  高潮段落标记
-                </span>
-                <span class="text-xs text-white/40">{{ manualClimaxSegments.length }} 段</span>
-              </div>
-
-              <!-- 当前播放时间显示 -->
-              <div class="flex items-center justify-between mb-2 px-1">
-                <span class="text-xs text-white/50">在时间轴上拖动以标记高潮段落</span>
-                <span class="text-xs font-mono text-white/60"
-                  >{{ formatTime(currentPlayTime) }} / {{ formatTime(songDuration) }}</span
-                >
-              </div>
-
-              <!-- 时间轴 -->
-              <div class="climax-timeline-wrapper">
-                <!-- 时间刻度 -->
-                <div class="climax-time-scale">
-                  <span
-                    v-for="mark in climaxTimeMarks"
-                    :key="mark"
-                    class="climax-time-mark"
-                    :style="{ left: (mark / songDuration) * 100 + '%' }"
-                    >{{ formatTime(mark) }}</span
-                  >
                 </div>
-
-                <!-- 时间轴主体 -->
-                <div
-                  class="climax-timeline"
-                  ref="climaxTimelineRef"
-                  @touchstart.passive="onTimelineTouchStart"
-                  @touchmove.passive="onTimelineTouchMove"
-                  @touchend="onTimelineTouchEnd"
-                >
-                  <!-- 已有段落 -->
-                  <div
-                    v-for="(seg, i) in manualClimaxSegments"
-                    :key="'seg-' + i"
-                    class="climax-region"
-                    :class="{
-                      'climax-region-active':
-                        currentPlayTime >= seg.start && currentPlayTime <= seg.end
-                    }"
-                    :style="getClimaxRegionStyle(seg)"
-                  >
-                    <!-- 左侧拖拽手柄 -->
-                    <div
-                      class="climax-handle left"
-                      @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'start')"
-                      @touchmove.stop.prevent="onEdgeTouchMove"
-                      @touchend.stop="onEdgeTouchEnd"
-                    ></div>
-                    <!-- 中间内容 -->
-                    <div class="climax-region-content">
-                      <span class="climax-region-label"
-                        >{{ formatTime(seg.start) }} - {{ formatTime(seg.end) }}</span
-                      >
-                      <button
-                        type="button"
-                        class="climax-region-remove"
-                        aria-label="删除高潮段落"
-                        @click.stop="removeClimaxSegment(i)"
-                      >
-                        <i class="ri-close-line"></i>
-                      </button>
-                    </div>
-                    <!-- 右侧拖拽手柄 -->
-                    <div
-                      class="climax-handle right"
-                      @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'end')"
-                      @touchmove.stop.prevent="onEdgeTouchMove"
-                      @touchend.stop="onEdgeTouchEnd"
-                    ></div>
-                  </div>
-
-                  <!-- 拖拽预览选区 -->
-                  <div
-                    v-if="isClimaxDragging"
-                    class="climax-preview"
-                    :style="getClimaxPreviewStyle()"
-                  ></div>
-
-                  <!-- 当前播放位置 -->
-                  <div
-                    class="climax-playhead"
-                    :style="{ left: (currentPlayTime / songDuration) * 100 + '%' }"
-                  ></div>
-                </div>
-              </div>
-
-              <!-- 操作按钮 -->
-              <div class="flex gap-2 mt-3">
-                <button
-                  v-if="manualClimaxSegments.length > 0"
-                  @click="clearAllClimaxSegments"
-                  class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
-                >
-                  <i class="ri-eraser-line mr-1"></i>清空全部
-                </button>
-                <button
-                  @click="seekToPlayhead"
-                  class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
-                >
-                  <i class="ri-music-2-line mr-1"></i>跳到播放位置
-                </button>
-                <button
-                  @click="queryCloudClimax"
-                  :disabled="cloudClimaxLoading"
-                  class="flex-1 py-2 rounded-xl text-sm bg-[var(--accent-color)]/20 text-[var(--accent-color)] active:scale-95 transition-transform disabled:opacity-50"
-                >
-                  <i v-if="cloudClimaxLoading" class="ri-loader-4-line animate-spin mr-1"></i>
-                  <i v-else class="ri-cloud-line mr-1"></i>
-                  {{ cloudClimaxLoading ? '查询中...' : '查询云端' }}
-                </button>
-                <button
-                  @click="uploadManualClimax"
-                  :disabled="
-                    manualClimaxSegments.length === 0 || uploadingClimax || isLocalSong(playMusic)
-                  "
-                  class="flex-1 py-2 rounded-xl text-sm bg-emerald-400/15 text-emerald-300 active:scale-95 transition-transform disabled:opacity-40"
-                >
-                  <i v-if="uploadingClimax" class="ri-loader-4-line animate-spin mr-1"></i>
-                  <i v-else class="ri-upload-cloud-2-line mr-1"></i>
-                  {{ uploadingClimax ? '上传中...' : '上传服务器' }}
-                </button>
-              </div>
-
-              <!-- 云端查询结果 -->
-              <div v-if="cloudClimaxResults.length > 0" class="mt-3 space-y-2">
-                <div class="text-xs text-white/50 px-1">
-                  找到 {{ cloudClimaxResults.length }} 条云端高潮数据，点击覆盖到本地
-                </div>
-                <div
-                  v-for="(result, i) in cloudClimaxResults"
-                  :key="'cloud-' + i"
-                  @click="applyCloudClimax(result)"
-                  class="flex items-center gap-3 p-3 rounded-xl bg-white/5 active:bg-white/10 transition-colors"
-                >
-                  <i class="ri-cloud-line text-white/40 text-lg flex-shrink-0"></i>
-                  <div class="flex-1 min-w-0">
-                    <div class="text-sm text-white/80 truncate">{{ result.songName }}</div>
-                    <div class="text-xs text-white/40 truncate">
-                      {{ result.artist || '未知艺术家' }} · {{ result.segments.length }}段 · 贡献者:
-                      {{ result.contributor || '云端' }}
-                    </div>
-                  </div>
-                  <i class="ri-download-2-line text-[var(--accent-color)] flex-shrink-0"></i>
-                </div>
-              </div>
-
-              <!-- 云端查询无结果 -->
-              <div
-                v-if="cloudClimaxSearched && cloudClimaxResults.length === 0"
-                class="mt-3 flex flex-col items-center justify-center py-3 text-white/30"
-              >
-                <i class="ri-cloud-off-line text-3xl mb-1"></i>
-                <p class="text-xs">未找到同名歌曲的云端高潮数据</p>
-              </div>
-
-              <!-- 空状态提示 -->
-              <div
-                v-if="manualClimaxSegments.length === 0 && !cloudClimaxSearched"
-                class="flex flex-col items-center justify-center py-3 text-white/30"
-              >
-                <i class="ri-fire-line text-3xl mb-1"></i>
-                <p class="text-xs">在时间轴上左右拖动来创建高潮段落</p>
-              </div>
-            </div>
-
-            <!-- 分隔线 -->
-            <div class="h-px bg-white/10 my-5"></div>
-
-            <!-- 歌词设置 -->
-            <div class="mb-6">
-              <div class="flex items-center justify-between mb-3">
-                <span class="text-sm font-medium text-white/80">
-                  <i class="ri-translate-2 mr-1"></i>
-                  歌词设置
-                </span>
-              </div>
-
-              <!-- 显示翻译 -->
-              <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
-                <div>
-                  <div class="text-sm text-white/80">
-                    {{ tr('settings.lyricSettings.showTranslation', '显示翻译') }}
-                  </div>
-                  <div class="text-xs text-white/40 mt-1">
-                    {{
-                      tr(
-                        'settings.lyricSettings.showTranslationDescription',
-                        '在歌词下方显示翻译文本'
-                      )
-                    }}
-                  </div>
-                </div>
-                <button
-                  class="share-toggle-switch"
-                  :class="{ on: lyricConfig.showTranslation }"
-                  @click="toggleShowTranslation"
-                >
-                  <span class="share-toggle-knob"></span>
-                </button>
-              </div>
-
-              <!-- 显示罗马音 -->
-              <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
-                <div>
-                  <div class="text-sm text-white/80">
-                    {{ tr('settings.lyricSettings.showRomanization', '显示罗马音') }}
-                  </div>
-                  <div class="text-xs text-white/40 mt-1">
-                    {{
-                      tr(
-                        'settings.lyricSettings.showRomanizationDescription',
-                        '在歌词下方显示罗马音文本'
-                      )
-                    }}
-                  </div>
-                </div>
-                <button
-                  class="share-toggle-switch"
-                  :class="{ on: lyricConfig.showRomanization }"
-                  @click="toggleShowRomanization"
-                >
-                  <span class="share-toggle-knob"></span>
-                </button>
-              </div>
-
-              <div
-                v-if="androidNativeAvailable"
-                class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2"
-              >
-                <div class="min-w-0 pr-3">
-                  <div class="text-sm text-white/80">
-                    {{ tr('settings.lyricSettings.statusBarLyrics', '状态栏歌词') }}
-                  </div>
-                  <div class="text-xs text-white/40 mt-1">
-                    {{
-                      tr(
-                        'settings.lyricSettings.statusBarLyricsDescription',
-                        '通过顶部悬浮窗在其他应用上方显示当前歌词'
-                      )
-                    }}
-                  </div>
-                </div>
-                <button
-                  class="share-toggle-switch"
-                  :class="{ on: lyricConfig.statusBarLyricsEnabled }"
-                  @click="toggleStatusBarLyrics"
-                >
-                  <span class="share-toggle-knob"></span>
-                </button>
-              </div>
-            </div>
-
-            <!-- 分隔线 -->
-            <div class="h-px bg-white/10 my-5"></div>
-
-            <!-- 播放速度 -->
-            <div class="mb-6">
-              <div class="flex items-center justify-between mb-3">
-                <span class="text-sm font-medium text-white/80">
-                  {{ t('player.settings.playbackSpeed') }}
-                </span>
-                <span class="text-sm text-[var(--accent-color-light)] font-medium"
-                  >{{ playbackRate }}x</span
-                >
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  v-for="option in speedOptions"
-                  :key="option"
-                  @click="setSpeed(option)"
-                  class="px-4 py-2 rounded-full text-sm font-medium transition-colors"
-                  :class="
-                    playbackRate === option
-                      ? 'bg-[var(--accent-color)] text-white'
-                      : 'bg-white/10 text-white/70 hover:bg-white/15'
-                  "
-                >
-                  {{ option }}x
-                </button>
-              </div>
-            </div>
-
-            <!-- 分隔线 -->
-            <div class="h-px bg-white/10 my-5"></div>
-
-            <!-- 歌词解析 -->
-            <div class="mb-6">
-              <div class="flex items-center justify-between mb-3">
-                <span class="text-sm font-medium text-white/80">
-                  <i class="ri-quill-pen-line mr-1"></i>
-                  歌词解析
-                </span>
-                <button
-                  v-if="!metaphorLoading && !metaphorResult"
-                  @click="analyzeLyrics"
-                  class="px-3 py-1 rounded-full text-sm font-medium bg-[var(--accent-color)] text-white"
-                >
-                  开始分析
-                </button>
-                <button
-                  v-if="metaphorResult || metaphorLoading"
-                  @click="analyzeLyrics"
-                  :disabled="metaphorLoading"
-                  class="px-3 py-1 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15 disabled:opacity-50"
-                >
-                  {{ metaphorLoading ? '分析中...' : '重新分析' }}
-                </button>
-              </div>
-
-              <!-- 加载中 -->
-              <div
-                v-if="metaphorLoading"
-                class="flex flex-col items-center justify-center py-8 text-white/50"
-              >
-                <i class="ri-loader-4-line animate-spin text-3xl mb-3"></i>
-                <p class="text-sm">正在分析歌词...</p>
-                <p class="text-xs opacity-60 mt-1">AI 分析可能需要 10-30 秒</p>
-              </div>
-
-              <!-- 错误 -->
-              <div
-                v-else-if="metaphorError"
-                class="flex flex-col items-center justify-center py-8 text-white/50 text-center"
-              >
-                <i class="ri-error-warning-line text-3xl mb-3 text-red-400"></i>
-                <p class="text-sm max-w-xs">{{ metaphorError }}</p>
-                <button
-                  @click="analyzeLyrics"
-                  class="mt-3 px-3 py-1 rounded-full text-sm bg-white/10 text-white/70 hover:bg-white/15"
-                >
-                  重试
-                </button>
-              </div>
-
-              <!-- 结果 -->
-              <div
-                v-else-if="metaphorResult"
-                class="metaphor-result prose prose-invert max-w-none text-sm leading-relaxed text-white/80"
-                v-html="sanitizedMetaphorResult"
-              ></div>
-
-              <!-- 空状态 -->
-              <div v-else class="flex flex-col items-center justify-center py-6 text-white/40">
-                <i class="ri-quill-pen-line text-4xl mb-2"></i>
-                <p class="text-sm">分析当前歌词的隐喻和修辞手法</p>
-              </div>
-
-              <!-- 缓存标记 -->
-              <div
-                v-if="metaphorCached"
-                class="flex items-center justify-center mt-3 text-xs text-white/30"
-              >
-                <i class="ri-database-2-line mr-1"></i> 缓存结果
-              </div>
-            </div>
-
-            <!-- 分隔线 -->
-            <div class="h-px bg-white/10 my-5"></div>
-
-            <!-- 分享功能 -->
-            <div class="mb-6">
-              <div class="flex items-center justify-between mb-3">
-                <span class="text-sm font-medium text-white/80">
-                  <i class="ri-share-line mr-1"></i>
-                  分享功能
-                </span>
-              </div>
-
-              <!-- 截图自动添加二维码 -->
-              <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
-                <div>
-                  <div class="text-sm text-white/80">截图自动添加二维码</div>
-                  <div class="text-xs text-white/40 mt-1">截图后自动叠加歌曲深链二维码</div>
-                </div>
-                <button
-                  class="share-toggle-switch"
-                  :class="{ on: lyricConfig.shareScreenshotQRCode }"
-                  @click="toggleShareScreenshotQRCode"
-                >
-                  <span class="share-toggle-knob"></span>
-                </button>
-              </div>
-
-              <!-- 默认海报布局 -->
-              <div class="p-3 rounded-2xl bg-white/5 mb-2">
-                <div class="text-sm text-white/80 mb-2">默认海报布局</div>
-                <div class="flex gap-2">
+                <div class="grid grid-cols-2 gap-3">
                   <button
-                    v-for="layout in posterLayouts"
-                    :key="layout.key"
-                    @click="setShareDefaultLayout(layout.key)"
-                    class="px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                    v-for="style in playerStyles"
+                    :key="style.key"
+                    @click="setPlayerStyle(style.key)"
+                    class="style-card relative flex flex-col items-center gap-2 rounded-2xl p-4 transition-all duration-300"
                     :class="
-                      lyricConfig.shareDefaultPosterLayout === layout.key
-                        ? 'bg-[var(--accent-color)] text-white'
-                        : 'bg-white/10 text-white/60'
+                      currentPlayerStyle === style.key
+                        ? 'style-card-active'
+                        : 'bg-white/5 hover:bg-white/10'
                     "
                   >
-                    <i :class="layout.icon" class="mr-1"></i>
-                    {{ layout.label }}
+                    <i :class="style.icon" class="text-2xl" :style="{ color: style.color }" />
+                    <span
+                      class="text-xs font-medium"
+                      :class="currentPlayerStyle === style.key ? 'text-white' : 'text-white/60'"
+                    >
+                      {{ style.label }}
+                    </span>
                   </button>
                 </div>
               </div>
 
-              <!-- 长按歌词提示 -->
-              <div class="p-3 rounded-2xl bg-white/5">
-                <div class="flex items-center gap-2 text-xs text-white/50">
-                  <i class="ri-information-line"></i>
-                  <span>在歌词页面长按歌词可进入多选模式，生成精美海报</span>
+              <player-style-customization-panel
+                :key="currentPlayerStyle"
+                v-model="styleConfig"
+                :style-key="currentPlayerStyle"
+                @reset="resetCurrentStyleConfig"
+              />
+
+              <!-- 分隔线 -->
+              <div class="h-px bg-white/10 my-5"></div>
+
+              <!-- 手动标记高潮段落 -->
+              <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-sm font-medium text-white/80">
+                    <i class="ri-fire-line mr-1"></i>
+                    高潮段落标记
+                  </span>
+                  <span class="text-xs text-white/40">{{ manualClimaxSegments.length }} 段</span>
                 </div>
-              </div>
-            </div>
 
-            <!-- 分隔线 -->
-            <div class="h-px bg-white/10 my-5"></div>
+                <!-- 当前播放时间显示 -->
+                <div class="flex items-center justify-between mb-2 px-1">
+                  <span class="text-xs text-white/50">在时间轴上拖动以标记高潮段落</span>
+                  <span class="text-xs font-mono text-white/60"
+                    >{{ formatTime(currentPlayTime) }} / {{ formatTime(songDuration) }}</span
+                  >
+                </div>
 
-            <!-- 定时关闭 -->
-            <div>
-              <div class="flex items-center justify-between mb-3">
-                <span class="text-sm font-medium text-white/80">
-                  {{ t('player.sleepTimer.title') }}
-                </span>
-                <span
-                  v-if="hasTimerActive"
-                  class="text-sm text-[var(--accent-color-light)] font-medium"
-                >
-                  {{ timerStatusText }}
-                </span>
-              </div>
+                <!-- 时间轴 -->
+                <div class="climax-timeline-wrapper">
+                  <!-- 时间刻度 -->
+                  <div class="climax-time-scale">
+                    <span
+                      v-for="mark in climaxTimeMarks"
+                      :key="mark"
+                      class="climax-time-mark"
+                      :style="{ left: (mark / songDuration) * 100 + '%' }"
+                      >{{ formatTime(mark) }}</span
+                    >
+                  </div>
 
-              <!-- 已激活状态 -->
-              <div v-if="hasTimerActive" class="space-y-3">
+                  <!-- 时间轴主体 -->
+                  <div
+                    class="climax-timeline"
+                    ref="climaxTimelineRef"
+                    @touchstart.passive="onTimelineTouchStart"
+                    @touchmove.passive="onTimelineTouchMove"
+                    @touchend="onTimelineTouchEnd"
+                  >
+                    <!-- 已有段落 -->
+                    <div
+                      v-for="(seg, i) in manualClimaxSegments"
+                      :key="'seg-' + i"
+                      class="climax-region"
+                      :class="{
+                        'climax-region-active':
+                          currentPlayTime >= seg.start && currentPlayTime <= seg.end
+                      }"
+                      :style="getClimaxRegionStyle(seg)"
+                    >
+                      <!-- 左侧拖拽手柄 -->
+                      <div
+                        class="climax-handle left"
+                        @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'start')"
+                        @touchmove.stop.prevent="onEdgeTouchMove"
+                        @touchend.stop="onEdgeTouchEnd"
+                      ></div>
+                      <!-- 中间内容 -->
+                      <div class="climax-region-content">
+                        <span class="climax-region-label"
+                          >{{ formatTime(seg.start) }} - {{ formatTime(seg.end) }}</span
+                        >
+                        <button
+                          type="button"
+                          class="climax-region-remove"
+                          aria-label="删除高潮段落"
+                          @click.stop="removeClimaxSegment(i)"
+                        >
+                          <i class="ri-close-line"></i>
+                        </button>
+                      </div>
+                      <!-- 右侧拖拽手柄 -->
+                      <div
+                        class="climax-handle right"
+                        @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'end')"
+                        @touchmove.stop.prevent="onEdgeTouchMove"
+                        @touchend.stop="onEdgeTouchEnd"
+                      ></div>
+                    </div>
+
+                    <!-- 拖拽预览选区 -->
+                    <div
+                      v-if="isClimaxDragging"
+                      class="climax-preview"
+                      :style="getClimaxPreviewStyle()"
+                    ></div>
+
+                    <!-- 当前播放位置 -->
+                    <div
+                      class="climax-playhead"
+                      :style="{ left: (currentPlayTime / songDuration) * 100 + '%' }"
+                    ></div>
+                  </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="flex gap-2 mt-3">
+                  <button
+                    v-if="manualClimaxSegments.length > 0"
+                    @click="clearAllClimaxSegments"
+                    class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
+                  >
+                    <i class="ri-eraser-line mr-1"></i>清空全部
+                  </button>
+                  <button
+                    @click="seekToPlayhead"
+                    class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
+                  >
+                    <i class="ri-music-2-line mr-1"></i>跳到播放位置
+                  </button>
+                  <button
+                    @click="queryCloudClimax"
+                    :disabled="cloudClimaxLoading"
+                    class="flex-1 py-2 rounded-xl text-sm bg-[var(--accent-color)]/20 text-[var(--accent-color)] active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    <i v-if="cloudClimaxLoading" class="ri-loader-4-line animate-spin mr-1"></i>
+                    <i v-else class="ri-cloud-line mr-1"></i>
+                    {{ cloudClimaxLoading ? '查询中...' : '查询云端' }}
+                  </button>
+                  <button
+                    @click="uploadManualClimax"
+                    :disabled="
+                      manualClimaxSegments.length === 0 || uploadingClimax || isLocalSong(playMusic)
+                    "
+                    class="flex-1 py-2 rounded-xl text-sm bg-emerald-400/15 text-emerald-300 active:scale-95 transition-transform disabled:opacity-40"
+                  >
+                    <i v-if="uploadingClimax" class="ri-loader-4-line animate-spin mr-1"></i>
+                    <i v-else class="ri-upload-cloud-2-line mr-1"></i>
+                    {{ uploadingClimax ? '上传中...' : '上传服务器' }}
+                  </button>
+                </div>
+
+                <!-- 云端查询结果 -->
+                <div v-if="cloudClimaxResults.length > 0" class="mt-3 space-y-2">
+                  <div class="text-xs text-white/50 px-1">
+                    找到 {{ cloudClimaxResults.length }} 条云端高潮数据，点击覆盖到本地
+                  </div>
+                  <div
+                    v-for="(result, i) in cloudClimaxResults"
+                    :key="'cloud-' + i"
+                    @click="applyCloudClimax(result)"
+                    class="flex items-center gap-3 p-3 rounded-xl bg-white/5 active:bg-white/10 transition-colors"
+                  >
+                    <i class="ri-cloud-line text-white/40 text-lg flex-shrink-0"></i>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-sm text-white/80 truncate">{{ result.songName }}</div>
+                      <div class="text-xs text-white/40 truncate">
+                        {{ result.artist || '未知艺术家' }} · {{ result.segments.length }}段 ·
+                        贡献者:
+                        {{ result.contributor || '云端' }}
+                      </div>
+                    </div>
+                    <i class="ri-download-2-line text-[var(--accent-color)] flex-shrink-0"></i>
+                  </div>
+                </div>
+
+                <!-- 云端查询无结果 -->
                 <div
-                  class="p-4 rounded-2xl bg-[var(--accent-color)]/15 border border-[var(--accent-color)]/30"
+                  v-if="cloudClimaxSearched && cloudClimaxResults.length === 0"
+                  class="mt-3 flex flex-col items-center justify-center py-3 text-white/30"
                 >
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                      <i class="ri-timer-line text-[var(--accent-color-light)] text-xl"></i>
-                      <span class="text-[var(--accent-color-light)]">
-                        {{ timerDisplayText }}
-                      </span>
+                  <i class="ri-cloud-off-line text-3xl mb-1"></i>
+                  <p class="text-xs">未找到同名歌曲的云端高潮数据</p>
+                </div>
+
+                <!-- 空状态提示 -->
+                <div
+                  v-if="manualClimaxSegments.length === 0 && !cloudClimaxSearched"
+                  class="flex flex-col items-center justify-center py-3 text-white/30"
+                >
+                  <i class="ri-fire-line text-3xl mb-1"></i>
+                  <p class="text-xs">在时间轴上左右拖动来创建高潮段落</p>
+                </div>
+              </div>
+
+              <!-- 分隔线 -->
+              <div class="h-px bg-white/10 my-5"></div>
+
+              <!-- 歌词设置 -->
+              <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-sm font-medium text-white/80">
+                    <i class="ri-translate-2 mr-1"></i>
+                    歌词设置
+                  </span>
+                </div>
+
+                <!-- 显示翻译 -->
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                  <div>
+                    <div class="text-sm text-white/80">
+                      {{ tr('settings.lyricSettings.showTranslation', '显示翻译') }}
                     </div>
+                    <div class="text-xs text-white/40 mt-1">
+                      {{
+                        tr(
+                          'settings.lyricSettings.showTranslationDescription',
+                          '在歌词下方显示翻译文本'
+                        )
+                      }}
+                    </div>
+                  </div>
+                  <button
+                    class="share-toggle-switch"
+                    :class="{ on: lyricConfig.showTranslation }"
+                    @click="toggleShowTranslation"
+                  >
+                    <span class="share-toggle-knob"></span>
+                  </button>
+                </div>
+
+                <!-- 显示罗马音 -->
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                  <div>
+                    <div class="text-sm text-white/80">
+                      {{ tr('settings.lyricSettings.showRomanization', '显示罗马音') }}
+                    </div>
+                    <div class="text-xs text-white/40 mt-1">
+                      {{
+                        tr(
+                          'settings.lyricSettings.showRomanizationDescription',
+                          '在歌词下方显示罗马音文本'
+                        )
+                      }}
+                    </div>
+                  </div>
+                  <button
+                    class="share-toggle-switch"
+                    :class="{ on: lyricConfig.showRomanization }"
+                    @click="toggleShowRomanization"
+                  >
+                    <span class="share-toggle-knob"></span>
+                  </button>
+                </div>
+
+                <div
+                  v-if="androidNativeAvailable"
+                  class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2"
+                >
+                  <div class="min-w-0 pr-3">
+                    <div class="text-sm text-white/80">
+                      {{ tr('settings.lyricSettings.statusBarLyrics', '状态栏歌词') }}
+                    </div>
+                    <div class="text-xs text-white/40 mt-1">
+                      {{
+                        tr(
+                          'settings.lyricSettings.statusBarLyricsDescription',
+                          '通过顶部悬浮窗在其他应用上方显示当前歌词'
+                        )
+                      }}
+                    </div>
+                  </div>
+                  <button
+                    class="share-toggle-switch"
+                    :class="{ on: lyricConfig.statusBarLyricsEnabled }"
+                    @click="toggleStatusBarLyrics"
+                  >
+                    <span class="share-toggle-knob"></span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 分隔线 -->
+              <div class="h-px bg-white/10 my-5"></div>
+
+              <!-- 播放速度 -->
+              <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-sm font-medium text-white/80">
+                    {{ t('player.settings.playbackSpeed') }}
+                  </span>
+                  <span class="text-sm text-[var(--accent-color-light)] font-medium"
+                    >{{ playbackRate }}x</span
+                  >
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-for="option in speedOptions"
+                    :key="option"
+                    @click="setSpeed(option)"
+                    class="px-4 py-2 rounded-full text-sm font-medium transition-colors"
+                    :class="
+                      playbackRate === option
+                        ? 'bg-[var(--accent-color)] text-white'
+                        : 'bg-white/10 text-white/70 hover:bg-white/15'
+                    "
+                  >
+                    {{ option }}x
+                  </button>
+                </div>
+              </div>
+
+              <!-- 分隔线 -->
+              <div class="h-px bg-white/10 my-5"></div>
+
+              <!-- 歌词解析 -->
+              <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-sm font-medium text-white/80">
+                    <i class="ri-quill-pen-line mr-1"></i>
+                    歌词解析
+                  </span>
+                  <button
+                    v-if="!metaphorLoading && !metaphorResult"
+                    @click="analyzeLyrics"
+                    class="px-3 py-1 rounded-full text-sm font-medium bg-[var(--accent-color)] text-white"
+                  >
+                    开始分析
+                  </button>
+                  <button
+                    v-if="metaphorResult || metaphorLoading"
+                    @click="analyzeLyrics"
+                    :disabled="metaphorLoading"
+                    class="px-3 py-1 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15 disabled:opacity-50"
+                  >
+                    {{ metaphorLoading ? '分析中...' : '重新分析' }}
+                  </button>
+                </div>
+
+                <!-- 加载中 -->
+                <div
+                  v-if="metaphorLoading"
+                  class="flex flex-col items-center justify-center py-8 text-white/50"
+                >
+                  <i class="ri-loader-4-line animate-spin text-3xl mb-3"></i>
+                  <p class="text-sm">正在分析歌词...</p>
+                  <p class="text-xs opacity-60 mt-1">AI 分析可能需要 10-30 秒</p>
+                </div>
+
+                <!-- 错误 -->
+                <div
+                  v-else-if="metaphorError"
+                  class="flex flex-col items-center justify-center py-8 text-white/50 text-center"
+                >
+                  <i class="ri-error-warning-line text-3xl mb-3 text-red-400"></i>
+                  <p class="text-sm max-w-xs">{{ metaphorError }}</p>
+                  <button
+                    @click="analyzeLyrics"
+                    class="mt-3 px-3 py-1 rounded-full text-sm bg-white/10 text-white/70 hover:bg-white/15"
+                  >
+                    重试
+                  </button>
+                </div>
+
+                <!-- 结果 -->
+                <div
+                  v-else-if="metaphorResult"
+                  class="metaphor-result prose prose-invert max-w-none text-sm leading-relaxed text-white/80"
+                  v-html="sanitizedMetaphorResult"
+                ></div>
+
+                <!-- 空状态 -->
+                <div v-else class="flex flex-col items-center justify-center py-6 text-white/40">
+                  <i class="ri-quill-pen-line text-4xl mb-2"></i>
+                  <p class="text-sm">分析当前歌词的隐喻和修辞手法</p>
+                </div>
+
+                <!-- 缓存标记 -->
+                <div
+                  v-if="metaphorCached"
+                  class="flex items-center justify-center mt-3 text-xs text-white/30"
+                >
+                  <i class="ri-database-2-line mr-1"></i> 缓存结果
+                </div>
+              </div>
+
+              <!-- 分隔线 -->
+              <div class="h-px bg-white/10 my-5"></div>
+
+              <!-- 分享功能 -->
+              <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-sm font-medium text-white/80">
+                    <i class="ri-share-line mr-1"></i>
+                    分享功能
+                  </span>
+                </div>
+
+                <!-- 截图自动添加二维码 -->
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                  <div>
+                    <div class="text-sm text-white/80">截图自动添加二维码</div>
+                    <div class="text-xs text-white/40 mt-1">截图后自动叠加歌曲深链二维码</div>
+                  </div>
+                  <button
+                    class="share-toggle-switch"
+                    :class="{ on: lyricConfig.shareScreenshotQRCode }"
+                    @click="toggleShareScreenshotQRCode"
+                  >
+                    <span class="share-toggle-knob"></span>
+                  </button>
+                </div>
+
+                <!-- 默认海报布局 -->
+                <div class="p-3 rounded-2xl bg-white/5 mb-2">
+                  <div class="text-sm text-white/80 mb-2">默认海报布局</div>
+                  <div class="flex gap-2">
                     <button
-                      @click="cancelTimer"
-                      class="px-3 py-1 rounded-full text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                      v-for="layout in posterLayouts"
+                      :key="layout.key"
+                      @click="setShareDefaultLayout(layout.key)"
+                      class="px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                      :class="
+                        lyricConfig.shareDefaultPosterLayout === layout.key
+                          ? 'bg-[var(--accent-color)] text-white'
+                          : 'bg-white/10 text-white/60'
+                      "
                     >
-                      {{ t('player.sleepTimer.cancel') }}
+                      <i :class="layout.icon" class="mr-1"></i>
+                      {{ layout.label }}
                     </button>
+                  </div>
+                </div>
+
+                <!-- 长按歌词提示 -->
+                <div class="p-3 rounded-2xl bg-white/5">
+                  <div class="flex items-center gap-2 text-xs text-white/50">
+                    <i class="ri-information-line"></i>
+                    <span>在歌词页面长按歌词可进入多选模式，生成精美海报</span>
                   </div>
                 </div>
               </div>
 
-              <!-- 未激活状态 - 设置选项 -->
-              <div v-else class="space-y-4">
-                <!-- 按时间 -->
-                <div>
-                  <p class="text-xs text-white/50 mb-2">
-                    {{ t('player.sleepTimer.timeMode') }}
-                  </p>
-                  <div class="flex flex-wrap gap-2">
-                    <button
-                      v-for="minutes in [15, 30, 60, 90]"
-                      :key="minutes"
-                      @click="setTimeTimer(minutes)"
-                      class="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
-                    >
-                      {{ minutes }}{{ t('player.sleepTimer.minutes') }}
-                    </button>
-                  </div>
-                  <!-- 自定义时间 -->
-                  <div class="flex items-center gap-2 mt-3">
-                    <div class="flex items-center flex-1 bg-white/10 rounded-full overflow-hidden">
+              <!-- 分隔线 -->
+              <div class="h-px bg-white/10 my-5"></div>
+
+              <!-- 定时关闭 -->
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-sm font-medium text-white/80">
+                    {{ t('player.sleepTimer.title') }}
+                  </span>
+                  <span
+                    v-if="hasTimerActive"
+                    class="text-sm text-[var(--accent-color-light)] font-medium"
+                  >
+                    {{ timerStatusText }}
+                  </span>
+                </div>
+
+                <!-- 已激活状态 -->
+                <div v-if="hasTimerActive" class="space-y-3">
+                  <div
+                    class="p-4 rounded-2xl bg-[var(--accent-color)]/15 border border-[var(--accent-color)]/30"
+                  >
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                        <i class="ri-timer-line text-[var(--accent-color-light)] text-xl"></i>
+                        <span class="text-[var(--accent-color-light)]">
+                          {{ timerDisplayText }}
+                        </span>
+                      </div>
                       <button
-                        @click="decreaseMinutes"
-                        class="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20"
+                        @click="cancelTimer"
+                        class="px-3 py-1 rounded-full text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30"
                       >
-                        <i class="ri-subtract-line text-lg"></i>
-                      </button>
-                      <input
-                        v-model="customMinutes"
-                        type="text"
-                        inputmode="numeric"
-                        pattern="[0-9]*"
-                        placeholder="分钟"
-                        class="flex-1 px-2 py-2 text-sm text-center bg-transparent text-white/80 border-0 outline-none placeholder-white/40"
-                        @input="handleMinutesInput"
-                      />
-                      <button
-                        @click="increaseMinutes"
-                        class="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20"
-                      >
-                        <i class="ri-add-line text-lg"></i>
+                        {{ t('player.sleepTimer.cancel') }}
                       </button>
                     </div>
-                    <button
-                      @click="setCustomTimeTimer"
-                      :disabled="!customMinutes || Number(customMinutes) < 1"
-                      class="px-4 py-2 rounded-full text-sm font-medium bg-[var(--accent-color)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {{ t('player.sleepTimer.set') }}
-                    </button>
                   </div>
                 </div>
 
-                <!-- 按歌曲数 -->
-                <div>
-                  <p class="text-xs text-white/50 mb-2">
-                    {{ t('player.sleepTimer.songsMode') }}
-                  </p>
-                  <div class="flex flex-wrap gap-2">
-                    <button
-                      v-for="songs in [1, 3, 5, 10]"
-                      :key="songs"
-                      @click="setSongsTimer(songs)"
-                      class="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
-                    >
-                      {{ songs }}{{ t('player.sleepTimer.songs') }}
-                    </button>
+                <!-- 未激活状态 - 设置选项 -->
+                <div v-else class="space-y-4">
+                  <!-- 按时间 -->
+                  <div>
+                    <p class="text-xs text-white/50 mb-2">
+                      {{ t('player.sleepTimer.timeMode') }}
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                      <button
+                        v-for="minutes in [15, 30, 60, 90]"
+                        :key="minutes"
+                        @click="setTimeTimer(minutes)"
+                        class="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
+                      >
+                        {{ minutes }}{{ t('player.sleepTimer.minutes') }}
+                      </button>
+                    </div>
+                    <!-- 自定义时间 -->
+                    <div class="flex items-center gap-2 mt-3">
+                      <div
+                        class="flex items-center flex-1 bg-white/10 rounded-full overflow-hidden"
+                      >
+                        <button
+                          @click="decreaseMinutes"
+                          class="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20"
+                        >
+                          <i class="ri-subtract-line text-lg"></i>
+                        </button>
+                        <input
+                          v-model="customMinutes"
+                          type="text"
+                          inputmode="numeric"
+                          pattern="[0-9]*"
+                          placeholder="分钟"
+                          class="flex-1 px-2 py-2 text-sm text-center bg-transparent text-white/80 border-0 outline-none placeholder-white/40"
+                          @input="handleMinutesInput"
+                        />
+                        <button
+                          @click="increaseMinutes"
+                          class="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20"
+                        >
+                          <i class="ri-add-line text-lg"></i>
+                        </button>
+                      </div>
+                      <button
+                        @click="setCustomTimeTimer"
+                        :disabled="!customMinutes || Number(customMinutes) < 1"
+                        class="px-4 py-2 rounded-full text-sm font-medium bg-[var(--accent-color)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {{ t('player.sleepTimer.set') }}
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <!-- 播放列表结束 -->
-                <button
-                  @click="setPlaylistEndTimer"
-                  class="w-full py-3 rounded-2xl text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
-                >
-                  {{ t('player.sleepTimer.playlistEnd') }}
-                </button>
+                  <!-- 按歌曲数 -->
+                  <div>
+                    <p class="text-xs text-white/50 mb-2">
+                      {{ t('player.sleepTimer.songsMode') }}
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                      <button
+                        v-for="songs in [1, 3, 5, 10]"
+                        :key="songs"
+                        @click="setSongsTimer(songs)"
+                        class="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
+                      >
+                        {{ songs }}{{ t('player.sleepTimer.songs') }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- 播放列表结束 -->
+                  <button
+                    @click="setPlaylistEndTimer"
+                    class="w-full py-3 rounded-2xl text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
+                  >
+                    {{ t('player.sleepTimer.playlistEnd') }}
+                  </button>
+                </div>
               </div>
+
+              <!-- 分隔线 -->
+              <div class="h-px bg-white/10 my-5"></div>
             </div>
 
-            <!-- 分隔线 -->
-            <div class="h-px bg-white/10 my-5"></div>
-          </div>
-
-          <div
-            v-else
-            class="flex-1 overflow-y-auto px-5 pb-6"
-            :style="{ paddingBottom: `calc(24px + var(--safe-area-inset-bottom, 0px))` }"
-          >
-            <div v-if="currentSong" class="space-y-4">
-              <div class="flex items-center gap-4 rounded-2xl bg-white/5 p-4">
-                <img
-                  :src="getImgUrl(currentSong.picUrl || currentSong.al?.picUrl, '200y200')"
-                  class="h-16 w-16 rounded-xl object-cover"
-                />
-                <div class="min-w-0 flex-1">
-                  <div class="truncate text-base font-semibold text-white">
-                    {{ currentSong.name }}
-                  </div>
-                  <div class="mt-1 truncate text-sm text-white/50">
-                    {{ currentArtistText || '未知艺术家' }}
-                  </div>
-                  <div v-if="currentAlbum?.name" class="mt-1 truncate text-xs text-white/35">
-                    {{ currentAlbum.name }}
+            <div
+              class="settings-tab-page overflow-y-auto px-5 pb-6"
+              :aria-hidden="activeTab !== 'song'"
+              :inert="activeTab !== 'song'"
+              :style="getSettingsTabPageStyle('song')"
+            >
+              <div v-if="currentSong" class="space-y-4">
+                <div class="flex items-center gap-4 rounded-2xl bg-white/5 p-4">
+                  <img
+                    :src="getImgUrl(currentSong.picUrl || currentSong.al?.picUrl, '200y200')"
+                    class="h-16 w-16 rounded-xl object-cover"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-base font-semibold text-white">
+                      {{ currentSong.name }}
+                    </div>
+                    <div class="mt-1 truncate text-sm text-white/50">
+                      {{ currentArtistText || '未知艺术家' }}
+                    </div>
+                    <div v-if="currentAlbum?.name" class="mt-1 truncate text-xs text-white/35">
+                      {{ currentAlbum.name }}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div class="overflow-hidden rounded-2xl bg-white/5">
-                <button class="song-setting-action" @click="playCurrentSong">
-                  <i class="ri-play-circle-line"></i><span>播放</span>
-                </button>
-                <button class="song-setting-action" @click="playCurrentNext">
-                  <i class="ri-play-list-2-line"></i><span>下一首播放</span>
-                </button>
-                <button
-                  v-if="currentArtistId"
-                  class="song-setting-action"
-                  @click="openCurrentArtist"
-                >
-                  <i class="ri-user-line"></i><span>歌手：{{ currentArtistText }}</span
-                  ><i class="ri-arrow-right-s-line ml-auto"></i>
-                </button>
-                <button
-                  v-if="currentAlbum?.name"
-                  class="song-setting-action"
-                  @click="openCurrentAlbum"
-                >
-                  <i class="ri-disc-line"></i><span>专辑：{{ currentAlbum.name }}</span
-                  ><i class="ri-arrow-right-s-line ml-auto"></i>
-                </button>
-                <button class="song-setting-action" @click="addCurrentToPlaylist">
-                  <i class="ri-folder-add-line"></i><span>添加到歌单</span>
-                </button>
-                <button class="song-setting-action" @click="toggleCurrentFavorite">
-                  <i :class="currentIsFavorite ? 'ri-heart-fill text-red-400' : 'ri-heart-line'"></i
-                  ><span>{{ currentIsFavorite ? '取消收藏' : '收藏' }}</span>
-                </button>
+                <div class="overflow-hidden rounded-2xl bg-white/5">
+                  <button class="song-setting-action" @click="playCurrentSong">
+                    <i class="ri-play-circle-line"></i><span>播放</span>
+                  </button>
+                  <button class="song-setting-action" @click="playCurrentNext">
+                    <i class="ri-play-list-2-line"></i><span>下一首播放</span>
+                  </button>
+                  <button
+                    v-if="currentArtistId"
+                    class="song-setting-action"
+                    @click="openCurrentArtist"
+                  >
+                    <i class="ri-user-line"></i><span>歌手：{{ currentArtistText }}</span
+                    ><i class="ri-arrow-right-s-line ml-auto"></i>
+                  </button>
+                  <button
+                    v-if="currentAlbum?.name"
+                    class="song-setting-action"
+                    @click="openCurrentAlbum"
+                  >
+                    <i class="ri-disc-line"></i><span>专辑：{{ currentAlbum.name }}</span
+                    ><i class="ri-arrow-right-s-line ml-auto"></i>
+                  </button>
+                  <button class="song-setting-action" @click="addCurrentToPlaylist">
+                    <i class="ri-folder-add-line"></i><span>添加到歌单</span>
+                  </button>
+                  <button class="song-setting-action" @click="toggleCurrentFavorite">
+                    <i
+                      :class="currentIsFavorite ? 'ri-heart-fill text-red-400' : 'ri-heart-line'"
+                    ></i
+                    ><span>{{ currentIsFavorite ? '取消收藏' : '收藏' }}</span>
+                  </button>
+                </div>
               </div>
-            </div>
-            <div v-else class="flex flex-col items-center justify-center py-16 text-white/40">
-              <i class="ri-music-2-line text-4xl"></i>
-              <p class="mt-3 text-sm">当前没有播放歌曲</p>
+              <div v-else class="flex flex-col items-center justify-center py-16 text-white/40">
+                <i class="ri-music-2-line text-4xl"></i>
+                <p class="mt-3 text-sm">当前没有播放歌曲</p>
+              </div>
             </div>
           </div>
         </div>
@@ -771,6 +787,101 @@ const { navigateToArtist } = useArtist();
 const message = window.$message;
 const androidNativeAvailable = isAndroidNative();
 const activeTab = ref<'song' | 'control'>('control');
+const settingsTabViewportRef = ref<HTMLElement | null>(null);
+const settingsTabDragOffset = ref(0);
+const settingsTabDragging = ref(false);
+let settingsTabPointerId = -1;
+let settingsTabStartX = 0;
+let settingsTabStartY = 0;
+let settingsTabAxis: 'none' | 'x' | 'y' = 'none';
+let settingsTabSamples: Array<{ x: number; time: number }> = [];
+
+const settingsTabIndex = (tab: 'song' | 'control') => (tab === 'song' ? 0 : 1);
+const getSettingsTabPageStyle = (tab: 'song' | 'control') => {
+  const pageDelta = settingsTabIndex(tab) - settingsTabIndex(activeTab.value);
+  return {
+    paddingBottom: 'calc(24px + var(--safe-area-inset-bottom, 0px))',
+    transform: `translate3d(calc(${pageDelta * 100}% + ${settingsTabDragOffset.value}px), 0, 0)`,
+    transition: settingsTabDragging.value
+      ? 'none'
+      : 'transform 340ms cubic-bezier(0.32, 0.72, 0, 1)',
+    pointerEvents: tab === activeTab.value ? 'auto' : 'none'
+  };
+};
+
+const isSettingsTabSwipeTarget = (target: EventTarget | null) =>
+  target instanceof Element &&
+  !target.closest(
+    'button, input, textarea, select, a, [role="slider"], [role="switch"], [data-horizontal-scroll], .n-slider, .climax-timeline, .climax-handle'
+  );
+
+const pushSettingsTabSample = (x: number) => {
+  const time = performance.now();
+  settingsTabSamples.push({ x, time });
+  settingsTabSamples = settingsTabSamples.filter((sample) => time - sample.time <= 100);
+};
+
+const settingsTabVelocity = () => {
+  if (settingsTabSamples.length < 2) return 0;
+  const first = settingsTabSamples[0];
+  const last = settingsTabSamples[settingsTabSamples.length - 1];
+  return (last.x - first.x) / Math.max(1, last.time - first.time);
+};
+
+const onTabPointerDown = (event: PointerEvent) => {
+  if (!event.isPrimary || !isSettingsTabSwipeTarget(event.target)) return;
+  settingsTabPointerId = event.pointerId;
+  settingsTabStartX = event.clientX;
+  settingsTabStartY = event.clientY;
+  settingsTabAxis = 'none';
+  settingsTabSamples = [{ x: event.clientX, time: performance.now() }];
+};
+
+const onTabPointerMove = (event: PointerEvent) => {
+  if (event.pointerId !== settingsTabPointerId) return;
+  const deltaX = event.clientX - settingsTabStartX;
+  const deltaY = event.clientY - settingsTabStartY;
+  if (settingsTabAxis === 'none' && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
+    settingsTabAxis = Math.abs(deltaX) > Math.abs(deltaY) + 4 ? 'x' : 'y';
+    if (settingsTabAxis === 'x') {
+      settingsTabDragging.value = true;
+      settingsTabViewportRef.value?.setPointerCapture(event.pointerId);
+    }
+  }
+  if (settingsTabAxis !== 'x') return;
+  event.preventDefault();
+  pushSettingsTabSample(event.clientX);
+  const activeIndex = settingsTabIndex(activeTab.value);
+  const hitsBoundary = (activeIndex === 0 && deltaX > 0) || (activeIndex === 1 && deltaX < 0);
+  settingsTabDragOffset.value = hitsBoundary ? deltaX * 0.24 : deltaX;
+};
+
+const finishTabPointer = (event: PointerEvent, cancelled = false) => {
+  if (event.pointerId !== settingsTabPointerId) return;
+  const width = settingsTabViewportRef.value?.clientWidth || window.innerWidth;
+  const velocity = settingsTabVelocity();
+  const projected = settingsTabDragOffset.value + velocity * 120;
+  const direction = projected < 0 ? 1 : -1;
+  const targetIndex = settingsTabIndex(activeTab.value) + direction;
+  const shouldCommit =
+    !cancelled &&
+    targetIndex >= 0 &&
+    targetIndex <= 1 &&
+    (Math.abs(settingsTabDragOffset.value) >= width * 0.28 || Math.abs(velocity) >= 0.45);
+
+  settingsTabDragging.value = false;
+  if (shouldCommit) activeTab.value = targetIndex === 0 ? 'song' : 'control';
+  settingsTabDragOffset.value = 0;
+  if (settingsTabViewportRef.value?.hasPointerCapture(event.pointerId)) {
+    settingsTabViewportRef.value.releasePointerCapture(event.pointerId);
+  }
+  settingsTabPointerId = -1;
+  settingsTabAxis = 'none';
+  settingsTabSamples = [];
+};
+
+const onTabPointerUp = (event: PointerEvent) => finishTabPointer(event);
+const onTabPointerCancel = (event: PointerEvent) => finishTabPointer(event, true);
 const openPlaylistDrawer = inject<(songOrId: number | SongResult) => void>('openPlaylistDrawer');
 
 const currentSong = computed(() => playMusic.value || null);
@@ -1647,16 +1758,43 @@ onUnmounted(() => {
 }
 
 .player-settings-surface {
-  border: 1px solid color-mix(in srgb, #fff 22%, transparent);
+  border: 1px solid var(--player-glass-border, rgba(255, 255, 255, 0.24));
   border-bottom: 0;
   border-radius: 30px 30px 0 0;
-  background: color-mix(in srgb, var(--accent-color, #666) 12%, rgba(20, 20, 22, 0.76));
+  background: var(--player-glass-background, rgba(20, 20, 22, 0.22));
   box-shadow:
-    0 -18px 50px rgba(0, 0, 0, 0.22),
+    0 -8px 20px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(32px) saturate(175%);
-  -webkit-backdrop-filter: blur(32px) saturate(175%);
+  backdrop-filter: var(--player-glass-filter, blur(12px) saturate(145%));
+  -webkit-backdrop-filter: var(--player-glass-filter, blur(12px) saturate(145%));
   touch-action: pan-y;
+}
+
+.settings-tab-viewport {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.settings-tab-page {
+  position: absolute;
+  inset: 0;
+  overscroll-behavior: contain;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-tab-page {
+    transition-duration: 160ms !important;
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .player-settings-surface {
+    background: var(--player-glass-background-fallback, rgba(24, 24, 26, 0.52));
+  }
 }
 
 .settings-drag-region {

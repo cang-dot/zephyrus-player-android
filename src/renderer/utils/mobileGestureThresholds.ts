@@ -5,7 +5,7 @@ export function shouldCommitMobilePageSwipe(
   hasAdjacentPage = true
 ) {
   if (!hasAdjacentPage) return false;
-  return Math.abs(distance) >= Math.max(1, viewportWidth) * 0.35 || Math.abs(velocity) >= 0.55;
+  return Math.abs(distance) >= Math.max(1, viewportWidth) * 0.14 || Math.abs(velocity) >= 0.24;
 }
 
 export function shouldOpenMobilePlayer(progress: number, velocityTowardOpen: number) {

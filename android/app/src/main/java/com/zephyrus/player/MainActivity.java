@@ -129,6 +129,18 @@ public class MainActivity extends BridgeActivity {
         checkClipboardForDeepLink();
     }
 
+    @Override
+    public void onStart() {
+        super.onStart();
+        StatusBarLyricOverlay.getInstance(this).setAppVisible(true);
+    }
+
+    @Override
+    public void onStop() {
+        StatusBarLyricOverlay.getInstance(this).setAppVisible(false);
+        super.onStop();
+    }
+
     /**
      * 处理通过 deep link (zephyrus://song/{id}) 启动或恢复时的 Intent
      * 将 URL 传递给 WebView，由前端 JS 解析并播放对应歌曲

@@ -3,9 +3,9 @@
     class="mobile-play-bar"
     :class="[
       setAnimationClass('animate__fadeInUp'),
-      playerStore.musicFull ? 'play-bar-expanded' : 'play-bar-mini',
-      shouldShowMobileMenu ? 'is-menu-show' : 'is-menu-hide',
-      isCompactNav && shouldShowMobileMenu ? 'compact-nav' : '',
+      'play-bar-mini',
+      playerStore.musicFull ? 'player-active' : '',
+      miniUsesMenuAnchor ? 'is-menu-show' : 'is-menu-hide',
       idleCollapsed && !playerStore.musicFull ? 'idle-collapsed' : '',
       playlistSurfaceMounted && !playerStore.musicFull ? 'playlist-mounted' : '',
       playlistSurfaceExpanded && !playerStore.musicFull ? 'playlist-open' : ''
@@ -20,15 +20,14 @@
           : '#000000'
     }"
   >
-    <!-- 迷你模式 - musicFull 为 false 时显示 -->
     <div
-      v-if="!playerStore.musicFull"
       class="mobile-mini-controls"
       :class="{
         'is-swipe-active': miniSwipeAxis === 'horizontal' || miniSwipeSwitching,
         'is-swipe-animating': miniSwipeAnimating
       }"
       :style="miniSwipeStyle"
+      :aria-hidden="playerTransition.progress.value > 0.98"
       @click.capture="onMiniClickCapture"
       @pointerdown="onMiniPointerDown"
       @pointermove="onMiniPointerMove"
@@ -45,17 +44,13 @@
           @click.stop="setMusicFull"
         />
         <div class="mini-song-text">
-          <n-ellipsis line-clamp="1">
-            <span class="mini-song-title">{{ playMusic.name }}</span>
-            <span class="mx-2 text-gray-500 dark:text-gray-400">-</span>
-            <span
-              class="mini-song-artist"
-              v-for="(artists, artistsindex) in artistList"
-              :key="artistsindex"
-            >
+          <span class="mini-song-title">{{ playMusic.name }}</span>
+          <span class="mini-song-separator">-</span>
+          <span class="mini-song-artist">
+            <template v-for="(artists, artistsindex) in artistList" :key="artistsindex">
               {{ artists.name }}{{ artistsindex < artistList.length - 1 ? ' / ' : '' }}
-            </span>
-          </n-ellipsis>
+            </template>
+          </span>
         </div>
       </div>
 
@@ -74,6 +69,7 @@
 
     <!-- 全屏播放器 -->
     <music-full-wrapper
+      v-if="playerSurfaceRendered"
       ref="MusicFullRef"
       v-model="playerSurfaceVisible"
       :background="background"
@@ -94,9 +90,13 @@ import { getImgUrl, setAnimationClass } from '@/utils';
 import { shouldOpenMobilePlayer } from '@/utils/mobileGestureThresholds';
 
 const shouldShowMobileMenu = inject('shouldShowMobileMenu') as Ref<boolean>;
-const isCompactNav = inject('isCompactNav', ref(false)) as Ref<boolean>;
 const playlistSurfaceMounted = inject('playlistSurfaceMounted', ref(false)) as Ref<boolean>;
 const playlistSurfaceExpanded = inject('playlistSurfaceExpanded', ref(false)) as Ref<boolean>;
+const capturePlayerTransitionOrigin = inject<() => void>('capturePlayerTransitionOrigin', () => {});
+const transitionStartedWithMenu = inject(
+  'playerTransitionStartedWithMenu',
+  ref(false)
+) as Ref<boolean>;
 const emit = defineEmits<{
   (event: 'idle-collapse-change', collapsed: boolean): void;
 }>();
@@ -105,6 +105,11 @@ const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
 const idleCollapsed = ref(false);
 const playerTransition = useMobilePlayerTransition();
+const miniUsesMenuAnchor = computed(
+  () =>
+    shouldShowMobileMenu.value ||
+    (transitionStartedWithMenu.value && playerTransition.state.value !== 'idle')
+);
 let miniLongPressTimer: ReturnType<typeof setTimeout> | undefined;
 let miniLongPressTriggered = false;
 let miniPointerStartedCollapsed = false;
@@ -126,18 +131,31 @@ function handlePrev() {
 // 全屏播放器引用
 const MusicFullRef = ref<any>(null);
 const playerSurfaceVisible = computed({
-  get: () => playerStore.musicFull || playerTransition.progress.value > 0.015,
+  get: () => playerStore.musicFull || playerTransition.state.value !== 'idle',
   set: (visible: boolean) => {
     if (!visible && playerStore.musicFull) {
+      // Player implementations emit modelValue=false from the completion
+      // callback of this same close transition. Do not restart the spring.
+      if (playerTransition.state.value === 'closing' || playerTransition.progress.value <= 0.002) {
+        playerStore.setMusicFull(false);
+        return;
+      }
       playerTransition.setSurfaceMode('controls');
-      playerStore.setMusicFull(false);
-      playerTransition.animateTo(0);
+      playerTransition.close(0, () => playerStore.setMusicFull(false));
     }
   }
 });
 
+// Keep exactly one full-player instance during a transition, then release it
+// after the closing spring reaches its source surface.
+const playerSurfaceRendered = computed(
+  () => playerStore.musicFull || playerTransition.state.value !== 'idle'
+);
+
 const openMusicFull = (initialVelocity = 0) => {
   idleCollapsed.value = false;
+  transitionStartedWithMenu.value = shouldShowMobileMenu.value;
+  capturePlayerTransitionOrigin();
   playerTransition.setDragging(Math.max(0.016, playerTransition.progress.value));
   playerStore.setMusicFull(true);
   requestAnimationFrame(() => playerTransition.animateTo(1, initialVelocity));
@@ -148,8 +166,7 @@ const openMusicFull = (initialVelocity = 0) => {
 const setMusicFull = () => {
   idleCollapsed.value = false;
   if (playerStore.musicFull) {
-    playerStore.setMusicFull(false);
-    playerTransition.animateTo(0);
+    playerTransition.close(0, () => playerStore.setMusicFull(false));
     return;
   }
   openMusicFull(1.2);
@@ -205,22 +222,40 @@ const miniSwipeProgress = computed(() =>
 );
 const miniSwipeStyle = computed(() => ({
   transform: `translate3d(${miniSwipeOffset.value}px, ${miniVerticalOffset.value}px, 0) scale(${1 - miniSwipeProgress.value * 0.012})`,
-  opacity: String(1 - miniSwipeProgress.value * 0.12),
+  opacity: String(
+    (1 - miniSwipeProgress.value * 0.12) *
+      (1 - Math.min(1, Math.max(0, (playerTransition.progress.value - 0.58) / 0.34)))
+  ),
+  pointerEvents: playerTransition.progress.value > 0.08 ? ('none' as const) : undefined,
   '--mini-swipe-rotation': `${miniSwipeOffset.value * 0.018}deg`,
   '--mini-swipe-content-shift': `${miniSwipeOffset.value * 0.05}px`
 }));
 const miniSongInfoStyle = computed(() => {
   const progress = playerTransition.progress.value;
+  const source = playerTransition.identitySourceRect.value;
+  const safeBottom = Number.parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom') || '0'
+  );
+  const controlHeight = window.matchMedia('(orientation: landscape)').matches ? 154 : 168;
+  const targetLeft = 30;
+  const targetTop = window.innerHeight - safeBottom - 14 - controlHeight + 12;
+  const translateX = source ? (targetLeft - source.left) * progress : 0;
+  const translateY = source ? (targetTop - source.top) * progress : -progress * 82;
+  const handoff = Math.min(1, Math.max(0, (progress - 0.86) / 0.12));
   return {
-    opacity: String(1 - progress),
-    transform: `translate3d(0, ${-progress * 8}px, 0) scale(${1 - progress * 0.025})`,
-    transformOrigin: 'center center',
+    '--identity-cover-size': `${40 + progress * 4}px`,
+    '--identity-cover-radius': `${20 - progress * 10}px`,
+    '--identity-cover-border': `${4 * (1 - progress)}px`,
+    opacity: String(1 - handoff),
+    transform: `translate3d(${translateX}px, ${translateY}px, 0)`,
+    transformOrigin: 'left center',
+    zIndex: 4,
     pointerEvents: progress > 0.1 ? ('none' as const) : undefined
-  };
+  } as CSSProperties;
 });
 const miniPlaybackControlsStyle = computed<CSSProperties>(() => ({
-  opacity: String(1 - playerTransition.progress.value),
-  transform: `translate3d(0, ${playerTransition.progress.value * 12}px, 0)`,
+  opacity: String(1 - Math.min(1, Math.max(0, (playerTransition.progress.value - 0.12) / 0.42))),
+  transform: `translate3d(0, ${playerTransition.progress.value * 18}px, 0)`,
   pointerEvents: playerTransition.progress.value > 0.1 ? 'none' : undefined
 }));
 
@@ -268,6 +303,7 @@ const onMiniPointerDown = (event: PointerEvent) => {
   miniPointerStartedCollapsed = idleCollapsed.value;
   verticalSamples = [{ y: event.clientY, time: performance.now() }];
   miniLongPressTriggered = false;
+  capturePlayerTransitionOrigin();
   if (idleCollapsed.value) {
     miniLongPressTimer = setTimeout(() => {
       if (!miniPointerActive || miniSwipeAxis.value !== 'none') return;
@@ -409,7 +445,8 @@ const onMiniPointerUp = (event: PointerEvent) => {
         : 0;
     const shouldOpen = shouldOpenMobilePlayer(playerTransition.progress.value, -velocity);
     if (shouldOpen) playerStore.setMusicFull(true);
-    playerTransition.animateTo(shouldOpen ? 1 : 0, -velocity);
+    if (shouldOpen) playerTransition.animateTo(1, -velocity);
+    else playerTransition.close(-velocity);
     if (navigator.vibrate) navigator.vibrate(8);
     finishMiniSwipeAnimation();
   } else if (verticalCommit && !miniPointerStartedCollapsed && deltaY > 0) {
@@ -417,7 +454,7 @@ const onMiniPointerUp = (event: PointerEvent) => {
     if (navigator.vibrate) navigator.vibrate(8);
     finishMiniSwipeAnimation();
   } else {
-    if (playerTransition.state.value === 'dragging') playerTransition.animateTo(0);
+    if (playerTransition.state.value === 'dragging') playerTransition.close();
     finishMiniSwipeAnimation();
   }
 };
@@ -430,7 +467,7 @@ const onMiniPointerCancel = (event: PointerEvent) => {
     clearTimeout(miniLongPressTimer);
     miniLongPressTimer = undefined;
   }
-  if (playerTransition.state.value === 'dragging') playerTransition.animateTo(0);
+  if (playerTransition.state.value === 'dragging') playerTransition.close();
   finishMiniSwipeAnimation();
 };
 
@@ -451,8 +488,8 @@ watch(
       } else if (playerTransition.progress.value >= 1) {
         playerTransition.markOpen();
       }
-    } else if (playerTransition.progress.value > 0) {
-      playerTransition.animateTo(0);
+    } else if (playerTransition.progress.value > 0 && playerTransition.state.value !== 'closing') {
+      playerTransition.close();
     }
   }
 );
@@ -532,19 +569,6 @@ watch(
     -webkit-backdrop-filter: blur(30px) saturate(180%);
   }
 
-  &.play-bar-expanded {
-    @apply bg-transparent;
-    height: auto;
-    max-height: 230px;
-    background: linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0) 0%,
-      rgba(0, 0, 0, 0.5) 20%,
-      rgba(0, 0, 0, 0.8) 80%,
-      rgba(0, 0, 0, 0.9) 100%
-    );
-  }
-
   &.play-bar-mini {
     @apply h-14 py-0;
     transition:
@@ -560,6 +584,14 @@ watch(
       box-shadow 0.32s ease,
       transform 0.42s cubic-bezier(0.22, 0.8, 0.2, 1),
       opacity 0.28s ease;
+  }
+
+  &.player-active {
+    pointer-events: none;
+  }
+
+  &.player-active .mobile-mini-controls {
+    pointer-events: none;
   }
 
   /* 有底栏时播放栏保持底部锚点；无底栏时它本身形变为播放列表玻璃表面。 */
@@ -751,13 +783,14 @@ watch(
       transition: flex 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
       .mini-song-cover {
-        width: 40px;
-        height: 40px;
+        width: var(--identity-cover-size, 40px);
+        height: var(--identity-cover-size, 40px);
         margin: 4px;
         flex: 0 0 auto;
         overflow: hidden;
-        border-radius: 50%;
-        border: 4px solid color-mix(in srgb, var(--accent-color) 18%, transparent);
+        border-radius: var(--identity-cover-radius, 50%);
+        border: var(--identity-cover-border, 4px) solid
+          color-mix(in srgb, var(--accent-color) 18%, transparent);
         transition:
           width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
           height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -775,7 +808,10 @@ watch(
       }
 
       .mini-song-text {
-        @apply ml-3 min-w-0 flex-1 flex items-center;
+        @apply ml-3 min-w-0 flex-1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
         overflow: hidden;
         transform: translate3d(var(--mini-swipe-content-shift, 0px), 0, 0);
         transition:
@@ -785,12 +821,38 @@ watch(
 
         .mini-song-title {
           @apply text-sm font-medium;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: calc(14px - var(--player-open-progress, 0) * 2px);
           color: var(--m-text-primary, #2c2c2c);
+          transition:
+            color 180ms ease,
+            font-size 180ms ease,
+            transform 180ms ease;
+        }
+
+        .mini-song-separator {
+          flex: 0 0 auto;
+          color: color-mix(in srgb, var(--m-text-muted, #9a9590) 70%, transparent);
+          opacity: calc(1 - var(--player-open-progress, 0) * 2.4);
+          transition: opacity 180ms ease;
         }
 
         .mini-song-artist {
           @apply text-xs;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: calc(12px - var(--player-open-progress, 0) * 1px);
           color: var(--m-text-muted, #9a9590);
+          transform: translate3d(0, calc(var(--player-open-progress, 0) * 7px), 0);
+          transition:
+            color 180ms ease,
+            font-size 180ms ease,
+            transform 180ms ease;
         }
       }
     }
@@ -825,79 +887,6 @@ watch(
         }
       }
     }
-  }
-
-  /* ═══ 紧凑模式覆盖 — 直接复制底栏的精确位置和高度参数 ═══ */
-  &.compact-nav {
-    /* 直接复制 .mobile-glow-nav-wrap 的定位参数 */
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap, 12px)) !important;
-    left: var(--mobile-dock-inset, 12px) !important;
-    right: auto !important;
-    transform: none !important;
-    width: auto !important;
-    max-width: calc(45vw - 6px);
-    min-width: 130px;
-    /* 覆盖 h-14 (56px) — 与底栏高度完全一致 */
-    height: auto !important;
-    padding: 0 !important;
-  }
-
-  /* 直接复制 .mobile-glow-nav 的样式参数 */
-  &.compact-nav .mobile-mini-controls {
-    margin: 0 !important;
-    width: 100%;
-    /* 底栏高度 = padding(4+4) + item(36px) + border(1+1) = 46px */
-    height: 46px;
-    /* 直接复制底栏的 padding */
-    padding: 4px 6px;
-    gap: 2px;
-    justify-content: center !important;
-    /* 直接复制 .mobile-glow-nav 的视觉参数 */
-    border-radius: 9999px;
-    background: var(--cover-surface, rgba(20, 20, 22, 0.72));
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
-    border: 1px solid var(--cover-border, rgba(255, 255, 255, 0.08));
-    box-shadow:
-      0 6px 24px rgba(0, 0, 0, 0.25),
-      0 1px 4px rgba(0, 0, 0, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  }
-
-  /* 紧凑模式隐藏歌名文字（通过 opacity+max-width 平滑过渡） */
-  &.compact-nav .mobile-mini-controls .mini-song-info .mini-song-text {
-    opacity: 0;
-    max-width: 0;
-    margin-left: 0 !important;
-    pointer-events: none;
-  }
-
-  &.compact-nav .mobile-mini-controls .mini-song-info {
-    flex: 0 0 auto !important;
-  }
-
-  &.compact-nav .mobile-mini-controls .mini-song-info .mini-song-cover {
-    width: 36px !important;
-    height: 36px !important;
-    border-width: 3px !important;
-    border-color: var(--cover-border, rgba(255, 255, 255, 0.08)) !important;
-  }
-
-  &.compact-nav .mobile-mini-controls .mini-playback-controls .mini-control-btn.play {
-    width: 36px !important;
-    height: 36px !important;
-    margin-right: 0 !important;
-  }
-
-  &.compact-nav .mobile-mini-controls .mini-playback-controls .mini-control-btn.play .iconfont {
-    font-size: 18px !important;
-    color: var(--accent-color, #fff) !important;
-  }
-
-  &.compact-nav .mobile-mini-controls .mini-playback-controls .mini-list-icon {
-    font-size: 18px !important;
-    padding: 4px !important;
-    color: var(--cover-text-muted, rgba(255, 255, 255, 0.5)) !important;
   }
 
   /* The same mini-player node contracts into the cover beside the bottom navigation. */

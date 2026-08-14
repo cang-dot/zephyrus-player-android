@@ -20,6 +20,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const zlib = require('zlib');
 const { decryptQrc } = require('qrc-decoder');
 
 const router = express.Router();
@@ -374,6 +375,9 @@ const QQ_LYRIC_MISS_TTL = 5 * 60 * 1000;
 const QQ_LYRIC_CACHE_LIMIT = 500;
 const QQ_LYRIC_RATE_WINDOW = 60 * 1000;
 const QQ_LYRIC_RATE_LIMIT = 30;
+const KUGOU_KRC_XOR_KEY = Buffer.from([
+  0x40, 0x47, 0x61, 0x77, 0x5e, 0x32, 0x74, 0x47, 0x51, 0x36, 0x31, 0x2d, 0xce, 0xd2, 0x6e, 0x69
+]);
 
 const qqLyricCache = new Map();
 const qqLyricRateWindows = new Map();
@@ -438,6 +442,55 @@ function decodeQqLyricField(value, encrypted = false) {
   if (encrypted || looksEncryptedHex) return decryptQrc(text);
   if (/^(?:<|\[)/.test(text)) return text;
   return decodeBase64Lyric(text) || text;
+}
+
+function decodeKugouKrc(value) {
+  const raw = Buffer.from(String(value || ''), 'base64');
+  if (raw.length <= 4 || raw.subarray(0, 4).toString('ascii') !== 'krc1') {
+    throw new Error('酷狗 KRC 文件头无效');
+  }
+  const encrypted = raw.subarray(4);
+  const compressed = Buffer.allocUnsafe(encrypted.length);
+  for (let index = 0; index < encrypted.length; index += 1) {
+    compressed[index] = encrypted[index] ^ KUGOU_KRC_XOR_KEY[index % KUGOU_KRC_XOR_KEY.length];
+  }
+  return zlib
+    .unzipSync(compressed)
+    .toString('utf8')
+    .replace(/^\uFEFF/, '');
+}
+
+function decodeKugouLanguage(value) {
+  const source = String(value || '');
+  const match = source.match(/^\[language:([^\]]+)]/m);
+  if (!match) return { translation: '', romanization: '' };
+  try {
+    const payload = JSON.parse(Buffer.from(match[1], 'base64').toString('utf8'));
+    const layers = Array.isArray(payload?.content) ? payload.content : [];
+    const timings = Array.from(source.matchAll(/^\[(\d+),(\d+)]/gm), (entry) => ({
+      start: Number(entry[1]),
+      duration: Number(entry[2])
+    }));
+    const toKrc = (layer) =>
+      Array.isArray(layer?.lyricContent)
+        ? layer.lyricContent
+            .map((line, index) => {
+              const timing = timings[index];
+              const text = (line || []).join('');
+              return timing && text
+                ? `[${timing.start},${timing.duration}]<0,${timing.duration},0>${text}`
+                : '';
+            })
+            .filter(Boolean)
+            .join('\n')
+        : '';
+    return {
+      translation: toKrc(layers.find((layer) => Number(layer?.type) === 1)),
+      romanization: toKrc(layers.find((layer) => Number(layer?.type) === 0))
+    };
+  } catch {
+    return { translation: '', romanization: '' };
+  }
 }
 
 function cleanupQqLyricState() {
@@ -2109,6 +2162,77 @@ router.get('/kugou/search', async (req, res) => {
   }
 });
 
+// GET /platform/kugou/lyric?hash=xxx&keyword=xxx&duration=349000
+router.get('/kugou/lyric', async (req, res) => {
+  if (!enforceQqLyricRateLimit(req, res)) return;
+  const hash = String(req.query.hash || '').trim();
+  const keyword = String(req.query.keyword || '').trim();
+  const duration = Math.max(0, Number(req.query.duration) || 0);
+  if (!/^[a-f0-9]{32}$/i.test(hash) || !keyword) {
+    return res.status(400).json({ code: 400, msg: '酷狗歌词参数无效' });
+  }
+
+  try {
+    const searchResponse = await axios.get('https://lyrics.kugou.com/search', {
+      params: {
+        ver: 1,
+        man: 'no',
+        client: 'pc',
+        keyword,
+        duration,
+        hash,
+        album_audio_id: 0,
+        lrctxt: 1
+      },
+      headers: { Referer: 'https://kugou.com', 'User-Agent': QQ_USER_AGENT },
+      timeout: 12000
+    });
+    const candidates = Array.isArray(searchResponse.data?.candidates)
+      ? searchResponse.data.candidates
+      : [];
+    const candidate = candidates
+      .filter((item) => item?.id && item?.accesskey)
+      .sort((left, right) => {
+        const leftDiff = duration ? Math.abs(Number(left.duration || 0) - duration) : 0;
+        const rightDiff = duration ? Math.abs(Number(right.duration || 0) - duration) : 0;
+        return leftDiff - rightDiff || Number(right.score || 0) - Number(left.score || 0);
+      })[0];
+    if (!candidate || (duration && Math.abs(Number(candidate.duration || 0) - duration) > 12000)) {
+      return res.status(404).json({ code: 404, msg: '未找到匹配的酷狗歌词' });
+    }
+
+    const downloadResponse = await axios.get('https://lyrics.kugou.com/download', {
+      params: {
+        ver: 1,
+        client: 'pc',
+        id: candidate.id,
+        accesskey: candidate.accesskey,
+        fmt: 'krc',
+        charset: 'utf8'
+      },
+      timeout: 12000
+    });
+    if (Number(downloadResponse.data?.status) !== 200 || !downloadResponse.data?.content) {
+      return res.status(404).json({ code: 404, msg: '酷狗歌词内容为空' });
+    }
+    const lyric = decodeKugouKrc(downloadResponse.data.content);
+    const auxiliary = decodeKugouLanguage(lyric);
+    return res.json({
+      code: 200,
+      data: {
+        platform: 'kugou',
+        format: 'krc',
+        lyric,
+        translation: auxiliary.translation,
+        romanization: auxiliary.romanization
+      }
+    });
+  } catch (error) {
+    console.error('[platformLogin] Kugou lyric error:', error.message);
+    return res.status(502).json({ code: 502, msg: '酷狗歌词服务暂时不可用，请稍后重试' });
+  }
+});
+
 // GET /platform/kugou/account/data
 router.get('/kugou/account/data', async (req, res) => {
   const cookie = getPlatformCookieFromRequest(req);
@@ -2481,6 +2605,7 @@ module.exports.deleteQqSession = deleteQqSession;
 module.exports.mergeCookieParts = mergeCookieParts;
 module.exports.extractQQOAuthCode = extractQQOAuthCode;
 module.exports.decodeQqLyricField = decodeQqLyricField;
+module.exports.decodeKugouKrc = decodeKugouKrc;
 module.exports.enforceQqLyricRateLimit = enforceQqLyricRateLimit;
 
 if (require.main === module) {

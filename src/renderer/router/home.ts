@@ -7,7 +7,8 @@ const layoutRouter = [
       icon: 'icon-Home',
       keepAlive: true,
       isMobile: true,
-      bottomNav: true
+      bottomNav: true,
+      playerBackgroundPolicy: 'unmount'
     },
     component: () => import('@/views/home/index.vue')
   },
@@ -30,7 +31,8 @@ const layoutRouter = [
       icon: 'icon-Paper',
       keepAlive: true,
       isMobile: true,
-      bottomNav: true
+      bottomNav: true,
+      playerBackgroundPolicy: 'suspend'
     },
     component: () => import('@/views/list/index.vue')
   },
@@ -42,7 +44,8 @@ const layoutRouter = [
       icon: 'ri-compass-3-fill',
       keepAlive: true,
       isMobile: true,
-      bottomNav: true
+      bottomNav: true,
+      playerBackgroundPolicy: 'unmount'
     },
     component: () => import('@/views/discover/index.vue')
   },
@@ -69,6 +72,18 @@ const layoutRouter = [
       back: true
     },
     component: () => import('@/views/toplist/index.vue')
+  },
+  {
+    path: '/discover/genre',
+    name: 'mobileDiscoverGenre',
+    meta: { title: '曲风', icon: 'ri-music-2-fill', keepAlive: true, isMobile: true, back: true },
+    component: () => import('@/views/discover/Genre.vue')
+  },
+  {
+    path: '/discover/listen',
+    name: 'mobileDiscoverListen',
+    meta: { title: '听书', icon: 'ri-book-open-fill', keepAlive: true, isMobile: true, back: true },
+    component: () => import('@/views/discover/Listen.vue')
   },
   {
     path: '/mv',
@@ -127,7 +142,8 @@ const layoutRouter = [
       keepAlive: true,
       noScroll: true,
       isMobile: true,
-      bottomNav: true
+      bottomNav: true,
+      playerBackgroundPolicy: 'suspend'
     },
     component: () => import('@/views/user/index.vue')
   },

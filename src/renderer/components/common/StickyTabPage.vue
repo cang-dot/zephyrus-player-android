@@ -16,6 +16,7 @@
 
         <!-- Tabs (sticky on scroll) -->
         <div
+          v-if="!tabsInTopbar"
           class="sticky-tabs z-10 transition-shadow duration-200"
           :class="isSticky ? 'sticky top-0 shadow-sm' : ''"
         >
@@ -52,10 +53,12 @@ withDefaults(
     categories: Category[];
     labelKey?: string;
     valueKey?: string;
+    tabsInTopbar?: boolean;
   }>(),
   {
     labelKey: 'label',
-    valueKey: 'value'
+    valueKey: 'value',
+    tabsInTopbar: false
   }
 );
 

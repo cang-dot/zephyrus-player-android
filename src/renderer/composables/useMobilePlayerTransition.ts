@@ -17,6 +17,7 @@ const controlsVisible = ref(false);
 const surfaceMode = ref<MobilePlayerSurfaceMode>('controls');
 const sheetProgress = ref(0);
 const sourceRect = ref<MobilePlayerSurfaceRect | null>(null);
+const identitySourceRect = ref<MobilePlayerSurfaceRect | null>(null);
 let frame = 0;
 let sheetFrame = 0;
 let controlsHideTimer: ReturnType<typeof setTimeout> | undefined;
@@ -87,6 +88,14 @@ const setSourceRect = (rect: MobilePlayerSurfaceRect | null) => {
   sourceRect.value = rect ? { ...rect } : null;
 };
 
+const setIdentitySourceRect = (rect: MobilePlayerSurfaceRect | null) => {
+  identitySourceRect.value = rect ? { ...rect } : null;
+};
+
+const close = (velocity = 0, complete?: () => void) => {
+  animateTo(0, velocity, complete);
+};
+
 const setSurfaceMode = (mode: MobilePlayerSurfaceMode) => {
   if (mode === 'controls') {
     if (surfaceMode.value === 'controls') {
@@ -117,6 +126,18 @@ const setDragging = (value: number, velocity = 0) => {
   if (progress.value > 0.02) showControls(false);
 };
 
+const finishClose = (complete?: () => void) => {
+  complete?.();
+  // Give the restored source surface one presentation frame to take over
+  // before releasing the teleported full-player surface.
+  frame = requestAnimationFrame(() => {
+    frame = 0;
+    if (state.value !== 'closing' || progress.value !== 0) return;
+    state.value = 'idle';
+    controlsVisible.value = false;
+  });
+};
+
 const animateTo = (target: 0 | 1, velocity = 0, complete?: () => void) => {
   cancel();
   state.value = target === 1 ? 'opening' : 'closing';
@@ -138,10 +159,13 @@ const animateTo = (target: 0 | 1, velocity = 0, complete?: () => void) => {
       if (t < 1) frame = requestAnimationFrame(tick);
       else {
         frame = 0;
-        state.value = target === 1 ? 'open' : 'idle';
-        if (target === 1) resetControlsHideTimer();
-        else controlsVisible.value = false;
-        complete?.();
+        if (target === 1) {
+          state.value = 'open';
+          resetControlsHideTimer();
+          complete?.();
+        } else {
+          finishClose(complete);
+        }
       }
     };
     frame = requestAnimationFrame(tick);
@@ -159,10 +183,13 @@ const animateTo = (target: 0 | 1, velocity = 0, complete?: () => void) => {
     if (Math.abs(value - target) < 0.002 && Math.abs(speed) < 0.02) {
       progress.value = target;
       frame = 0;
-      state.value = target === 1 ? 'open' : 'idle';
-      if (target === 1) resetControlsHideTimer();
-      else controlsVisible.value = false;
-      complete?.();
+      if (target === 1) {
+        state.value = 'open';
+        resetControlsHideTimer();
+        complete?.();
+      } else {
+        finishClose(complete);
+      }
       return;
     }
     frame = requestAnimationFrame(tick);
@@ -186,8 +213,10 @@ export function useMobilePlayerTransition() {
     surfaceMode: readonly(surfaceMode),
     sheetProgress: readonly(sheetProgress),
     sourceRect: readonly(sourceRect),
+    identitySourceRect: readonly(identitySourceRect),
     setDragging,
     animateTo,
+    close,
     markOpen,
     cancel,
     showControls,
@@ -197,6 +226,7 @@ export function useMobilePlayerTransition() {
     setSurfaceMode,
     setSheetProgress,
     setSourceRect,
+    setIdentitySourceRect,
     animateSheet
   };
 }

@@ -4,9 +4,8 @@
     class="mobile-layout mobile"
     :class="{
       'has-safe-area': isPhone,
-      'nav-compact': isCompactNav,
-      'nav-default': !isCompactNav,
-      'player-transitioning': playerTransition.progress.value > 0,
+      'nav-default': true,
+      'player-transitioning': playerMorphing,
       'player-full': playerTransition.state.value === 'open'
     }"
     :style="{
@@ -20,7 +19,13 @@
     <!-- 主内容区域（铺满全屏，顶栏透明叠加） -->
     <div
       class="mobile-content"
-      :class="{ 'has-bottom-menu': shouldShowBottomMenu, 'has-player': isPlay }"
+      :class="{
+        'has-bottom-menu': shouldShowBottomMenu,
+        'has-player': isPlay,
+        'player-background-suspended': backgroundSuspended,
+        'page-swipe-dragging': pageSwipeDragging
+      }"
+      :inert="backgroundSuspended"
       :style="pageSwipeStyle"
       @click.capture="onPageClickCapture"
       @pointerdown="onContentPointerDown"
@@ -28,7 +33,7 @@
       @pointerup="onContentPointerUp"
       @pointercancel="onContentPointerCancel"
     >
-      <router-view v-slot="{ Component }" class="mobile-page">
+      <router-view v-if="!backgroundUnmounted" v-slot="{ Component }" class="mobile-page">
         <Transition
           :name="pageTransitionName"
           :mode="pageTransitionDirection ? undefined : 'out-in'"
@@ -45,13 +50,16 @@
       ref="dockRef"
       class="mobile-bottom-dock"
       :class="{
-        visible: shouldShowBottomMenu,
+        visible:
+          shouldShowBottomMenu ||
+          (playerTransitionStartedWithMenu && playerTransition.state.value !== 'idle'),
         'has-player': isPlay,
         'player-collapsed': isPlay && miniPlayerIdleCollapsed,
         'player-open': isPlay && !miniPlayerIdleCollapsed,
         'playlist-mounted': isPlay && playlistSurfaceMounted,
         'playlist-open': isPlay && playlistSurfaceExpanded,
-        'player-transitioning': playerTransition.progress.value > 0,
+        'player-transitioning': playerMorphing,
+        'player-source-dock': playerTransitionStartedWithMenu,
         'player-full': playerTransition.state.value === 'open'
       }"
       :style="dockTransitionStyle"
@@ -69,10 +77,9 @@
 
       <Transition name="glow-nav-in" :css="playerTransition.state.value === 'idle'">
         <div
-          v-if="shouldShowBottomMenu"
+          v-if="isBottomMenuRoute"
           class="mobile-glow-nav-wrap"
           :class="{
-            'compact-mode': isCompactNav,
             'has-player-slot': isPlay && miniPlayerIdleCollapsed
           }"
         >
@@ -126,7 +133,6 @@ import homeRouter from '@/router/home';
 import otherRouter from '@/router/other';
 import { useMenuStore } from '@/store/modules/menu';
 import { usePlayerStore } from '@/store/modules/player';
-import { useSettingsStore } from '@/store/modules/settings';
 import type { SongResult } from '@/types/music';
 import {
   shouldCommitMobilePageSwipe,
@@ -151,11 +157,42 @@ const route = useRoute();
 const router = useRouter();
 const playerStore = usePlayerStore();
 const menuStore = useMenuStore();
-const settingsStore = useSettingsStore();
 const { t } = useI18n();
 const playerTransition = useMobilePlayerTransition();
+const playerMorphing = computed(() =>
+  ['dragging', 'opening', 'closing'].includes(playerTransition.state.value)
+);
 const playerTransitionStartedWithMenu = ref(false);
+const playerOverlayActive = computed(
+  () =>
+    playerStore.musicFull ||
+    playerTransition.state.value !== 'idle' ||
+    playerTransition.progress.value > 0.02
+);
+const backgroundPolicy = computed(() => {
+  const policy = route.meta?.playerBackgroundPolicy;
+  return policy === 'unmount' || policy === 'suspend' ? policy : 'suspend';
+});
+const backgroundUnmounted = computed(
+  // Keep the source page mounted throughout the gesture and the closing
+  // spring. Unmounting at pointer-down leaves a blank page when the gesture
+  // is cancelled, and unmounting only after close makes the restored page
+  // appear too late. The expensive page is released only after the player
+  // has fully settled open.
+  () =>
+    backgroundPolicy.value === 'unmount' &&
+    playerTransition.state.value === 'open' &&
+    playerTransition.progress.value > 0.98
+);
+const backgroundSuspended = computed(
+  () =>
+    backgroundPolicy.value === 'suspend' &&
+    playerTransition.state.value === 'open' &&
+    playerTransition.progress.value > 0.98
+);
 const dockRef = ref<HTMLElement | null>(null);
+let playerTransitionOriginReleaseFrame = 0;
+let playerSurfaceClassReleaseTimer: ReturnType<typeof setTimeout> | undefined;
 const playerTransitionOrigin = ref<{
   left: number;
   right: number;
@@ -164,15 +201,76 @@ const playerTransitionOrigin = ref<{
   height: number;
   borderRadius: number;
 } | null>(null);
+const capturePlayerTransitionOrigin = () => {
+  if (playerTransitionOriginReleaseFrame) {
+    cancelAnimationFrame(playerTransitionOriginReleaseFrame);
+    playerTransitionOriginReleaseFrame = 0;
+  }
+  playerTransitionStartedWithMenu.value = isBottomMenuRoute.value;
+  const source = isBottomMenuRoute.value
+    ? dockRef.value
+    : document.querySelector<HTMLElement>('.mobile-play-bar .mobile-mini-controls');
+  const rect = source?.getBoundingClientRect();
+  if (!rect || rect.width <= 0 || rect.height <= 0) return;
+  const borderRadius = isBottomMenuRoute.value ? 32 : rect.height / 2;
+  playerTransitionOrigin.value = {
+    left: rect.left,
+    right: window.innerWidth - rect.right,
+    bottom: window.innerHeight - rect.bottom,
+    width: rect.width,
+    height: rect.height,
+    borderRadius
+  };
+  playerTransition.setSourceRect({
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+    borderRadius
+  });
+  const identity = document
+    .querySelector<HTMLElement>('.mobile-play-bar .mini-song-info')
+    ?.getBoundingClientRect();
+  playerTransition.setIdentitySourceRect(
+    identity && identity.width > 0 && identity.height > 0
+      ? {
+          left: identity.left,
+          top: identity.top,
+          width: identity.width,
+          height: identity.height,
+          borderRadius: identity.height / 2
+        }
+      : null
+  );
+};
+provide('capturePlayerTransitionOrigin', capturePlayerTransitionOrigin);
+provide('playerTransitionStartedWithMenu', playerTransitionStartedWithMenu);
 const syncPlayerSurfaceProgress = () => {
   const progress = playerTransition.progress.value;
+  const state = playerTransition.state.value;
   const reveal = Math.min(1, Math.max(0, (progress - 0.035) / 0.62));
+  const surfaceActive = progress > 0 || state !== 'idle';
   document.documentElement.style.setProperty('--player-open-progress', String(progress));
   document.documentElement.style.setProperty('--player-surface-reveal', String(reveal));
-  document.documentElement.style.setProperty('--player-ripple-radius', `${progress * 150}vmax`);
+  if (surfaceActive) {
+    if (playerSurfaceClassReleaseTimer) clearTimeout(playerSurfaceClassReleaseTimer);
+    playerSurfaceClassReleaseTimer = undefined;
+    document.body.classList.add('mobile-player-surface-active');
+  } else if (
+    document.body.classList.contains('mobile-player-surface-active') &&
+    !playerSurfaceClassReleaseTimer
+  ) {
+    // Naive UI keeps its teleported drawer alive briefly for the leave phase.
+    // Keep the zero-opacity transition class until that phase has completed,
+    // otherwise the full-screen surface can become opaque for one black frame.
+    playerSurfaceClassReleaseTimer = setTimeout(() => {
+      playerSurfaceClassReleaseTimer = undefined;
+      document.body.classList.remove('mobile-player-surface-active');
+    }, 360);
+  }
   document.body.classList.toggle(
-    'mobile-player-surface-active',
-    progress > 0 || playerTransition.state.value !== 'idle'
+    'mobile-player-surface-morphing',
+    state === 'dragging' || state === 'opening' || state === 'closing'
   );
 };
 watch(
@@ -181,61 +279,47 @@ watch(
   { immediate: true }
 );
 onBeforeUnmount(() => {
+  if (playerTransitionOriginReleaseFrame) cancelAnimationFrame(playerTransitionOriginReleaseFrame);
+  if (playerSurfaceClassReleaseTimer) clearTimeout(playerSurfaceClassReleaseTimer);
   document.documentElement.style.removeProperty('--player-open-progress');
   document.documentElement.style.removeProperty('--player-surface-reveal');
-  document.documentElement.style.removeProperty('--player-ripple-radius');
   document.body.classList.remove('mobile-player-surface-active');
+  document.body.classList.remove('mobile-player-surface-morphing');
 });
 watch(
   () => playerTransition.state.value,
   (state, previous) => {
     if ((state === 'dragging' || state === 'opening') && previous === 'idle') {
-      playerTransitionStartedWithMenu.value = shouldShowBottomMenu.value;
-      const source = shouldShowBottomMenu.value
-        ? dockRef.value
-        : document.querySelector<HTMLElement>('.mobile-play-bar .mobile-mini-controls');
-      const rect = source?.getBoundingClientRect();
-      if (rect) {
-        playerTransitionOrigin.value = {
-          left: rect.left,
-          right: window.innerWidth - rect.right,
-          bottom: window.innerHeight - rect.bottom,
-          width: rect.width,
-          height: rect.height,
-          borderRadius: shouldShowBottomMenu.value ? 32 : rect.height / 2
-        };
-        playerTransition.setSourceRect({
-          left: rect.left,
-          top: rect.top,
-          width: rect.width,
-          height: rect.height,
-          borderRadius: shouldShowBottomMenu.value ? 32 : rect.height / 2
-        });
-      }
+      capturePlayerTransitionOrigin();
     }
   },
   { flush: 'sync' }
 );
+watch(
+  () => [playerStore.musicFull, playerTransition.state.value] as const,
+  ([isFull, state]) => {
+    if (isFull || state !== 'idle' || !playerTransitionStartedWithMenu.value) return;
+    if (playerTransitionOriginReleaseFrame)
+      cancelAnimationFrame(playerTransitionOriginReleaseFrame);
+    // Keep the source geometry through the frame where musicFull flips to
+    // false so the mini player never falls back to standalone coordinates.
+    playerTransitionOriginReleaseFrame = requestAnimationFrame(() => {
+      playerTransitionOriginReleaseFrame = 0;
+      playerTransitionStartedWithMenu.value = false;
+      playerTransitionOrigin.value = null;
+    });
+  },
+  { flush: 'post' }
+);
 const dockTransitionStyle = computed(() => {
   const progress = playerTransition.progress.value;
-  if (progress <= 0) return undefined;
-  const startedWithMenu = playerTransitionStartedWithMenu.value;
-  const fallbackHeight = startedWithMenu ? 112 : 56;
-  const origin = playerTransitionOrigin.value ?? {
-    left: startedWithMenu ? 12 : 0,
-    right: startedWithMenu ? 12 : 0,
-    bottom: startedWithMenu ? 12 : 8,
-    width: window.innerWidth - (startedWithMenu ? 24 : 0),
-    height: fallbackHeight,
-    borderRadius: startedWithMenu ? 32 : 28
-  };
+  if (!playerTransitionStartedWithMenu.value) return undefined;
+  // Keep the dock in its normal bottom coordinate system. The shared surface
+  // owns the morph; moving the dock itself creates a second, visibly detached
+  // animation and makes its top edge fall in from the viewport top on close.
   return {
-    height: `${origin.height + (window.innerHeight - origin.height) * progress}px`,
-    right: `${origin.right * (1 - progress)}px`,
-    bottom: `${origin.bottom * (1 - progress)}px`,
-    left: `${origin.left * (1 - progress)}px`,
-    borderRadius: `${origin.borderRadius * (1 - progress)}px`,
-    '--player-transition-surface-opacity': String(1 - progress)
+    opacity: '1',
+    '--player-dock-origin-height': `${playerTransitionOrigin.value?.height || (progress > 0 ? 54 : 112)}px`
   };
 });
 
@@ -341,6 +425,7 @@ let pagePointerAxis: 'none' | 'horizontal' | 'vertical' = 'none';
 let pagePointerActive = false;
 let pagePointerId: number | null = null;
 const suppressPageClick = ref(false);
+const pageSwipeDragging = ref(false);
 let pageClickTimer: ReturnType<typeof setTimeout> | undefined;
 
 const setPageClickSuppressed = () => {
@@ -444,6 +529,11 @@ const onContentPointerDown = (event: PointerEvent) => {
   pagePointerSamples = [{ x: event.clientX, time: performance.now() }];
   if (pageSwipeAnimationFrame) cancelAnimationFrame(pageSwipeAnimationFrame);
   pageSwipeAnimating.value = false;
+  // Capture immediately. Pointer capture does not cancel taps, but prevents
+  // nested scroll containers from cancelling the horizontal gesture before
+  // the direction lock is established.
+  const target = event.currentTarget as HTMLElement;
+  if (!target.hasPointerCapture(event.pointerId)) target.setPointerCapture(event.pointerId);
 };
 
 const onContentPointerMove = (event: PointerEvent) => {
@@ -451,9 +541,10 @@ const onContentPointerMove = (event: PointerEvent) => {
   const deltaX = event.clientX - pagePointerStartX;
   const deltaY = event.clientY - pagePointerStartY;
 
-  if (pagePointerAxis === 'none' && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 10) {
-    pagePointerAxis = Math.abs(deltaX) > Math.abs(deltaY) ? 'horizontal' : 'vertical';
+  if (pagePointerAxis === 'none' && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 6) {
+    pagePointerAxis = Math.abs(deltaX) > Math.abs(deltaY) * 1.04 ? 'horizontal' : 'vertical';
     if (pagePointerAxis === 'horizontal') {
+      pageSwipeDragging.value = true;
       (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     }
   }
@@ -500,6 +591,7 @@ const onContentPointerUp = (event: PointerEvent) => {
   releasePagePointer(event);
   pagePointerActive = false;
   pagePointerAxis = 'none';
+  pageSwipeDragging.value = false;
   if (!commit) {
     resetPageSwipe();
     return;
@@ -530,6 +622,7 @@ const onContentPointerCancel = (event: PointerEvent) => {
   releasePagePointer(event);
   pagePointerActive = false;
   pagePointerAxis = 'none';
+  pageSwipeDragging.value = false;
   resetPageSwipe();
 };
 
@@ -540,10 +633,6 @@ onBeforeUnmount(() => {
   if (playlistSurfaceUnmountTimer) clearTimeout(playlistSurfaceUnmountTimer);
   if (playlistSurfaceFrame) cancelAnimationFrame(playlistSurfaceFrame);
 });
-
-// 底栏布局模式：default | compact
-const navLayoutMode = computed(() => settingsStore.setData?.bottomNavLayout || 'default');
-const isCompactNav = computed(() => navLayoutMode.value === 'compact');
 
 // safe-area-inset-top 完全由 CSS env() 驱动，无需 JS 测量或动态切换
 // WebView 自动根据系统栏状态计算：
@@ -579,6 +668,7 @@ const onDockPointerDown = (event: PointerEvent) => {
   dockAxis = 'none';
   dockSamples = [{ y: event.clientY, time: performance.now() }];
   suppressDockClick = false;
+  capturePlayerTransitionOrigin();
 };
 
 const onDockPointerMove = (event: PointerEvent) => {
@@ -614,7 +704,8 @@ const releaseDockPointer = (event: PointerEvent, cancelled = false) => {
     shouldOpenMobilePlayer(playerTransition.progress.value, -velocity);
   if (dockAxis === 'vertical') {
     if (shouldOpen) playerStore.setMusicFull(true);
-    playerTransition.animateTo(shouldOpen ? 1 : 0, -velocity);
+    if (shouldOpen) playerTransition.animateTo(1, -velocity);
+    else playerTransition.close(-velocity);
     if (shouldOpen && navigator.vibrate) navigator.vibrate(8);
   }
   dockPointerId = null;
@@ -637,10 +728,11 @@ provide('hasSafeArea', props.isPhone);
 const isPlay = computed(() => playerStore.playMusic && playerStore.playMusic.id);
 
 // 是否显示底部菜单
-const shouldShowBottomMenu = computed(() => {
+const isBottomMenuRoute = computed(() => {
   const menuPaths = menuStore.menus.map((item: any) => item.path);
-  return menuPaths.includes(route.path) && !playerStore.musicFull;
+  return menuPaths.includes(route.path);
 });
+const shouldShowBottomMenu = computed(() => isBottomMenuRoute.value && !playerStore.musicFull);
 const mobileDockContentInset = computed(() => {
   if (!shouldShowBottomMenu.value) return isPlay.value ? 82 : 20;
   if (!isPlay.value || miniPlayerIdleCollapsed.value) return 76;
@@ -656,7 +748,6 @@ const activeGlowStyle = computed(() => {
 
 // 提供给 MobilePlayBar 使用，用于调整播放栏位置
 provide('shouldShowMobileMenu', shouldShowBottomMenu);
-provide('isCompactNav', isCompactNav);
 provide('playlistSurfaceMounted', playlistSurfaceMounted);
 provide('playlistSurfaceExpanded', playlistSurfaceExpanded);
 
@@ -694,6 +785,36 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
 </script>
 
 <style lang="scss" scoped>
+:global(:root) {
+  --player-glass-background: color-mix(
+    in srgb,
+    var(--accent-color, #777) 7%,
+    rgba(18, 18, 20, 0.16)
+  );
+  --player-glass-background-active: color-mix(
+    in srgb,
+    var(--accent-color, #777) 10%,
+    rgba(18, 18, 20, 0.22)
+  );
+  --player-glass-background-fallback: color-mix(
+    in srgb,
+    var(--accent-color, #777) 14%,
+    rgba(24, 24, 26, 0.52)
+  );
+  --player-glass-border: color-mix(in srgb, #fff 10%, transparent);
+  --player-glass-border-active: color-mix(in srgb, var(--accent-color, #777) 18%, #fff 12%);
+  --player-glass-text: rgba(255, 255, 255, 0.94);
+  --player-glass-text-secondary: rgba(255, 255, 255, 0.76);
+  --player-glass-filter: blur(12px) saturate(118%);
+  --player-glass-feedback-duration: 220ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(:root) {
+    --player-glass-feedback-duration: 80ms;
+  }
+}
+
 .mobile-layout {
   @apply w-screen flex flex-col;
   @apply overflow-hidden;
@@ -703,6 +824,15 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   background: var(--m-bg, var(--bg-color));
   --mobile-dock-inset: 12px;
   --mobile-dock-gap: 12px;
+}
+
+.mobile-layout[data-theme='dark'],
+.dark .mobile-layout {
+  --player-glass-border: transparent;
+  --player-glass-border-active: transparent;
+  --m-glass-border: transparent;
+  --cover-border: transparent;
+  --cover-border-strong: transparent;
 }
 
 .mobile-content {
@@ -723,6 +853,18 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   /* 底部不做 padding — 内容延伸到最底下，浮动导航叠加在上 */
 }
 
+.mobile-content.player-background-suspended {
+  content-visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.mobile-content.page-swipe-dragging :deep(.cover-card:active),
+.mobile-content.page-swipe-dragging :deep(.artist-card:active),
+.mobile-content.page-swipe-dragging :deep(.media-card:active) {
+  transform: none;
+}
+
 .mobile-bottom-dock {
   position: fixed;
   right: var(--mobile-dock-inset);
@@ -734,28 +876,44 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   border-radius: 30px;
   background: transparent;
   box-shadow: none;
+  isolation: isolate;
   pointer-events: none;
   transition:
     height 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    border-radius 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    background-color 240ms ease,
-    box-shadow 320ms ease;
+    border-radius 420ms cubic-bezier(0.32, 0.72, 0, 1);
 
-  &.visible {
-    height: 54px;
-    border-color: var(--m-glass-border);
+  &::before {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border: 1px solid var(--m-glass-border);
+    border-radius: inherit;
     background: var(--m-glass-bg);
     box-shadow:
       0 14px 34px rgba(0, 0, 0, 0.18),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    content: '';
+    opacity: 0;
+    pointer-events: none;
     backdrop-filter: blur(30px) saturate(175%);
     -webkit-backdrop-filter: blur(30px) saturate(175%);
+  }
+
+  &.visible {
+    height: 54px;
     pointer-events: auto;
   }
 
+  &.visible::before {
+    opacity: 1;
+  }
+
   &.player-transitioning {
-    z-index: 9997;
-    overflow: hidden;
+    z-index: 100150;
+    overflow: visible;
+    height: var(--player-dock-origin-height, 54px) !important;
+    min-height: var(--player-dock-origin-height, 54px) !important;
+    border-radius: 30px !important;
     border-color: transparent;
     background: transparent;
     box-shadow: none;
@@ -766,20 +924,11 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   }
 
   &.player-transitioning::before {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    border: 1px solid color-mix(in srgb, #fff 18%, transparent);
-    border-radius: inherit;
-    background: color-mix(in srgb, var(--accent-color, #555) 13%, var(--m-glass-bg));
-    box-shadow:
-      0 18px 48px rgba(0, 0, 0, 0.22),
-      inset 0 1px 0 rgba(255, 255, 255, 0.18);
-    content: '';
-    opacity: var(--player-transition-surface-opacity, 1);
-    pointer-events: none;
-    backdrop-filter: blur(32px) saturate(180%);
-    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    opacity: 0;
+  }
+
+  &.player-transitioning.player-source-dock::before {
+    opacity: clamp(0, calc(1 - var(--player-open-progress, 0) * 8), 1);
   }
 
   &.player-full {
@@ -798,12 +947,14 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   }
 
   &.player-transitioning .mobile-glow-nav-wrap {
-    opacity: calc(1 - var(--player-open-progress, 0));
+    opacity: clamp(0, calc(1 - var(--player-open-progress, 0) * 8), 1);
     pointer-events: none;
   }
 
   &.player-transitioning > :deep(.mobile-play-bar) {
     z-index: 1;
+    transition: none !important;
+    opacity: clamp(0, calc((1 - var(--player-open-progress, 0)) * 5), 1);
   }
 
   &.visible.player-open {
@@ -817,13 +968,12 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
     border-radius: 32px;
     overflow: hidden;
     pointer-events: auto;
-    background: var(--m-glass-bg);
-    border-color: var(--m-glass-border);
+  }
+
+  &.playlist-open::before {
     box-shadow:
       0 18px 48px rgba(0, 0, 0, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.22);
-    backdrop-filter: blur(30px) saturate(175%);
-    -webkit-backdrop-filter: blur(30px) saturate(175%);
   }
 
   /* Without navigation, the MobilePlayBar itself is the visible morphing surface. */
@@ -900,20 +1050,9 @@ provide('openPlaylistDrawer', openPlaylistDrawer);
   opacity: var(--player-surface-reveal, 1) !important;
   transition: none !important;
   animation: none !important;
-  -webkit-mask-image: radial-gradient(
-    circle at 50% 100%,
-    #000 0,
-    #000 calc(var(--player-ripple-radius, 150vmax) - 18px),
-    rgba(0, 0, 0, 0.45) calc(var(--player-ripple-radius, 150vmax) - 8px),
-    transparent var(--player-ripple-radius, 150vmax)
-  );
-  mask-image: radial-gradient(
-    circle at 50% 100%,
-    #000 0,
-    #000 calc(var(--player-ripple-radius, 150vmax) - 18px),
-    rgba(0, 0, 0, 0.45) calc(var(--player-ripple-radius, 150vmax) - 8px),
-    transparent var(--player-ripple-radius, 150vmax)
-  );
+  -webkit-mask-image: none;
+  mask-image: none;
+  will-change: opacity;
 }
 
 :global(body.mobile-player-surface-active .player-style-surface .mobile-controls),
@@ -1223,37 +1362,6 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 .mobile-glow-nav-wrap.has-player-slot .glow-nav-item {
   flex: 1 1 0;
-}
-
-/* —— 紧凑模式：底栏靠右，左侧为精简播放栏 ——
-   通过同一元素的 left/right/transform/width 变化实现平滑过渡，不创建新 DOM
-*/
-.nav-compact .mobile-glow-nav-wrap.compact-mode {
-  left: auto;
-  right: var(--mobile-dock-inset);
-  transform: none;
-  width: auto;
-  max-width: 55vw;
-  /* 右对齐：当导航项显示文字导致宽度变化时，向左扩展而非向右溢出 */
-  align-items: flex-end;
-}
-
-.nav-compact .mobile-glow-nav-wrap.compact-mode.has-player-slot {
-  left: var(--mobile-dock-inset);
-  right: calc(var(--mobile-dock-inset) + 62px);
-  width: auto;
-  max-width: none;
-  transform: none;
-  align-items: stretch;
-}
-
-.nav-compact .mobile-glow-nav-wrap.compact-mode .mobile-glow-nav-glow {
-  inset: -6px -10px;
-}
-
-/* 紧凑模式下导航项收紧 */
-.nav-compact .mobile-glow-nav-wrap.compact-mode .glow-nav-item {
-  flex: 0 0 auto;
 }
 
 @media (prefers-reduced-motion: reduce) {

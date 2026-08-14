@@ -14,20 +14,53 @@
         class="shared-player-bottom-surface no-toggle"
         :class="{
           'panel-open': panelMounted,
+          'controls-mode': !panelMounted,
           'panel-playlist': surfaceMode === 'playlist',
-          'panel-settings': surfaceMode === 'settings'
+          'panel-settings': surfaceMode === 'settings',
+          'surface-interaction-active': playerSurfaceFeedback.active.value,
+          'lyric-selection-mode': lyricSelection.active.value,
+          'source-dock': transitionStartedWithMenu,
+          'source-mini': !transitionStartedWithMenu,
+          'player-transitioning':
+            playerTransition.state.value === 'dragging' ||
+            playerTransition.state.value === 'opening' ||
+            playerTransition.state.value === 'closing'
         }"
         :style="surfaceStyle"
         @pointerdown="onSurfacePointerDown"
         @pointermove="onSurfacePointerMove"
         @pointerup="onSurfacePointerUp"
         @pointercancel="onSurfacePointerCancel"
+        @click="playerSurfaceFeedback.pulse()"
       >
         <div class="shared-controls-pane" :style="controlsPaneStyle">
+          <div v-if="lyricSelection.active.value" class="lyric-selection-actions">
+            <button
+              type="button"
+              aria-label="复制歌词"
+              title="复制歌词"
+              :disabled="lyricSelection.selectedCount.value === 0"
+              @click="lyricSelection.copy()"
+            >
+              <i class="ri-file-copy-line" />
+            </button>
+            <button
+              type="button"
+              class="primary"
+              aria-label="生成海报"
+              title="生成海报"
+              :disabled="lyricSelection.selectedCount.value === 0"
+              @click="openPosterFromSelection"
+            >
+              <i class="ri-image-edit-line" />
+            </button>
+          </div>
           <mobile-controls-area
+            v-else
             shared-surface
             :visible="controlsShown"
             @show-playlist="openPlaylist"
+            @show-settings="openSettings"
             @interact="playerTransition.resetControlsHideTimer"
           />
         </div>
@@ -48,11 +81,14 @@
 
 <script setup lang="ts">
 import { useMediaQuery, useWindowSize } from '@vueuse/core';
-import type { CSSProperties } from 'vue';
-import { computed, watch } from 'vue';
+import type { CSSProperties, Ref } from 'vue';
+import { computed, inject, onMounted, ref, watch } from 'vue';
 
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
+import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
+import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
+import { usePosterTransitionOrigin } from '@/composables/usePosterTransitionOrigin';
 import { usePlayerStore } from '@/store/modules/player';
 
 import MobilePlayerSettings from './MobilePlayerSettings.vue';
@@ -60,8 +96,23 @@ import PlayingListDrawer from './PlayingListDrawer.vue';
 
 const playerStore = usePlayerStore();
 const playerTransition = useMobilePlayerTransition();
+const transitionStartedWithMenu = inject(
+  'playerTransitionStartedWithMenu',
+  ref(false)
+) as Ref<boolean>;
+const playerSurfaceFeedback = usePlayerSurfaceFeedback();
+const lyricSelection = useLyricSelectionSurface();
+const posterTransitionOrigin = usePosterTransitionOrigin();
 const { width: viewportWidth, height: viewportHeight } = useWindowSize();
 const isLandscape = useMediaQuery('(orientation: landscape)');
+const safeBottomInset = ref(0);
+const updateSafeBottomInset = () => {
+  safeBottomInset.value = Number.parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom') || '0'
+  );
+};
+onMounted(updateSafeBottomInset);
+watch([viewportWidth, viewportHeight], updateSafeBottomInset);
 
 const surfaceMode = computed(() => playerTransition.surfaceMode.value);
 const sheetProgress = computed(() => playerTransition.sheetProgress.value);
@@ -69,13 +120,23 @@ const panelMounted = computed(
   () => surfaceMode.value !== 'controls' || playerTransition.sheetProgress.value > 0.002
 );
 const surfaceMounted = computed(
-  () => playerStore.musicFull || playerTransition.progress.value > 0.015
+  () =>
+    lyricSelection.active.value || playerStore.musicFull || playerTransition.state.value !== 'idle'
 );
 const controlsShown = computed(
   () => playerTransition.controlsVisible.value && surfaceMode.value === 'controls'
 );
 const chromeVisibility = computed(() => {
-  const progressReveal = Math.min(1, Math.max(0, playerTransition.progress.value / 0.24));
+  if (lyricSelection.active.value) return 1;
+  const transitionState = playerTransition.state.value;
+  const progressReveal = Math.min(1, Math.max(0, playerTransition.progress.value / 0.08));
+  if (
+    transitionState === 'dragging' ||
+    transitionState === 'opening' ||
+    transitionState === 'closing'
+  ) {
+    return progressReveal;
+  }
   const controlsReveal =
     surfaceMode.value !== 'controls' || playerTransition.controlsVisible.value ? 1 : 0;
   return progressReveal * controlsReveal;
@@ -91,19 +152,20 @@ const layerStyle = computed<CSSProperties>(
 
 const surfaceStyle = computed<CSSProperties>(() => {
   const sheet = sheetProgress.value;
-  const playerProgress = playerTransition.progress.value;
+  const playerProgress = lyricSelection.active.value ? 1 : playerTransition.progress.value;
   const landscape = isLandscape.value;
   const baseHeight = 136;
-  const targetHeight = landscape
+  const controlHeight = lyricSelection.active.value ? 88 : landscape ? 154 : 168;
+  const panelHeight = landscape
     ? viewportHeight.value - 28
     : Math.min(viewportHeight.value * 0.68, 560);
-  const height = baseHeight + (targetHeight - baseHeight) * sheet;
+  const controlProgress = surfaceMode.value === 'controls' ? playerProgress : 1;
+  const heightAtControls = baseHeight + (controlHeight - baseHeight) * controlProgress;
+  const height = heightAtControls + (panelHeight - controlHeight) * sheet;
   const fullWidth = viewportWidth.value - 28;
-  const targetWidth = landscape ? Math.min(viewportWidth.value * 0.48, 430) : fullWidth;
-  const width = fullWidth + (targetWidth - fullWidth) * sheet;
-  const safeBottom = Number.parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom') || '0'
-  );
+  const panelWidth = landscape ? Math.min(viewportWidth.value * 0.48, 430) : fullWidth;
+  const width = fullWidth + (panelWidth - fullWidth) * sheet;
+  const safeBottom = safeBottomInset.value;
   const finalLeft = landscape && sheet > 0 ? viewportWidth.value - width - safeBottom - 14 : 14;
   const finalTop = viewportHeight.value - safeBottom - 14 - height;
   const finalRadius = 26 + sheet * 4;
@@ -116,24 +178,43 @@ const surfaceStyle = computed<CSSProperties>(() => {
   };
   const source = playerTransition.sourceRect.value || fallbackSource;
   const morphProgress = Math.min(1, Math.max(0, playerProgress));
-  const lerp = (from: number, to: number) => from + (to - from) * morphProgress;
+  const sourceTakeover = Math.min(1, Math.max(0, 1 - morphProgress * 8));
+  const morphMaterialOpacity = (1 - morphProgress) * (1 - sourceTakeover);
+  const stretchProgress = Math.min(1, morphProgress / 0.42);
+  const expandProgress = Math.min(1, Math.max(0, (morphProgress - 0.28) / 0.72));
+  const sourceScaleX = Math.max(0.01, source.width / width);
+  const sourceScaleY = Math.max(0.01, source.height / height);
+  const scaleX = sourceScaleX + (1 - sourceScaleX) * expandProgress;
+  const scaleY = sourceScaleY + (1 - sourceScaleY) * stretchProgress;
+  const sourceCenterX = source.left + source.width / 2;
+  const targetCenterX = finalLeft + width / 2;
+  const sourceBottom = source.top + source.height;
+  const targetBottom = finalTop + height;
+  const translateX = (sourceCenterX - targetCenterX) * (1 - expandProgress);
+  const translateY = (sourceBottom - targetBottom) * (1 - morphProgress);
   return {
-    top: `${lerp(source.top, finalTop)}px`,
-    left: `${lerp(source.left, finalLeft)}px`,
+    '--player-open-progress': String(morphProgress),
+    '--player-morph-material-opacity': String(morphMaterialOpacity),
+    top: `${finalTop}px`,
+    left: `${finalLeft}px`,
     right: 'auto',
     bottom: 'auto',
-    width: `${lerp(source.width, width)}px`,
-    height: `${lerp(source.height, height)}px`,
-    borderRadius: `${lerp(source.borderRadius, finalRadius)}px`,
+    width: `${width}px`,
+    height: `${height}px`,
+    borderRadius: `${finalRadius}px`,
+    transformOrigin: 'center bottom',
+    transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${scaleX}, ${scaleY})`,
     pointerEvents: chromeVisibility.value > 0.02 ? 'auto' : 'none'
   };
 });
 
 const controlsPaneStyle = computed<CSSProperties>(() => ({
-  opacity: String(
-    (1 - sheetProgress.value) *
-      Math.min(1, Math.max(0, (playerTransition.progress.value - 0.28) / 0.48))
-  ),
+  opacity: lyricSelection.active.value
+    ? '1'
+    : String(
+        (1 - sheetProgress.value) *
+          Math.min(1, Math.max(0, (playerTransition.progress.value - 0.12) / 0.56))
+      ),
   transform: `translate3d(0, ${-10 * sheetProgress.value}px, 0)`,
   pointerEvents: sheetProgress.value < 0.05 ? 'auto' : 'none'
 }));
@@ -148,9 +229,18 @@ const openPlaylist = () => {
   playerTransition.setSurfaceMode('playlist');
 };
 
+const openSettings = () => {
+  playerTransition.setSurfaceMode('settings');
+};
+
 const closePanel = () => {
   if (surfaceMode.value === 'playlist') playerStore.setPlayListDrawerVisible(false);
   playerTransition.setSurfaceMode('controls');
+};
+
+const openPosterFromSelection = (event: MouseEvent) => {
+  posterTransitionOrigin.capture(event.currentTarget as Element);
+  lyricSelection.generatePoster();
 };
 
 watch(
@@ -222,6 +312,7 @@ const onSurfacePointerCancel = (event: PointerEvent) => {
   position: fixed;
   inset: 0;
   z-index: 100100;
+  overflow: visible;
   pointer-events: none;
   transition: opacity 180ms ease;
 }
@@ -240,14 +331,12 @@ const onSurfacePointerCancel = (event: PointerEvent) => {
   left: 14px;
   bottom: calc(var(--safe-area-inset-bottom, 0px) + 14px);
   display: grid;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, #fff 22%, transparent);
-  background: color-mix(in srgb, var(--accent-color, #777) 10%, rgba(18, 18, 20, 0.58));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 14px 36px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(28px) saturate(170%);
-  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  overflow: visible;
+  border: 1px solid var(--player-glass-border, rgba(255, 255, 255, 0.1));
+  background: var(--player-glass-background, rgba(18, 18, 20, 0.2));
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+  backdrop-filter: var(--player-glass-filter, blur(12px) saturate(145%));
+  -webkit-backdrop-filter: var(--player-glass-filter, blur(12px) saturate(145%));
   --m-text-primary: rgba(255, 255, 255, 0.94);
   --m-text-secondary: rgba(255, 255, 255, 0.76);
   --m-text-muted: rgba(255, 255, 255, 0.58);
@@ -258,8 +347,121 @@ const onSurfacePointerCancel = (event: PointerEvent) => {
   --text-color: rgba(255, 255, 255, 0.94);
   color: rgba(255, 255, 255, 0.94);
   transform-origin: right bottom;
-  will-change: width, height, border-radius, transform;
+  contain: layout style;
+  will-change: transform, opacity;
   pointer-events: auto;
+  isolation: isolate;
+  transition:
+    border-color var(--player-glass-feedback-duration, 220ms) ease,
+    background-color var(--player-glass-feedback-duration, 220ms) ease,
+    box-shadow var(--player-glass-feedback-duration, 220ms) ease;
+}
+
+.shared-player-bottom-surface.player-transitioning {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: none;
+}
+
+.shared-player-bottom-surface.player-transitioning::before {
+  position: absolute;
+  inset: -1px;
+  z-index: 0;
+  border: 1px solid var(--player-morph-border);
+  border-radius: inherit;
+  background: var(--player-morph-background);
+  box-shadow: var(--player-morph-shadow, none);
+  content: '';
+  opacity: var(--player-morph-material-opacity, 0);
+  pointer-events: none;
+  backdrop-filter: var(--player-morph-filter);
+  -webkit-backdrop-filter: var(--player-morph-filter);
+}
+
+.shared-player-bottom-surface.controls-mode:not(.player-transitioning) {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.shared-player-bottom-surface.controls-mode.player-transitioning {
+  border-color: transparent;
+}
+
+.shared-player-bottom-surface.controls-mode.player-transitioning.source-dock {
+  --player-morph-background: var(--m-glass-bg);
+  --player-morph-border: var(--m-glass-border);
+  --player-morph-shadow: 0 12px 26px rgba(0, 0, 0, 0.12);
+  --player-morph-filter: blur(18px) saturate(120%);
+}
+
+.shared-player-bottom-surface.controls-mode.player-transitioning.source-mini {
+  --player-morph-border: color-mix(
+    in srgb,
+    var(--accent-color, #888) 24%,
+    rgba(255, 255, 255, 0.22)
+  );
+  --player-morph-background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.18),
+      rgba(var(--accent-color-rgb, 136, 136, 136), 0.12)
+    ),
+    color-mix(in srgb, var(--cover-surface, rgba(24, 24, 28, 0.78)) 86%, transparent);
+  --player-morph-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  --player-morph-filter: blur(18px) saturate(122%);
+}
+
+.shared-player-bottom-surface.surface-interaction-active {
+  border-color: var(--player-glass-border-active, rgba(255, 255, 255, 0.38));
+  background: var(--player-glass-background-active, rgba(24, 24, 26, 0.28));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 10px 22px rgba(0, 0, 0, 0.14);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .shared-player-bottom-surface {
+    background: var(--player-glass-background-fallback, rgba(24, 24, 26, 0.52));
+  }
+}
+
+.lyric-selection-actions {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+  gap: 10px;
+  padding: 8px 0 0;
+}
+
+.lyric-selection-actions button {
+  display: grid;
+  min-width: 0;
+  width: 52px;
+  height: 52px;
+  justify-self: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 25px;
+  place-items: center;
+}
+
+.lyric-selection-actions button.primary {
+  background: transparent;
+  color: color-mix(in srgb, var(--accent-color, #fff) 72%, #fff);
+}
+
+.lyric-selection-actions button:disabled {
+  opacity: 0.38;
 }
 
 .shared-controls-pane,
@@ -267,8 +469,9 @@ const onSurfacePointerCancel = (event: PointerEvent) => {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   will-change: transform, opacity;
+  z-index: 1;
 }
 
 .shared-sheet-pane {
@@ -307,6 +510,10 @@ const onSurfacePointerCancel = (event: PointerEvent) => {
 @media (prefers-reduced-motion: reduce) {
   .shared-player-bottom-layer {
     transition-duration: 160ms;
+  }
+
+  .shared-player-bottom-surface {
+    transition-duration: 100ms;
   }
 }
 </style>

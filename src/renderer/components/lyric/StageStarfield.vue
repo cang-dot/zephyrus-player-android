@@ -58,6 +58,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { artistList, playMusic } from '@/hooks/MusicHook';
 import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
+import { shouldSkipMobilePlayerFrame } from '@/utils/mobilePlayerPerformance';
 
 import LyricSettings from './LyricSettings.vue';
 
@@ -174,14 +175,18 @@ function connectAudio() {
     analyser.smoothingTimeConstant = 0.75;
     source.connect(analyser);
     frequencyData = new Uint8Array(analyser.frequencyBinCount);
-  } catch {}
+  } catch {
+    // Audio analysis is optional; the visual falls back to static energy.
+  }
 }
 
 function disconnectAudio() {
   if (analyser) {
     try {
       analyser.disconnect();
-    } catch {}
+    } catch {
+      // The analyser may already be disconnected during teardown.
+    }
     analyser = null;
     frequencyData = null;
   }
@@ -217,6 +222,7 @@ const canvasRef = ref<HTMLCanvasElement | null>(null);
 let ctx: CanvasRenderingContext2D | null = null;
 let particles: StarParticle[] = [];
 let rafId: number | null = null;
+let lastRenderAt = 0;
 
 const PARALLAX_STRENGTH = 40;
 const MOUSE_SMOOTHING = 0.08;
@@ -232,7 +238,9 @@ const particleCount = computed(() => {
       const config = JSON.parse(saved);
       return Math.max(100, Math.min(600, config.starfieldParticleCount || 400));
     }
-  } catch {}
+  } catch {
+    // Invalid persisted particle settings use the default count.
+  }
   return 400;
 });
 
@@ -295,6 +303,13 @@ function initParticles(count?: number) {
 function renderLoop() {
   const canvas = canvasRef.value;
   if (!canvas || !ctx) return;
+
+  const now = performance.now();
+  if (shouldSkipMobilePlayerFrame(lastRenderAt, now)) {
+    rafId = requestAnimationFrame(renderLoop);
+    return;
+  }
+  lastRenderAt = now;
 
   const w = window.innerWidth;
   const h = window.innerHeight;

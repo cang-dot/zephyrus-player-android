@@ -101,24 +101,23 @@ const handleRootClick = (event: MouseEvent) => {
 <style scoped lang="scss">
 .setting-item {
   position: relative;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--m-white, #fff) 24%, transparent);
+  overflow: visible;
+  border: 0;
   border-radius: 20px;
-  background:
-    linear-gradient(
-      color-mix(in srgb, var(--accent-color) 8%, transparent),
-      color-mix(in srgb, var(--accent-color) 8%, transparent)
-    ),
-    var(--m-glass-bg, color-mix(in srgb, var(--m-surface, #eee) 68%, transparent));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  background: transparent;
+  box-shadow: none;
   color: var(--m-text-primary, var(--d-text-primary));
-  backdrop-filter: blur(24px) saturate(165%);
-  -webkit-backdrop-filter: blur(24px) saturate(165%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   transition:
     border-radius 360ms cubic-bezier(0.32, 0.72, 0, 1),
     background-color 180ms ease,
     box-shadow 260ms ease,
     transform 180ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.setting-item.is-expanded {
+  z-index: 100;
 }
 
 .setting-item-summary {
@@ -186,6 +185,16 @@ const handleRootClick = (event: MouseEvent) => {
 .setting-item-details-inner {
   min-height: 0;
   overflow: hidden;
+}
+.setting-item.is-expanded .setting-item-details-inner {
+  overflow: visible;
+}
+
+@media (prefers-color-scheme: dark) {
+  .setting-item {
+    border-color: transparent;
+    box-shadow: none;
+  }
 }
 .setting-item.is-expanded .setting-item-details {
   grid-template-rows: 1fr;

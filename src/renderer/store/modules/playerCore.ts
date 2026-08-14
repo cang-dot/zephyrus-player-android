@@ -4,7 +4,6 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
 import i18n from '@/../i18n/renderer';
-import { isCrossPlatformSong } from '@/api/crossPlatformSearch';
 import { getParsingMusicUrl } from '@/api/music';
 import { isLocalSong, useLocalMusic } from '@/hooks/useLocalMusic';
 import { useLyrics, useSongDetail } from '@/hooks/usePlayerHooks';
@@ -282,7 +281,7 @@ export const usePlayerCoreStore = defineStore(
 
       const originalMusic = { ...music };
 
-      const { loadLrc, loadCrossPlatformLyric } = useLyrics();
+      const { loadBestLyric } = useLyrics();
       const { getSongDetail } = useSongDetail();
       const localMusic = useLocalMusic();
 
@@ -310,16 +309,7 @@ export const usePlayerCoreStore = defineStore(
           if (isLocalSong(music)) {
             return await localMusic.loadLocalLyrics(music);
           }
-          // 跨平台歌曲：通过 GD 音乐台获取歌词（不走网易云 API）
-          if (isCrossPlatformSong(music)) {
-            return await loadCrossPlatformLyric(music);
-          }
-          // 在线歌曲：如果已有歌词且有效，直接使用
-          if (music.lyric && music.lyric.lrcTimeArray.length > 0) {
-            return music.lyric;
-          }
-          // 在线歌曲走网易云 API
-          return await loadLrc(music.id);
+          return await loadBestLyric(music);
         })(),
         (async () => {
           if (music.backgroundColor && music.primaryColor) {

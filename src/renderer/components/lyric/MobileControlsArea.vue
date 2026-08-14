@@ -4,13 +4,43 @@
     :class="{
       visible,
       'fullscreen-mode': isFullscreen,
-      'shared-surface-content': sharedSurface
+      'shared-surface-content': sharedSurface,
+      'surface-interaction-active': playerSurfaceFeedback.active.value
     }"
     @click.stop
     @touchstart.stop="emitInteract"
     @touchend.stop
     @mousedown.stop="emitInteract"
   >
+    <div class="player-info-row">
+      <div class="player-info-main">
+        <img class="player-info-cover" :src="coverUrl" alt="" />
+        <div class="player-info-copy">
+          <strong>{{ songTitle }}</strong>
+          <span>{{ artistText }}</span>
+        </div>
+      </div>
+      <div class="player-info-actions">
+        <button
+          type="button"
+          class="player-info-action"
+          :class="{ active: isFavorite }"
+          aria-label="收藏歌曲"
+          @click="handleFavorite"
+        >
+          <i :class="isFavorite ? 'ri-heart-3-fill' : 'ri-heart-3-line'" />
+        </button>
+        <button
+          type="button"
+          class="player-info-action"
+          aria-label="播放设置"
+          @click="handleShowSettings"
+        >
+          <i class="ri-more-2-fill" />
+        </button>
+      </div>
+    </div>
+
     <!-- 进度条 -->
     <div class="progress-container">
       <div
@@ -62,10 +92,7 @@
 
     <!-- 控制按钮 -->
     <div class="control-buttons">
-      <div v-if="isFullscreen" class="back-button" @click.stop="$emit('close')">
-        <i class="ri-arrow-down-s-line"></i>
-      </div>
-      <div class="side-button" @click="togglePlayMode">
+      <div class="side-button" @click="handleTogglePlayMode">
         <i :class="[playModeIcon, { 'intelligence-active': playMode === 3 }]"></i>
       </div>
       <div class="main-button prev" @click="handlePrev">
@@ -77,7 +104,7 @@
       <div class="main-button next" @click="handleNext">
         <i class="ri-skip-forward-fill"></i>
       </div>
-      <div class="side-button" @click="$emit('showPlaylist')">
+      <div class="side-button" @click="handleShowPlaylist">
         <i class="iconfont icon-list"></i>
       </div>
     </div>
@@ -87,12 +114,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import { allTime, nowTime, pause, play, sound } from '@/hooks/MusicHook';
+import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
+import { allTime, artistList, nowTime, pause, play, playMusic, sound } from '@/hooks/MusicHook';
 import { usePlayMode } from '@/hooks/usePlayMode';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useTransitionStore } from '@/store/modules/transition';
-import { secondToMinute } from '@/utils';
+import { getImgUrl, secondToMinute } from '@/utils';
 
 const transitionStore = useTransitionStore();
 
@@ -130,15 +158,25 @@ defineProps<{
 const emit = defineEmits<{
   close: [];
   showPlaylist: [];
+  showSettings: [];
   interact: [];
 }>();
 
 const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
+const playerSurfaceFeedback = usePlayerSurfaceFeedback();
 const { playMode, playModeIcon, togglePlayMode } = usePlayMode();
 
 const playState = computed(() => playerStore.isPlay);
 const playIcon = computed(() => (playState.value ? 'ri-pause-fill' : 'ri-play-fill'));
+const songTitle = computed(() => playMusic.value?.name || 'Zephyrus');
+const artistText = computed(() => artistList.value.map((artist) => artist.name).join(' / '));
+const coverUrl = computed(() =>
+  getImgUrl(playMusic.value?.picUrl || '/images/default_cover.png', '100y100')
+);
+const isFavorite = computed(() =>
+  playerStore.favoriteList.some((id) => String(id) === String(playMusic.value?.id))
+);
 
 // 播放控制（使用 MusicHook 直接控制音频）
 function handleTogglePlay() {
@@ -147,20 +185,44 @@ function handleTogglePlay() {
   } else {
     play();
   }
-  emit('interact');
+  emitInteract();
 }
 
 function handlePrev() {
   playerStore.prevPlay();
-  emit('interact');
+  emitInteract();
 }
 
 function handleNext() {
   playerStore.nextPlay();
-  emit('interact');
+  emitInteract();
+}
+
+function handleTogglePlayMode() {
+  togglePlayMode();
+  emitInteract();
+}
+
+function handleShowPlaylist() {
+  playerSurfaceFeedback.pulse();
+  emit('showPlaylist');
+}
+
+async function handleFavorite() {
+  const id = playMusic.value?.id;
+  if (id === undefined || id === null) return;
+  if (isFavorite.value) await playerStore.removeFromFavorite(id);
+  else await playerStore.addToFavorite(id);
+  emitInteract();
+}
+
+function handleShowSettings() {
+  playerSurfaceFeedback.pulse();
+  emit('showSettings');
 }
 
 function emitInteract() {
+  playerSurfaceFeedback.pulse();
   emit('interact');
 }
 
@@ -176,7 +238,7 @@ const seekToRatio = (clientX: number, target: HTMLElement) => {
   if (sound.value) {
     sound.value.seek(time);
   }
-  emit('interact');
+  emitInteract();
 };
 
 const handleProgressBarClick = (e: MouseEvent) => {
@@ -228,17 +290,24 @@ const handleThumbTouchEnd = () => {
   right: 14px;
   z-index: 30;
   padding: 14px 16px calc(var(--safe-area-inset-bottom, 0px) + 16px);
-  border: 1px solid color-mix(in srgb, #fff 22%, transparent);
-  border-radius: 26px;
-  background: color-mix(in srgb, var(--accent-color, #777) 10%, rgba(18, 18, 20, 0.56));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 12px 30px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(28px) saturate(170%);
-  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    border-color var(--player-glass-feedback-duration, 220ms) ease,
+    background-color var(--player-glass-feedback-duration, 220ms) ease,
+    box-shadow var(--player-glass-feedback-duration, 220ms) ease;
   pointer-events: none;
+
+  &.surface-interaction-active {
+    background: transparent;
+    box-shadow: none;
+  }
 
   &.visible {
     opacity: 1;
@@ -253,22 +322,108 @@ const handleThumbTouchEnd = () => {
     position: relative;
     inset: auto;
     width: 100%;
-    padding: 14px 16px;
+    padding: 12px 16px 14px;
     border: 0;
     border-radius: inherit;
     background: transparent;
     box-shadow: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-
-    .progress-container {
-      transform: translate3d(0, 4px, 0);
-    }
   }
 }
 
+.player-info-row {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  opacity: clamp(0, calc((var(--player-open-progress, 0) - 0.58) * 3.6), 1);
+  transform: translate3d(0, calc((1 - var(--player-open-progress, 0)) * 16px), 0);
+}
+
+.player-info-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.player-info-cover {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.player-info-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  text-align: left;
+  transform: translate3d(0, calc((1 - var(--player-open-progress, 0)) * 10px), 0);
+  transition: transform 180ms ease;
+}
+
+.player-info-copy strong,
+.player-info-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-info-copy strong {
+  color: rgba(255, 255, 255, 0.96);
+  font-size: calc(14px + var(--player-open-progress, 0) * 2px);
+  font-weight: 700;
+  transition:
+    color 180ms ease,
+    font-size 180ms ease,
+    line-height 180ms ease;
+}
+
+.player-info-copy span {
+  color: rgba(255, 255, 255, 0.64);
+  font-size: calc(11px + var(--player-open-progress, 0) * 1px);
+  transition:
+    color 180ms ease,
+    font-size 180ms ease,
+    line-height 180ms ease;
+}
+
+.player-info-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.player-info-action {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 20px;
+  place-items: center;
+}
+
+.player-info-action.active {
+  color: var(--accent-color, #fff);
+}
+
+.player-info-action:active {
+  transform: scale(0.9);
+}
+
 .progress-container {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
+  opacity: clamp(0, calc((var(--player-open-progress, 1) - 0.34) * 2.8), 1);
 }
 
 .time-info {
@@ -363,10 +518,14 @@ const handleThumbTouchEnd = () => {
 }
 
 .control-buttons {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: center;
-  justify-content: center;
-  gap: 16px;
+  justify-items: center;
+  gap: 0;
+  width: 100%;
+  opacity: clamp(0, calc((var(--player-open-progress, 1) - 0.46) * 3), 1);
+  transform: translate3d(0, calc((1 - var(--player-open-progress, 1)) * 12px), 0);
 }
 
 .side-button {
@@ -408,15 +567,9 @@ const handleThumbTouchEnd = () => {
   }
 }
 
-.back-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 24px;
-  color: var(--text-color-active, #fff);
+@media (prefers-reduced-motion: reduce) {
+  .mobile-controls {
+    transition-duration: 100ms;
+  }
 }
 </style>

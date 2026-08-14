@@ -19,13 +19,13 @@ const getMessage = () => {
 };
 
 /**
-* 判断是否为本地歌曲
-*/
+ * 判断是否为本地歌曲
+ */
 export function isLocalSong(song: SongResult | null | undefined): boolean {
-if (!song) return false;
-// 云端托管歌曲和跨平台歌曲不是本地歌曲
-if (song.platform && song.platform !== 'netease') return false;
-return song.playMusicUrl?.startsWith('local://') || typeof song.id === 'string';
+  if (!song) return false;
+  // 云端托管歌曲和跨平台歌曲不是本地歌曲
+  if (song.platform && song.platform !== 'netease') return false;
+  return song.playMusicUrl?.startsWith('local://') || typeof song.id === 'string';
 }
 
 /**
@@ -103,8 +103,8 @@ export function useLocalMusic() {
     try {
       const { loadCommunityLyricForSong } = await import('@/api/communityLyric');
       const communityLyric = await loadCommunityLyricForSong(songId || '');
-      if (communityLyric?.lrcContent) {
-        const result = parseLyricContent(communityLyric.lrcContent);
+      if (communityLyric?.lrc) {
+        const result = parseLyricContent(communityLyric.lrc);
         if (result && result.lrcTimeArray.length > 0) {
           return result;
         }

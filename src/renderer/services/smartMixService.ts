@@ -402,12 +402,12 @@ class SmartMixService {
 
       // 加载歌词和背景色
       const { useLyrics } = await import('@/hooks/usePlayerHooks');
-      const { loadLrc } = useLyrics();
+      const { loadBestLyric } = useLyrics();
       const { useLocalMusic } = await import('@/hooks/useLocalMusic');
       const localMusic = useLocalMusic();
 
       const [lyrics, bg] = await Promise.all([
-        isLocalSong(nextSong) ? localMusic.loadLocalLyrics(nextSong) : loadLrc(nextSong.id),
+        isLocalSong(nextSong) ? localMusic.loadLocalLyrics(nextSong) : loadBestLyric(nextSong),
         nextSong.backgroundColor && nextSong.primaryColor
           ? Promise.resolve({
               backgroundColor: nextSong.backgroundColor,

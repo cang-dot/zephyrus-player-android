@@ -1,5 +1,6 @@
 import type { ILyric, ILyricText, IWordData, LyricFormat, LyricSource } from '@/types/music';
 
+import { parseKrcLyrics } from './krcParser';
 import { extractQrcLyricContent } from './qrcParser';
 import { parseLyrics } from './yrcParser';
 
@@ -26,7 +27,7 @@ function detectFormat(payload: string, requested?: LyricFormat): LyricFormat {
 export function parseTimedLyrics(payload: string, options: TimedLyricOptions = {}): ILyric {
   if (!payload || typeof payload !== 'string') return emptyLyric(options);
   const content = options.format === 'qrc' ? extractQrcLyricContent(payload) : payload;
-  const result = parseLyrics(content);
+  const result = options.format === 'krc' ? parseKrcLyrics(content) : parseLyrics(content);
   if (!result.success) return emptyLyric(options);
 
   let hasWordByWord = false;

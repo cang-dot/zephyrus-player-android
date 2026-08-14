@@ -41,11 +41,6 @@ export const MOBILE_SETTING_SEARCH_DEFINITIONS: readonly MobileSettingSearchDefi
   },
   {
     tabId: 'interface',
-    title: '底栏布局',
-    desc: '调整移动端底栏与迷你播放栏的布局'
-  },
-  {
-    tabId: 'interface',
     title: '播放器样式',
     desc: '选择全屏播放界面的视觉样式'
   },

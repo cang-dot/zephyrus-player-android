@@ -186,6 +186,7 @@ import RainCanvas from '@/components/lyric/RainCanvas.vue';
 import SplitLyrics from '@/components/lyric/SplitLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
@@ -282,7 +283,10 @@ const backgroundOverlayStyle = computed(() => {
 });
 
 function close() {
-  isVisible.value = false;
+  useMobilePlayerTransition().close(0, () => {
+    isVisible.value = false;
+    playerStore.setMusicFull(false);
+  });
 }
 function openPlaylist() {
   playerStore.setPlayListDrawerVisible(true);

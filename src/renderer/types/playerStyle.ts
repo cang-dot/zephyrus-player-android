@@ -74,6 +74,10 @@ export interface PlayerStyleCustomConfig {
   smokeOpacity?: number;
   smokeVignette?: number;
   smokeFontStretch?: number;
+  smokeFollowThemeColor?: boolean;
+  smokeCustomColor?: string;
+  smokeGlowFollowThemeColor?: boolean;
+  smokeGlowCustomColor?: string;
   [key: string]: unknown;
 }
 

@@ -11,26 +11,6 @@
       </div>
     </transition>
 
-    <!-- 选择模式提示 -->
-    <transition name="slide-down">
-      <div v-if="selectMode" class="select-mode-header">
-        <button class="select-cancel-btn" @click="exitSelectMode">
-          <i class="ri-close-line"></i>
-        </button>
-        <span class="select-hint">
-          {{ t('player.share.selectLyrics') || '选择歌词' }}
-          <span class="select-count">{{ selectedSet.size }}</span>
-        </span>
-        <button class="select-all-btn" @click="toggleSelectAll">
-          {{
-            isAllSelected
-              ? t('player.share.deselectAll') || '取消全选'
-              : t('player.share.selectAll') || '全选'
-          }}
-        </button>
-      </div>
-    </transition>
-
     <!-- 歌词滚动区（全屏，点击空白关闭） -->
     <div
       ref="scrollerRef"
@@ -142,30 +122,6 @@
       <div class="lyrics-padding-bottom"></div>
     </div>
 
-    <!-- 底部操作栏（选择模式） -->
-    <transition name="slide-up">
-      <div v-if="selectMode" class="select-action-bar">
-        <div class="action-row">
-          <button
-            class="action-btn copy-btn"
-            :disabled="selectedSet.size === 0"
-            @click="handleCopyLyrics"
-          >
-            <i class="ri-file-copy-line"></i>
-            <span>{{ t('player.share.copyLyrics') || '复制歌词' }}</span>
-          </button>
-          <button
-            class="action-btn generate-btn"
-            :disabled="selectedSet.size === 0"
-            @click="handleGeneratePoster"
-          >
-            <i class="ri-image-edit-line"></i>
-            <span>{{ t('player.share.generatePoster') || '生成海报' }}</span>
-          </button>
-        </div>
-      </div>
-    </transition>
-
     <!-- 截断提示 Toast -->
     <Transition name="toast">
       <div v-if="toastMsg" class="lyric-toast">
@@ -180,6 +136,8 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
+import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import { sound, textColors } from '@/hooks/MusicHook';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
@@ -189,6 +147,9 @@ import { getTextColors } from '@/utils/linearColor';
 
 const { t } = useI18n();
 const wordPlayback = useWordTimedPlayback();
+const lyricSelection = useLyricSelectionSurface();
+const playerTransition = useMobilePlayerTransition();
+const selectionOwner = Symbol('mobile-scrolling-lyrics');
 const displayLyrics = wordPlayback.displayLines;
 const displayTimes = wordPlayback.displayTimes;
 const displayIndex = wordPlayback.displayIndex;
@@ -217,6 +178,18 @@ function enterSelectMode(initialIndex: number) {
   if (initialIndex >= 0) {
     selectedSet.value.add(initialIndex);
   }
+  lyricSelection.begin(
+    selectionOwner,
+    {
+      onCancel: exitSelectMode,
+      onToggleAll: toggleSelectAll,
+      onCopy: handleCopyLyrics,
+      onGeneratePoster: handleGeneratePoster
+    },
+    { selectedCount: selectedSet.value.size, allSelected: isAllSelected.value }
+  );
+  playerTransition.setSurfaceMode('controls');
+  playerTransition.showControls(false);
   emit('interact');
 }
 
@@ -224,6 +197,8 @@ function enterSelectMode(initialIndex: number) {
 function exitSelectMode() {
   selectMode.value = false;
   selectedSet.value = new Set();
+  lyricSelection.end(selectionOwner);
+  playerTransition.showControls();
 }
 
 /** 切换某行选中状态 */
@@ -242,6 +217,14 @@ const isAllSelected = computed(() => {
   const validLines = displayLyrics.value.filter((l) => l.text && l.text.trim());
   return validLines.length > 0 && selectedSet.value.size >= validLines.length;
 });
+
+watch(
+  () => [selectMode.value, selectedSet.value.size, isAllSelected.value] as const,
+  ([active, selectedCount, allSelected]) => {
+    if (active) lyricSelection.update(selectionOwner, { selectedCount, allSelected });
+  },
+  { flush: 'sync' }
+);
 
 function toggleSelectAll() {
   if (isAllSelected.value) {
@@ -650,6 +633,7 @@ onBeforeUnmount(() => {
   if (autoScrollTimer) clearTimeout(autoScrollTimer);
   if (longPressTimer) clearTimeout(longPressTimer);
   if (toastTimer) clearTimeout(toastTimer);
+  lyricSelection.end(selectionOwner);
 });
 </script>
 
@@ -680,17 +664,23 @@ onBeforeUnmount(() => {
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    black 8%,
-    black 92%,
+    black 17%,
+    black 82%,
     transparent 100%
   );
-  mask-image: linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 17%, black 82%, transparent 100%);
 
   &.select-scroller {
-    padding-top: 60px;
-    padding-bottom: 100px;
-    -webkit-mask-image: none;
-    mask-image: none;
+    padding-top: calc(var(--safe-area-inset-top, 0px) + 62px);
+    padding-bottom: calc(var(--safe-area-inset-bottom, 0px) + 104px);
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 18%,
+      black 80%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 80%, transparent 100%);
   }
 }
 
@@ -885,134 +875,6 @@ onBeforeUnmount(() => {
 
   &:active {
     background: rgba(0, 0, 0, 0.8);
-  }
-}
-
-/* ===== 选择模式顶部栏 ===== */
-.select-mode-header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: calc(var(--safe-area-inset-top, 0px) + 12px) 16px 12px;
-  background: rgba(15, 15, 20, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  z-index: 20;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.select-cancel-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  font-size: 20px;
-  flex-shrink: 0;
-
-  &:active {
-    transform: scale(0.95);
-  }
-}
-
-.select-hint {
-  font-size: 15px;
-  font-weight: 600;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.select-count {
-  font-size: 13px;
-  color: rgba(var(--accent-color-rgb, 99, 102, 241), 1);
-  background: rgba(var(--accent-color-rgb, 99, 102, 241), 0.15);
-  padding: 2px 10px;
-  border-radius: 10px;
-}
-
-.select-all-btn {
-  font-size: 14px;
-  color: rgba(var(--accent-color-rgb, 99, 102, 241), 1);
-  padding: 6px 14px;
-  border-radius: 16px;
-  background: rgba(var(--accent-color-rgb, 99, 102, 241), 0.12);
-  flex-shrink: 0;
-
-  &:active {
-    transform: scale(0.95);
-  }
-}
-
-/* ===== 底部操作栏 ===== */
-.select-action-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 16px 20px calc(var(--safe-area-inset-bottom, 0px) + 20px);
-  background: rgba(15, 15, 20, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  z-index: 20;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.action-row {
-  display: flex;
-  gap: 12px;
-}
-
-.action-btn {
-  flex: 1;
-  height: 52px;
-  border-radius: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  transition: all 0.2s ease;
-
-  &:active {
-    transform: scale(0.98);
-  }
-}
-
-.copy-btn {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  &:active:not(:disabled) {
-    background: rgba(255, 255, 255, 0.2);
-  }
-}
-
-.generate-btn {
-  background: linear-gradient(
-    135deg,
-    rgba(var(--accent-color-rgb, 99, 102, 241), 1),
-    rgba(var(--accent-color-rgb, 99, 102, 241), 0.8)
-  );
-  color: #fff;
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
   }
 }
 

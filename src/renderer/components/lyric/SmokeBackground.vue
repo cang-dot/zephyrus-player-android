@@ -22,6 +22,10 @@ let mesh: Mesh | null = null;
 let program: Program | null = null;
 let frameId = 0;
 let resize: (() => void) | null = null;
+let lastRenderTime = 0;
+let isPlayerMorphing = false;
+let bodyClassObserver: MutationObserver | null = null;
+const smokeColor = new Float32Array([0.4, 0.4, 0.4]);
 
 const vertex = `#version 300 es
 in vec2 position;
@@ -45,10 +49,25 @@ function rgb(color: string): [number, number, number] {
   ];
 }
 
+function updateSmokeColor(color: string): void {
+  const nextColor = rgb(color);
+  smokeColor[0] = nextColor[0];
+  smokeColor[1] = nextColor[1];
+  smokeColor[2] = nextColor[2];
+}
+
 onMounted(() => {
   const element = host.value;
   if (!element || props.reducedMotion) return;
   try {
+    updateSmokeColor(props.color);
+    const syncMorphingState = () => {
+      isPlayerMorphing = document.body.classList.contains('mobile-player-surface-morphing');
+      resize?.();
+    };
+    syncMorphingState();
+    bodyClassObserver = new MutationObserver(syncMorphingState);
+    bodyClassObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     renderer = new Renderer({ webgl: 2, alpha: true, antialias: false, dpr: 1 });
     const gl = renderer.gl;
     program = new Program(gl, {
@@ -62,7 +81,7 @@ onMounted(() => {
         uChaos: { value: props.chaos },
         uLoudness: { value: props.loudness },
         uOpacity: { value: props.opacity },
-        uColor: { value: new Float32Array(rgb(props.color)) }
+        uColor: { value: smokeColor }
       }
     });
     mesh = new Mesh(gl, { geometry: new Triangle(gl), program });
@@ -71,18 +90,25 @@ onMounted(() => {
     const draw = (time: number) => {
       frameId = requestAnimationFrame(draw);
       if (!renderer || !program || !mesh) return;
+      // During the geometry morph, the compositor already has a full-screen transform to process.
+      // Keep the smoke responsive without competing for every display frame.
+      if (isPlayerMorphing && time - lastRenderTime < 33) return;
+      lastRenderTime = time;
       program.uniforms.uTime.value = (time - started) / 1000;
       program.uniforms.uLoudness.value = props.loudness;
       program.uniforms.uDensity.value = props.density;
       program.uniforms.uChaos.value = props.chaos;
       program.uniforms.uOpacity.value = props.opacity;
-      program.uniforms.uColor.value = new Float32Array(rgb(props.color));
       renderer.render({ scene: mesh });
     };
     frameId = requestAnimationFrame(draw);
     resize = () => {
       if (!renderer || !program) return;
-      renderer.setSize(Math.max(1, element.clientWidth), Math.max(1, element.clientHeight));
+      const resolutionScale = isPlayerMorphing ? 0.7 : 1;
+      renderer.setSize(
+        Math.max(1, Math.round(element.clientWidth * resolutionScale)),
+        Math.max(1, Math.round(element.clientHeight * resolutionScale))
+      );
       (program.uniforms.uResolution.value as Float32Array)[0] = gl.drawingBufferWidth;
       (program.uniforms.uResolution.value as Float32Array)[1] = gl.drawingBufferHeight;
     };
@@ -98,9 +124,15 @@ watch(
     if (reduced && frameId) cancelAnimationFrame(frameId);
   }
 );
+watch(
+  () => props.color,
+  (color) => updateSmokeColor(color)
+);
 onBeforeUnmount(() => {
   if (frameId) cancelAnimationFrame(frameId);
   if (resize) window.removeEventListener('resize', resize);
+  bodyClassObserver?.disconnect();
+  bodyClassObserver = null;
   if (renderer) renderer.gl.canvas.remove();
   renderer = null;
   mesh = null;

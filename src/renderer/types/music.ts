@@ -37,8 +37,16 @@ export interface ILyricText {
   isBG?: boolean;
 }
 
-export type LyricFormat = 'ttml' | 'yrc' | 'qrc' | 'lrc';
-export type LyricSource = 'zephyrus-ttml' | 'amll-ttml' | 'netease' | 'qq' | 'fallback';
+export type LyricFormat = 'ttml' | 'yrc' | 'qrc' | 'krc' | 'lrc';
+export type LyricSource =
+  | 'zephyrus-ttml'
+  | 'amll-ttml'
+  | 'netease'
+  | 'qq'
+  | 'kugou'
+  | 'lrclib'
+  | 'community'
+  | 'fallback';
 
 export interface ILyric {
   lrcTimeArray: number[];

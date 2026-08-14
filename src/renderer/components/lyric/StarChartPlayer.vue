@@ -120,6 +120,7 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
@@ -129,6 +130,7 @@ import { useCoverColor } from '@/hooks/useCoverColor';
 import { climaxDetector } from '@/services/climaxDetector';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
+import { shouldSkipMobilePlayerFrame } from '@/utils/mobilePlayerPerformance';
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -151,6 +153,7 @@ const chartCanvas = ref<HTMLCanvasElement>();
 let resizeObserver: ResizeObserver | undefined;
 let renderVersion = 0;
 let spectrumFrameId: number | null = null;
+let lastSpectrumRenderAt = 0;
 
 interface ChartPoint {
   x: number;
@@ -200,7 +203,10 @@ const currentLyricText = computed(() => {
 const currentTranslation = computed(() => lrcArray.value[nowIndex.value]?.trText?.trim() || '');
 
 function close() {
-  isVisible.value = false;
+  useMobilePlayerTransition().close(0, () => {
+    isVisible.value = false;
+    playerStore.setMusicFull(false);
+  });
 }
 
 function openPlaylist() {
@@ -376,6 +382,13 @@ function renderSpectrumFrame() {
     stopSpectrumLoop();
     return;
   }
+
+  const now = performance.now();
+  if (shouldSkipMobilePlayerFrame(lastSpectrumRenderAt, now)) {
+    spectrumFrameId = requestAnimationFrame(renderSpectrumFrame);
+    return;
+  }
+  lastSpectrumRenderAt = now;
 
   const context = canvas.getContext('2d');
   if (context) drawPoints(context, chartSize, chartPoints);

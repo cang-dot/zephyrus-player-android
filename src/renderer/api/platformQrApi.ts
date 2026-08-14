@@ -254,6 +254,84 @@ export interface QqLyricPayload {
   romanization: string;
 }
 
+export interface KugouLyricPayload {
+  platform: 'kugou';
+  format: 'krc';
+  lyric: string;
+  translation: string;
+  romanization: string;
+}
+
+function normalizeLyricMatchText(value: unknown): string {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLocaleLowerCase()
+    .replace(/\.(?:mp3|flac|wav|m4a|aac|ogg|ape)$/i, '')
+    .replace(/[\s\-–—_.·•()[\]{}（）【】,，。!！?？:：;'"“”‘’]/g, '');
+}
+
+function songArtists(song: SongResult): string[] {
+  return (song.ar || song.artists || []).map((artist) => artist.name).filter(Boolean);
+}
+
+function lyricMatchScore(source: SongResult, candidate: SongResult): number {
+  const sourceTitle = normalizeLyricMatchText(source.name);
+  const candidateTitle = normalizeLyricMatchText(candidate.name);
+  if (!sourceTitle || sourceTitle !== candidateTitle) return -1;
+  let score = 60;
+
+  const sourceArtists = songArtists(source).map(normalizeLyricMatchText);
+  const candidateArtists = songArtists(candidate).map(normalizeLyricMatchText);
+  if (sourceArtists.length) {
+    const matched = sourceArtists.some((artist) =>
+      candidateArtists.some(
+        (candidateArtist) =>
+          candidateArtist === artist ||
+          candidateArtist.includes(artist) ||
+          artist.includes(candidateArtist)
+      )
+    );
+    if (!matched) return -1;
+    score += 25;
+  }
+
+  const sourceDuration = Number(source.dt || source.duration || 0);
+  const candidateDuration = Number(candidate.dt || candidate.duration || 0);
+  if (sourceDuration > 0 && candidateDuration > 0) {
+    const difference = Math.abs(sourceDuration - candidateDuration);
+    if (difference > 12000) return -1;
+    score += difference <= 2500 ? 20 : difference <= 8000 ? 10 : 4;
+  }
+
+  const sourceAlbum = normalizeLyricMatchText(source.al?.name || source.album?.name);
+  const candidateAlbum = normalizeLyricMatchText(candidate.al?.name || candidate.album?.name);
+  if (sourceAlbum && candidateAlbum && sourceAlbum === candidateAlbum) score += 10;
+  return score;
+}
+
+async function searchGatewayMusic(
+  platform: 'qq' | 'kugou',
+  song: SongResult
+): Promise<SongResult | null> {
+  const keyword = [song.name, ...songArtists(song).slice(0, 2)].filter(Boolean).join(' ');
+  if (!keyword) return null;
+  try {
+    const response = await gatewayRequest.get(`/platform/${platform}/search`, {
+      params: { keyword, limit: 12, noCache: Date.now() },
+      timeout: 12000
+    });
+    const songs = response.data?.data?.songs;
+    if (!Array.isArray(songs)) return null;
+    const ranked = (songs as SongResult[])
+      .map((candidate) => ({ candidate, score: lyricMatchScore(song, candidate) }))
+      .filter((item) => item.score >= 85)
+      .sort((left, right) => right.score - left.score);
+    return ranked[0]?.candidate || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 搜索已登录平台（QQ/酷狗）的音乐，返回可直接播放的 SongResult 列表
  */
@@ -309,5 +387,41 @@ export async function fetchQqLyric(mid: string): Promise<QqLyricPayload | null> 
   } catch (error) {
     if ((error as AxiosError).response?.status === 404) return null;
     throw gatewayError(error, 'QQ 歌词加载');
+  }
+}
+
+export async function fetchMatchedQqLyric(song: SongResult): Promise<QqLyricPayload | null> {
+  const matched = await searchGatewayMusic('qq', song);
+  return matched?.platformId ? fetchQqLyric(matched.platformId) : null;
+}
+
+/** 通过严格元数据匹配获取酷狗 KRC 逐字歌词。 */
+export async function fetchKugouLyric(song: SongResult): Promise<KugouLyricPayload | null> {
+  const matched =
+    song.platform === 'kugou' && song.platformId ? song : await searchGatewayMusic('kugou', song);
+  const hash = String(matched?.platformId || '').trim();
+  if (!hash) return null;
+
+  try {
+    const response = await gatewayRequest.get('/platform/kugou/lyric', {
+      params: {
+        hash,
+        keyword: [song.name, ...songArtists(song).slice(0, 2)].filter(Boolean).join(' '),
+        duration: Number(song.dt || song.duration || 0)
+      },
+      timeout: 15000
+    });
+    const data = response.data?.data;
+    if (response.data?.code !== 200 || !data?.lyric) return null;
+    return {
+      platform: 'kugou',
+      format: 'krc',
+      lyric: String(data.lyric || ''),
+      translation: String(data.translation || ''),
+      romanization: String(data.romanization || '')
+    };
+  } catch (error) {
+    if ((error as AxiosError).response?.status === 404) return null;
+    return null;
   }
 }

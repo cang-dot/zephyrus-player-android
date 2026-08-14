@@ -323,32 +323,58 @@
     <div
       v-if="playerHeaderMounted"
       class="player-header-layer no-toggle"
+      :class="{
+        'surface-interaction-active': playerSurfaceFeedback.active.value,
+        'collapse-only': !lyricSelection.active.value,
+        'lyric-selection-mode': lyricSelection.active.value
+      }"
       :style="playerHeaderStyle"
     >
+      <template v-if="lyricSelection.active.value">
+        <button
+          type="button"
+          class="player-header-button"
+          aria-label="退出歌词选择"
+          :style="playerCloseMorphStyle"
+          @click="lyricSelection.cancel()"
+        >
+          <i class="ri-close-line" />
+        </button>
+        <div class="player-header-song-pill lyric-selection-active" :style="playerSongMorphStyle">
+          <span>
+            <strong>{{ t('player.share.selectLyrics') || '选择歌词' }}</strong>
+            <small>已选择 {{ lyricSelection.selectedCount.value }} 句</small>
+          </span>
+        </div>
+        <button
+          type="button"
+          class="player-header-button"
+          aria-label="全选或取消全选"
+          :style="playerSettingsMorphStyle"
+          @click="lyricSelection.toggleAll()"
+        >
+          <i
+            :class="
+              lyricSelection.allSelected.value
+                ? 'ri-checkbox-circle-fill'
+                : 'ri-checkbox-multiple-line'
+            "
+          />
+        </button>
+      </template>
       <button
+        v-else
         type="button"
-        class="player-header-button"
+        class="player-collapse-indicator"
         aria-label="收起播放器"
-        :style="playerCloseMorphStyle"
-        @click="closePlayer"
+        @click="onCollapseIndicatorClick"
+        @pointerdown="onCollapsePointerDown"
+        @pointermove="onCollapsePointerMove"
+        @pointerup="onCollapsePointerUp"
+        @pointercancel="onCollapsePointerCancel"
       >
+        <span class="collapse-line" />
         <i class="ri-arrow-down-s-line" />
-      </button>
-      <div class="player-header-song-pill" :style="playerSongMorphStyle">
-        <img v-if="playerCover" :src="playerCover" alt="" />
-        <span>
-          <strong>{{ playerSong?.name || 'Zephyrus' }}</strong>
-          <small>{{ playerArtistText }}</small>
-        </span>
-      </div>
-      <button
-        type="button"
-        class="player-header-button"
-        aria-label="播放设置"
-        :style="playerSettingsMorphStyle"
-        @click="openPlayerSettings"
-      >
-        <i class="ri-more-2-fill" />
       </button>
     </div>
   </div>
@@ -369,10 +395,11 @@ import { useRoute, useRouter } from 'vue-router';
 
 import { getSearchSuggestions } from '@/api/search';
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
+import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useMobileTopbarMenu } from '@/composables/useMobileTopbarMenu';
+import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import { SEARCH_TYPES } from '@/const/bar-const';
-import { artistList, playMusic } from '@/hooks/MusicHook';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSearchStore } from '@/store/modules/search';
@@ -387,6 +414,8 @@ const accountStore = usePlatformAccountsStore();
 const searchStore = useSearchStore();
 const playerStore = usePlayerStore();
 const playerTransition = useMobilePlayerTransition();
+const lyricSelection = useLyricSelectionSurface();
+const playerSurfaceFeedback = usePlayerSurfaceFeedback();
 
 const hasSafeArea = inject('hasSafeArea', false);
 
@@ -433,10 +462,14 @@ const topbarSearchPlaceholder = computed(() =>
   route.path === '/set' ? '搜索设置项...' : t('comp.searchBar.searchPlaceholder')
 );
 const playerHeaderMounted = computed(
-  () => playerStore.musicFull || playerTransition.progress.value > 0.015
+  () =>
+    lyricSelection.active.value || playerStore.musicFull || playerTransition.progress.value > 0.015
 );
 const playerHeaderVisible = computed(
-  () => playerTransition.controlsVisible.value || playerTransition.surfaceMode.value !== 'controls'
+  () =>
+    lyricSelection.active.value ||
+    playerTransition.controlsVisible.value ||
+    playerTransition.surfaceMode.value !== 'controls'
 );
 type HeaderMorphRect = { left: number; top: number; width: number; height: number };
 const playerHeaderOrigins = ref<{
@@ -444,30 +477,16 @@ const playerHeaderOrigins = ref<{
   song: HeaderMorphRect;
   settings: HeaderMorphRect;
 } | null>(null);
-const playerSong = computed(() => {
-  const hookSong = playMusic?.value;
-  if (hookSong?.name) return hookSong;
-  const storedSong = playerStore.playMusic;
-  if (storedSong?.name) return storedSong;
-  return playerStore.currentSong;
-});
 const playerHeaderStyle = computed<CSSProperties>(() => {
-  const progressReveal = Math.min(1, Math.max(0, playerTransition.progress.value * 2.6));
+  const progressReveal = lyricSelection.active.value
+    ? 1
+    : Math.min(1, Math.max(0, playerTransition.progress.value * 2.6));
   const reveal = progressReveal * (playerHeaderVisible.value ? 1 : 0);
   return {
     opacity: String(reveal),
     pointerEvents: reveal > 0.05 ? 'auto' : 'none'
   };
 });
-const playerCover = computed(() =>
-  playerSong.value?.picUrl ? getImgUrl(playerSong.value.picUrl, '100y100') : ''
-);
-const playerArtistText = computed(() => {
-  const artists =
-    playerSong.value?.ar || playerSong.value?.song?.artists || artistList?.value || [];
-  return artists.map((artist) => artist.name).join(' / ');
-});
-
 const headerTargetTop = () =>
   Number.parseFloat(
     getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-top') || '0'
@@ -515,10 +534,69 @@ const playerSettingsMorphStyle = computed<CSSProperties>(() =>
 
 const closePlayer = () => {
   playerTransition.setSurfaceMode('controls');
-  playerStore.setMusicFull(false);
-  playerTransition.animateTo(0);
+  playerTransition.close(0, () => playerStore.setMusicFull(false));
 };
-const openPlayerSettings = () => playerTransition.setSurfaceMode('settings');
+let collapsePointerId: number | null = null;
+let collapseStartY = 0;
+let collapseTravel = 1;
+let collapseMoved = false;
+let collapseSuppressClick = false;
+let collapseSamples: Array<{ y: number; time: number }> = [];
+
+const collapseVelocity = () => {
+  if (collapseSamples.length < 2) return 0;
+  const last = collapseSamples[collapseSamples.length - 1];
+  const first =
+    collapseSamples.find((sample) => last.time - sample.time <= 100) || collapseSamples[0];
+  const elapsed = Math.max(1, last.time - first.time);
+  return -(((last.y - first.y) / elapsed) * 1000) / collapseTravel;
+};
+
+const onCollapsePointerDown = (event: PointerEvent) => {
+  if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
+  collapsePointerId = event.pointerId;
+  collapseStartY = event.clientY;
+  collapseTravel = Math.max(220, window.innerHeight * 0.38);
+  collapseMoved = false;
+  collapseSamples = [{ y: event.clientY, time: performance.now() }];
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  playerTransition.setDragging(playerTransition.progress.value || 1);
+  playerTransition.showControls(false);
+};
+
+const onCollapsePointerMove = (event: PointerEvent) => {
+  if (collapsePointerId !== event.pointerId) return;
+  const delta = event.clientY - collapseStartY;
+  if (Math.abs(delta) > 5) collapseMoved = true;
+  collapseSamples.push({ y: event.clientY, time: performance.now() });
+  collapseSamples = collapseSamples.filter((sample) => performance.now() - sample.time <= 120);
+  playerTransition.setDragging(Math.min(1, Math.max(0, 1 - delta / collapseTravel)));
+};
+
+const finishCollapseGesture = (event: PointerEvent, cancelled = false) => {
+  if (collapsePointerId !== event.pointerId) return;
+  const velocity = collapseVelocity();
+  const shouldClose = !cancelled && (playerTransition.progress.value < 0.84 || velocity < -0.45);
+  if (collapseMoved) collapseSuppressClick = true;
+  collapsePointerId = null;
+  collapseSamples = [];
+  if (shouldClose) {
+    playerTransition.setSurfaceMode('controls');
+    playerTransition.close(velocity, () => playerStore.setMusicFull(false));
+  } else {
+    playerTransition.animateTo(1, velocity);
+  }
+};
+
+const onCollapsePointerUp = (event: PointerEvent) => finishCollapseGesture(event);
+const onCollapsePointerCancel = (event: PointerEvent) => finishCollapseGesture(event, true);
+const onCollapseIndicatorClick = () => {
+  if (collapseSuppressClick) {
+    collapseSuppressClick = false;
+    return;
+  }
+  closePlayer();
+};
 
 const searchInputRef = ref<HTMLInputElement | null>(null);
 const morphSearchInputRef = ref<HTMLInputElement | null>(null);
@@ -1015,19 +1093,101 @@ const handleSearchSubmit = () => {
   will-change: transform, opacity;
 }
 
+.player-header-layer.collapse-only {
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.player-collapse-indicator {
+  display: grid;
+  width: 76px;
+  height: 42px;
+  padding: 6px 0 2px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.88);
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.player-collapse-indicator .collapse-line {
+  width: 34px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.player-collapse-indicator i {
+  margin-top: -5px;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.player-collapse-indicator:active {
+  opacity: 0.72;
+  transform: translateY(1px);
+}
+
 .player-header-button,
 .player-header-song-pill {
   height: 42px;
-  border: 1px solid color-mix(in srgb, #fff 22%, transparent);
-  background: color-mix(in srgb, var(--accent-color, #777) 10%, rgba(20, 20, 22, 0.58));
-  color: #fff;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 8px 24px rgba(0, 0, 0, 0.16);
-  backdrop-filter: blur(26px) saturate(170%);
-  -webkit-backdrop-filter: blur(26px) saturate(170%);
+  border: 1px solid var(--player-glass-border, rgba(255, 255, 255, 0.1));
+  background: var(--player-glass-background, rgba(20, 20, 22, 0.2));
+  color: var(--player-glass-text, rgba(255, 255, 255, 0.94));
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+  backdrop-filter: var(--player-glass-filter, blur(12px) saturate(145%));
+  -webkit-backdrop-filter: var(--player-glass-filter, blur(12px) saturate(145%));
   transform-origin: center center;
   will-change: transform;
+  transition:
+    border-color var(--player-glass-feedback-duration, 220ms) ease,
+    background-color var(--player-glass-feedback-duration, 220ms) ease,
+    box-shadow var(--player-glass-feedback-duration, 220ms) ease;
+}
+
+.player-header-layer.lyric-selection-mode .player-header-song-pill {
+  justify-content: center;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.player-header-layer.lyric-selection-mode .player-header-song-pill span {
+  text-align: center;
+}
+
+.player-header-layer.lyric-selection-mode .player-header-button {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.player-header-layer.lyric-selection-mode .player-header-button i {
+  font-size: 27px;
+}
+
+.player-header-layer.surface-interaction-active .player-header-button,
+.player-header-layer.surface-interaction-active .player-header-song-pill {
+  border-color: var(--player-glass-border-active, rgba(255, 255, 255, 0.16));
+  background: var(--player-glass-background-active, rgba(24, 24, 26, 0.28));
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .player-header-button,
+  .player-header-song-pill {
+    background: var(--player-glass-background-fallback, rgba(24, 24, 26, 0.52));
+  }
 }
 
 .player-header-button {
@@ -1751,6 +1911,20 @@ const handleSearchSubmit = () => {
   padding: 0;
   justify-content: center;
 
+  .topbar-search-row {
+    display: grid;
+    width: 40px;
+    min-height: 40px;
+    place-items: center;
+    gap: 0;
+    padding: 0;
+  }
+
+  .search-icon {
+    display: block;
+    line-height: 1;
+  }
+
   .search-input,
   .clear-icon,
   .search-assist-panel {
@@ -2178,6 +2352,11 @@ const handleSearchSubmit = () => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .player-header-button,
+  .player-header-song-pill {
+    transition-duration: 100ms;
+  }
+
   .topbar-search-pill,
   .topbar-search-morph,
   .topbar-action-pill {

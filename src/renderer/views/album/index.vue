@@ -1,10 +1,12 @@
 <template>
   <sticky-tab-page
+    class="album-page"
     ref="pageRef"
     :title="t('comp.newAlbum.title')"
     :description="currentAreaName"
     :model-value="currentArea"
     :categories="areas"
+    tabs-in-topbar
     label-key="name"
     value-key="value"
     @change="handleAreaChange"
@@ -25,13 +27,13 @@
         <div
           v-for="(album, index) in albumList"
           :key="album.id"
-          class="list-card group cursor-pointer animate-item"
+          class="album-card group cursor-pointer animate-item"
           :style="{ animationDelay: calculateAnimationDelay(index % TOTAL_ITEMS, 0.05) }"
           @click.stop="openAlbum(album)"
         >
           <!-- Cover Image -->
           <div
-            class="relative aspect-square overflow-hidden rounded-2xl shadow-md group-hover:shadow-xl transition-all duration-500"
+            class="relative aspect-square overflow-hidden rounded-3xl transition-all duration-500"
           >
             <img
               :src="getImgUrl(album.picUrl, '400y400')"
@@ -46,7 +48,7 @@
               class="absolute inset-0 bg-transparent group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center"
             >
               <div
-                class="play-icon w-12 h-12 rounded-full bg-white/90 flex items-center justify-center opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 shadow-xl"
+                class="play-icon w-12 h-12 rounded-full flex items-center justify-center opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300"
                 @click.stop="playAlbum(album)"
               >
                 <i class="ri-play-fill text-2xl text-neutral-900 ml-1"></i>
@@ -89,11 +91,21 @@
     <div v-if="!hasMore && albumList.length > 0" class="text-center py-8 text-neutral-500">
       {{ t('comp.recommendSonglist.empty') }}
     </div>
+    <div class="album-bottom-spacer" aria-hidden="true" />
   </sticky-tab-page>
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  onMounted,
+  ref,
+  watch
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -101,6 +113,12 @@ import { getNewAlbums } from '@/api/album';
 import { getAlbum } from '@/api/list';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import StickyTabPage from '@/components/common/StickyTabPage.vue';
+import {
+  registerMobileTopbarGroup,
+  registerMobileTopbarPresentation,
+  unregisterMobileTopbarGroup,
+  unregisterMobileTopbarPresentation
+} from '@/composables/useMobileTopbarMenu';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
 import { usePlaylistStore } from '@/store/modules/playlist';
@@ -138,10 +156,36 @@ const currentAreaName = computed(
     areas.value.find((a) => a.value === currentArea.value)?.name || t('comp.pages.album.area.all')
 );
 
+const albumTopbarGroupId = 'mobile-album-area';
+const syncAlbumTopbar = () => {
+  registerMobileTopbarPresentation({
+    routePath: '/album',
+    title: `专辑 · ${currentAreaName.value}`
+  });
+  registerMobileTopbarGroup({
+    id: albumTopbarGroupId,
+    routePath: '/album',
+    options: areas.value.map((area) => ({ key: area.value, label: area.name })),
+    value: currentArea.value,
+    select: (value) => handleAreaChange(String(value))
+  });
+};
+
+const clearAlbumTopbar = () => {
+  unregisterMobileTopbarGroup(albumTopbarGroupId);
+  unregisterMobileTopbarPresentation('/album');
+};
+
 const handleAreaChange = (value: string) => {
   router.replace({ query: { area: value } });
   loadList(value);
 };
+
+watch([currentArea, areas], syncAlbumTopbar, { deep: true });
+onMounted(syncAlbumTopbar);
+onActivated(syncAlbumTopbar);
+onDeactivated(clearAlbumTopbar);
+onBeforeUnmount(clearAlbumTopbar);
 
 const loadList = async (area: string, isLoadMore = false) => {
   if (!hasMore.value && isLoadMore) return;
@@ -256,6 +300,40 @@ watch(
 </script>
 
 <style lang="scss" scoped>
+.album-page {
+  background: transparent !important;
+}
+
+.album-page :deep(.sticky-tab-page),
+.album-page :deep(.sticky-tabs),
+.album-page :deep(.sticky-tabs.sticky) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.album-page :deep(.play-icon) {
+  background: color-mix(in srgb, var(--accent-color) 70%, transparent);
+  box-shadow: none !important;
+}
+
+.album-card {
+  min-width: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.album-bottom-spacer {
+  width: 100%;
+  height: calc(
+    var(--mobile-dock-content-inset, 132px) + var(--safe-area-inset-bottom, 0px) + 260px
+  );
+  flex: 0 0 auto;
+}
+
+.album-page :deep(*) {
+  box-shadow: none !important;
+}
+
 .animate-item {
   animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }

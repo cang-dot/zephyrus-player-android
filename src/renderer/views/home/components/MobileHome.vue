@@ -2,19 +2,31 @@
   <div class="mobile-home">
     <section class="mode-grid">
       <button class="mode-card fm" type="button" @click="playPersonalFm">
-        <i class="ri-radio-fill" />
-        <span>私人 FM</span>
-        <small>{{ fmLoading ? '正在准备' : '为你连续播放' }}</small>
+        <img v-if="modeCovers.fm" :src="modeCovers.fm" alt="" />
+        <span class="mode-shade" />
+        <span class="mode-copy">
+          <i class="ri-radio-fill" />
+          <b>私人 FM</b>
+          <small>{{ fmLoading ? '正在准备' : '为你连续播放' }}</small>
+        </span>
       </button>
       <button class="mode-card" type="button" @click="intelligenceStore.playIntelligenceMode">
-        <i class="ri-heart-pulse-fill" />
-        <span>心动模式</span>
-        <small>从喜欢的音乐出发</small>
+        <img v-if="modeCovers.heart" :src="modeCovers.heart" alt="" />
+        <span class="mode-shade" />
+        <span class="mode-copy">
+          <i class="ri-heart-pulse-fill" />
+          <b>心动模式</b>
+          <small>从喜欢的音乐出发</small>
+        </span>
       </button>
       <button class="mode-card random" type="button" @click="openRandomPlaylist">
-        <i class="ri-shuffle-line" />
-        <span>随机歌单</span>
-        <small>换一种播放顺序</small>
+        <img v-if="modeCovers.random" :src="modeCovers.random" alt="" />
+        <span class="mode-shade" />
+        <span class="mode-copy">
+          <i class="ri-shuffle-line" />
+          <b>随机歌单</b>
+          <small>换一种播放顺序</small>
+        </span>
       </button>
     </section>
 
@@ -47,11 +59,13 @@ import { useRouter } from 'vue-router';
 
 import { getPersonalFM, getPersonalizedPlaylist } from '@/api/home';
 import SongItem from '@/components/common/SongItem.vue';
+import { playMusic } from '@/hooks/MusicHook';
 import { useIntelligenceModeStore } from '@/store/modules/intelligenceMode';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
 import { usePlaylistStore } from '@/store/modules/playlist';
 import { useRecommendStore } from '@/store/modules/recommend';
 import type { SongResult } from '@/types/music';
+import { getImgUrl } from '@/utils';
 
 const router = useRouter();
 const recommendStore = useRecommendStore();
@@ -59,7 +73,24 @@ const playerCore = usePlayerCoreStore();
 const playlistStore = usePlaylistStore();
 const intelligenceStore = useIntelligenceModeStore();
 const fmLoading = ref(false);
+const heroPlaylists = ref<any[]>([]);
 const dailySongs = computed(() => recommendStore.dailyRecommendSongs);
+const coverFor = (index: number) => {
+  const song = dailySongs.value[index] || dailySongs.value[0];
+  const playlist = heroPlaylists.value[index] || heroPlaylists.value[0];
+  const url =
+    song?.picUrl ||
+    song?.al?.picUrl ||
+    song?.album?.picUrl ||
+    playlist?.picUrl ||
+    playlist?.coverImgUrl;
+  return url ? getImgUrl(url, '512y512') : '';
+};
+const modeCovers = computed(() => ({
+  fm: playMusic.value?.picUrl ? getImgUrl(playMusic.value.picUrl, '512y512') : coverFor(0),
+  heart: coverFor(1),
+  random: coverFor(2)
+}));
 const todayLabel = new Intl.DateTimeFormat(undefined, {
   month: 'long',
   day: 'numeric',
@@ -96,8 +127,11 @@ async function playPersonalFm() {
 }
 
 async function openRandomPlaylist() {
-  const response = await getPersonalizedPlaylist(20);
-  const playlists = response.data?.result || [];
+  let playlists = heroPlaylists.value;
+  if (playlists.length < 2) {
+    const response = await getPersonalizedPlaylist(20);
+    playlists = response.data?.result || [];
+  }
   if (!playlists.length) return;
   const item = playlists[Math.floor(Math.random() * playlists.length)];
   router.push(`/music-list/${item.id}?type=playlist`);
@@ -114,14 +148,21 @@ async function playDailySongs() {
   await playerCore.handlePlayMusic(songs[0], true);
 }
 
-onMounted(() => recommendStore.refreshIfStale());
+onMounted(async () => {
+  await Promise.allSettled([
+    recommendStore.refreshIfStale(),
+    getPersonalizedPlaylist(8).then((response) => {
+      heroPlaylists.value = response.data?.result || [];
+    })
+  ]);
+});
 </script>
 
 <style scoped lang="scss">
 .mobile-home {
   min-height: 100%;
   padding: calc(var(--safe-area-inset-top, 0px) + 64px) 14px 150px;
-  color: #fff;
+  color: var(--m-text-primary, #20211f);
 }
 
 .mode-grid {
@@ -131,71 +172,71 @@ onMounted(() => recommendStore.refreshIfStale());
 }
 
 .mode-card {
-  --material-tone: 0.14;
+  position: relative;
   min-height: 112px;
-  padding: 16px;
-  display: grid;
-  justify-items: start;
-  align-content: end;
-  gap: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 28px;
-  background:
-    linear-gradient(
-      rgba(var(--accent-color-rgb, 136, 136, 136), var(--material-tone)),
-      rgba(var(--accent-color-rgb, 136, 136, 136), var(--material-tone))
-    ),
-    color-mix(in srgb, rgba(30, 30, 32, 0.62) 58%, transparent);
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 30px;
+  background: color-mix(in srgb, var(--accent-color, #77836e) 28%, #727873);
   color: #fff;
-  box-shadow:
-    0 12px 28px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(24px) saturate(165%);
-  -webkit-backdrop-filter: blur(24px) saturate(165%);
+  text-align: left;
 
   &.fm {
-    --material-tone: 0.22;
     grid-row: span 2;
     min-height: 234px;
   }
 
   &.random {
-    --material-tone: 0.1;
     min-height: 112px;
   }
 
-  i {
-    margin-bottom: auto;
-    font-size: 25px;
-    color: color-mix(in srgb, var(--accent-color) 72%, #fff);
+  > img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.02);
   }
 
-  span {
-    font-size: 17px;
-    font-weight: 750;
+  .mode-shade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(9, 14, 12, 0.05) 20%, rgba(9, 14, 12, 0.72));
   }
 
-  small {
-    color: rgba(255, 255, 255, 0.64);
+  .mode-copy {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    align-content: end;
+    justify-items: start;
+    gap: 3px;
+    padding: 16px;
+
+    i {
+      margin-bottom: auto;
+      color: #fff;
+      font-size: 25px;
+    }
+
+    b {
+      font-size: 18px;
+      font-weight: 750;
+    }
+
+    small {
+      color: rgba(255, 255, 255, 0.78);
+    }
   }
 }
 
 .daily-section {
   margin-top: 12px;
   padding: 16px 12px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--accent-color, #777) 22%, transparent);
   border-radius: 30px;
-  background:
-    linear-gradient(
-      rgba(var(--accent-color-rgb, 136, 136, 136), 0.12),
-      rgba(var(--accent-color-rgb, 136, 136, 136), 0.12)
-    ),
-    color-mix(in srgb, rgba(30, 30, 32, 0.58) 58%, transparent);
-  box-shadow:
-    0 14px 32px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(24px) saturate(165%);
-  -webkit-backdrop-filter: blur(24px) saturate(165%);
+  background: color-mix(in srgb, var(--m-surface, #fff) 91%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 
   header {
     display: flex;
@@ -211,7 +252,7 @@ onMounted(() => recommendStore.refreshIfStale());
   }
 
   small {
-    color: rgba(255, 255, 255, 0.62);
+    color: var(--m-text-secondary, #777);
   }
 
   header button {
@@ -227,8 +268,21 @@ onMounted(() => recommendStore.refreshIfStale());
 
 .daily-empty {
   padding: 48px 0;
-  color: rgba(255, 255, 255, 0.58);
+  color: var(--m-text-secondary, #777);
   text-align: center;
+}
+
+.daily-section :deep(.home-song-card) {
+  background: transparent !important;
+}
+
+.daily-section :deep(.song-name) {
+  color: var(--m-text-primary, #20211f) !important;
+}
+
+.daily-section :deep(.artist-name),
+.daily-section :deep(.more-btn) {
+  color: var(--m-text-secondary, #777) !important;
 }
 
 @media (prefers-reduced-motion: no-preference) {

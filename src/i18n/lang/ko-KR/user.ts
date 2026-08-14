@@ -60,6 +60,7 @@ export default {
   accountSwitcher: {
     title: '계정 전환',
     addAccount: '계정 추가',
+    loginHint: '길게 누른 뒤 아래로 밀어 로그인하세요',
     deleteAccount: '계정을 삭제할까요?',
     close: '닫기'
   }

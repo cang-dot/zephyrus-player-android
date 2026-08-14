@@ -17,6 +17,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { audioService } from '@/services/audioService';
 import type { LyricConfig } from '@/types/lyric';
+import { shouldSkipMobilePlayerFrame } from '@/utils/mobilePlayerPerformance';
 
 interface Raindrop {
   x: number;
@@ -66,6 +67,7 @@ let animationId: number | null = null;
 let raindrops: Raindrop[] = [];
 let groundRipples: GroundRipple[] = [];
 let puddles: Puddle[] = [];
+let lastRenderAt = 0;
 
 // 音频能量状态
 const audioEnergy = ref(0);
@@ -251,6 +253,13 @@ function drawPuddles() {
 // 绘制帧
 function draw() {
   if (!ctx || !canvasRef.value) return;
+
+  const now = performance.now();
+  if (shouldSkipMobilePlayerFrame(lastRenderAt, now)) {
+    animationId = requestAnimationFrame(draw);
+    return;
+  }
+  lastRenderAt = now;
 
   const canvasWidth = window.innerWidth;
   const canvasHeight = window.innerHeight;

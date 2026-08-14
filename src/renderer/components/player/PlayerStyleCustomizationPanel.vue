@@ -349,6 +349,46 @@
         </label>
       </template>
       <template v-if="styleKey === 'smoke'">
+        <label class="setting-row">
+          <span>{{
+            tr('player.styleCustomization.smokeFollowThemeColor', '烟雾颜色跟随歌曲')
+          }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: local.smokeFollowThemeColor }"
+            role="switch"
+            :aria-checked="local.smokeFollowThemeColor"
+            @click.prevent="local.smokeFollowThemeColor = !local.smokeFollowThemeColor"
+          >
+            <span></span>
+          </button>
+        </label>
+        <label v-if="!local.smokeFollowThemeColor" class="setting-row">
+          <span>{{ tr('player.styleCustomization.smokeCustomColor', '自定义烟雾颜色') }}</span>
+          <input v-model="local.smokeCustomColor" type="color" />
+        </label>
+        <label class="setting-row">
+          <span>{{
+            tr('player.styleCustomization.smokeGlowFollowThemeColor', '高潮光晕跟随歌曲')
+          }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: local.smokeGlowFollowThemeColor }"
+            role="switch"
+            :aria-checked="local.smokeGlowFollowThemeColor"
+            @click.prevent="local.smokeGlowFollowThemeColor = !local.smokeGlowFollowThemeColor"
+          >
+            <span></span>
+          </button>
+        </label>
+        <label v-if="!local.smokeGlowFollowThemeColor" class="setting-row">
+          <span>{{
+            tr('player.styleCustomization.smokeGlowCustomColor', '自定义高潮光晕颜色')
+          }}</span>
+          <input v-model="local.smokeGlowCustomColor" type="color" />
+        </label>
         <label class="range-row"
           ><span
             >{{ tr('player.styleCustomization.smokeDensity', '烟雾密度') }}

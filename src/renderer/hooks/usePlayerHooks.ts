@@ -5,14 +5,16 @@ import i18n from '@/../i18n/renderer';
 import { isCrossPlatformSong } from '@/api/crossPlatformSearch';
 import { type GDMusicLyricResponse, getLyricByPlatform, searchFromGDMusic } from '@/api/gdmusic';
 import { resolveKugouNeteaseMatch } from '@/api/kugouPlayback';
+import { fetchLrclibLyric } from '@/api/lrclibLyrics';
 import { getMusicLrc, getMusicUrl, getParsingMusicUrl } from '@/api/music';
-import { fetchQqLyric } from '@/api/platformQrApi';
+import { fetchKugouLyric, fetchMatchedQqLyric, fetchQqLyric } from '@/api/platformQrApi';
 import { readProviderLyricCache, writeProviderLyricCache } from '@/api/providerLyricCache';
 import { playbackRequestManager } from '@/services/playbackRequestManager';
 import { SongSourceConfigManager } from '@/services/SongSourceConfigManager';
 import type { ILyric, ILyricText, LyricFormat, LyricSource, SongResult } from '@/types/music';
 import { getImgUrl, isElectron } from '@/utils';
 import { getImageLinearBackground } from '@/utils/linearColor';
+import { isUsableLyric } from '@/utils/lyricValidation';
 import { mergeAuxiliaryLyrics, parseTimedLyrics } from '@/utils/timedLyrics';
 
 const { message } = createDiscreteApi(['message']);
@@ -251,7 +253,7 @@ export const useSongUrl = () => {
 async function loadQqProviderLyric(platformId: string): Promise<ILyric | null> {
   const cacheKey = `qq:${platformId}`;
   const cached = await readProviderLyricCache(cacheKey);
-  if (cached?.fresh) return cached.lyric;
+  if (cached?.fresh && isUsableLyric(cached.lyric)) return cached.lyric;
 
   try {
     const payload = await fetchQqLyric(platformId);
@@ -259,7 +261,7 @@ async function loadQqProviderLyric(platformId: string): Promise<ILyric | null> {
     const lyric = parseTimedLyrics(payload.lyric, { format: payload.format, source: 'qq' });
     mergeAuxiliaryLyrics(lyric, payload.translation, 'trText', payload.format);
     mergeAuxiliaryLyrics(lyric, payload.romanization, 'romaText', payload.format);
-    if (!lyric.lrcArray.length) return cached?.lyric || null;
+    if (!isUsableLyric(lyric)) return cached?.lyric || null;
     await writeProviderLyricCache(cacheKey, lyric);
     return lyric;
   } catch (error) {
@@ -281,6 +283,123 @@ function createProviderLyric(
   return result;
 }
 
+function emptyLyric(): ILyric {
+  return { lrcTimeArray: [], lrcArray: [], hasWordByWord: false };
+}
+
+async function loadCommunityProviderLyric(song: SongResult): Promise<ILyric | null> {
+  const ids = Array.from(
+    new Set([song.platformId, song.id].filter((id) => id !== undefined && id !== null).map(String))
+  );
+  const { loadCommunityLyricForSong } = await import('@/api/communityLyric');
+  for (const id of ids) {
+    const entry = await loadCommunityLyricForSong(id);
+    if (!entry?.lrc) continue;
+    const lyric = createProviderLyric(entry.lrc, entry.trLrc, undefined, 'lrc', 'community');
+    if (isUsableLyric(lyric)) return lyric;
+  }
+  return null;
+}
+
+async function loadMatchedQqProviderLyric(song: SongResult): Promise<ILyric | null> {
+  const cacheKey = `matched-qq:${String(song.platform || 'netease')}:${String(song.platformId || song.id)}`;
+  const cached = await readProviderLyricCache(cacheKey);
+  if (cached?.fresh && isUsableLyric(cached.lyric)) return cached.lyric;
+  const payload = await fetchMatchedQqLyric(song);
+  if (!payload) return cached?.lyric || null;
+  const lyric = createProviderLyric(
+    payload.lyric,
+    payload.translation,
+    payload.romanization,
+    payload.format,
+    'qq'
+  );
+  if (!isUsableLyric(lyric)) return cached?.lyric || null;
+  await writeProviderLyricCache(cacheKey, lyric);
+  return lyric;
+}
+
+async function loadKugouProviderLyric(song: SongResult): Promise<ILyric | null> {
+  const cacheKey = `matched-kugou:${String(song.platform || 'netease')}:${String(song.platformId || song.id)}`;
+  const cached = await readProviderLyricCache(cacheKey);
+  if (cached?.fresh && isUsableLyric(cached.lyric)) return cached.lyric;
+  const payload = await fetchKugouLyric(song);
+  if (!payload) return cached?.lyric || null;
+  const lyric = createProviderLyric(
+    payload.lyric,
+    payload.translation,
+    payload.romanization,
+    'krc',
+    'kugou'
+  );
+  if (!isUsableLyric(lyric)) return cached?.lyric || null;
+  await writeProviderLyricCache(cacheKey, lyric);
+  return lyric;
+}
+
+async function loadNeteaseProviderLyric(id: string | number): Promise<ILyric> {
+  try {
+    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+    if (!Number.isFinite(numericId)) return emptyLyric();
+    let lyricData: any;
+    if (isElectron) {
+      try {
+        lyricData = await window.electron.ipcRenderer.invoke('get-cached-lyric', numericId);
+      } catch (error) {
+        console.warn('读取磁盘歌词缓存失败:', error);
+      }
+    }
+    if (!lyricData) {
+      const response = await getMusicLrc(numericId);
+      lyricData = response?.data?.data || response?.data || {};
+      if (isElectron && lyricData) {
+        void window.electron.ipcRenderer
+          .invoke('cache-lyric', numericId, lyricData)
+          .catch((error) => console.warn('写入磁盘歌词缓存失败:', error));
+      }
+    }
+    const hasYrc = Boolean(lyricData?.yrc?.lyric);
+    return createProviderLyric(
+      hasYrc ? lyricData.yrc.lyric : lyricData?.lrc?.lyric || '',
+      lyricData?.ytlrc?.lyric || lyricData?.tlyric?.lyric,
+      lyricData?.yromalrc?.lyric || lyricData?.romalrc?.lyric,
+      hasYrc ? 'yrc' : 'lrc',
+      'netease'
+    );
+  } catch (error) {
+    console.warn('[lyrics] 网易云歌词加载失败:', error);
+    return emptyLyric();
+  }
+}
+
+async function loadMatchedNeteaseLyric(song: SongResult): Promise<ILyric | null> {
+  if (!song.name) return null;
+  try {
+    const { resolveNeteaseMatch } = await import('@/api/kugouPlayback');
+    const match = await resolveNeteaseMatch(song);
+    if (!match || String(match.id) === String(song.id)) return null;
+    const lyric = await loadNeteaseProviderLyric(match.id);
+    return isUsableLyric(lyric) ? lyric : null;
+  } catch {
+    return null;
+  }
+}
+
+function pickBestFallback(results: PromiseSettledResult<ILyric | null>[]): ILyric | null {
+  const lyrics = results
+    .filter(
+      (result): result is PromiseFulfilledResult<ILyric | null> => result.status === 'fulfilled'
+    )
+    .map((result) => result.value)
+    .filter(isUsableLyric);
+  return (
+    lyrics.find((lyric) => lyric.source === 'community') ||
+    lyrics.find((lyric) => lyric.hasWordByWord) ||
+    lyrics[0] ||
+    null
+  );
+}
+
 /**
  * 加载跨平台歌曲歌词
  *
@@ -296,10 +415,10 @@ function createProviderLyric(
  * @returns 歌词数据，失败返回空歌词
  */
 export const loadCrossPlatformLyric = async (song: SongResult): Promise<ILyric> => {
-  const emptyLyric: ILyric = { lrcTimeArray: [], lrcArray: [], hasWordByWord: false };
+  const empty = emptyLyric();
 
   if (!isCrossPlatformSong(song)) {
-    return emptyLyric;
+    return empty;
   }
 
   const platform = song.platform!;
@@ -313,7 +432,12 @@ export const loadCrossPlatformLyric = async (song: SongResult): Promise<ILyric> 
 
     if (platform === 'qq') {
       const qqLyric = await loadQqProviderLyric(platformId);
-      if (qqLyric?.lrcArray.length) return qqLyric;
+      if (isUsableLyric(qqLyric)) return qqLyric;
+    }
+
+    if (platform === 'kugou') {
+      const kugouLyric = await loadKugouProviderLyric(song);
+      if (isUsableLyric(kugouLyric)) return kugouLyric;
     }
 
     // 1. 直接用 platformId 获取歌词（仅限 GD 支持的平台）
@@ -327,7 +451,7 @@ export const loadCrossPlatformLyric = async (song: SongResult): Promise<ILyric> 
       const artistNames = (song.ar || song.artists || []).map((a) => a.name).filter(Boolean);
 
       if (!songName) {
-        return emptyLyric;
+        return empty;
       }
 
       const searchQuery =
@@ -367,21 +491,22 @@ export const loadCrossPlatformLyric = async (song: SongResult): Promise<ILyric> 
 
     if (!lyricData) {
       console.warn('[loadCrossPlatformLyric] 未获取到歌词:', { platform, platformId });
-      return emptyLyric;
+      return empty;
     }
 
     // 解析歌词（复用现有解析逻辑）
     const providerFormat: LyricFormat = lyricData.yrc ? 'yrc' : 'lrc';
-    return createProviderLyric(
+    const parsed = createProviderLyric(
       lyricData.yrc || lyricData.lyric || '',
       lyricData.tlyric,
       lyricData.yromrc,
       providerFormat,
       'fallback'
     );
+    return isUsableLyric(parsed) ? parsed : empty;
   } catch (error) {
     console.error('[loadCrossPlatformLyric] 加载失败:', error);
-    return emptyLyric;
+    return empty;
   }
 };
 
@@ -389,59 +514,44 @@ export const loadCrossPlatformLyric = async (song: SongResult): Promise<ILyric> 
  * 加载歌词（独立函数）
  */
 export const loadLrc = async (id: string | number): Promise<ILyric> => {
-  try {
-    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+  return loadNeteaseProviderLyric(id);
+};
 
-    // 本地歌曲（字符串 ID，parseInt 返回 NaN）直接返回空，不走网易云 API
-    if (typeof id === 'string' && isNaN(numericId)) {
-      return { lrcTimeArray: [], lrcArray: [], hasWordByWord: false };
-    }
+/** 统一歌词源调度：默认源语义无效后自动尝试独立第三方来源。 */
+export const loadBestLyric = async (song: SongResult): Promise<ILyric> => {
+  if (!song) return emptyLyric();
+  if (isUsableLyric(song.lyric)) return song.lyric;
 
-    let lyricData: any;
-
-    if (isElectron) {
-      try {
-        lyricData = await window.electron.ipcRenderer.invoke('get-cached-lyric', numericId);
-      } catch (error) {
-        console.warn('读取磁盘歌词缓存失败:', error);
-      }
-    }
-
-    if (!lyricData) {
-      const { data } = await getMusicLrc(numericId);
-      lyricData = data;
-
-      if (isElectron && lyricData) {
-        void window.electron.ipcRenderer
-          .invoke('cache-lyric', numericId, lyricData)
-          .catch((error) => console.warn('写入磁盘歌词缓存失败:', error));
-      }
-    }
-
-    const data = lyricData ?? {};
-    const hasYrc = Boolean(data?.yrc?.lyric);
-    return createProviderLyric(
-      hasYrc ? data.yrc.lyric : data?.lrc?.lyric || '',
-      data?.ytlrc?.lyric || data?.tlyric?.lyric,
-      data?.yromalrc?.lyric || data?.romalrc?.lyric,
-      hasYrc ? 'yrc' : 'lrc',
-      'netease'
-    );
-  } catch (err) {
-    console.error('Error loading lyrics:', err);
-    return {
-      lrcTimeArray: [],
-      lrcArray: [],
-      hasWordByWord: false
-    };
+  if (song.playMusicUrl?.startsWith('local://')) {
+    const { useLocalMusic } = await import('@/hooks/useLocalMusic');
+    return useLocalMusic().loadLocalLyrics(song);
   }
+
+  let primary = emptyLyric();
+  if (isCrossPlatformSong(song)) {
+    primary = await loadCrossPlatformLyric(song);
+  } else {
+    primary = await loadNeteaseProviderLyric(song.id);
+  }
+  if (isUsableLyric(primary)) return primary;
+
+  const fallbackTasks: Promise<ILyric | null>[] = [
+    loadCommunityProviderLyric(song),
+    loadKugouProviderLyric(song),
+    fetchLrclibLyric(song)
+  ];
+  if (song.platform !== 'qq') fallbackTasks.push(loadMatchedQqProviderLyric(song));
+  if (song.platform && song.platform !== 'netease')
+    fallbackTasks.push(loadMatchedNeteaseLyric(song));
+  const fallback = pickBestFallback(await Promise.allSettled(fallbackTasks));
+  return fallback || emptyLyric();
 };
 
 /**
  * useLyrics hook（兼容旧代码）
  */
 export const useLyrics = () => {
-  return { loadLrc, loadCrossPlatformLyric, parseLyrics };
+  return { loadLrc, loadCrossPlatformLyric, loadBestLyric, parseLyrics };
 };
 
 /**

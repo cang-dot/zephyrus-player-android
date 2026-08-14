@@ -1,6 +1,7 @@
 <template>
   <n-drawer
     v-model:show="isVisible"
+    :destroy-on-close="true"
     height="100%"
     placement="bottom"
     :style="{ background: playerStore.playMusic.primaryColor || background }"
@@ -435,6 +436,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n';
 
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
+import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
@@ -1120,8 +1122,10 @@ const togglePlayMode = () => {
 };
 
 const closeMusicFull = () => {
-  isVisible.value = false;
-  playerStore.setMusicFull(false);
+  useMobilePlayerTransition().close(0, () => {
+    isVisible.value = false;
+    playerStore.setMusicFull(false);
+  });
 };
 
 const { controlsVisible, handleTapToggle } = useTapToggle();
