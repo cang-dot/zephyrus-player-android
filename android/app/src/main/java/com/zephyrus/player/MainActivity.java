@@ -12,6 +12,7 @@ import android.webkit.WebView;
 import android.util.Log;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.BackEventCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -75,6 +76,22 @@ public class MainActivity extends BridgeActivity {
         // OnBackPressedDispatcher 会接收系统返回键和全面屏返回手势，并为后续
         // OnBackInvoked 的预见性返回进度接入保留统一提交入口。
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackStarted(BackEventCompat backEvent) {
+                dispatchBackProgressToWeb(0f);
+            }
+
+            @Override
+            public void handleOnBackProgressed(BackEventCompat backEvent) {
+                dispatchBackProgressToWeb(backEvent.getProgress());
+            }
+
+            @Override
+            public void handleOnBackCancelled() {
+                evaluateJavascript(
+                        "window.__handleAndroidBackCancel && window.__handleAndroidBackCancel()");
+            }
+
             @Override
             public void handleOnBackPressed() {
                 dispatchBackToWeb();
@@ -143,6 +160,13 @@ public class MainActivity extends BridgeActivity {
                         finish();
                     }
                 });
+    }
+
+    private void dispatchBackProgressToWeb(float progress) {
+        float clamped = Math.max(0f, Math.min(1f, progress));
+        evaluateJavascript(
+                "window.__handleAndroidBackProgress && window.__handleAndroidBackProgress("
+                        + clamped + ")");
     }
 
     @Override

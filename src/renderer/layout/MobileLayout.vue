@@ -791,7 +791,16 @@ onMounted(() => {
       id: 'full-player',
       priority: 200,
       isActive: () => playerStore.musicFull,
-      onBack: () => playerStore.setMusicFull(false)
+      onBack: () =>
+        playerTransition.close(0, () => {
+          playerStore.setMusicFull(false);
+        }),
+      onProgress: (progress) => {
+        playerTransition.setDragging(1 - progress);
+      },
+      onCancel: () => {
+        playerTransition.animateTo(1, 0);
+      }
     })
   );
 });

@@ -48,4 +48,33 @@ describe('MobileBackStack', () => {
     expect(menuProgress).toHaveBeenCalledWith(0.45);
     expect(playerProgress).not.toHaveBeenCalled();
   });
+
+  it('cancels predictive progress on the same top layer', () => {
+    const stack = new MobileBackStack();
+    const cancelPlayer = vi.fn();
+    const cancelMenu = vi.fn();
+    let menuVisible = true;
+    stack.register({
+      id: 'player',
+      priority: 100,
+      isActive: () => true,
+      onBack: () => undefined,
+      onCancel: cancelPlayer
+    });
+    stack.register({
+      id: 'menu',
+      priority: 300,
+      isActive: () => menuVisible,
+      onBack: () => undefined,
+      onCancel: cancelMenu
+    });
+
+    stack.cancelProgress();
+    expect(cancelMenu).toHaveBeenCalledOnce();
+    expect(cancelPlayer).not.toHaveBeenCalled();
+
+    menuVisible = false;
+    stack.cancelProgress();
+    expect(cancelPlayer).toHaveBeenCalledOnce();
+  });
 });
