@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="songItemRef"
     class="song-item"
     :class="{ 'is-active': isActive }"
     @click="handleItemClick"
@@ -37,29 +38,16 @@
       @goto-album="handleAlbumClick"
       @remove="$emit('remove-song', $event)"
     />
-
-    <!-- 移动端长按菜单 -->
-    <mobile-song-action-sheet
-      v-if="!isElectron"
-      :item="item"
-      :show="showActionSheet"
-      :is-favorite="isFavorite"
-      :can-remove="canRemove"
-      @update:show="showActionSheet = $event"
-      @play="requestPlay"
-      @play-next="handlePlayNext"
-      @add-to-playlist="handleAddToPlaylist"
-      @favorite="toggleFavorite"
-      @goto-artist="handleArtistClick($event)"
-      @goto-album="handleAlbumClick($event)"
-      @remove="$emit('remove-song', item.id)"
-    />
   </div>
 </template>
 
 <script lang="ts" setup>
 import { inject, ref } from 'vue';
 
+import {
+  type MobileSongActionOrigin,
+  useMobileSongActionSurface
+} from '@/composables/useMobileSongActionSurface';
 import { isLocalSong, useLocalMusic } from '@/hooks/useLocalMusic';
 import { useSongItem } from '@/hooks/useSongItem';
 import { usePlayerStore } from '@/store/modules/player';
@@ -67,7 +55,6 @@ import type { SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
 import { selectLyricFile, setLocalLyricPath } from '@/utils/localLyricStorage';
 
-import MobileSongActionSheet from '../MobileSongActionSheet.vue';
 import SongItemDropdown from './SongItemDropdown.vue';
 
 const props = defineProps<{
@@ -87,6 +74,9 @@ const emits = defineEmits<{
 }>();
 
 const playerStore = usePlayerStore();
+const songItemRef = ref<HTMLElement | null>(null);
+const songActionSurface = useMobileSongActionSurface();
+const songActionOrigin = inject<MobileSongActionOrigin>('mobileSongActionOrigin', 'mini-player');
 
 // 使用公共逻辑
 const {
@@ -158,9 +148,26 @@ const bindLocalLyric = async () => {
 };
 
 // 移动端长按菜单
-const showActionSheet = ref(false);
 let longPressTimer: number | null = null;
 let suppressClickUntil = 0;
+
+const openMobileActionSheet = () => {
+  songActionSurface.open({
+    item: props.item,
+    isFavorite: isFavorite.value,
+    canRemove: props.canRemove,
+    origin: songActionOrigin,
+    sourceElement: songItemRef.value,
+    callbacks: {
+      play: requestPlay,
+      playNext: handlePlayNext,
+      favorite: toggleFavorite,
+      remove: () => emits('remove-song', props.item.id),
+      gotoArtist: handleArtistClick,
+      gotoAlbum: handleAlbumClick
+    }
+  });
+};
 
 const handleTouchStart = () => {
   if (isElectron) return;
@@ -168,7 +175,7 @@ const handleTouchStart = () => {
   longPressTimer = window.setTimeout(() => {
     suppressClickUntil = Date.now() + 700;
     activate();
-    showActionSheet.value = true;
+    openMobileActionSheet();
     longPressTimer = null;
   }, 500);
 };
@@ -188,7 +195,7 @@ const openItemMenu = (event: MouseEvent) => {
     handleMenuClick(event);
     return;
   }
-  showActionSheet.value = true;
+  openMobileActionSheet();
 };
 
 const handleItemContextMenu = (event: MouseEvent) => {
@@ -197,13 +204,7 @@ const handleItemContextMenu = (event: MouseEvent) => {
     return;
   }
   suppressClickUntil = Date.now() + 700;
-  showActionSheet.value = true;
-};
-
-// 移动端添加到歌单
-const openPlaylistDrawer = inject<(songOrId: number | SongResult) => void>('openPlaylistDrawer');
-const handleAddToPlaylist = () => {
-  openPlaylistDrawer?.(props.item);
+  openMobileActionSheet();
 };
 defineExpose({
   imageLoad,

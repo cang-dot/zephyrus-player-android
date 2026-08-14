@@ -75,7 +75,7 @@
 
 <script setup lang="ts">
 import { useDialog, useMessage } from 'naive-ui';
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import SongItem from '@/components/common/SongItem.vue';
@@ -100,6 +100,7 @@ const playerStore = usePlayerStore();
 const embedded = computed(() => props.embedded && isMobile.value);
 const playList = computed(() => playerStore.playList as SongResult[]);
 const isPlaybackPlaylist = computed(() => props.fullscreen && isMobile.value);
+provide('mobileSongActionOrigin', 'playing-list');
 const isLandscape = ref(false);
 const updateOrientation = () => {
   isLandscape.value = window.matchMedia('(orientation: landscape)').matches;

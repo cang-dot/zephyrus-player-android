@@ -711,9 +711,12 @@
                     <i class="ri-disc-line"></i><span>专辑：{{ currentAlbum.name }}</span
                     ><i class="ri-arrow-right-s-line ml-auto"></i>
                   </button>
-                  <button class="song-setting-action" @click="addCurrentToPlaylist">
-                    <i class="ri-folder-add-line"></i><span>添加到歌单</span>
-                  </button>
+                  <inline-playlist-picker
+                    :song="currentSong"
+                    :expanded="settingsPlaylistExpanded"
+                    back-layer-id="player-settings-playlist-picker"
+                    @update:expanded="settingsPlaylistExpanded = $event"
+                  />
                   <button class="song-setting-action" @click="toggleCurrentFavorite">
                     <i
                       :class="currentIsFavorite ? 'ri-heart-fill text-red-400' : 'ri-heart-line'"
@@ -738,7 +741,7 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { storeToRefs } from 'pinia';
-import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
@@ -750,6 +753,7 @@ import {
   uploadClimax
 } from '@/api/climax';
 import { searchServerSongs } from '@/api/serverSongs';
+import InlinePlaylistPicker from '@/components/common/InlinePlaylistPicker.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
 import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
@@ -771,7 +775,6 @@ import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useUserStore } from '@/store/modules/user';
 import type { LyricConfig } from '@/types/lyric';
 import { DEFAULT_LYRIC_CONFIG, normalizeStatusBarLyricConfig } from '@/types/lyric';
-import type { SongResult } from '@/types/music';
 import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from '@/types/playerStyle';
 import { isMobilePlayerStyleKey } from '@/types/playerStyle';
 import { getImgUrl, secondToMinute } from '@/utils';
@@ -882,9 +885,8 @@ const finishTabPointer = (event: PointerEvent, cancelled = false) => {
 
 const onTabPointerUp = (event: PointerEvent) => finishTabPointer(event);
 const onTabPointerCancel = (event: PointerEvent) => finishTabPointer(event, true);
-const openPlaylistDrawer = inject<(songOrId: number | SongResult) => void>('openPlaylistDrawer');
-
 const currentSong = computed(() => playMusic.value || null);
+const settingsPlaylistExpanded = ref(false);
 const currentArtists = computed(() => currentSong.value?.ar || currentSong.value?.artists || []);
 const currentArtistText = computed(() =>
   Array.isArray(currentArtists.value)
@@ -934,11 +936,6 @@ function openCurrentAlbum() {
     listInfo: album
   });
   close();
-}
-
-function addCurrentToPlaylist() {
-  if (!currentSong.value) return;
-  openPlaylistDrawer?.(currentSong.value);
 }
 
 async function toggleCurrentFavorite() {
@@ -1633,6 +1630,7 @@ const timerDisplayText = computed(() => {
 // 方法
 const close = () => {
   settingsDragOffset.value = 0;
+  settingsPlaylistExpanded.value = false;
   emit('update:visible', false);
 };
 

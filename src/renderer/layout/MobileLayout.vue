@@ -110,8 +110,23 @@
       </Transition>
     </div>
     <mobile-player-bottom-surface v-if="isPlay" />
-    <!-- 其他弹窗/抽屉 -->
-    <playlist-drawer v-model="showPlaylistDrawer" :song="currentSong" :song-id="currentSongId" />
+    <mobile-song-action-sheet
+      v-if="mobileSongActionRequest"
+      :item="mobileSongActionRequest.item"
+      :show="songActionSurface.visible.value"
+      :is-favorite="mobileSongActionRequest.isFavorite"
+      :can-remove="mobileSongActionRequest.canRemove"
+      :origin="mobileSongActionRequest.origin"
+      :source-geometry="songActionSurface.sourceGeometry.value"
+      :scope-geometry="songActionSurface.scopeGeometry.value"
+      @update:show="(visible) => !visible && songActionSurface.close()"
+      @play="invokeSongAction('play')"
+      @play-next="invokeSongAction('playNext')"
+      @favorite="invokeSongAction('favorite')"
+      @remove="invokeSongAction('remove')"
+      @goto-artist="(id) => invokeSongAction('gotoArtist', id)"
+      @goto-album="(id) => invokeSongAction('gotoAlbum', id)"
+    />
   </div>
 </template>
 
@@ -129,14 +144,15 @@ import {
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
+import MobileSongActionSheet from '@/components/common/MobileSongActionSheet.vue';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
+import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
 import homeRouter from '@/router/home';
 import otherRouter from '@/router/other';
 import { installMobileBackBridge, registerMobileBackLayer } from '@/services/mobileBackStack';
 import { useMenuStore } from '@/store/modules/menu';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
-import type { SongResult } from '@/types/music';
 import {
   shouldCommitMobilePageSwipe,
   shouldOpenMobilePlayer
@@ -150,7 +166,6 @@ const MobilePlayerBottomSurface = defineAsyncComponent(
 const PlayingListDrawer = defineAsyncComponent(
   () => import('@/components/player/PlayingListDrawer.vue')
 );
-const PlaylistDrawer = defineAsyncComponent(() => import('@/components/common/PlaylistDrawer.vue'));
 
 const props = defineProps<{
   isPhone: boolean;
@@ -163,6 +178,17 @@ const settingsStore = useSettingsStore();
 const menuStore = useMenuStore();
 const { t } = useI18n();
 const playerTransition = useMobilePlayerTransition();
+const songActionSurface = useMobileSongActionSurface();
+const mobileSongActionRequest = computed(() => songActionSurface.request.value);
+const invokeSongAction = (
+  action: 'play' | 'playNext' | 'favorite' | 'remove' | 'gotoArtist' | 'gotoAlbum',
+  id?: number
+) => {
+  const callback = songActionSurface.request.value?.callbacks?.[action] as
+    | ((id?: number) => void | Promise<void>)
+    | undefined;
+  if (callback) void callback(id);
+};
 const playerMorphing = computed(() =>
   ['dragging', 'opening', 'closing'].includes(playerTransition.state.value)
 );
@@ -766,39 +792,16 @@ const keepAliveInclude = computed(() => {
     .filter(Boolean);
 });
 
-// 歌单抽屉
-const showPlaylistDrawer = ref(false);
-const currentSongId = ref<number | undefined>();
-const currentSong = ref<SongResult | undefined>();
-
-// 提供打开歌单抽屉的方法
-const openPlaylistDrawer = (songOrId: number | SongResult, isOpen: boolean = true) => {
-  if (typeof songOrId === 'number') {
-    currentSongId.value = songOrId;
-    currentSong.value = undefined;
-  } else {
-    currentSong.value = songOrId;
-    currentSongId.value = typeof songOrId.id === 'number' ? songOrId.id : undefined;
-  }
-  showPlaylistDrawer.value = isOpen;
-  playerStore.setMusicFull(false);
-  playerStore.setPlayListDrawerVisible(!isOpen);
-};
-
-provide('openPlaylistDrawer', openPlaylistDrawer);
-
 const backLayerDisposers: Array<() => void> = [];
 
 onMounted(() => {
   installMobileBackBridge();
   backLayerDisposers.push(
     registerMobileBackLayer({
-      id: 'song-playlist-picker',
-      priority: 720,
-      isActive: () => showPlaylistDrawer.value,
-      onBack: () => {
-        showPlaylistDrawer.value = false;
-      }
+      id: 'mobile-song-action-surface',
+      priority: 980,
+      isActive: () => songActionSurface.visible.value,
+      onBack: songActionSurface.close
     }),
     registerMobileBackLayer({
       id: 'player-settings',
