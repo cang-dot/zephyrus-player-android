@@ -26,6 +26,7 @@ public class MainActivity extends BridgeActivity {
     private String lastClipboardContent = "";
     // 标记是否已通过 deep link intent 处理过（避免与剪贴板重复）
     private boolean deepLinkHandled = false;
+    private boolean backEvaluationPending = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,19 +71,13 @@ public class MainActivity extends BridgeActivity {
             setStatusBarAppearance(false);
         }
 
-        // 使用 OnBackPressedDispatcher 拦截返回键 / 全面屏手势返回
-        // 直接调用 webView.goBack() 让 WebView 历史出栈（触发 JS popstate 事件）
-        // 前端通过 history.pushState/popstate 管理播放器等覆层的返回层级
-        // 当 WebView 没有更多历史时，finish() 退出应用
+        // 返回先交给 Web 层的可见子层栈；只有无人消费时才后退路由或退出应用。
+        // OnBackPressedDispatcher 会接收系统返回键和全面屏返回手势，并为后续
+        // OnBackInvoked 的预见性返回进度接入保留统一提交入口。
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                WebView webView = bridge.getWebView();
-                if (webView != null && webView.canGoBack()) {
-                    webView.goBack();
-                } else {
-                    finish();
-                }
+                dispatchBackToWeb();
             }
         });
 
@@ -127,6 +122,27 @@ public class MainActivity extends BridgeActivity {
         }
         // 检查剪贴板是否包含 zephyrus:// 歌曲链接
         checkClipboardForDeepLink();
+    }
+
+    private void dispatchBackToWeb() {
+        if (backEvaluationPending) return;
+        WebView webView = bridge.getWebView();
+        if (webView == null) {
+            finish();
+            return;
+        }
+        backEvaluationPending = true;
+        webView.evaluateJavascript(
+                "Boolean(window.__handleAndroidBack && window.__handleAndroidBack())",
+                handled -> {
+                    backEvaluationPending = false;
+                    if ("true".equals(handled)) return;
+                    if (webView.canGoBack()) {
+                        webView.goBack();
+                    } else {
+                        finish();
+                    }
+                });
     }
 
     @Override

@@ -4,7 +4,7 @@
  * 包括：状态栏外观控制、音乐通知（MediaSession）、安全区域、返回手势
  */
 
-import { nextTick, watch } from 'vue';
+import { watch } from 'vue';
 
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import { allTime, artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
@@ -580,152 +580,6 @@ export function getApkDownloadState(): ApkDownloadState | null {
   }
 }
 
-// ==================== 返回手势处理（基于 history API）====================
-//
-// 原理：
-// 1. 当覆层（播放器、歌词全屏、设置弹窗等）打开时，调用 history.pushState 压入一个历史条目
-// 2. 用户触发返回手势 → Java 端 webView.goBack() → WebView 历史出栈 → 触发 JS popstate 事件
-// 3. popstate 监听器检查哪个覆层处于打开状态，关闭最顶层的覆层
-// 4. 由于 popstate 弹出的是 pushState 条目（不是路由变更），SPA 路由不会后退
-// 5. 当所有覆层都关闭后，下一次返回手势才会真正后退 SPA 路由
-// 6. 当 SPA 路由在首页且无更多历史时，Java 端调用 finish() 退出应用
-
-let overlayCount = 0;
-let isPopStateHandling = false;
-// 标志：当 UI 主动关闭覆层（如点击关闭按钮）时设置，用于区分 popstate 是由
-// UI 主动 history.back() 触发还是由用户返回手势触发。
-// 若是 UI 主动触发，popstate 只需递减计数器，不应再关闭其他覆层。
-let uiInitiatedClose = false;
-
-/**
- * 压入一个覆层历史条目
- */
-function pushOverlayState() {
-  overlayCount++;
-  history.pushState({ overlay: true }, '');
-}
-
-/**
- * 弹出一个覆层历史条目（用于 UI 关闭覆层时清理历史）
- * 设置 uiInitiatedClose 标志，防止 popstate handler 重复关闭其他覆层
- */
-function popOverlayState() {
-  if (overlayCount > 0 && !isPopStateHandling) {
-    overlayCount--;
-    uiInitiatedClose = true;
-    history.back();
-  }
-}
-
-/**
- * 设置基于 history.pushState/popstate 的分层返回手势处理
- * 当覆层打开时压入历史条目，返回手势触发 popstate 时关闭最顶层覆层
- */
-function setupOverlayBackHandler() {
-  const playerStore = usePlayerStore();
-  const settingsStore = useSettingsStore();
-
-  // 监听各覆层状态，打开时 pushState，关闭时 back()
-  // immediate: true 确保初始化时若覆层已打开（如状态恢复）也能正确 pushState
-  watch(
-    () => playerStore.musicFull,
-    (visible) => {
-      if (visible) pushOverlayState();
-      else popOverlayState();
-    },
-    { immediate: true }
-  );
-
-  watch(
-    () => playerStore.fullLyricsVisible,
-    (visible) => {
-      if (visible) pushOverlayState();
-      else popOverlayState();
-    },
-    { immediate: true }
-  );
-
-  watch(
-    () => playerStore.playerSettingsVisible,
-    (visible) => {
-      if (visible) pushOverlayState();
-      else popOverlayState();
-    },
-    { immediate: true }
-  );
-
-  watch(
-    () => settingsStore.showArtistDrawer,
-    (visible) => {
-      if (visible) pushOverlayState();
-      else popOverlayState();
-    },
-    { immediate: true }
-  );
-
-  watch(
-    () => playerStore.playListDrawerVisible,
-    (visible) => {
-      if (visible) pushOverlayState();
-      else popOverlayState();
-    },
-    { immediate: true }
-  );
-
-  // 监听 popstate：返回手势触发时关闭最顶层覆层
-  // 返回顺序：设置弹窗 → 全屏歌词 → 播放器 → 歌手抽屉 → 播放列表抽屉 → 路由后退
-  window.addEventListener('popstate', () => {
-    if (overlayCount > 0 && !isPopStateHandling) {
-      isPopStateHandling = true;
-
-      // 如果是 UI 主动关闭（如点击关闭按钮触发的 history.back()），
-      // 只需递减计数器，不应再关闭其他覆层
-      if (uiInitiatedClose) {
-        uiInitiatedClose = false;
-        overlayCount--;
-        nextTick(() => {
-          isPopStateHandling = false;
-        });
-        return;
-      }
-
-      overlayCount--;
-
-      // 按优先级关闭最顶层的覆层
-      if (playerStore.playerSettingsVisible) {
-        playerStore.setPlayerSettingsVisible(false);
-      } else if (playerStore.fullLyricsVisible) {
-        playerStore.setFullLyricsVisible(false);
-      } else if (playerStore.musicFull) {
-        // 关闭播放器时同时重置子覆层，防止残留状态
-        playerStore.setFullLyricsVisible(false);
-        playerStore.setPlayerSettingsVisible(false);
-        playerStore.setMusicFull(false);
-      } else if (settingsStore.showArtistDrawer) {
-        settingsStore.setShowArtistDrawer(false);
-      } else if (playerStore.playListDrawerVisible) {
-        playerStore.setPlayListDrawerVisible(false);
-      }
-
-      // 等待 Vue watch 回调执行完毕后再重置标志
-      // watch 会在 nextTick 之前执行，此时 isPopStateHandling=true 可阻止 popOverlayState 重复弹栈
-      nextTick(() => {
-        isPopStateHandling = false;
-      });
-    }
-  });
-}
-
-// 保留旧接口以兼容现有代码（不再使用，但避免编译错误）
-type BackHandler = () => boolean;
-
-/**
- * @deprecated 已改用 history.pushState/popstate 方案
- */
-export function registerBackHandler(_handler: BackHandler) {
-  // no-op
-}
-
 /**
  * 监听通知栏媒体按钮事件（播放/暂停/上一首/下一首）
  */
@@ -838,13 +692,10 @@ export function initNativeBridge() {
     // 7. 设置媒体按钮监听
     setupMediaButtonListener();
 
-    // 8. 设置覆层返回手势处理（基于 history.pushState/popstate）
-    setupOverlayBackHandler();
-
-    // 9. 显示初始空闲通知（常驻通知，确保通知不间歇性失效）
+    // 8. 显示初始空闲通知（常驻通知，确保通知不间歇性失效）
     showIdleMusicNotification();
 
-    // 10. 后台保活：初始化时同步一次，并监听设置变化
+    // 9. 后台保活：初始化时同步一次，并监听设置变化
     setBackgroundKeepAlive(Boolean(settingsStore.setData?.backgroundKeepAlive));
     watch(
       () => settingsStore.setData?.backgroundKeepAlive,
@@ -853,7 +704,7 @@ export function initNativeBridge() {
       }
     );
 
-    // 11. 音频焦点恢复钩子：其他应用抢走焦点后，保活模式下自动恢复播放
+    // 10. 音频焦点恢复钩子：其他应用抢走焦点后，保活模式下自动恢复播放
     (window as any).__audioFocusResumed = () => {
       import('@/services/audioService')
         .then(({ audioService }) => {
@@ -867,7 +718,7 @@ export function initNativeBridge() {
         });
     };
 
-    // 12. 状态栏歌词使用 Android 应用悬浮窗，按歌词行变化同步。
+    // 11. 状态栏歌词使用 Android 应用悬浮窗，按歌词行变化同步。
     setupStatusBarLyricBridge();
 
     console.log('[NativeBridge] 原生桥接已初始化');

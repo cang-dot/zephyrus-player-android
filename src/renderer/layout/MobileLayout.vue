@@ -121,6 +121,7 @@ import {
   defineAsyncComponent,
   nextTick,
   onBeforeUnmount,
+  onMounted,
   provide,
   ref,
   watch
@@ -131,8 +132,10 @@ import { useRoute, useRouter } from 'vue-router';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import homeRouter from '@/router/home';
 import otherRouter from '@/router/other';
+import { installMobileBackBridge, registerMobileBackLayer } from '@/services/mobileBackStack';
 import { useMenuStore } from '@/store/modules/menu';
 import { usePlayerStore } from '@/store/modules/player';
+import { useSettingsStore } from '@/store/modules/settings';
 import type { SongResult } from '@/types/music';
 import {
   shouldCommitMobilePageSwipe,
@@ -156,6 +159,7 @@ const props = defineProps<{
 const route = useRoute();
 const router = useRouter();
 const playerStore = usePlayerStore();
+const settingsStore = useSettingsStore();
 const menuStore = useMenuStore();
 const { t } = useI18n();
 const playerTransition = useMobilePlayerTransition();
@@ -782,6 +786,56 @@ const openPlaylistDrawer = (songOrId: number | SongResult, isOpen: boolean = tru
 };
 
 provide('openPlaylistDrawer', openPlaylistDrawer);
+
+const backLayerDisposers: Array<() => void> = [];
+
+onMounted(() => {
+  installMobileBackBridge();
+  backLayerDisposers.push(
+    registerMobileBackLayer({
+      id: 'song-playlist-picker',
+      priority: 720,
+      isActive: () => showPlaylistDrawer.value,
+      onBack: () => {
+        showPlaylistDrawer.value = false;
+      }
+    }),
+    registerMobileBackLayer({
+      id: 'player-settings',
+      priority: 520,
+      isActive: () => playerStore.playerSettingsVisible,
+      onBack: () => playerStore.setPlayerSettingsVisible(false)
+    }),
+    registerMobileBackLayer({
+      id: 'player-scrolling-lyrics',
+      priority: 500,
+      isActive: () => playerStore.fullLyricsVisible,
+      onBack: () => playerStore.setFullLyricsVisible(false)
+    }),
+    registerMobileBackLayer({
+      id: 'playing-list',
+      priority: 480,
+      isActive: () => playerStore.playListDrawerVisible,
+      onBack: () => playerStore.setPlayListDrawerVisible(false)
+    }),
+    registerMobileBackLayer({
+      id: 'artist-drawer',
+      priority: 360,
+      isActive: () => settingsStore.showArtistDrawer,
+      onBack: () => settingsStore.setShowArtistDrawer(false)
+    }),
+    registerMobileBackLayer({
+      id: 'full-player',
+      priority: 200,
+      isActive: () => playerStore.musicFull,
+      onBack: () => playerStore.setMusicFull(false)
+    })
+  );
+});
+
+onBeforeUnmount(() => {
+  backLayerDisposers.splice(0).forEach((dispose) => dispose());
+});
 </script>
 
 <style lang="scss" scoped>
