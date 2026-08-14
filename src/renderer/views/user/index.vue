@@ -263,7 +263,7 @@
                   v-if="!accountGestureMode"
                   type="button"
                   class="account-add-morph"
-                  @click="accountPanel = 'login'"
+                  @click="openLoginPanel(false)"
                 >
                   <i class="ri-user-add-line" />{{ t('user.accountSwitcher.addAccount') }}
                 </button>
@@ -272,7 +272,11 @@
                 class="profile-morph-view account-morph-panel login-morph-panel"
                 :class="{ active: accountPanel === 'login' }"
               >
-                <account-login-morph @success="handleLoginSuccess" @error="handleLoginError" />
+                <account-login-morph
+                  @back="leaveLoginPanel"
+                  @success="handleLoginSuccess"
+                  @error="handleLoginError"
+                />
               </div>
             </div>
           </section>
@@ -325,6 +329,7 @@ import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.v
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import AccountLoginMorph from '@/components/login/AccountLoginMorph.vue';
+import { registerMobileBackLayer } from '@/services/mobileBackStack';
 import { type PlatformAccount, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { useUserStore } from '@/store/modules/user';
@@ -346,6 +351,7 @@ const message = useMessage();
 const accountPanel = ref<'closed' | 'accounts' | 'login'>(
   route.query.panel === 'login' ? 'login' : 'closed'
 );
+const loginReturnMode = ref<'closed' | 'accounts'>('closed');
 const deletingAccountId = ref<string | null>(null);
 const profileGlassRef = ref<HTMLElement | null>(null);
 const accountGestureMode = ref(false);
@@ -359,6 +365,7 @@ let accountGestureMoved = false;
 let suppressAccountCardClickUntil = 0;
 let avatarPressTimer: number | null = null;
 let accountGestureWindowBound = false;
+const accountBackLayerDisposers: Array<() => void> = [];
 
 const { accounts, activeAccountId, activeAccount, activeAccountCache, accountCache } =
   storeToRefs(accountStore);
@@ -568,13 +575,7 @@ const handleAccountGestureEnd = () => {
     accountGestureMoved = false;
     return;
   } else if (accountGestureIntent.value === 'login' && accountDragY.value > 72) {
-    accountPanel.value = 'login';
-    accountGestureMode.value = false;
-    accountGestureIntent.value = 'idle';
-    accountDragX.value = 0;
-    accountDragY.value = 0;
-    accountGestureAxis = 'none';
-    accountGestureMoved = false;
+    openLoginPanel(true);
     return;
   } else if (
     accountGestureAxis === 'horizontal' &&
@@ -605,7 +606,37 @@ const handleAccountGestureCancel = () => {
 };
 const cancelDeleteGesture = () => {
   accountGestureIntent.value = 'idle';
+  deletingAccountId.value = null;
   accountDragY.value = 0;
+};
+
+const resetAccountGesture = () => {
+  unbindAccountGestureWindow();
+  cancelAvatarPress();
+  accountGestureDragging.value = false;
+  accountGestureAxis = 'none';
+  accountGestureMoved = false;
+  accountGestureIntent.value = 'idle';
+  accountDragX.value = 0;
+  accountDragY.value = 0;
+};
+
+const openLoginPanel = (fromOperation: boolean) => {
+  loginReturnMode.value = fromOperation && accounts.value.length ? 'accounts' : 'closed';
+  resetAccountGesture();
+  accountGestureMode.value = false;
+  accountPanel.value = 'login';
+};
+
+const leaveLoginPanel = () => {
+  resetAccountGesture();
+  if (loginReturnMode.value === 'accounts' && accounts.value.length) {
+    accountPanel.value = 'accounts';
+    accountGestureMode.value = true;
+  } else {
+    accountPanel.value = 'closed';
+  }
+  if (route.path === '/user' && route.query.panel) router.replace({ path: '/user' });
 };
 const confirmGestureDelete = async () => {
   const account = activeAccount.value;
@@ -647,16 +678,9 @@ const handleAccountOutsidePointerDown = (event: PointerEvent) => {
   closeAccountPanel();
 };
 const closeAccountPanel = (updateRoute = true) => {
-  unbindAccountGestureWindow();
-  cancelAvatarPress();
+  resetAccountGesture();
   deletingAccountId.value = null;
   accountGestureMode.value = false;
-  accountGestureDragging.value = false;
-  accountGestureAxis = 'none';
-  accountGestureMoved = false;
-  accountGestureIntent.value = 'idle';
-  accountDragX.value = 0;
-  accountDragY.value = 0;
   accountPanel.value = 'closed';
   if (updateRoute && route.path === '/user' && route.query.panel) {
     router.replace({ path: '/user' });
@@ -676,7 +700,7 @@ const confirmRemoveAccount = async (account: PlatformAccount) => {
       await handleAccountChange(replacement);
     } else {
       userStore.handleLogout();
-      accountPanel.value = 'login';
+      openLoginPanel(false);
     }
   }
 };
@@ -709,6 +733,7 @@ const handleAccountChange = async (account: PlatformAccount) => {
 
 onBeforeUnmount(() => {
   mounted.value = false;
+  accountBackLayerDisposers.splice(0).forEach((dispose) => dispose());
   cancelAvatarPress();
   unbindAccountGestureWindow();
   window.removeEventListener('pointerdown', handleAccountOutsidePointerDown, true);
@@ -857,7 +882,7 @@ const loadData = async () => {
     console.error('加载用户页面失败:', error);
     if (error.response?.status === 401 || error.response?.status === 301) {
       userStore.handleLogout();
-      accountPanel.value = 'login';
+      openLoginPanel(false);
     } else {
       message.error(t('user.message.loadFailed'));
     }
@@ -903,11 +928,31 @@ watch(
 watch(
   () => route.query.panel,
   (panel) => {
-    if (panel === 'login') accountPanel.value = 'login';
+    if (panel === 'login') openLoginPanel(false);
   }
 );
 
 onMounted(() => {
+  accountBackLayerDisposers.push(
+    registerMobileBackLayer({
+      id: 'account-delete-confirm',
+      priority: 940,
+      isActive: () => accountGestureIntent.value === 'confirm' || deletingAccountId.value !== null,
+      onBack: () => cancelDeleteGesture()
+    }),
+    registerMobileBackLayer({
+      id: 'account-login-panel',
+      priority: 920,
+      isActive: () => accountPanel.value === 'login',
+      onBack: () => leaveLoginPanel()
+    }),
+    registerMobileBackLayer({
+      id: 'account-operation-mode',
+      priority: 700,
+      isActive: () => accountPanel.value === 'accounts',
+      onBack: () => closeAccountPanel()
+    })
+  );
   window.addEventListener('pointerdown', handleAccountOutsidePointerDown, true);
   checkLoginStatus() && loadData();
 });

@@ -1,14 +1,13 @@
 <template>
   <div class="account-login-morph">
-    <header class="account-login-context">
-      <span class="account-login-logo">
-        <platform-logo :platform="activePlatform" :size="30" />
-      </span>
-      <div>
-        <strong>{{ t(`login.platform.${activePlatform}`) }}</strong>
-        <small>{{ t(`login.title.${activeMethod}`) }}</small>
-      </div>
-    </header>
+    <button
+      type="button"
+      class="account-login-back"
+      :aria-label="t('common.back')"
+      @click="emit('back')"
+    >
+      <i class="ri-arrow-left-line" />
+    </button>
 
     <nav class="account-platform-tabs" :aria-label="t('user.accountSwitcher.title')">
       <button
@@ -93,7 +92,7 @@ import { useUserStore } from '@/store/modules/user';
 
 defineOptions({ name: 'AccountLoginMorph' });
 
-const emit = defineEmits<{ success: []; error: [message: string] }>();
+const emit = defineEmits<{ success: []; error: [message: string]; back: [] }>();
 const { t } = useI18n();
 const accountStore = usePlatformAccountsStore();
 const userStore = useUserStore();
@@ -179,39 +178,17 @@ const handleLoginError = (error: string) => {
   gap: 12px;
 }
 
-.account-login-context {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  > div {
-    display: flex;
-    min-width: 0;
-    flex-direction: column;
-  }
-
-  strong {
-    overflow: hidden;
-    font-size: 17px;
-    font-weight: 760;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  small {
-    color: var(--m-text-muted);
-    font-size: 11px;
-  }
-}
-
-.account-login-logo {
+.account-login-back {
   display: grid;
-  width: 52px;
-  height: 52px;
-  flex: 0 0 52px;
+  width: 40px;
+  height: 40px;
   place-items: center;
+  padding: 0;
+  border: 0;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent-color) 12%, var(--m-surface-alt));
+  background: color-mix(in srgb, var(--m-surface-alt) 58%, transparent);
+  color: var(--m-text-primary);
+  font-size: 20px;
 }
 
 .account-platform-tabs {
