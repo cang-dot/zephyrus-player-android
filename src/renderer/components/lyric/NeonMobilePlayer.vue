@@ -81,6 +81,7 @@
           :is-fullscreen="showFullLyrics"
           @close="showFullLyrics = false"
           @showPlaylist="openPlaylist"
+          @show-settings="showPlayerSettings = true"
           @interact="showControls"
         />
       </div>
