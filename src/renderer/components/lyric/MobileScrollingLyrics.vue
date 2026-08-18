@@ -17,14 +17,18 @@
     @pointerup.capture="handlePointerEnd"
     @pointercancel.capture="handlePointerCancel"
     @touchend.capture="handleTouchEndCapture"
-    >
+  >
     <Transition name="lyrics-loading">
-      <div v-if="showPreparingOverlay && hasSourceLyrics" class="lyrics-loading-overlay" aria-live="polite">
+      <div
+        v-if="showPreparingOverlay && hasSourceLyrics"
+        class="lyrics-loading-overlay"
+        aria-live="polite"
+      >
         <i class="ri-loader-4-line" aria-hidden="true"></i>
       </div>
     </Transition>
 
-    <LyricPlayer
+    <lyric-player
       v-if="renderAmllPlayer"
       ref="playerRef"
       class="amll-player"
@@ -67,12 +71,12 @@
 </template>
 
 <script setup lang="ts">
+import '@applemusic-like-lyrics/core/style.css';
+
 import type { LyricLine, LyricLineMouseEvent } from '@applemusic-like-lyrics/core';
 import { LyricPlayer, type LyricPlayerRef } from '@applemusic-like-lyrics/vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-
-import '@applemusic-like-lyrics/core/style.css';
 
 import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
@@ -239,7 +243,7 @@ function handleLineElementClick(lineElement: HTMLElement) {
   const sourceIndex = sourceIndexForElement(lineElement);
   if (sourceIndex === null) return;
   if (selectMode.value) {
-    toggleSelection(sourceIndex, lineElement);
+    toggleSelection(sourceIndex, mainLineElementFor(lineElement));
     return;
   }
   seekToLine(sourceIndex);
@@ -266,6 +270,23 @@ function lyricHitTarget(target: EventTarget | null): HTMLElement | null {
   return line;
 }
 
+const lyricTextSelector = '.FmKaba_lyricMainLine, .FmKaba_lyricSubLine';
+
+function isLyricTextTarget(target: EventTarget | null, line: HTMLElement): boolean {
+  if (!(target instanceof Element) || target === line) return false;
+  const textContainer = target.closest<HTMLElement>(lyricTextSelector);
+  return Boolean(textContainer && line.contains(textContainer));
+}
+
+function mainLineElementFor(lineElement: HTMLElement): HTMLElement {
+  if (!lineElement.classList.contains('FmKaba_lyricBgLine')) return lineElement;
+  return (
+    lineElement
+      .closest<HTMLElement>('.FmKaba_lyricLineWrapper')
+      ?.querySelector<HTMLElement>('.FmKaba_lyricLine:not(.FmKaba_lyricBgLine)') || lineElement
+  );
+}
+
 function handleCaptureClick(event: MouseEvent) {
   if (performance.now() < suppressLineClickUntil) {
     event.preventDefault();
@@ -274,10 +295,12 @@ function handleCaptureClick(event: MouseEvent) {
   }
   const line = lyricHitTarget(event.target);
   if (line) {
-    // Handle the entire AMLL row here. This intentionally does not inspect
-    // child text nodes, which are rebuilt by word animations.
+    // AMLL rows fill the available width. Only text descendants seek; row
+    // padding is the explicit return target for the expanded lyric surface.
+    event.preventDefault();
     event.stopPropagation();
-    handleLineElementClick(line);
+    if (isLyricTextTarget(event.target, line)) handleLineElementClick(line);
+    else if (!selectMode.value) emit('close');
     return;
   }
   const target = event.target instanceof Element ? event.target : null;
@@ -306,21 +329,24 @@ function handlePointerDown(event: PointerEvent) {
   pointerStartX = event.clientX;
   pointerStartY = event.clientY;
   longPressTriggered = false;
-  longPressTarget = lyricHitTarget(event.target);
-  // Do not leave a pointer id armed for taps on padding/background. A stale
-  // id makes later pointer events look unrelated and disables both seek and
-  // long-press selection until the next complete gesture.
-  if (!longPressTarget) {
-    pointerId = null;
-    isPointerScrolling.value = false;
+  const targetLine = lyricHitTarget(event.target);
+  // Blank row padding is a return target, never a long-press selection target.
+  if (!targetLine || !isLyricTextTarget(event.target, targetLine)) {
+    clearLongPress();
     return;
   }
+  longPressTarget = targetLine;
   longPressSourceIndex = sourceIndexForElement(longPressTarget);
   if (longPressSourceIndex === null) {
     clearLongPress();
     return;
   }
   pointerId = event.pointerId;
+  try {
+    rootRef.value?.setPointerCapture(event.pointerId);
+  } catch {
+    // Pointer capture is unavailable in a few embedded WebView versions.
+  }
   longPressTimer = setTimeout(() => {
     const sourceIndex = longPressSourceIndex;
     if (sourceIndex === null) return;
@@ -345,8 +371,11 @@ function handlePointerMove(event: PointerEvent) {
 
 function handlePointerEnd(event: PointerEvent) {
   if (event.pointerId !== pointerId) return;
-  if (!longPressTriggered) clearLongPress();
-  else {
+  if (!longPressTriggered) {
+    releasePointerCapture(event.pointerId);
+    clearLongPress();
+  } else {
+    releasePointerCapture(event.pointerId);
     if (longPressTimer) clearTimeout(longPressTimer);
     longPressTimer = null;
     pointerId = null;
@@ -357,7 +386,18 @@ function handlePointerEnd(event: PointerEvent) {
 }
 
 function handlePointerCancel(event: PointerEvent) {
-  if (event.pointerId === pointerId) clearLongPress();
+  if (event.pointerId === pointerId) {
+    releasePointerCapture(event.pointerId);
+    clearLongPress();
+  }
+}
+
+function releasePointerCapture(id: number) {
+  try {
+    if (rootRef.value?.hasPointerCapture(id)) rootRef.value.releasePointerCapture(id);
+  } catch {
+    // Pointer capture may already have been released by the browser.
+  }
 }
 
 function handleTouchEndCapture(event: TouchEvent) {
@@ -413,8 +453,9 @@ function currentAmllLineHandles(): AmllLineHandle[] {
 }
 
 function sourceIndexForElement(element: HTMLElement): number | null {
+  const mainElement = mainLineElementFor(element);
   for (const line of currentAmllLineHandles()) {
-    if (line.getElement?.() !== element) continue;
+    if (line.getElement?.() !== mainElement) continue;
     const index = line.getLine?.().__zephyrusSourceIndex;
     return index === undefined ? null : index;
   }
@@ -546,11 +587,14 @@ watch(
     // first lyric view feel unresponsive even when the device was otherwise
     // idle.
     showPreparingOverlay.value = hasSourceLyrics.value;
-    mountTimer = setTimeout(() => {
-      mountTimer = null;
-      if (!transitionSettled.value) return;
-      mountPlayerWhenIdle();
-    }, androidNative ? 0 : 16);
+    mountTimer = setTimeout(
+      () => {
+        mountTimer = null;
+        if (!transitionSettled.value) return;
+        mountPlayerWhenIdle();
+      },
+      androidNative ? 0 : 16
+    );
   },
   { immediate: true }
 );

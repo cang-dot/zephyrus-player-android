@@ -176,7 +176,6 @@ function toggleLyricsExpanded() {
 
 function handleLyricsSurfaceClose() {
   if (lyricsExpanded.value) setLyricsExpanded(false);
-  else setLyricsExpanded(true);
 }
 
 function handleBack() {
