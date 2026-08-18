@@ -151,8 +151,8 @@ import { useI18n } from 'vue-i18n';
 
 import { createPlaylist, updatePlaylistTracks } from '@/api/music';
 import { getUserPlaylist } from '@/api/user';
-import { useLocalPlaylistStore } from '@/store/modules/localPlaylist';
 import { useUserStore } from '@/store';
+import { useLocalPlaylistStore } from '@/store/modules/localPlaylist';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 import { getLoginErrorMessage, hasPermission } from '@/utils/auth';
@@ -223,18 +223,15 @@ const handleAddToPlaylist = async (playlist: any) => {
   if (!song && !props.songId) return;
 
   // 判断是否为非网易云歌曲（本地/云端/跨平台）
-  const isNonNetease = song?.platform === 'server' ||
+  const isNonNetease =
+    song?.platform === 'server' ||
     song?.playMusicUrl?.startsWith('local://') ||
     (song?.platform && song.platform !== 'netease');
 
   if (isNonNetease && song) {
     // 非网易云歌曲 → 仅存本地
     const localPlaylistStore = useLocalPlaylistStore();
-    const added = localPlaylistStore.addToLocalPlaylist(
-      playlist.id,
-      playlist.name,
-      song
-    );
+    const added = localPlaylistStore.addToLocalPlaylist(playlist.id, playlist.name, song);
     if (added) {
       message.success(`已添加到「${playlist.name}」（仅本地展示）`);
     } else {

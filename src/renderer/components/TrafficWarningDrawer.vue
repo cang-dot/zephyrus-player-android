@@ -13,7 +13,11 @@
           <div class="px-6 py-8 flex flex-col items-center text-center">
             <!-- 图标 -->
             <div class="w-16 h-16 rounded-2xl overflow-hidden mb-5 shadow-lg">
-              <img src="@/assets/icon.png" alt="Zephyrus Player" class="w-full h-full object-cover" />
+              <img
+                src="@/assets/icon.png"
+                alt="Zephyrus Player"
+                class="w-full h-full object-cover"
+              />
             </div>
 
             <!-- 标题 -->

@@ -10,6 +10,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.text.SpannableString;
 import android.text.Spanned;
@@ -27,6 +28,7 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /** Non-touch lyric capsule rendered by an Android application overlay. */
@@ -34,17 +36,53 @@ public final class StatusBarLyricOverlay {
     private static final String TAG = "StatusBarLyricOverlay";
     private static volatile StatusBarLyricOverlay instance;
 
+    /** 原生时钟步进间隔：后台 WebView 计时节流期间由原生推进歌词。 */
+    private static final long TICKER_INTERVAL_MS = 100;
+
+    private static final class TimelineWord {
+        final String text;
+        final double startTime;
+        final double duration;
+
+        TimelineWord(String text, double startTime, double duration) {
+            this.text = text;
+            this.startTime = startTime;
+            this.duration = duration;
+        }
+    }
+
+    private static final class TimelineLine {
+        final String text;
+        final List<TimelineWord> words;
+        final double startTime;
+        final double endTime;
+
+        TimelineLine(String text, List<TimelineWord> words, double startTime, double endTime) {
+            this.text = text;
+            this.words = words;
+            this.startTime = startTime;
+            this.endTime = endTime;
+        }
+    }
+
     private final Context context;
     private final WindowManager windowManager;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable renderRunnable = this::render;
     private final Runnable scrollRunnable = this::applyWordProgressScroll;
     private final Runnable removeRunnable = this::removeView;
+    private final Runnable tickerRunnable = this::tickFromNativeClock;
     private TextView lyricView;
     private boolean attached;
     private boolean enabled;
     private boolean appVisible = true;
     private boolean foregroundPreviewVisible;
+    // ---- 原生时钟状态：JS 每次推送携带 positionMs 时重置基准，推送停摆后按流逝时间外推 ----
+    private volatile List<TimelineLine> timeline = Collections.emptyList();
+    private volatile long lastSyncPositionMs = -1;
+    private volatile long lastSyncElapsedMs;
+    private volatile boolean playingFromSync;
+    private boolean tickerActive;
     private boolean wordByWord = true;
     private String widthMode = "fit";
     private int fixedWidthDp = 240;
@@ -96,6 +134,7 @@ public final class StatusBarLyricOverlay {
     public boolean setEnabled(boolean value) {
         enabled = value;
         if (!value || !hasPermission()) {
+            stopTicker();
             scheduleRemove();
             return !value;
         }
@@ -193,6 +232,13 @@ public final class StatusBarLyricOverlay {
                     if (!text.isEmpty()) nextWords.add(text);
                 }
             }
+            double positionMs = state.optDouble("positionMs", -1);
+            if (positionMs >= 0) {
+                lastSyncPositionMs = (long) positionMs;
+                lastSyncElapsedMs = SystemClock.elapsedRealtime();
+                playingFromSync = !state.optBoolean("paused", true);
+            }
+            startTicker();
             boolean needsRender = !lyric.equals(nextLyric)
                     || themeColor != nextThemeColor
                     || currentWordIndex != nextWordIndex
@@ -212,6 +258,129 @@ public final class StatusBarLyricOverlay {
         }
     }
 
+    /** 接收整首歌的歌词时间轴，供原生时钟在 WebView 计时节流期间自行推进。 */
+    public void setTimeline(String timelineJson) {
+        List<TimelineLine> parsed = new ArrayList<>();
+        try {
+            JSONObject payload = new JSONObject(timelineJson == null ? "{}" : timelineJson);
+            JSONArray lines = payload.optJSONArray("lines");
+            if (lines != null) {
+                for (int i = 0; i < lines.length(); i++) {
+                    JSONObject line = lines.optJSONObject(i);
+                    if (line == null) continue;
+                    String text = line.optString("text", "").trim();
+                    double start = line.optDouble("startTime", -1);
+                    if (text.isEmpty() || start < 0) continue;
+                    double end = line.optDouble("endTime", -1);
+                    if (end < start) end = start + 3000;
+                    List<TimelineWord> words = new ArrayList<>();
+                    JSONArray wordValues = line.optJSONArray("words");
+                    if (wordValues != null) {
+                        for (int w = 0; w < wordValues.length(); w++) {
+                            JSONObject word = wordValues.optJSONObject(w);
+                            String wordText = word == null ? "" : word.optString("text", "");
+                            if (wordText.isEmpty()) continue;
+                            words.add(new TimelineWord(wordText,
+                                    word.optDouble("startTime", start),
+                                    Math.max(1, word.optDouble("duration", 400))));
+                        }
+                    }
+                    parsed.add(new TimelineLine(text, words, start, end));
+                }
+            }
+        } catch (Exception ignored) { }
+        timeline = parsed;
+        if (parsed.isEmpty() || lastSyncPositionMs < 0) stopTicker();
+        else startTicker();
+    }
+
+    private void startTicker() {
+        if (tickerActive || timeline.isEmpty() || lastSyncPositionMs < 0) return;
+        tickerActive = true;
+        mainHandler.postDelayed(tickerRunnable, TICKER_INTERVAL_MS);
+    }
+
+    private void stopTicker() {
+        tickerActive = false;
+        mainHandler.removeCallbacks(tickerRunnable);
+    }
+
+    private void tickFromNativeClock() {
+        if (!tickerActive) return;
+        try {
+            applyTimelinePosition(nativeClockPositionMs());
+        } finally {
+            if (tickerActive && !timeline.isEmpty() && lastSyncPositionMs >= 0) {
+                mainHandler.postDelayed(tickerRunnable, TICKER_INTERVAL_MS);
+            } else {
+                tickerActive = false;
+            }
+        }
+    }
+
+    private long nativeClockPositionMs() {
+        long elapsed = playingFromSync ? SystemClock.elapsedRealtime() - lastSyncElapsedMs : 0;
+        return lastSyncPositionMs + elapsed;
+    }
+
+    /** 当前播放位置在时间轴所属行内的进度 [0,1]；无时间轴或未找到时返回 -1。 */
+    private double timelineLineProgress(long positionMs) {
+        List<TimelineLine> lines = timeline;
+        if (lines.isEmpty()) return -1;
+        TimelineLine active = null;
+        for (TimelineLine line : lines) {
+            if (line.startTime <= positionMs) active = line;
+            else break;
+        }
+        if (active == null) return -1;
+        double span = Math.max(1, active.endTime - active.startTime);
+        return clamp((positionMs - active.startTime) / span, 0, 1);
+    }
+
+    /** 按播放位置从时间轴推导当前行/当前字，与 JS 推送共用同一套渲染判定。 */
+    private void applyTimelinePosition(long positionMs) {
+        List<TimelineLine> lines = timeline;
+        if (lines.isEmpty()) return;
+        TimelineLine active = lines.get(0);
+        for (TimelineLine line : lines) {
+            if (line.startTime <= positionMs) active = line;
+            else break;
+        }
+        List<String> nextWords = new ArrayList<>(active.words.size());
+        for (TimelineWord word : active.words) nextWords.add(word.text);
+        int wordIndex = -1;
+        float wordProgress = 0f;
+        if (wordByWord && !active.words.isEmpty()) {
+            for (int index = 0; index < active.words.size(); index++) {
+                TimelineWord word = active.words.get(index);
+                if (positionMs < word.startTime) break;
+                double wordEnd = word.startTime + Math.max(0, word.duration);
+                if (positionMs <= wordEnd) {
+                    wordIndex = index;
+                    wordProgress = (float) clamp(
+                            (positionMs - word.startTime) / Math.max(1, word.duration), 0, 1);
+                    break;
+                }
+                wordIndex = index + 1;
+            }
+        }
+        boolean nextWordByWord = wordByWord && !nextWords.isEmpty();
+        int nextIndex = nextWordByWord ? wordIndex : -1;
+        float nextProgress = nextWordByWord ? wordProgress : 0f;
+        boolean needsRender = !lyric.equals(active.text)
+                || currentWordIndex != nextIndex
+                || wordByWord != nextWordByWord
+                || !words.equals(nextWords);
+        lyric = active.text;
+        currentWordIndex = nextIndex;
+        currentWordProgress = nextProgress;
+        wordByWord = nextWordByWord;
+        words.clear();
+        words.addAll(nextWords);
+        if (needsRender) scheduleRender();
+        else scheduleScroll();
+    }
+
     public void update(String text, String color) {
         lyric = text == null ? "" : text.trim();
         words.clear();
@@ -222,6 +391,7 @@ public final class StatusBarLyricOverlay {
 
     public void destroy() {
         enabled = false;
+        stopTicker();
         scheduleRemove();
     }
 
@@ -381,7 +551,7 @@ public final class StatusBarLyricOverlay {
     }
 
     private void applyWordProgressScroll() {
-        if (lyricView == null || !"fixed".equals(widthMode) || !wordByWord || words.isEmpty()) {
+        if (lyricView == null || !"fixed".equals(widthMode)) {
             if (lyricView != null) lyricView.scrollTo(0, 0);
             return;
         }
@@ -392,6 +562,17 @@ public final class StatusBarLyricOverlay {
         int maxScroll = Math.max(0, Math.round(contentWidth - viewportWidth));
         if (maxScroll == 0) {
             lyricView.scrollTo(0, 0);
+            return;
+        }
+
+        // 非逐字歌词：按当前句时间与句长线性滚动（时间轴 + 原生时钟驱动）。
+        if (!wordByWord || words.isEmpty()) {
+            if (lastSyncPositionMs >= 0) {
+                double progress = timelineLineProgress(nativeClockPositionMs());
+                if (progress >= 0) {
+                    lyricView.scrollTo((int) clamp(progress * maxScroll, 0, maxScroll), 0);
+                }
+            }
             return;
         }
 

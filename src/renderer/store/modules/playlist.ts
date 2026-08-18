@@ -422,8 +422,13 @@ export const usePlaylistStore = defineStore(
      * 下一首
      * @param singleTrackRetryCount 单曲重试次数（同一首歌的重试）
      */
-    const _nextPlay = async (singleTrackRetryCount: number = 0) => {
+    let nextPlayEpoch = 0;
+    const _nextPlay = async (
+      singleTrackRetryCount: number = 0,
+      epoch: number = nextPlayEpoch
+    ) => {
       try {
+        if (epoch !== nextPlayEpoch) return;
         if (playList.value.length === 0) {
           return;
         }
@@ -468,6 +473,9 @@ export const usePlaylistStore = defineStore(
         // 先尝试播放歌曲
         const success = await playerCore.handlePlayMusic(nextSong, true);
 
+        // A newer manual/automatic next request owns playback now.
+        if (epoch !== nextPlayEpoch) return;
+
         if (success) {
           // 播放成功，重置所有计数器并更新索引
           consecutiveFailCount.value = 0;
@@ -488,7 +496,9 @@ export const usePlaylistStore = defineStore(
           if (singleTrackRetryCount < SINGLE_TRACK_MAX_RETRIES) {
             // 不更新索引，重试同一首歌
             setTimeout(() => {
-              _nextPlay(singleTrackRetryCount + 1);
+              if (epoch === nextPlayEpoch) {
+                _nextPlay(singleTrackRetryCount + 1, epoch);
+              }
             }, 1000);
           } else {
             // 单曲重试次数用尽，递增连续失败计数，尝试下一首
@@ -497,11 +507,13 @@ export const usePlaylistStore = defineStore(
             if (playList.value.length > 1) {
               // 更新索引到失败的歌曲位置，这样下次递归调用会继续往下
               playListIndex.value = nowPlayListIndex;
+              // Coalesce failures from stale network/native loads. A rapid
+              // switch should result in at most one automatic advance.
               getMessage().warning(i18n.global.t('player.parseFailedPlayNext'));
 
               // 延迟后尝试下一首（重置单曲重试计数）
               setTimeout(() => {
-                _nextPlay(0);
+                if (epoch === nextPlayEpoch) _nextPlay(0, epoch);
               }, 500);
             } else {
               // 只有一首歌且失败
@@ -515,7 +527,10 @@ export const usePlaylistStore = defineStore(
       }
     };
 
-    const nextPlay = useThrottleFn(_nextPlay, 500);
+    const nextPlay = (singleTrackRetryCount: number = 0) => {
+      nextPlayEpoch += 1;
+      return _nextPlay(singleTrackRetryCount, nextPlayEpoch);
+    };
 
     /**
      * 上一首

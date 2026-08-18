@@ -38,10 +38,15 @@
                   <div class="account-row-name">{{ account.nickname }}</div>
                   <div class="account-row-meta">
                     <span class="account-row-platform">{{ platformName(account.platform) }}</span>
-                    <span v-if="account.vip" class="account-row-vip">{{ account.vipLabel || 'VIP' }}</span>
+                    <span v-if="account.vip" class="account-row-vip">{{
+                      account.vipLabel || 'VIP'
+                    }}</span>
                   </div>
                 </div>
-                <div v-if="account.accountId === accountStore.activeAccountId" class="account-row-check">
+                <div
+                  v-if="account.accountId === accountStore.activeAccountId"
+                  class="account-row-check"
+                >
                   <i class="ri-check-line" />
                 </div>
               </button>
@@ -64,8 +69,8 @@
 
 <script lang="ts" setup>
 import { onBeforeUnmount, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import {

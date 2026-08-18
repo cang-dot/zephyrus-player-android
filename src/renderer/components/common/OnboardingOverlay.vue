@@ -20,7 +20,9 @@
             >
               <!-- Page 0: 搜索听歌 -->
               <div class="w-full flex-shrink-0 px-6 py-10 text-center">
-                <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-[var(--accent-color)]/20 flex items-center justify-center">
+                <div
+                  class="w-24 h-24 mx-auto mb-6 rounded-full bg-[var(--accent-color)]/20 flex items-center justify-center"
+                >
                   <i class="ri-search-eye-line text-5xl text-[var(--accent-color)]"></i>
                 </div>
                 <h2 class="text-xl font-bold text-white mb-3">搜索即听</h2>
@@ -31,7 +33,9 @@
 
               <!-- Page 1: 歌词与高潮效果 -->
               <div class="w-full flex-shrink-0 px-6 py-10 text-center">
-                <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <div
+                  class="w-24 h-24 mx-auto mb-6 rounded-full bg-amber-500/20 flex items-center justify-center"
+                >
                   <i class="ri-fire-line text-5xl text-amber-400"></i>
                 </div>
                 <h2 class="text-xl font-bold text-white mb-3">歌词与高潮效果</h2>
@@ -42,12 +46,15 @@
 
               <!-- Page 2: 解锁密钥 -->
               <div class="w-full flex-shrink-0 px-6 py-10 text-center">
-                <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-green-500/20 flex items-center justify-center">
+                <div
+                  class="w-24 h-24 mx-auto mb-6 rounded-full bg-green-500/20 flex items-center justify-center"
+                >
                   <i class="ri-key-2-line text-5xl text-green-400"></i>
                 </div>
                 <h2 class="text-xl font-bold text-white mb-3">解锁 VIP 歌曲</h2>
                 <p class="text-sm text-white/50 leading-relaxed">
-                  在粉丝群获取口令，输入后即可播放 VIP 歌曲。口令仅用于歌曲播放，不会获取你的账号信息。
+                  在粉丝群获取口令，输入后即可播放 VIP
+                  歌曲。口令仅用于歌曲播放，不会获取你的账号信息。
                 </p>
               </div>
             </div>

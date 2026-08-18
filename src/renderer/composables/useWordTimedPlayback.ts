@@ -74,9 +74,10 @@ function auxiliarySourceKey(line: TtmlBackgroundLine): string {
   return `${line.agent || 'nested'}:${line.begin}:${line.end}:${line.text}`;
 }
 
-// Player styles and the scrolling overlay must switch to TTML at the same line boundary.
+// Keep one lyric source for the lifetime of a song. Switching the AMLL tree at
+// the next provider line boundary causes a full tree rebuild while playback is
+// already ahead, which makes intermediate lines appear to be swallowed.
 const activeTtmlSource = ref<string | null>(null);
-const pendingTtmlSource = ref<string | null>(null);
 
 export function useWordTimedPlayback() {
   const amllStore = useAmllStore();
@@ -129,29 +130,24 @@ export function useWordTimedPlayback() {
 
   watch(expectedTtmlSource, () => {
     activeTtmlSource.value = null;
-    pendingTtmlSource.value = null;
   });
   watch(
     [ttmlMatchesSong, providerHasWordTiming],
     ([hasTtml, hasProviderTiming]) => {
       if (!hasTtml) {
         if (activeTtmlSource.value === expectedTtmlSource.value) activeTtmlSource.value = null;
-        if (pendingTtmlSource.value === expectedTtmlSource.value) pendingTtmlSource.value = null;
       } else if (!hasProviderTiming) {
         activeTtmlSource.value = expectedTtmlSource.value;
-        pendingTtmlSource.value = null;
-      } else if (activeTtmlSource.value !== expectedTtmlSource.value) {
-        pendingTtmlSource.value = expectedTtmlSource.value;
+      } else if (activeTtmlSource.value !== expectedTtmlSource.value && nowTime.value <= 0.05) {
+        // TTML is the authoritative source when it is available. Select it as
+        // soon as it arrives at the beginning of a song. Once playback has
+        // advanced, keep the already-selected provider source until the next
+        // song; replacing AMLL's lyric tree mid-playback skips visible lines.
+        activeTtmlSource.value = expectedTtmlSource.value;
       }
     },
     { immediate: true }
   );
-  watch(nowIndex, (_current, previous) => {
-    if (pendingTtmlSource.value === expectedTtmlSource.value && previous !== undefined) {
-      activeTtmlSource.value = pendingTtmlSource.value;
-      pendingTtmlSource.value = null;
-    }
-  });
 
   const usingTtml = computed(
     () => activeTtmlSource.value === expectedTtmlSource.value && ttmlMatchesSong.value

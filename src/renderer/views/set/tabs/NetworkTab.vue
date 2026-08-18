@@ -270,8 +270,14 @@ watch(
 
 <style scoped>
 /* 覆盖写死的 Tailwind 颜色，统一跟随 --m-* 令牌 */
-.bg-gray-50 { background-color: var(--m-surface, #eae6df) !important; }
-.dark .dark\:bg-white\/5 { background-color: var(--m-surface-alt, #2a2a2a) !important; }
+.bg-gray-50 {
+  background-color: var(--m-surface, #eae6df) !important;
+}
+.dark .dark\:bg-white\/5 {
+  background-color: var(--m-surface-alt, #2a2a2a) !important;
+}
 .border-gray-100,
-.dark .dark\:border-gray-800 { border-color: var(--m-border, #d5d0c9) !important; }
+.dark .dark\:border-gray-800 {
+  border-color: var(--m-border, #d5d0c9) !important;
+}
 </style>

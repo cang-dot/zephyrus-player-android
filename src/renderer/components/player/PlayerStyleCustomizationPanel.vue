@@ -33,6 +33,26 @@
         <input v-model="local.lyricColor" type="color" />
       </label>
 
+      <template v-if="styleKey === 'frenzy'">
+        <div class="section-label">狂热文字分段颜色</div>
+        <label class="setting-row">
+          <span>常态第一段</span>
+          <input v-model="local.frenzyNormalMainColor" type="color" />
+        </label>
+        <label class="setting-row">
+          <span>常态第二段</span>
+          <input v-model="local.frenzyNormalAuxiliaryColor" type="color" />
+        </label>
+        <label class="setting-row">
+          <span>高潮第一段</span>
+          <input v-model="local.frenzyClimaxMainColor" type="color" />
+        </label>
+        <label class="setting-row">
+          <span>高潮第二段</span>
+          <input v-model="local.frenzyClimaxAuxiliaryColor" type="color" />
+        </label>
+      </template>
+
       <div class="setting-row">
         <span>{{ tr('player.styleCustomization.font', '字体') }}</span>
         <div class="font-actions">
@@ -436,12 +456,6 @@
             step="0.01"
         /></label>
       </template>
-      <label v-if="styleKey === 'magazine'" class="range-row">
-        <span
-          >{{ tr('player.styleCustomization.flipSpeed', '翻页速度') }} {{ local.flipSpeed }}ms</span
-        >
-        <input v-model.number="local.flipSpeed" type="range" min="200" max="800" step="50" />
-      </label>
     </div>
   </section>
 </template>
@@ -514,7 +528,7 @@ const hasClimaxEffects = computed(() =>
   ['stage', 'eerie', 'frenzy', 'smoke'].includes(props.styleKey)
 );
 const hasStyleSpecificSettings = computed(() =>
-  ['stage', 'eerie', 'neon', 'frenzy', 'magazine', 'smoke'].includes(props.styleKey)
+  ['stage', 'eerie', 'neon', 'frenzy', 'smoke'].includes(props.styleKey)
 );
 const customFontSelected = computed(() =>
   Boolean(local.value.builtinFontId || local.value.customFontData)

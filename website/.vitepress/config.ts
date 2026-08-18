@@ -66,8 +66,7 @@ export default defineConfig({
           { text: '诡谲', link: '/styles/eerie' },
           { text: '狂热', link: '/styles/frenzy' },
           { text: '陈旧', link: '/styles/neon' },
-          { text: '杂志', link: '/styles/magazine' },
-          { text: '雨夜', link: '/styles/rain' },
+                    { text: '雨夜', link: '/styles/rain' },
           { text: '星盘', link: '/styles/star-chart' },
           { text: '烟雾', link: '/styles/smoke' }
         ]

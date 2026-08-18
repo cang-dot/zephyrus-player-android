@@ -22,12 +22,24 @@ let frame = 0;
 let sheetFrame = 0;
 let controlsHideTimer: ReturnType<typeof setTimeout> | undefined;
 
+const controlsArePinned = () => {
+  try {
+    return Boolean(JSON.parse(localStorage.getItem('music-full-config') || '{}').alwaysShowPlayerControls);
+  } catch {
+    return false;
+  }
+};
+
 const clearControlsHideTimer = () => {
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
   controlsHideTimer = undefined;
 };
 
 const hideControls = () => {
+  if (controlsArePinned()) {
+    controlsVisible.value = true;
+    return;
+  }
   if (surfaceMode.value !== 'controls') return;
   clearControlsHideTimer();
   controlsVisible.value = false;
@@ -35,6 +47,10 @@ const hideControls = () => {
 
 const resetControlsHideTimer = () => {
   clearControlsHideTimer();
+  if (controlsArePinned()) {
+    controlsVisible.value = true;
+    return;
+  }
   if (!controlsVisible.value || surfaceMode.value !== 'controls') return;
   controlsHideTimer = setTimeout(hideControls, 3000);
 };
@@ -46,6 +62,10 @@ const showControls = (autoHide = true) => {
 };
 
 const toggleControls = () => {
+  if (controlsArePinned()) {
+    controlsVisible.value = true;
+    return;
+  }
   if (surfaceMode.value !== 'controls') return;
   if (controlsVisible.value) hideControls();
   else showControls();

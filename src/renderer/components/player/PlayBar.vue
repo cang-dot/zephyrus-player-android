@@ -712,14 +712,14 @@ const setMusicFull = () => {
   if (musicFullVisible.value) settingsStore.showArtistDrawer = false;
 };
 
-// ==================== Player style detection (frenzy/magazine → black, stage → white) ====================
+// ==================== Player style detection (frenzy → black, stage → white) ====================
 const forcedBarTextColor = ref<'black' | 'white' | null>(null);
 function updatePlayerMode() {
   try {
     const saved = localStorage.getItem('music-full-config');
     if (saved) {
       const cfg = JSON.parse(saved);
-      if (cfg.playerStyle === 'frenzy' || cfg.playerStyle === 'magazine') {
+      if (cfg.playerStyle === 'frenzy') {
         forcedBarTextColor.value = 'black';
       } else if (cfg.playerStyle === 'stage') {
         forcedBarTextColor.value = 'white';
@@ -932,7 +932,7 @@ onBeforeUnmount(() => {
     box-shadow: 0 0 20px 5px #0000001d;
   }
 
-  // Forced black text for frenzy/magazine mode
+  // Forced black text for frenzy mode
   &.play-bar-forced-black {
     :deep(*) {
       color: #000000 !important;

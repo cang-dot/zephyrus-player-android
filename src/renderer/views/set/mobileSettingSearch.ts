@@ -91,12 +91,6 @@ export const MOBILE_SETTING_SEARCH_DEFINITIONS: readonly MobileSettingSearchDefi
   },
   {
     tabId: 'playback',
-    title: '状态栏歌词预览',
-    desc: '在当前屏幕显示五秒真实悬浮窗',
-    targetId: 'status-bar-lyrics'
-  },
-  {
-    tabId: 'playback',
     title: '智能混音引擎',
     desc: '切歌时自动平滑过渡，避免硬切中断'
   },

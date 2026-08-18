@@ -1,5 +1,18 @@
 import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from './playerStyle';
 
+export type LyricAlignment = 'left' | 'center' | 'right';
+
+export function normalizeLyricAlignment(
+  value: unknown,
+  legacyCenterLyrics = false
+): LyricAlignment {
+  return value === 'left' || value === 'center' || value === 'right'
+    ? value
+    : legacyCenterLyrics
+      ? 'center'
+      : 'left';
+}
+
 export type StatusBarLyricColorSource = {
   source: 'theme' | 'custom';
   color: string;
@@ -149,6 +162,7 @@ export function normalizeStatusBarLyricConfig(
 export interface LyricConfig {
   hideCover: boolean;
   centerLyrics: boolean;
+  lyricAlignment: LyricAlignment;
   fontSize: number;
   letterSpacing: number;
   fontWeight: number;
@@ -161,6 +175,7 @@ export interface LyricConfig {
   hidePlayBar: boolean;
   translationEngine?: 'none' | 'opencc';
   hideMiniPlayBar: boolean;
+  alwaysShowPlayerControls: boolean;
   hideLyrics: boolean;
   contentWidth: number; // 内容区域宽度百分比
   playerStyle: MobilePlayerStyleKey | 'classic';
@@ -183,10 +198,6 @@ export interface LyricConfig {
   customCss?: string; // 自定义 CSS 样式
   lyricColor: string; // 所有播放器样式的歌词颜色
   styleCustomConfig?: Partial<Record<MobilePlayerStyleKey, PlayerStyleCustomConfig>>;
-  // 杂志样式配置
-  gridRhythmClimaxBoost: boolean; // 高潮闪烁增强
-  gridRhythmSize: string; // 网格密度
-  gridRhythmColor: boolean; // 颜色反转
   // 狂躁样式配置（白色背景、轻微故障、黑字可拉伸、红字正常）
   frenzyGlitchIntensity: number; // 故障强度 0-1
   frenzyVerticalStretch: number; // 垂直拉伸 1-2
@@ -224,6 +235,7 @@ export interface LyricConfig {
 export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   hideCover: false,
   centerLyrics: false,
+  lyricAlignment: 'left',
   fontSize: 22,
   letterSpacing: 0,
   fontWeight: 500,
@@ -235,6 +247,7 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   theme: 'default',
   hidePlayBar: true,
   hideMiniPlayBar: false,
+  alwaysShowPlayerControls: false,
   hideLyrics: false,
   contentWidth: 75, // 默认100%宽度
   playerStyle: 'default',
@@ -258,10 +271,6 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   imageBrightness: 100,
   customCss: undefined,
   lyricColor: '#ffffff',
-  // 杂志样式默认值
-  gridRhythmClimaxBoost: false,
-  gridRhythmSize: 'medium',
-  gridRhythmColor: false,
   // 狂躁样式默认值（白色背景、轻微故障）
   frenzyGlitchIntensity: 0.3,
   frenzyVerticalStretch: 1.3,

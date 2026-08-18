@@ -8,7 +8,6 @@ const STYLE_LYRIC_COLORS: Record<MobilePlayerStyleKey, string> = {
   default: '#ffffff',
   stage: '#f0ece4',
   starChart: '#ffffff',
-  magazine: '#171717',
   frenzy: '#171717',
   eerie: '#f3eee4',
   neon: '#f2dfb0',
@@ -26,7 +25,6 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     effectStaggered: false
   },
   starChart: {},
-  magazine: { flipSpeed: 400 },
   frenzy: {
     giantSize: 80,
     effectCrt: true,
@@ -78,6 +76,10 @@ export function createPlayerStyleConfig(styleKey: MobilePlayerStyleKey): PlayerS
     imageBlur: 0,
     imageBrightness: 100,
     lyricColor,
+    frenzyNormalMainColor: styleKey === 'frenzy' ? '#1a1a1a' : lyricColor,
+    frenzyNormalAuxiliaryColor: styleKey === 'frenzy' ? '#6b6b6b' : lyricColor,
+    frenzyClimaxMainColor: styleKey === 'frenzy' ? '#171717' : lyricColor,
+    frenzyClimaxAuxiliaryColor: styleKey === 'frenzy' ? '#6b6b6b' : lyricColor,
     fontWeight: 600,
     wordDropFontWeight: 900,
     auxiliaryCenterDisplay: false,

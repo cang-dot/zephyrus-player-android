@@ -116,9 +116,10 @@ const api = {
   },
 
   // 平台扫码登录（QQ/酷狗）
-  platformQrCreate: (platform: string) => ipcRenderer.invoke('platform-qr-create', platform),
-  platformQrPoll: (platform: string, key: string) =>
-    ipcRenderer.invoke('platform-qr-poll', platform, key),
+  platformQrCreate: (platform: string, provider = 'qq') =>
+    ipcRenderer.invoke('platform-qr-create', platform, provider),
+  platformQrPoll: (platform: string, key: string, provider = 'qq') =>
+    ipcRenderer.invoke('platform-qr-poll', platform, key, provider),
 
   // 插件商店
   plugin: {

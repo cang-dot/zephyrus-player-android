@@ -9,27 +9,24 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
 import {
+  getCurrentUser,
   getPlaylistTracks,
+  getSavedTracks,
   getUserPlaylists,
-  searchTracks as apiSearchTracks,
-  startPlayback,
   pausePlayback,
+  searchTracks as apiSearchTracks,
+  seekToPosition,
   skipToNext,
   skipToPrevious,
-  seekToPosition,
-  getCurrentUser,
-  getSavedTracks,
   type SpotifyPlaylist,
-  type SpotifyUser
-} from '@/services/spotifyApi';
+  type SpotifyUser,
+  startPlayback} from '@/services/spotifyApi';
 import {
   getValidAccessToken,
+  handleSpotifyCallback,
   isSpotifyLoggedIn,
   spotifyLogout,
-  startSpotifyAuth,
-  handleSpotifyCallback
-} from '@/services/spotifyAuth';
-
+  startSpotifyAuth} from '@/services/spotifyAuth';
 import type { SongResult } from '@/types/music';
 
 export const useSpotifyStore = defineStore(

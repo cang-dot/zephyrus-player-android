@@ -18,6 +18,7 @@ export class LocalAudioPlayer {
   private _loadPromise: Promise<this>;
   private _ctx: AudioContext;
   private _events: Map<string, Set<EventCallback>> = new Map();
+  private _cancelled = false;
 
   constructor(url: string) {
     this._url = url;
@@ -42,6 +43,7 @@ export class LocalAudioPlayer {
 
   private async _load(): Promise<this> {
     try {
+      if (this._cancelled) throw new Error('音频加载已取消');
       let arrayBuffer: ArrayBuffer;
 
       if (isElectron && this._url.startsWith('local://')) {
@@ -114,7 +116,12 @@ export class LocalAudioPlayer {
         throw new Error('非 Electron 环境无法加载本地文件');
       }
 
+      if (this._cancelled) throw new Error('音频加载已取消');
       this._buffer = await this._ctx.decodeAudioData(arrayBuffer);
+      if (this._cancelled) {
+        this._buffer = null;
+        throw new Error('音频加载已取消');
+      }
       this._duration = this._buffer.duration;
       this._playState = 'loaded';
       this.emit('load');
@@ -195,6 +202,7 @@ export class LocalAudioPlayer {
   }
 
   unload(): void {
+    this._cancelled = true;
     this._stopSource();
     this._buffer = null;
     this._duration = 0;

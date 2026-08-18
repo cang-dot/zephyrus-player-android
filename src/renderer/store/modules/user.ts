@@ -26,7 +26,7 @@ export const useUserStore = defineStore('user', () => {
   const user = ref<UserData | null>(getLocalStorageItem('user', null));
   const userDetail = ref<IUserDetail | null>(null);
   const recordList = ref<any[]>([]);
-  const loginType = ref<'token' | 'cookie' | 'qr' | 'uid' | null>(
+  const loginType = ref<'token' | 'cookie' | 'qr' | 'uid' | 'oauth' | null>(
     getLocalStorageItem('loginType', null)
   );
   const searchValue = ref('');

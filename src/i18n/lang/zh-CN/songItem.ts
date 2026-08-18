@@ -1,4 +1,25 @@
 export default {
+  metadataEditor: {
+    title: '编辑歌曲信息',
+    edit: '编辑',
+    fieldTitle: '标题',
+    artist: '歌手',
+    album: '专辑',
+    year: '年份',
+    track: '音轨号',
+    disc: '碟号',
+    changeCover: '更换封面',
+    lyrics: '内嵌歌词',
+    save: '写回文件',
+    saving: '写入中…',
+    saved: '已写回文件标签',
+    saveFailed: '写入失败，请重试',
+    unsupported: '该格式暂不支持写回标签',
+    cloudMatch: '云端匹配',
+    matching: '匹配中…',
+    matchEmpty: '未找到匹配结果',
+    matchFailed: '云端匹配失败，请检查网络后重试'
+  },
   menu: {
     play: '播放',
     playNext: '下一首播放',

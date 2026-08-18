@@ -117,6 +117,7 @@
           <mobile-scrolling-lyrics
             v-if="showFullLyrics"
             class="scrolling-lyrics-overlay"
+            :back-closes="showFullLyrics"
             @close="showFullLyrics = false"
             @interact="showControls"
             @generatePoster="handleGeneratePoster"
@@ -214,7 +215,6 @@ const {
   styleVars,
   isCustom,
   customBackgroundActive,
-  climaxColors,
   selectedFontFamily,
   customFontActive
 } = usePlayerStyleAppearance('frenzy');
@@ -429,13 +429,21 @@ const fontSizePx = computed(() => {
  * 颜色：高潮时切换为强调色
  */
 const textColorDark = computed(() => {
-  if (isCustom.value) return climaxColors.value.main;
+  if (isCustom.value) {
+    return styleEngine.isInClimax && effects.value.lyricColor
+      ? styleCfg.value.frenzyClimaxMainColor
+      : styleCfg.value.frenzyNormalMainColor;
+  }
   if (styleEngine.isInClimax && effects.value.lyricColor) return primaryColor.value;
   return '#1a1a1a';
 });
 
 const textColorGray = computed(() => {
-  if (isCustom.value) return climaxColors.value.auxiliary;
+  if (isCustom.value) {
+    return styleEngine.isInClimax && effects.value.lyricColor
+      ? styleCfg.value.frenzyClimaxAuxiliaryColor
+      : styleCfg.value.frenzyNormalAuxiliaryColor;
+  }
   if (styleEngine.isInClimax && effects.value.lyricColor) return averageColor.value;
   return '#6b6b6b';
 });

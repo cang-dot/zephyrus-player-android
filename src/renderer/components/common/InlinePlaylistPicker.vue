@@ -157,10 +157,10 @@ onBeforeUnmount(() => unregisterBackLayer?.());
 .inline-playlist-trigger {
   display: flex;
   width: 100%;
-  min-height: 50px;
+  min-height: 44px;
   align-items: center;
-  gap: 16px;
-  padding: 14px 12px 14px 20px;
+  gap: 14px;
+  padding: 11px 8px 11px 16px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -168,9 +168,9 @@ onBeforeUnmount(() => unregisterBackLayer?.());
   text-align: left;
 
   > i:first-child {
-    width: 24px;
+    width: 22px;
     color: var(--d-text-secondary, #aaa);
-    font-size: 22px;
+    font-size: 20px;
     text-align: center;
   }
 
@@ -182,7 +182,7 @@ onBeforeUnmount(() => unregisterBackLayer?.());
 
 .inline-playlist-arrow {
   color: var(--d-text-muted, #999);
-  font-size: 18px;
+  font-size: 16px;
   transition: transform 360ms cubic-bezier(0.32, 0.72, 0, 1);
 
   .expanded & {

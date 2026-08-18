@@ -1,4 +1,25 @@
 export default {
+  metadataEditor: {
+    title: '곡 정보 편집',
+    edit: '편집',
+    fieldTitle: '제목',
+    artist: '아티스트',
+    album: '앨범',
+    year: '연도',
+    track: '트랙',
+    disc: '디스크',
+    changeCover: '커버 변경',
+    lyrics: '가사',
+    save: '파일에 쓰기',
+    saving: '쓰는 중…',
+    saved: '태그를 파일에 썼습니다',
+    saveFailed: '쓰기에 실패했습니다',
+    unsupported: '이 형식은 태그 쓰기를 지원하지 않습니다',
+    cloudMatch: '클라우드 매칭',
+    matching: '매칭 중…',
+    matchEmpty: '일치하는 결과가 없습니다',
+    matchFailed: '클라우드 일치에 실패했습니다. 네트워크를 확인한 후 다시 시도하세요'
+  },
   menu: {
     play: '재생',
     playNext: '다음에 재생',

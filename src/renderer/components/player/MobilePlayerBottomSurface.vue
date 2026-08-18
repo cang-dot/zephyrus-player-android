@@ -82,15 +82,23 @@
 <script setup lang="ts">
 import { useMediaQuery, useWindowSize } from '@vueuse/core';
 import type { CSSProperties, Ref } from 'vue';
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
+import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import { usePosterTransitionOrigin } from '@/composables/usePosterTransitionOrigin';
 import { registerMobileBackLayer } from '@/services/mobileBackStack';
 import { usePlayerStore } from '@/store/modules/player';
+import {
+  choosePlayerInkTone,
+  parseRepresentativeCssColor,
+  type PlayerInkTone,
+  playerInkVariables,
+  type RgbColor
+} from '@/utils/playerInk';
 
 import MobilePlayerSettings from './MobilePlayerSettings.vue';
 import PlayingListDrawer from './PlayingListDrawer.vue';
@@ -103,6 +111,7 @@ const transitionStartedWithMenu = inject(
 ) as Ref<boolean>;
 const playerSurfaceFeedback = usePlayerSurfaceFeedback();
 const lyricSelection = useLyricSelectionSurface();
+const songActionSurface = useMobileSongActionSurface();
 const posterTransitionOrigin = usePosterTransitionOrigin();
 const { width: viewportWidth, height: viewportHeight } = useWindowSize();
 const isLandscape = useMediaQuery('(orientation: landscape)');
@@ -113,8 +122,35 @@ const updateSafeBottomInset = () => {
   );
 };
 let unregisterSurfaceBackLayer: (() => void) | undefined;
+let styleColorFrame = 0;
+const styleBackgroundColor = ref<RgbColor>({ r: 17, g: 17, b: 17 });
+const refreshStyleBackgroundColor = () => {
+  void nextTick(() => {
+    if (styleColorFrame) cancelAnimationFrame(styleColorFrame);
+    styleColorFrame = requestAnimationFrame(() => {
+      styleColorFrame = 0;
+      const surfaces = Array.from(document.querySelectorAll<HTMLElement>('.player-style-surface'));
+      const surface = surfaces.reverse().find((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      if (!surface) return;
+      const styles = getComputedStyle(surface);
+      const candidates = [
+        styles.getPropertyValue('--player-style-background-color'),
+        styles.getPropertyValue('--player-style-background'),
+        styles.getPropertyValue('--bg-color'),
+        styles.backgroundColor
+      ];
+      const color = candidates.map(parseRepresentativeCssColor).find(Boolean);
+      if (color) styleBackgroundColor.value = color;
+    });
+  });
+};
 onMounted(() => {
   updateSafeBottomInset();
+  refreshStyleBackgroundColor();
+  window.addEventListener('music-full-config-updated', refreshStyleBackgroundColor);
   unregisterSurfaceBackLayer = registerMobileBackLayer({
     id: 'player-shared-surface-panel',
     priority: 620,
@@ -122,9 +158,23 @@ onMounted(() => {
     onBack: closePanel
   });
 });
-onBeforeUnmount(() => unregisterSurfaceBackLayer?.());
+onBeforeUnmount(() => {
+  unregisterSurfaceBackLayer?.();
+  window.removeEventListener('music-full-config-updated', refreshStyleBackgroundColor);
+  if (styleColorFrame) cancelAnimationFrame(styleColorFrame);
+  if (songSheetFrame) cancelAnimationFrame(songSheetFrame);
+});
 watch([viewportWidth, viewportHeight], updateSafeBottomInset);
-
+watch(
+  () => [
+    playerStore.musicFull,
+    playerStore.currentSong?.id,
+    playerStore.currentSong?.primaryColor,
+    playerTransition.state.value
+  ],
+  refreshStyleBackgroundColor,
+  { flush: 'post' }
+);
 const surfaceMode = computed(() => playerTransition.surfaceMode.value);
 const sheetProgress = computed(() => playerTransition.sheetProgress.value);
 const panelMounted = computed(
@@ -153,10 +203,20 @@ const chromeVisibility = computed(() => {
   return progressReveal * controlsReveal;
 });
 
+const inkTone = ref<PlayerInkTone>(choosePlayerInkTone(styleBackgroundColor.value));
+watch(styleBackgroundColor, (color) => {
+  inkTone.value = choosePlayerInkTone(color, inkTone.value);
+});
+const ink = computed(() => playerInkVariables(inkTone.value));
 const layerStyle = computed<CSSProperties>(
   () =>
     ({
       '--shared-sheet-progress': String(sheetProgress.value),
+      '--player-ink': ink.value.color,
+      '--player-ink-rgb': ink.value.rgb,
+      '--player-icon-color': `rgba(${ink.value.rgb}, 0.94)`,
+      '--player-progress-color': `rgba(${ink.value.rgb}, 0.92)`,
+      '--player-interactive-border': `rgba(${ink.value.rgb}, 0.28)`,
       opacity: String(chromeVisibility.value)
     }) as CSSProperties
 );
@@ -166,9 +226,16 @@ const surfaceStyle = computed<CSSProperties>(() => {
   const playerProgress = lyricSelection.active.value ? 1 : playerTransition.progress.value;
   const landscape = isLandscape.value;
   const controlHeight = lyricSelection.active.value ? 88 : landscape ? 154 : 168;
-  const panelHeight = landscape
+  const basePanelHeight = landscape
     ? viewportHeight.value - 28
     : Math.min(viewportHeight.value * 0.68, 560);
+  // While the song action sheet is open the glass container hugs the compact
+  // panel instead of keeping the full playlist height below it.
+  const songSheetPanelHeight = landscape
+    ? basePanelHeight
+    : Math.min(viewportHeight.value * 0.52, 470);
+  const panelHeight =
+    basePanelHeight + (songSheetPanelHeight - basePanelHeight) * songSheetCollapse.value;
   const height = controlHeight + (panelHeight - controlHeight) * sheet;
   const fullWidth = viewportWidth.value - 28;
   const panelWidth = landscape ? Math.min(viewportWidth.value * 0.48, 430) : fullWidth;
@@ -216,10 +283,46 @@ const openSettings = () => {
   playerTransition.setSurfaceMode('settings');
 };
 
+const closePlayer = () => {
+  playerTransition.close(0, () => playerStore.setMusicFull(false));
+};
+
 const closePanel = () => {
   if (surfaceMode.value === 'playlist') playerStore.setPlayListDrawerVisible(false);
   playerTransition.setSurfaceMode('controls');
 };
+
+const songSheetActive = computed(
+  () => surfaceMode.value === 'playlist' && songActionSurface.visible.value
+);
+const songSheetCollapse = ref(0);
+let songSheetFrame = 0;
+const animateSongSheetCollapse = (target: 0 | 1) => {
+  if (songSheetFrame) cancelAnimationFrame(songSheetFrame);
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    songSheetCollapse.value = target;
+    songSheetFrame = 0;
+    return;
+  }
+  let value = songSheetCollapse.value;
+  let speed = 0;
+  let previous = performance.now();
+  const tick = (now: number) => {
+    const dt = Math.min(0.032, Math.max(0.001, (now - previous) / 1000));
+    previous = now;
+    speed += (-420 * (value - target) - 38 * speed) * dt;
+    value += speed * dt;
+    songSheetCollapse.value = Math.min(1, Math.max(0, value));
+    if (Math.abs(value - target) < 0.004 && Math.abs(speed) < 0.04) {
+      songSheetCollapse.value = target;
+      songSheetFrame = 0;
+      return;
+    }
+    songSheetFrame = requestAnimationFrame(tick);
+  };
+  songSheetFrame = requestAnimationFrame(tick);
+};
+watch(songSheetActive, (active) => animateSongSheetCollapse(active ? 1 : 0));
 
 const openPosterFromSelection = (event: MouseEvent) => {
   posterTransitionOrigin.capture(event.currentTarget as Element);
@@ -297,7 +400,48 @@ const onSurfacePointerCancel = (event: PointerEvent) => {
   z-index: 100100;
   overflow: visible;
   pointer-events: none;
-  transition: opacity 180ms ease;
+  transition:
+    opacity 180ms ease,
+    color 220ms ease;
+}
+
+.shared-player-top-controls {
+  position: absolute;
+  top: calc(var(--safe-area-inset-top, 0px) + 10px);
+  right: 14px;
+  left: 14px;
+  z-index: 4;
+  display: flex;
+  justify-content: space-between;
+  opacity: 0;
+  transform: translate3d(0, -8px, 0);
+  transition:
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+}
+
+.shared-player-top-controls.visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  pointer-events: auto;
+}
+
+.shared-player-top-controls button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.1);
+  color: var(--player-icon-color, var(--player-ink, #fff));
+  font-size: 24px;
+  place-items: center;
+}
+
+.shared-player-top-controls button:active {
+  transform: scale(0.92);
 }
 
 .shared-player-scrim {
@@ -320,15 +464,15 @@ const onSurfacePointerCancel = (event: PointerEvent) => {
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
   backdrop-filter: var(--player-glass-filter, blur(12px) saturate(145%));
   -webkit-backdrop-filter: var(--player-glass-filter, blur(12px) saturate(145%));
-  --m-text-primary: rgba(255, 255, 255, 0.94);
-  --m-text-secondary: rgba(255, 255, 255, 0.76);
-  --m-text-muted: rgba(255, 255, 255, 0.58);
-  --cover-text-primary: rgba(255, 255, 255, 0.94);
-  --cover-text-muted: rgba(255, 255, 255, 0.62);
-  --d-text-primary: rgba(255, 255, 255, 0.94);
-  --d-text-secondary: rgba(255, 255, 255, 0.62);
-  --text-color: rgba(255, 255, 255, 0.94);
-  color: rgba(255, 255, 255, 0.94);
+  --m-text-primary: rgba(var(--player-ink-rgb, 255, 255, 255), 0.94);
+  --m-text-secondary: rgba(var(--player-ink-rgb, 255, 255, 255), 0.76);
+  --m-text-muted: rgba(var(--player-ink-rgb, 255, 255, 255), 0.58);
+  --cover-text-primary: rgba(var(--player-ink-rgb, 255, 255, 255), 0.94);
+  --cover-text-muted: rgba(var(--player-ink-rgb, 255, 255, 255), 0.62);
+  --d-text-primary: rgba(var(--player-ink-rgb, 255, 255, 255), 0.94);
+  --d-text-secondary: rgba(var(--player-ink-rgb, 255, 255, 255), 0.62);
+  --text-color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.94);
+  color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.94);
   transform-origin: right bottom;
   contain: layout style;
   will-change: transform, opacity;
@@ -436,12 +580,12 @@ const onSurfacePointerCancel = (event: PointerEvent) => {
 .shared-sheet-pane :deep(.music-play-list-content),
 .shared-sheet-pane :deep(.music-play-list-content .text-gray-800),
 .shared-sheet-pane :deep(.music-play-list-content .dark\:text-gray-200) {
-  color: rgba(255, 255, 255, 0.9) !important;
+  color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.9) !important;
 }
 
 .shared-sheet-pane :deep(.music-play-list-content .text-gray-500),
 .shared-sheet-pane :deep(.music-play-list-content .text-gray-400) {
-  color: rgba(255, 255, 255, 0.58) !important;
+  color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.58) !important;
 }
 
 @media (orientation: landscape) {
@@ -458,6 +602,11 @@ const onSurfacePointerCancel = (event: PointerEvent) => {
 
   .shared-player-bottom-surface {
     transition-duration: 100ms;
+  }
+
+  .shared-player-top-controls {
+    transition: opacity 100ms linear;
+    transform: none;
   }
 }
 </style>

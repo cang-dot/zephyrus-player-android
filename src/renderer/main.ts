@@ -25,6 +25,11 @@ app.use(router);
 app.use(i18n as any);
 app.mount('#app');
 
+// 宣传片截图用的开发模式 mock（仅 dev:web，/?__promo=1 激活）
+if (import.meta.env.DEV) {
+  import('./devPromoMock');
+}
+
 // 注册 deep link 处理器（供原生 Android 调用）
 import { setupDeepLinkHandler } from '@/utils/deepLink';
 setupDeepLinkHandler();

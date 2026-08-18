@@ -1,4 +1,25 @@
 export default {
+  metadataEditor: {
+    title: 'Edit Song Info',
+    edit: 'Edit',
+    fieldTitle: 'Title',
+    artist: 'Artist',
+    album: 'Album',
+    year: 'Year',
+    track: 'Track',
+    disc: 'Disc',
+    changeCover: 'Change Cover',
+    lyrics: 'Embedded Lyrics',
+    save: 'Write to File',
+    saving: 'Writing…',
+    saved: 'Tags written to file',
+    saveFailed: 'Write failed, please retry',
+    unsupported: 'Tag writing is not supported for this format',
+    cloudMatch: 'Cloud Match',
+    matching: 'Matching…',
+    matchEmpty: 'No matches found',
+    matchFailed: 'Cloud matching failed. Check your connection and try again'
+  },
   menu: {
     play: 'Play',
     playNext: 'Play Next',

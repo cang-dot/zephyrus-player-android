@@ -77,12 +77,30 @@
               :style="getSettingsTabPageStyle('control')"
             >
               <!-- 播放器样式 2×2 网格 -->
-              <div class="mb-6">
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-sm font-medium text-white/80">
+              <section class="control-settings-section">
+                <button
+                  type="button"
+                  class="control-section-header"
+                  :aria-expanded="isControlSectionExpanded('playerStyle')"
+                  aria-controls="control-section-player-style"
+                  @click="toggleControlSection('playerStyle')"
+                >
+                  <span class="control-section-title">
+                    <i class="ri-palette-line"></i>
                     {{ t('player.settings.playerStyle') || '播放器样式' }}
                   </span>
-                </div>
+                  <i
+                    class="ri-arrow-down-s-line control-section-chevron"
+                    :class="{ expanded: isControlSectionExpanded('playerStyle') }"
+                  ></i>
+                </button>
+                <div
+                  class="control-section-reveal"
+                  :class="{ expanded: isControlSectionExpanded('playerStyle') }"
+                  :aria-hidden="!isControlSectionExpanded('playerStyle')"
+                  :inert="!isControlSectionExpanded('playerStyle')"
+                >
+                  <div id="control-section-player-style" class="control-section-body">
                 <div class="grid grid-cols-2 gap-3">
                   <button
                     v-for="style in playerStyles"
@@ -104,27 +122,43 @@
                     </span>
                   </button>
                 </div>
-              </div>
 
-              <player-style-customization-panel
-                :key="currentPlayerStyle"
-                v-model="styleConfig"
-                :style-key="currentPlayerStyle"
-                @reset="resetCurrentStyleConfig"
-              />
-
-              <!-- 分隔线 -->
-              <div class="h-px bg-white/10 my-5"></div>
+                  <player-style-customization-panel
+                    :key="currentPlayerStyle"
+                    v-model="styleConfig"
+                    :style-key="currentPlayerStyle"
+                    @reset="resetCurrentStyleConfig"
+                  />
+                  </div>
+                </div>
+              </section>
 
               <!-- 手动标记高潮段落 -->
-              <div class="mb-6">
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-sm font-medium text-white/80">
+              <section class="control-settings-section">
+                <button
+                  type="button"
+                  class="control-section-header"
+                  :aria-expanded="isControlSectionExpanded('climax')"
+                  aria-controls="control-section-climax"
+                  @click="toggleControlSection('climax')"
+                >
+                  <span class="control-section-title">
                     <i class="ri-fire-line mr-1"></i>
                     高潮段落标记
                   </span>
-                  <span class="text-xs text-white/40">{{ manualClimaxSegments.length }} 段</span>
-                </div>
+                  <span class="control-section-summary">{{ manualClimaxSegments.length }} 段</span>
+                  <i
+                    class="ri-arrow-down-s-line control-section-chevron"
+                    :class="{ expanded: isControlSectionExpanded('climax') }"
+                  ></i>
+                </button>
+                <div
+                  class="control-section-reveal"
+                  :class="{ expanded: isControlSectionExpanded('climax') }"
+                  :aria-hidden="!isControlSectionExpanded('climax')"
+                  :inert="!isControlSectionExpanded('climax')"
+                >
+                  <div id="control-section-climax" class="control-section-body">
 
                 <!-- 当前播放时间显示 -->
                 <div class="flex items-center justify-between mb-2 px-1">
@@ -289,19 +323,35 @@
                   <i class="ri-fire-line text-3xl mb-1"></i>
                   <p class="text-xs">在时间轴上左右拖动来创建高潮段落</p>
                 </div>
-              </div>
-
-              <!-- 分隔线 -->
-              <div class="h-px bg-white/10 my-5"></div>
+                  </div>
+                </div>
+              </section>
 
               <!-- 歌词设置 -->
-              <div class="mb-6">
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-sm font-medium text-white/80">
+              <section class="control-settings-section">
+                <button
+                  type="button"
+                  class="control-section-header"
+                  :aria-expanded="isControlSectionExpanded('lyrics')"
+                  aria-controls="control-section-lyrics"
+                  @click="toggleControlSection('lyrics')"
+                >
+                  <span class="control-section-title">
                     <i class="ri-translate-2 mr-1"></i>
                     歌词设置
                   </span>
-                </div>
+                  <i
+                    class="ri-arrow-down-s-line control-section-chevron"
+                    :class="{ expanded: isControlSectionExpanded('lyrics') }"
+                  ></i>
+                </button>
+                <div
+                  class="control-section-reveal"
+                  :class="{ expanded: isControlSectionExpanded('lyrics') }"
+                  :aria-hidden="!isControlSectionExpanded('lyrics')"
+                  :inert="!isControlSectionExpanded('lyrics')"
+                >
+                  <div id="control-section-lyrics" class="control-section-body">
 
                 <!-- 显示翻译 -->
                 <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
@@ -325,6 +375,55 @@
                   >
                     <span class="share-toggle-knob"></span>
                   </button>
+                </div>
+
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                  <div class="min-w-0 pr-3">
+                    <div class="text-sm text-white/80">
+                      {{ tr('settings.lyricSettings.alwaysShowPlayerControls', '始终显示播放控件') }}
+                    </div>
+                    <div class="text-xs text-white/40 mt-1">
+                      {{ tr('settings.lyricSettings.alwaysShowPlayerControlsDescription', '顶部和底部控件保持常驻') }}
+                    </div>
+                  </div>
+                  <button
+                    class="share-toggle-switch"
+                    :class="{ on: lyricConfig.alwaysShowPlayerControls }"
+                    @click="lyricConfig.alwaysShowPlayerControls = !lyricConfig.alwaysShowPlayerControls"
+                  >
+                    <span class="share-toggle-knob"></span>
+                  </button>
+                </div>
+
+                <!-- 歌词对齐 -->
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                  <div class="min-w-0 pr-3">
+                    <div class="text-sm text-white/80">
+                      {{ tr('settings.lyricSettings.alignment', '歌词对齐') }}
+                    </div>
+                    <div class="text-xs text-white/40 mt-1">
+                      {{
+                        tr(
+                          'settings.lyricSettings.alignmentDescription',
+                          '调整滚动歌词的水平对齐方式'
+                        )
+                      }}
+                    </div>
+                  </div>
+                  <div class="lyric-alignment-control" role="radiogroup">
+                    <button
+                      v-for="option in lyricAlignmentOptions"
+                      :key="option.value"
+                      type="button"
+                      :class="{ active: lyricConfig.lyricAlignment === option.value }"
+                      :aria-label="option.label"
+                      :aria-checked="lyricConfig.lyricAlignment === option.value"
+                      role="radio"
+                      @click="setLyricAlignment(option.value)"
+                    >
+                      <i :class="option.icon"></i>
+                    </button>
+                  </div>
                 </div>
 
                 <!-- 显示罗马音 -->
@@ -376,21 +475,36 @@
                     <span class="share-toggle-knob"></span>
                   </button>
                 </div>
-              </div>
-
-              <!-- 分隔线 -->
-              <div class="h-px bg-white/10 my-5"></div>
+                  </div>
+                </div>
+              </section>
 
               <!-- 播放速度 -->
-              <div class="mb-6">
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-sm font-medium text-white/80">
+              <section class="control-settings-section">
+                <button
+                  type="button"
+                  class="control-section-header"
+                  :aria-expanded="isControlSectionExpanded('speed')"
+                  aria-controls="control-section-speed"
+                  @click="toggleControlSection('speed')"
+                >
+                  <span class="control-section-title">
+                    <i class="ri-speed-up-line"></i>
                     {{ t('player.settings.playbackSpeed') }}
                   </span>
-                  <span class="text-sm text-[var(--accent-color-light)] font-medium"
-                    >{{ playbackRate }}x</span
-                  >
-                </div>
+                  <span class="control-section-summary accent">{{ playbackRate }}x</span>
+                  <i
+                    class="ri-arrow-down-s-line control-section-chevron"
+                    :class="{ expanded: isControlSectionExpanded('speed') }"
+                  ></i>
+                </button>
+                <div
+                  class="control-section-reveal"
+                  :class="{ expanded: isControlSectionExpanded('speed') }"
+                  :aria-hidden="!isControlSectionExpanded('speed')"
+                  :inert="!isControlSectionExpanded('speed')"
+                >
+                  <div id="control-section-speed" class="control-section-body">
                 <div class="flex flex-wrap gap-2">
                   <button
                     v-for="option in speedOptions"
@@ -406,18 +520,36 @@
                     {{ option }}x
                   </button>
                 </div>
-              </div>
-
-              <!-- 分隔线 -->
-              <div class="h-px bg-white/10 my-5"></div>
+                  </div>
+                </div>
+              </section>
 
               <!-- 歌词解析 -->
-              <div class="mb-6">
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-sm font-medium text-white/80">
+              <section class="control-settings-section">
+                <button
+                  type="button"
+                  class="control-section-header"
+                  :aria-expanded="isControlSectionExpanded('analysis')"
+                  aria-controls="control-section-analysis"
+                  @click="toggleControlSection('analysis')"
+                >
+                  <span class="control-section-title">
                     <i class="ri-quill-pen-line mr-1"></i>
                     歌词解析
                   </span>
+                  <i
+                    class="ri-arrow-down-s-line control-section-chevron"
+                    :class="{ expanded: isControlSectionExpanded('analysis') }"
+                  ></i>
+                </button>
+                <div
+                  class="control-section-reveal"
+                  :class="{ expanded: isControlSectionExpanded('analysis') }"
+                  :aria-hidden="!isControlSectionExpanded('analysis')"
+                  :inert="!isControlSectionExpanded('analysis')"
+                >
+                  <div id="control-section-analysis" class="control-section-body">
+                  <div class="control-section-actions">
                   <button
                     v-if="!metaphorLoading && !metaphorResult"
                     @click="analyzeLyrics"
@@ -433,7 +565,7 @@
                   >
                     {{ metaphorLoading ? '分析中...' : '重新分析' }}
                   </button>
-                </div>
+                  </div>
 
                 <!-- 加载中 -->
                 <div
@@ -480,19 +612,35 @@
                 >
                   <i class="ri-database-2-line mr-1"></i> 缓存结果
                 </div>
-              </div>
-
-              <!-- 分隔线 -->
-              <div class="h-px bg-white/10 my-5"></div>
+                  </div>
+                </div>
+              </section>
 
               <!-- 分享功能 -->
-              <div class="mb-6">
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-sm font-medium text-white/80">
+              <section class="control-settings-section">
+                <button
+                  type="button"
+                  class="control-section-header"
+                  :aria-expanded="isControlSectionExpanded('sharing')"
+                  aria-controls="control-section-sharing"
+                  @click="toggleControlSection('sharing')"
+                >
+                  <span class="control-section-title">
                     <i class="ri-share-line mr-1"></i>
                     分享功能
                   </span>
-                </div>
+                  <i
+                    class="ri-arrow-down-s-line control-section-chevron"
+                    :class="{ expanded: isControlSectionExpanded('sharing') }"
+                  ></i>
+                </button>
+                <div
+                  class="control-section-reveal"
+                  :class="{ expanded: isControlSectionExpanded('sharing') }"
+                  :aria-hidden="!isControlSectionExpanded('sharing')"
+                  :inert="!isControlSectionExpanded('sharing')"
+                >
+                  <div id="control-section-sharing" class="control-section-body">
 
                 <!-- 截图自动添加二维码 -->
                 <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
@@ -537,24 +685,38 @@
                     <span>在歌词页面长按歌词可进入多选模式，生成精美海报</span>
                   </div>
                 </div>
-              </div>
-
-              <!-- 分隔线 -->
-              <div class="h-px bg-white/10 my-5"></div>
+                  </div>
+                </div>
+              </section>
 
               <!-- 定时关闭 -->
-              <div>
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-sm font-medium text-white/80">
+              <section class="control-settings-section">
+                <button
+                  type="button"
+                  class="control-section-header"
+                  :aria-expanded="isControlSectionExpanded('sleepTimer')"
+                  aria-controls="control-section-sleep-timer"
+                  @click="toggleControlSection('sleepTimer')"
+                >
+                  <span class="control-section-title">
+                    <i class="ri-timer-line"></i>
                     {{ t('player.sleepTimer.title') }}
                   </span>
-                  <span
-                    v-if="hasTimerActive"
-                    class="text-sm text-[var(--accent-color-light)] font-medium"
-                  >
+                  <span v-if="hasTimerActive" class="control-section-summary accent">
                     {{ timerStatusText }}
                   </span>
-                </div>
+                  <i
+                    class="ri-arrow-down-s-line control-section-chevron"
+                    :class="{ expanded: isControlSectionExpanded('sleepTimer') }"
+                  ></i>
+                </button>
+                <div
+                  class="control-section-reveal"
+                  :class="{ expanded: isControlSectionExpanded('sleepTimer') }"
+                  :aria-hidden="!isControlSectionExpanded('sleepTimer')"
+                  :inert="!isControlSectionExpanded('sleepTimer')"
+                >
+                  <div id="control-section-sleep-timer" class="control-section-body">
 
                 <!-- 已激活状态 -->
                 <div v-if="hasTimerActive" class="space-y-3">
@@ -657,10 +819,9 @@
                     {{ t('player.sleepTimer.playlistEnd') }}
                   </button>
                 </div>
-              </div>
-
-              <!-- 分隔线 -->
-              <div class="h-px bg-white/10 my-5"></div>
+                  </div>
+                </div>
+              </section>
             </div>
 
             <div
@@ -686,6 +847,20 @@
                       {{ currentAlbum.name }}
                     </div>
                   </div>
+                </div>
+
+                <div v-if="currentAudioParamSegments.length" class="current-audio-params">
+                  <span v-for="segment in currentAudioParamSegments" :key="segment">
+                    {{ segment }}
+                  </span>
+                  <button
+                    v-if="currentSong && isLocalSong(currentSong)"
+                    type="button"
+                    class="current-audio-edit"
+                    @click="metadataEditorShow = true"
+                  >
+                    <i class="ri-edit-line" />{{ t('songItem.metadataEditor.edit') }}
+                  </button>
                 </div>
 
                 <div class="overflow-hidden rounded-2xl bg-white/5">
@@ -734,6 +909,7 @@
         </div>
       </div>
     </Transition>
+    <song-metadata-editor v-model:show="metadataEditorShow" :song="currentSong!" />
   </Teleport>
 </template>
 
@@ -755,6 +931,7 @@ import {
 import { searchServerSongs } from '@/api/serverSongs';
 import InlinePlaylistPicker from '@/components/common/InlinePlaylistPicker.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
+import SongMetadataEditor from '@/components/common/SongMetadataEditor.vue';
 import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
 import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
 import { useMetaphor } from '@/features/lyric-metaphor/useMetaphor';
@@ -768,16 +945,23 @@ import {
   requestStatusBarLyricPermission
 } from '@/services/androidNative';
 import { deleteClimaxCache, getLocalClimax, saveLocalClimax } from '@/services/cacheService';
+import { activeAudioFormat } from '@/services/nativeAudioPlayer';
 import { useClimaxStore } from '@/store/modules/climax';
 import { useCommunityDataStore } from '@/store/modules/communityData';
+import { useLocalMusicStore } from '@/store/modules/localMusic';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useUserStore } from '@/store/modules/user';
-import type { LyricConfig } from '@/types/lyric';
-import { DEFAULT_LYRIC_CONFIG, normalizeStatusBarLyricConfig } from '@/types/lyric';
+import type { LyricAlignment, LyricConfig } from '@/types/lyric';
+import {
+  DEFAULT_LYRIC_CONFIG,
+  normalizeLyricAlignment,
+  normalizeStatusBarLyricConfig
+} from '@/types/lyric';
 import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from '@/types/playerStyle';
 import { isMobilePlayerStyleKey } from '@/types/playerStyle';
 import { getImgUrl, secondToMinute } from '@/utils';
+import { formatAudioSegments } from '@/utils/audioFormat';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -790,6 +974,31 @@ const { navigateToArtist } = useArtist();
 const message = window.$message;
 const androidNativeAvailable = isAndroidNative();
 const activeTab = ref<'song' | 'control'>('control');
+
+type ControlSection =
+  | 'playerStyle'
+  | 'climax'
+  | 'lyrics'
+  | 'speed'
+  | 'analysis'
+  | 'sharing'
+  | 'sleepTimer';
+
+const expandedControlSections = ref<Set<ControlSection>>(new Set());
+const isControlSectionExpanded = (section: ControlSection) =>
+  expandedControlSections.value.has(section);
+
+function toggleControlSection(section: ControlSection) {
+  const next = new Set(expandedControlSections.value);
+  if (next.has(section)) next.delete(section);
+  else next.add(section);
+  expandedControlSections.value = next;
+}
+
+function collapseControlSections() {
+  expandedControlSections.value = new Set();
+}
+
 const settingsTabViewportRef = ref<HTMLElement | null>(null);
 const settingsTabDragOffset = ref(0);
 const settingsTabDragging = ref(false);
@@ -886,6 +1095,21 @@ const finishTabPointer = (event: PointerEvent, cancelled = false) => {
 const onTabPointerUp = (event: PointerEvent) => finishTabPointer(event);
 const onTabPointerCancel = (event: PointerEvent) => finishTabPointer(event, true);
 const currentSong = computed(() => playMusic.value || null);
+const metadataEditorShow = ref(false);
+// 本地歌曲：歌曲卡片下方展示当前音频参数（静态元数据 + 引擎实际解码格式）。
+const localMusicStore = useLocalMusicStore();
+const currentAudioParamSegments = computed(() => {
+  const song = currentSong.value;
+  if (!song || !isLocalSong(song)) return [] as string[];
+  const entry = localMusicStore.musicList.find((meta) => meta.id === String(song.id));
+  return formatAudioSegments({
+    mime: activeAudioFormat.value?.sampleMimeType || entry?.mime,
+    sampleRate: activeAudioFormat.value?.sampleRate || entry?.sampleRate,
+    channelCount: activeAudioFormat.value?.channelCount,
+    bitrate: activeAudioFormat.value?.bitrate || entry?.bitrate,
+    fileSize: entry?.fileSize
+  });
+});
 const settingsPlaylistExpanded = ref(false);
 const currentArtists = computed(() => currentSong.value?.ar || currentSong.value?.artists || []);
 const currentArtistText = computed(() =>
@@ -1345,6 +1569,7 @@ function loadStoredLyricConfig(): LyricConfig {
     return {
       ...DEFAULT_LYRIC_CONFIG,
       ...parsed,
+      lyricAlignment: normalizeLyricAlignment(parsed.lyricAlignment, parsed.centerLyrics),
       statusBarLyricConfig: normalizeStatusBarLyricConfig(
         parsed.statusBarLyricConfig,
         Boolean(parsed.statusBarLyricsEnabled)
@@ -1418,12 +1643,6 @@ const playerStyles = computed<
     label: tr('player.styles.starChart', '星盘'),
     icon: 'ri-record-circle-line',
     color: 'var(--accent-color, #a0a0a0)'
-  },
-  {
-    key: 'magazine' as const,
-    label: tr('player.styles.magazine', '杂志'),
-    icon: 'ri-layout-grid-line',
-    color: '#f59e0b'
   },
   {
     key: 'frenzy' as const,
@@ -1521,6 +1740,29 @@ watch(currentPlayerStyle, () => loadStyleConfig(), { immediate: true });
 loadStyleConfig();
 
 // ==================== 歌词设置 ====================
+const lyricAlignmentOptions = computed(() => [
+  {
+    value: 'left' as const,
+    label: tr('settings.lyricSettings.alignmentLeft', '左对齐'),
+    icon: 'ri-align-left'
+  },
+  {
+    value: 'center' as const,
+    label: tr('settings.lyricSettings.alignmentCenter', '居中'),
+    icon: 'ri-align-center'
+  },
+  {
+    value: 'right' as const,
+    label: tr('settings.lyricSettings.alignmentRight', '右对齐'),
+    icon: 'ri-align-right'
+  }
+]);
+
+function setLyricAlignment(alignment: LyricAlignment) {
+  lyricConfig.value.lyricAlignment = alignment;
+  lyricConfig.value.centerLyrics = alignment === 'center';
+}
+
 function toggleShowTranslation() {
   lyricConfig.value.showTranslation = !lyricConfig.value.showTranslation;
   localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
@@ -1570,7 +1812,7 @@ function setShareDefaultLayout(layout: 'torn-paper' | 'immersive') {
 }
 
 // Props & Emits
-withDefaults(
+const props = withDefaults(
   defineProps<{
     visible: boolean;
     embedded?: boolean;
@@ -1581,6 +1823,14 @@ withDefaults(
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void;
 }>();
+
+watch(
+  () => props.visible,
+  (visible) => {
+    if (visible) collapseControlSections();
+  },
+  { immediate: true }
+);
 
 // 播放速度选项
 const speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
@@ -1842,6 +2092,120 @@ onUnmounted(() => {
   transform: translateY(100%);
 }
 
+/* 控制页可折叠设置分组 */
+.control-settings-section {
+  margin-bottom: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.control-section-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 14px;
+  border: 0;
+  color: rgba(255, 255, 255, 0.82);
+  background: transparent;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.control-section-header:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.control-section-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.control-section-title > i:first-child {
+  width: 20px;
+  flex: 0 0 20px;
+  color: var(--accent-color-light, rgba(255, 255, 255, 0.7));
+  font-size: 18px;
+  text-align: center;
+}
+
+.control-section-summary {
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.control-section-summary.accent {
+  color: var(--accent-color-light);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.control-section-chevron {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 20px;
+  transition: transform 180ms ease, color 180ms ease;
+}
+
+.control-section-chevron.expanded {
+  transform: rotate(180deg);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.control-section-reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translate3d(0, -5px, 0) scale(0.995);
+  transform-origin: top center;
+  transition:
+    grid-template-rows 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 180ms ease-out,
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: grid-template-rows, opacity, transform;
+}
+
+.control-section-reveal.expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.control-section-body {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 14px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.control-section-actions {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 34px;
+  padding-top: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .control-section-reveal {
+    transform: none;
+    transition:
+      grid-template-rows 120ms linear,
+      opacity 120ms linear;
+  }
+
+  .control-section-chevron {
+    transition-duration: 120ms;
+  }
+}
+
 /* 播放器样式卡片激活状态 */
 .style-card-active {
   background: rgba(var(--accent-color-rgb, 99, 102, 241), 0.2);
@@ -1868,6 +2232,46 @@ onUnmounted(() => {
   border: 0;
   text-align: left;
   transition: background-color 150ms ease;
+}
+
+.current-audio-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.current-audio-params span {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.current-audio-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent-color) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-color) 14%, transparent);
+  color: var(--accent-color);
+  font-size: 11px;
+  font-weight: 500;
+
+  i {
+    font-size: 12px;
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
 }
 
 .song-setting-action + .song-setting-action {
@@ -1913,6 +2317,34 @@ onUnmounted(() => {
 
 .share-toggle-switch.on .share-toggle-knob {
   transform: translateX(18px);
+}
+
+.lyric-alignment-control {
+  display: grid;
+  grid-template-columns: repeat(3, 34px);
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.lyric-alignment-control button {
+  display: grid;
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 17px;
+  place-items: center;
+}
+
+.lyric-alignment-control button.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
 }
 
 /* ==================== 高潮段落时间轴 ==================== */

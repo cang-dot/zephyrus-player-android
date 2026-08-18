@@ -46,6 +46,16 @@
       </router-view>
     </div>
 
+    <!-- 非播放界面打开播放列表/歌曲信息时，底栏之外的页面由半透明遮罩覆盖，
+         点击遮罩返回上一级，直到只剩迷你播放栏/底栏后遮罩消失。 -->
+    <Transition name="dock-surface-fade">
+      <div
+        v-if="dockSurfaceMaskVisible"
+        class="dock-surface-mask"
+        @click="onDockSurfaceMaskClick"
+      />
+    </Transition>
+
     <div
       class="mobile-bottom-dock"
       :class="{
@@ -57,6 +67,7 @@
         'player-open': isPlay && !miniPlayerIdleCollapsed,
         'playlist-mounted': isPlay && playlistSurfaceMounted,
         'playlist-open': isPlay && playlistSurfaceExpanded,
+        'song-sheet-open': songSheetDockActive,
         'player-transitioning': playerMorphing,
         'player-source-dock': playerTransitionStartedWithMenu,
         'player-full': playerTransition.state.value === 'open'
@@ -110,7 +121,7 @@
     </div>
     <mobile-player-bottom-surface v-if="isPlay" />
     <mobile-song-action-sheet
-      v-if="mobileSongActionRequest"
+      v-if="mobileSongActionRequest && !isPlay"
       :item="mobileSongActionRequest.item"
       :show="songActionSurface.visible.value"
       :is-favorite="mobileSongActionRequest.isFavorite"
@@ -179,6 +190,48 @@ const { t } = useI18n();
 const playerTransition = useMobilePlayerTransition();
 const songActionSurface = useMobileSongActionSurface();
 const mobileSongActionRequest = computed(() => songActionSurface.request.value);
+// 歌曲信息与播放列表共用 Dock 玻璃容器：页面长按时若列表未展开，先记为
+// "独立打开"并临时展开容器；关闭歌曲信息时随之收起，播放列表则保持原状。
+const songSheetStandalone = ref(false);
+const songSheetDockActive = computed(
+  () => isPlay.value && !playerStore.musicFull && songActionSurface.visible.value
+);
+watch(
+  () => songActionSurface.visible.value,
+  (visible) => {
+    if (playerStore.musicFull || !isPlay.value) return;
+    if (visible) {
+      songSheetStandalone.value = !playerStore.playListDrawerVisible;
+      if (songSheetStandalone.value) playerStore.setPlayListDrawerVisible(true);
+      return;
+    }
+    if (songSheetStandalone.value) {
+      songSheetStandalone.value = false;
+      if (playerStore.playListDrawerVisible) playerStore.setPlayListDrawerVisible(false);
+    }
+  }
+);
+const dockSurfaceMaskVisible = computed(
+  () => isPlay.value && !playerStore.musicFull && playerStore.playListDrawerVisible
+);
+const onDockSurfaceMaskClick = () => {
+  if (songActionSurface.visible.value) {
+    songActionSurface.close();
+    return;
+  }
+  playerStore.setPlayListDrawerVisible(false);
+};
+// 打开播放界面前先直接收起播放列表与歌曲信息弹层，避免转场割裂；
+// 收起后底部容器在播放界面内也不会重新展开播放列表。
+watch(
+  () => playerStore.musicFull,
+  (full) => {
+    if (!full) return;
+    songSheetStandalone.value = false;
+    if (playerStore.playListDrawerVisible) playerStore.setPlayListDrawerVisible(false);
+    if (songActionSurface.visible.value) songActionSurface.close();
+  }
+);
 const invokeSongAction = (
   action: 'play' | 'playNext' | 'favorite' | 'remove' | 'gotoArtist' | 'gotoAlbum',
   id?: number
@@ -198,24 +251,12 @@ const playerOverlayActive = computed(
     playerTransition.state.value !== 'idle' ||
     playerTransition.progress.value > 0.02
 );
-const backgroundPolicy = computed(() => {
-  const policy = route.meta?.playerBackgroundPolicy;
-  return policy === 'unmount' || policy === 'suspend' ? policy : 'suspend';
-});
-const backgroundUnmounted = computed(
-  // Keep the source page mounted throughout the gesture and the closing
-  // spring. Unmounting at pointer-down leaves a blank page when the gesture
-  // is cancelled, and unmounting only after close makes the restored page
-  // appear too late. The expensive page is released only after the player
-  // has fully settled open.
-  () =>
-    backgroundPolicy.value === 'unmount' &&
-    playerTransition.state.value === 'open' &&
-    playerTransition.progress.value > 0.98
-);
+// Destroying the route tree on the same frame that the player settles open can
+// block Android WebView for seconds. content-visibility releases its rendering
+// work while keeping the already-created page available for a fast close.
+const backgroundUnmounted = computed(() => false);
 const backgroundSuspended = computed(
   () =>
-    backgroundPolicy.value === 'suspend' &&
     playerTransition.state.value === 'open' &&
     playerTransition.progress.value > 0.98
 );
@@ -238,6 +279,20 @@ const capturePlayerTransitionOrigin = () => {
           width: identity.width,
           height: identity.height,
           borderRadius: identity.height / 2
+        }
+      : null
+  );
+  const cover = document
+    .querySelector<HTMLElement>('.mobile-play-bar .mini-song-cover')
+    ?.getBoundingClientRect();
+  playerTransition.setSourceRect(
+    cover && cover.width > 0 && cover.height > 0
+      ? {
+          left: cover.left,
+          top: cover.top,
+          width: cover.width,
+          height: cover.height,
+          borderRadius: Math.min(cover.width, cover.height) / 2
         }
       : null
   );
@@ -649,6 +704,10 @@ const onDockPointerDown = (event: PointerEvent) => {
     !event.isPrimary ||
     !isPlay.value ||
     playerStore.musicFull ||
+    // 播放列表/歌曲信息展开时，Dock 上的纵向滑动属于列表滚动，
+    // 不能触发"上滑打开播放界面"的形变（否则顶栏在遮罩上闪烁、底栏上浮）。
+    playerStore.playListDrawerVisible ||
+    songActionSurface.visible.value ||
     (event.target instanceof Element && event.target.closest('.mobile-play-bar'))
   )
     return;
@@ -740,6 +799,7 @@ const activeGlowStyle = computed(() => {
 provide('shouldShowMobileMenu', shouldShowBottomMenu);
 provide('playlistSurfaceMounted', playlistSurfaceMounted);
 provide('playlistSurfaceExpanded', playlistSurfaceExpanded);
+provide('playlistSongSheetActive', songSheetDockActive);
 
 // Keep-alive 配置
 const keepAliveInclude = computed(() => {
@@ -891,6 +951,23 @@ onBeforeUnmount(() => {
   transform: none;
 }
 
+.dock-surface-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 198;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.dock-surface-fade-enter-active,
+.dock-surface-fade-leave-active {
+  transition: opacity 220ms ease;
+}
+
+.dock-surface-fade-enter-from,
+.dock-surface-fade-leave-to {
+  opacity: 0;
+}
+
 .mobile-bottom-dock {
   position: fixed;
   right: var(--mobile-dock-inset);
@@ -927,6 +1004,13 @@ onBeforeUnmount(() => {
 
   &.visible {
     height: 54px;
+    pointer-events: auto;
+  }
+
+  /* The compact player can exist on routes without the bottom navigation.
+     Keep its actual controls targetable even when the dock shell is only a
+     zero-height gesture surface. */
+  &.has-player:not(.player-full) {
     pointer-events: auto;
   }
 
@@ -1004,6 +1088,20 @@ onBeforeUnmount(() => {
     height: min(62dvh, 500px);
   }
 
+  /* 歌曲信息复用容器时收紧高度，贴合内容，避免玻璃下方留白。 */
+  &.playlist-open.song-sheet-open {
+    height: min(48dvh, 430px);
+    min-height: 280px;
+  }
+
+  &.playlist-open.visible.song-sheet-open {
+    height: min(48dvh, 430px);
+  }
+
+  &.playlist-mounted:not(.visible).song-sheet-open :deep(.playlist-panel.embedded) {
+    height: calc(min(48dvh, 430px) - 56px);
+  }
+
   &.playlist-mounted :deep(.mobile-play-bar.play-bar-mini.is-menu-show) {
     z-index: 201;
   }
@@ -1053,12 +1151,12 @@ onBeforeUnmount(() => {
 
 /* Teleported players share the same rAF progress as the Dock surface. */
 :global(body.mobile-player-surface-active .n-drawer-container:has(#mobile-drawer-target)),
+:global(body.mobile-player-surface-active #mobile-drawer-target.default-player-v2),
 :global(body.mobile-player-surface-active .stage-mobile-player),
 :global(body.mobile-player-surface-active .rain-mobile-player),
 :global(body.mobile-player-surface-active .star-chart-player),
 :global(body.mobile-player-surface-active .frenzy-mobile-player),
 :global(body.mobile-player-surface-active .eerie-mobile-player),
-:global(body.mobile-player-surface-active .magazine-mobile-player),
 :global(body.mobile-player-surface-active .neon-mobile-player),
 :global(body.mobile-player-surface-active .smoke-mobile-player) {
   opacity: var(--player-surface-reveal, 1) !important;

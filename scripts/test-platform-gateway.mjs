@@ -12,6 +12,7 @@ const {
   normalizeKugouSongs,
   normalizeKugouUserInfo,
   extractQQOAuthCode,
+  parseWechatQrPoll,
   decodeQqLyricField,
   decodeKugouKrc
 } = require('../server-platform-login.js');
@@ -61,6 +62,23 @@ function verifyQqOAuthCodeParsing() {
   }
 
   return { locationCode, bodyCode, encodedCode };
+}
+
+function verifyWechatPollParsing() {
+  const waiting = parseWechatQrPoll('window.wx_errcode=408;');
+  const scanned = parseWechatQrPoll('window.wx_errcode=404;');
+  const confirmed = parseWechatQrPoll("window.wx_errcode=405;window.wx_code='wechat-code';");
+  const expired = parseWechatQrPoll('window.wx_errcode=403;');
+  if (
+    waiting.status !== 'waiting' ||
+    scanned.status !== 'scanned' ||
+    confirmed.status !== 'confirmed' ||
+    confirmed.code !== 'wechat-code' ||
+    expired.status !== 'expired'
+  ) {
+    throw new Error('WeChat QR poll parsing failed');
+  }
+  return { waiting: waiting.status, scanned: scanned.status, confirmed: confirmed.status };
 }
 
 function verifyQqLyricDecoding() {
@@ -289,6 +307,7 @@ try {
   }
   const qqCallback = verifyQqCallbackParsing();
   const qqOAuthCode = verifyQqOAuthCodeParsing();
+  const wechatPoll = verifyWechatPollParsing();
   const qqLyricDecode = verifyQqLyricDecoding();
   const kugouLyricDecode = verifyKugouLyricDecoding();
   const qq = await verifyPlatform('qq');
@@ -305,6 +324,7 @@ try {
         qq,
         qqCallback,
         qqOAuthCode,
+        wechatPoll,
         qqLyricDecode,
         kugouLyricDecode,
         kugou,

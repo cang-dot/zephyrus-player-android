@@ -17,10 +17,10 @@
       </div>
 
       <!-- 雨水效果层 -->
-      <RainCanvas :config="rainConfig" />
+      <rain-canvas :config="rainConfig" />
 
       <!-- 通用控件（左上关闭 + 右上设置/全屏） -->
-      <PlayerControls
+      <player-controls
         v-if="!overlayMode"
         v-show="controlsVisible"
         :isFullScreen="isFullScreen"
@@ -49,7 +49,7 @@
         <template v-if="rainConfig.rainShowCover">
           <!-- 左侧歌词 -->
           <div class="lyric-side left-side">
-            <SplitLyrics
+            <split-lyrics
               v-if="rainConfig.rainLyricMode === 'split'"
               mode="split"
               side="left"
@@ -65,7 +65,7 @@
 
           <!-- 中间封面 -->
           <div class="cover-container">
-            <CoverRipple
+            <cover-ripple
               :src="playMusic?.picUrl ? getImgUrl(playMusic.picUrl, '800y800') : ''"
               :size="280"
               :borderRadius="24"
@@ -74,7 +74,7 @@
 
           <!-- 右侧歌词 -->
           <div class="lyric-side right-side">
-            <SplitLyrics
+            <split-lyrics
               v-if="rainConfig.rainLyricMode === 'split'"
               mode="split"
               side="right"
@@ -93,7 +93,7 @@
         <template v-else>
           <div class="merged-lyrics">
             <div class="lyric-half left-half">
-              <SplitLyrics
+              <split-lyrics
                 v-if="rainConfig.rainLyricMode === 'split'"
                 mode="split"
                 side="left"
@@ -106,12 +106,12 @@
                 <div class="lyric-line primary-line">{{ currentLine?.text || '' }}</div>
               </div>
             </div>
-            
+
             <!-- 竖光晕分隔线 -->
             <div class="glow-divider"></div>
-            
+
             <div class="lyric-half right-half">
-              <SplitLyrics
+              <split-lyrics
                 v-if="rainConfig.rainLyricMode === 'split'"
                 mode="split"
                 side="right"
@@ -130,10 +130,7 @@
 
       <!-- 翻译歌词 -->
       <transition name="translation-fade">
-        <div
-          v-if="currentTranslation && controlsVisible"
-          class="translation-text"
-        >
+        <div v-if="currentTranslation && controlsVisible" class="translation-text">
           {{ currentTranslation }}
         </div>
       </transition>
@@ -298,13 +295,13 @@ const backgroundCoverStyle = computed(() => {
 const backgroundOverlayStyle = computed(() => {
   const darkness = rainConfig.value.rainBackgroundDarkness ?? 70;
   const opacity = darkness / 100;
-  
+
   if (darkness >= 100) {
     return {
       background: '#000000'
     };
   }
-  
+
   return {
     background: `linear-gradient(
       to bottom,
@@ -516,7 +513,7 @@ onBeforeUnmount(() => {
     rgba(255, 255, 255, 0.3) 80%,
     transparent 100%
   );
-  box-shadow: 
+  box-shadow:
     0 0 20px rgba(255, 255, 255, 0.4),
     0 0 40px rgba(255, 255, 255, 0.2),
     0 0 60px rgba(255, 255, 255, 0.1);
@@ -526,14 +523,14 @@ onBeforeUnmount(() => {
 @keyframes glowPulse {
   0% {
     opacity: 0.6;
-    box-shadow: 
+    box-shadow:
       0 0 15px rgba(255, 255, 255, 0.3),
       0 0 30px rgba(255, 255, 255, 0.15),
       0 0 45px rgba(255, 255, 255, 0.08);
   }
   100% {
     opacity: 1;
-    box-shadow: 
+    box-shadow:
       0 0 25px rgba(255, 255, 255, 0.5),
       0 0 50px rgba(255, 255, 255, 0.25),
       0 0 75px rgba(255, 255, 255, 0.12);

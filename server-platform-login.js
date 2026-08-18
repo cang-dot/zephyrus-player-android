@@ -367,6 +367,9 @@ const QQ_PT_3RD_AID = '100497308';
 const QQ_REDIRECT = 'https://graph.qq.com/oauth2.0/login_jump';
 const QQ_MUSIC_REDIRECT =
   'https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/';
+const QQ_WECHAT_APP_ID = process.env.QQ_WECHAT_APP_ID || 'wx48db31d50e334801';
+const QQ_WECHAT_LOGIN_ENABLED = process.env.QQ_WECHAT_LOGIN_ENABLED !== 'false';
+const wechatQrSessions = new Map();
 const QQ_JS_VER = '20102616';
 const QQ_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -919,9 +922,147 @@ async function completeQQLogin(redirectUrl, sessionCookie) {
   return completedLogin;
 }
 
+async function createWechatQrLogin() {
+  if (!QQ_WECHAT_LOGIN_ENABLED || !QQ_WECHAT_APP_ID) {
+    throw new Error('微信扫码登录未配置，请设置 QQ_WECHAT_APP_ID');
+  }
+  const state = crypto.randomBytes(16).toString('hex');
+  const connectUrl =
+    'https://open.weixin.qq.com/connect/qrconnect' +
+    `?appid=${encodeURIComponent(QQ_WECHAT_APP_ID)}` +
+    `&redirect_uri=${encodeURIComponent(QQ_MUSIC_REDIRECT)}` +
+    '&response_type=code&scope=snsapi_login' +
+    `&state=${encodeURIComponent(state)}#wechat_redirect`;
+  const response = await axios.get(connectUrl, {
+    headers: { 'User-Agent': QQ_USER_AGENT, Referer: 'https://y.qq.com/' },
+    timeout: 12000,
+    validateStatus: () => true
+  });
+  if (response.status < 200 || response.status >= 400) {
+    throw new Error(`微信二维码创建失败 (${response.status})`);
+  }
+  const html = String(response.data || '');
+  const uuid = html.match(/\/connect\/qrcode\/([\w-]+)/i)?.[1];
+  if (!uuid) throw new Error('微信二维码创建失败：未获取到会话标识');
+  const key = crypto.randomBytes(24).toString('hex');
+  wechatQrSessions.set(key, {
+    uuid,
+    state,
+    cookie: setCookiesFromHeader(response.headers['set-cookie']).join('; '),
+    createdAt: Date.now(),
+    polling: false
+  });
+  return {
+    qrUrl: `https://open.weixin.qq.com/connect/qrcode/${encodeURIComponent(uuid)}`,
+    key,
+    expiredAt: Date.now() + QQ_SESSION_TTL
+  };
+}
+
+async function completeWechatLogin(code, sessionCookie) {
+  const musicResponse = await axios.post(
+    'https://u.y.qq.com/cgi-bin/musicu.fcg',
+    JSON.stringify({
+      comm: { g_tk: 5381, platform: 'yqq', ct: 24, cv: 0 },
+      req: {
+        module: 'music.login.LoginServer',
+        method: 'Login',
+        param: { strAppid: QQ_WECHAT_APP_ID, code }
+      }
+    }),
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': QQ_USER_AGENT,
+        Referer: 'https://y.qq.com/',
+        Cookie: sessionCookie
+      },
+      timeout: 12000,
+      validateStatus: () => true
+    }
+  );
+  if (musicResponse.status < 200 || musicResponse.status >= 300) {
+    throw new Error(`微信授权换取 QQ 音乐登录态失败 (${musicResponse.status})`);
+  }
+  const loginData = musicResponse.data;
+  let resultCookie = mergeCookieParts(
+    sessionCookie,
+    setCookiesFromHeader(musicResponse.headers['set-cookie']).join('; ')
+  );
+  const musicKey = firstDeepValue(loginData, ['musickey', 'music_key', 'qm_keyst', 'qqmusic_key']);
+  const musicUin = firstDeepValue(loginData, ['musicid', 'uin', 'user_id', 'userid']);
+  if (musicKey) resultCookie = mergeCookieParts(resultCookie, `qm_keyst=${musicKey}`);
+  if (musicUin) resultCookie = mergeCookieParts(resultCookie, `uin=${normalizeQQUserId(musicUin)}`);
+  const completed = createQQLoginFromCookie(resultCookie, loginData);
+  if (!completed) throw new Error('微信授权成功，但未获取到 QQ 音乐登录密钥');
+  const userInfo = await fetchQqUserInfo(completed.cookie).catch(() => null);
+  if (userInfo) completed.userInfo = { ...completed.userInfo, ...userInfo };
+  return completed;
+}
+
+function parseWechatQrPoll(payload) {
+  const body = String(payload || '');
+  const errorCode = Number(body.match(/wx_errcode\s*=\s*(\d+)/)?.[1]);
+  const code = body.match(/wx_code\s*=\s*['"]([^'"]+)/)?.[1] || '';
+  if (errorCode === 408) return { status: 'waiting', code: '' };
+  if (errorCode === 404) return { status: 'scanned', code: '' };
+  if (errorCode === 405 && code) return { status: 'confirmed', code };
+  if (errorCode === 403 || errorCode === 402 || errorCode === 500) {
+    return { status: 'expired', code: '' };
+  }
+  return { status: 'error', code: '', errorCode: errorCode || 0 };
+}
+
+async function pollWechatQrLogin(key) {
+  const session = wechatQrSessions.get(String(key || ''));
+  if (!session || Date.now() - session.createdAt > QQ_SESSION_TTL) {
+    wechatQrSessions.delete(String(key || ''));
+    return { status: 'expired', message: '微信二维码已过期' };
+  }
+  if (session.polling) return { status: 'waiting', message: '正在检查扫码状态' };
+  session.polling = true;
+  try {
+    const response = await axios.get('https://lp.open.weixin.qq.com/connect/l/qrconnect', {
+      params: { uuid: session.uuid, _: Date.now() },
+      headers: {
+        'User-Agent': QQ_USER_AGENT,
+        Referer: 'https://open.weixin.qq.com/',
+        Cookie: session.cookie
+      },
+      timeout: 12000,
+      validateStatus: () => true
+    });
+    const parsed = parseWechatQrPoll(response.data);
+    if (parsed.status === 'waiting') return { status: 'waiting', message: '等待微信扫码' };
+    if (parsed.status === 'scanned') return { status: 'scanned', message: '已扫码，请在微信中确认' };
+    if (parsed.status === 'expired') {
+      wechatQrSessions.delete(key);
+      return { status: 'expired', message: '微信二维码已失效，请刷新重试' };
+    }
+    if (parsed.status !== 'confirmed') {
+      return { status: 'error', message: `微信登录返回未知状态 (${parsed.errorCode || 'unknown'})` };
+    }
+    const completed = await completeWechatLogin(parsed.code, session.cookie);
+    wechatQrSessions.delete(key);
+    return {
+      status: 'success',
+      message: 'QQ 音乐微信登录成功',
+      cookie: completed.cookie,
+      userInfo: completed.userInfo
+    };
+  } finally {
+    if (wechatQrSessions.has(key)) session.polling = false;
+  }
+}
+
 // GET /platform/qq/qr/create
 router.get('/qq/qr/create', async (req, res) => {
   try {
+    const provider = req.query.provider === 'wechat' ? 'wechat' : 'qq';
+    if (provider === 'wechat') {
+      const created = await createWechatQrLogin();
+      return res.json({ code: 200, data: { provider, ...created } });
+    }
     const t = Math.random().toString(36).substring(2, 10);
     const url = `https://ssl.ptlogin2.qq.com/ptqrshow?appid=${QQ_APPID}&e=2&l=M&s=3&d=72&v=4&t=${t}&daid=${QQ_DAID}&pt_3rd_aid=${QQ_PT_3RD_AID}`;
 
@@ -959,6 +1100,7 @@ router.get('/qq/qr/create', async (req, res) => {
     res.json({
       code: 200,
       data: {
+        provider,
         qrUrl: `data:image/png;base64,${base64}`,
         key: qrsig,
         expiredAt: Date.now() + 2 * 60 * 1000
@@ -973,6 +1115,11 @@ router.get('/qq/qr/create', async (req, res) => {
 // GET /platform/qq/qr/poll?key=xxx
 router.get('/qq/qr/poll', async (req, res) => {
   try {
+    const provider = req.query.provider === 'wechat' ? 'wechat' : 'qq';
+    if (provider === 'wechat') {
+      const result = await pollWechatQrLogin(req.query.key);
+      return res.json({ code: 200, data: { provider, ...result } });
+    }
     const qrsig = req.query.key;
     if (!qrsig) {
       return res.json({ code: 400, msg: '缺少 key (qrsig) 参数' });
@@ -1035,17 +1182,17 @@ router.get('/qq/qr/poll', async (req, res) => {
 
     // 66 = 等待扫码, 67 = 已扫码等待确认, 65/68 = 过期, 0 = 登录成功
     if (code === 66) {
-      return res.json({ code: 200, data: { status: 'waiting', message: '等待扫码' } });
+      return res.json({ code: 200, data: { provider, status: 'waiting', message: '等待扫码' } });
     }
     if (code === 67) {
       return res.json({
         code: 200,
-        data: { status: 'scanned', message: '已扫码，请在手机上确认登录' }
+        data: { provider, status: 'scanned', message: '已扫码，请在手机上确认登录' }
       });
     }
     if (code === 65 || code === 68) {
       deleteQqSession(qrsig);
-      return res.json({ code: 200, data: { status: 'expired', message: '二维码已过期' } });
+      return res.json({ code: 200, data: { provider, status: 'expired', message: '二维码已过期' } });
     }
 
     // 0 = 登录成功
@@ -1058,6 +1205,7 @@ router.get('/qq/qr/poll', async (req, res) => {
         return res.json({
           code: 200,
           data: {
+            provider,
             status: 'success',
             message: 'QQ 音乐登录成功',
             cookie: loginResult.cookie,
@@ -2604,6 +2752,7 @@ module.exports.readQqSession = readQqSession;
 module.exports.deleteQqSession = deleteQqSession;
 module.exports.mergeCookieParts = mergeCookieParts;
 module.exports.extractQQOAuthCode = extractQQOAuthCode;
+module.exports.parseWechatQrPoll = parseWechatQrPoll;
 module.exports.decodeQqLyricField = decodeQqLyricField;
 module.exports.decodeKugouKrc = decodeKugouKrc;
 module.exports.enforceQqLyricRateLimit = enforceQqLyricRateLimit;

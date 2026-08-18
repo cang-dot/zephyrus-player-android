@@ -14,8 +14,11 @@ import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Base64;
 import android.util.Log;
+import android.util.LruCache;
 
 import androidx.core.content.ContextCompat;
 
@@ -45,6 +48,13 @@ public class MediaNotificationManager {
 
     private final Context context;
     private final NotificationManager notificationManager;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final LruCache<String, Bitmap> artworkCache = new LruCache<String, Bitmap>(8 * 1024 * 1024) {
+        @Override
+        protected int sizeOf(String key, Bitmap value) {
+            return value.getByteCount();
+        }
+    };
     private MediaSession mediaSession;
     private boolean isRegistered = false;
 
@@ -55,8 +65,9 @@ public class MediaNotificationManager {
     private boolean currentIsPlaying = false;
     private long currentDuration = 0;
     private long currentPosition = 0;
-    private Bitmap currentArtwork = null;
-    private String currentArtworkUrl = "";
+    private volatile Bitmap currentArtwork = null;
+    private volatile String currentArtworkUrl = "";
+    private volatile String artworkLoadingUrl = "";
 
     public static MediaNotificationManager getInstance(Context context) {
         if (instance == null) {
@@ -143,9 +154,9 @@ public class MediaNotificationManager {
     /**
      * 更新媒体会话元数据和播放状态，并刷新通知
      */
-    public void updateMediaSession(String title, String artist, String album,
-                                   String artworkUrl, boolean isPlaying,
-                                   double duration, double position) {
+    public synchronized void updateMediaSession(String title, String artist, String album,
+                                                String artworkUrl, boolean isPlaying,
+                                                double duration, double position) {
         currentTitle = title != null ? title : "";
         currentArtist = artist != null ? artist : "";
         currentAlbum = album != null ? album : "";
@@ -161,16 +172,7 @@ public class MediaNotificationManager {
             currentArtwork = null;
         }
 
-        // 更新元数据
-        MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder();
-        metadataBuilder.putString(MediaMetadata.METADATA_KEY_TITLE, currentTitle);
-        metadataBuilder.putString(MediaMetadata.METADATA_KEY_ARTIST, currentArtist);
-        metadataBuilder.putString(MediaMetadata.METADATA_KEY_ALBUM, currentAlbum);
-        metadataBuilder.putLong(MediaMetadata.METADATA_KEY_DURATION, currentDuration);
-        if (currentArtwork != null) {
-            metadataBuilder.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, currentArtwork);
-        }
-        mediaSession.setMetadata(metadataBuilder.build());
+        updateMediaMetadata();
 
         // 更新播放状态
         PlaybackState.Builder stateBuilder = new PlaybackState.Builder();
@@ -187,47 +189,125 @@ public class MediaNotificationManager {
         stateBuilder.setState(state, currentPosition, isPlaying ? 1.0f : 0f);
         mediaSession.setPlaybackState(stateBuilder.build());
 
-        // 异步加载封面
-        if (artworkChanged && !nextArtworkUrl.isEmpty()) {
+        // 首次失败后 currentArtwork 仍为空，后续状态同步会重新发起加载。
+        if (!nextArtworkUrl.isEmpty() && currentArtwork == null) {
             loadArtworkAsync(nextArtworkUrl);
         }
 
         updateNotification();
     }
 
-    private void loadArtworkAsync(String urlStr) {
-        new Thread(() -> {
-            try {
-                Bitmap bitmap;
-                if (urlStr.startsWith("data:image/")) {
-                    int commaIndex = urlStr.indexOf(',');
-                    if (commaIndex < 0) throw new IllegalArgumentException("Invalid image data URL");
-                    byte[] bytes = Base64.decode(urlStr.substring(commaIndex + 1), Base64.DEFAULT);
-                    bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-                } else {
-                    URL url = new URL(urlStr);
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    conn.setDoInput(true);
-                    conn.setConnectTimeout(5000);
-                    conn.setReadTimeout(5000);
-                    conn.connect();
-                    InputStream input = conn.getInputStream();
-                    bitmap = BitmapFactory.decodeStream(input);
-                    input.close();
-                    conn.disconnect();
-                }
+    private void updateMediaMetadata() {
+        MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder();
+        metadataBuilder.putString(MediaMetadata.METADATA_KEY_TITLE, currentTitle);
+        metadataBuilder.putString(MediaMetadata.METADATA_KEY_ARTIST, currentArtist);
+        metadataBuilder.putString(MediaMetadata.METADATA_KEY_ALBUM, currentAlbum);
+        metadataBuilder.putLong(MediaMetadata.METADATA_KEY_DURATION, currentDuration);
+        if (currentArtwork != null) {
+            metadataBuilder.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, currentArtwork);
+            metadataBuilder.putBitmap(MediaMetadata.METADATA_KEY_ART, currentArtwork);
+        }
+        mediaSession.setMetadata(metadataBuilder.build());
+    }
 
+    private synchronized void loadArtworkAsync(String urlStr) {
+        if (urlStr.equals(artworkLoadingUrl)) return;
+        Bitmap cached = artworkCache.get(urlStr);
+        if (cached != null) {
+            currentArtwork = cached;
+            mainHandler.post(() -> {
                 if (!urlStr.equals(currentArtworkUrl)) return;
-                currentArtwork = bitmap;
-
-                MainActivity activity = MainActivity.getInstance();
-                if (activity != null) {
-                    activity.runOnUiThread(this::updateNotification);
+                updateMediaMetadata();
+                updateNotification();
+            });
+            return;
+        }
+        artworkLoadingUrl = urlStr;
+        new Thread(() -> {
+            Exception lastError = null;
+            try {
+                Bitmap bitmap = null;
+                for (int attempt = 0; attempt < 3 && bitmap == null; attempt++) {
+                    if (!urlStr.equals(currentArtworkUrl)) return;
+                    try {
+                        bitmap = decodeArtwork(urlStr);
+                    } catch (Exception error) {
+                        lastError = error;
+                        if (attempt < 2) Thread.sleep(250L * (attempt + 1));
+                    }
                 }
+                if (bitmap == null) throw lastError != null ? lastError : new IllegalStateException("Empty artwork");
+
+                synchronized (MediaNotificationManager.this) {
+                    if (!urlStr.equals(currentArtworkUrl)) return;
+                    currentArtwork = constrainArtwork(bitmap);
+                    artworkCache.put(urlStr, currentArtwork);
+                    artworkLoadingUrl = "";
+                }
+
+                mainHandler.post(() -> {
+                    if (!urlStr.equals(currentArtworkUrl)) return;
+                    updateMediaMetadata();
+                    updateNotification();
+                });
             } catch (Exception e) {
                 Log.w(TAG, "Failed to load artwork: " + e.getMessage());
+            } finally {
+                synchronized (MediaNotificationManager.this) {
+                    if (urlStr.equals(artworkLoadingUrl)) artworkLoadingUrl = "";
+                }
             }
-        }).start();
+        }, "zephyrus-artwork").start();
+    }
+
+    private Bitmap decodeArtwork(String urlStr) throws Exception {
+        if (urlStr.startsWith("data:image/")) {
+            int commaIndex = urlStr.indexOf(',');
+            if (commaIndex < 0) throw new IllegalArgumentException("Invalid image data URL");
+            byte[] bytes = Base64.decode(urlStr.substring(commaIndex + 1), Base64.DEFAULT);
+            Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            if (bitmap == null) throw new IllegalStateException("Unable to decode artwork data");
+            return bitmap;
+        }
+
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(urlStr).openConnection();
+            conn.setDoInput(true);
+            conn.setInstanceFollowRedirects(true);
+            conn.setConnectTimeout(8000);
+            conn.setReadTimeout(8000);
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android) ZephyrusPlayer/1.2");
+            conn.setRequestProperty("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8");
+            if (urlStr.contains("music.126.net")) {
+                conn.setRequestProperty("Referer", "https://music.163.com/");
+            } else if (urlStr.contains("y.gtimg.cn") || urlStr.contains("qq.com")) {
+                conn.setRequestProperty("Referer", "https://y.qq.com/");
+            }
+            conn.connect();
+            int status = conn.getResponseCode();
+            if (status < 200 || status >= 300) throw new IllegalStateException("Artwork HTTP " + status);
+            try (InputStream input = conn.getInputStream()) {
+                Bitmap bitmap = BitmapFactory.decodeStream(input);
+                if (bitmap == null) throw new IllegalStateException("Unable to decode artwork response");
+                return bitmap;
+            }
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }
+
+    private Bitmap constrainArtwork(Bitmap bitmap) {
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int maxSide = Math.max(width, height);
+        if (maxSide <= 512) return bitmap;
+        float scale = 512f / maxSide;
+        return Bitmap.createScaledBitmap(
+                bitmap,
+                Math.max(1, Math.round(width * scale)),
+                Math.max(1, Math.round(height * scale)),
+                true);
     }
 
     private void updateNotification() {
@@ -317,6 +397,7 @@ public class MediaNotificationManager {
         currentIsPlaying = false;
         currentArtwork = null;
         currentArtworkUrl = "";
+        artworkLoadingUrl = "";
 
         // 更新播放状态为空闲
         PlaybackState.Builder stateBuilder = new PlaybackState.Builder();

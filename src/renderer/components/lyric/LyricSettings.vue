@@ -50,14 +50,22 @@
               class="toggle-switch"
             />
           </div>
-          <div class="setting-item">
-            <span>{{ t('settings.lyricSettings.centerDisplay') }}</span>
-            <input
-              type="checkbox"
-              :checked="config.centerLyrics"
-              @change="config.centerLyrics = ($event.target as HTMLInputElement).checked"
-              class="toggle-switch"
-            />
+          <div class="setting-item alignment-setting">
+            <span>{{ t('settings.lyricSettings.alignment') }}</span>
+            <div class="alignment-control" role="radiogroup">
+              <button
+                v-for="option in alignmentOptions"
+                :key="option.value"
+                type="button"
+                :class="{ active: config.lyricAlignment === option.value }"
+                :aria-label="option.label"
+                :aria-checked="config.lyricAlignment === option.value"
+                role="radio"
+                @click="setLyricAlignment(option.value)"
+              >
+                <i :class="option.icon"></i>
+              </button>
+            </div>
           </div>
           <div class="setting-item">
             <span>{{ t('settings.lyricSettings.showTranslation') }}</span>
@@ -74,6 +82,15 @@
               type="checkbox"
               :checked="config.hideLyrics"
               @change="config.hideLyrics = ($event.target as HTMLInputElement).checked"
+              class="toggle-switch"
+            />
+          </div>
+          <div class="setting-item">
+            <span>{{ t('settings.lyricSettings.alwaysShowPlayerControls') }}</span>
+            <input
+              type="checkbox"
+              :checked="config.alwaysShowPlayerControls"
+              @change="config.alwaysShowPlayerControls = ($event.target as HTMLInputElement).checked"
               class="toggle-switch"
             />
           </div>
@@ -409,7 +426,7 @@
           </div>
         </template>
 
-        <!-- 其他样式设置（Stage / Magazine / Frenzy / 动态注册样式） -->
+        <!-- 其他样式设置（Stage / Frenzy / 动态注册样式） -->
         <setting-renderer
           v-if="
             !(config.playerStyle === 'default' || config.playerStyle === 'classic') &&
@@ -431,7 +448,7 @@ import { useI18n } from 'vue-i18n';
 import { isFeatureEnabled } from '@/features/store';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { getAllStyles, getStyle } from '@/playerStyles';
-import { DEFAULT_LYRIC_CONFIG, LyricConfig } from '@/types/lyric';
+import { DEFAULT_LYRIC_CONFIG, LyricConfig, normalizeLyricAlignment } from '@/types/lyric';
 
 import SettingRenderer from './SettingRenderer.vue';
 
@@ -445,6 +462,29 @@ const tr = (key: string, fallback: string) => {
   const value = t(key);
   return value === key ? fallback : value;
 };
+
+const alignmentOptions = computed(() => [
+  {
+    value: 'left' as const,
+    label: t('settings.lyricSettings.alignmentLeft'),
+    icon: 'ri-align-left'
+  },
+  {
+    value: 'center' as const,
+    label: t('settings.lyricSettings.alignmentCenter'),
+    icon: 'ri-align-center'
+  },
+  {
+    value: 'right' as const,
+    label: t('settings.lyricSettings.alignmentRight'),
+    icon: 'ri-align-right'
+  }
+]);
+
+function setLyricAlignment(value: LyricConfig['lyricAlignment']) {
+  config.value.lyricAlignment = value;
+  config.value.centerLyrics = value === 'center';
+}
 
 function sliderPct(val: number, min: number, max: number): string {
   return `${((val - min) / (max - min)) * 100}%`;
@@ -504,7 +544,6 @@ const playerStyles = computed(() => {
       if (s.key === 'default') return true;
       if (s.key === 'stage') return isFeatureEnabled('stage-style');
       if (s.key === 'starChart') return isFeatureEnabled('star-chart-style');
-      if (s.key === 'magazine') return isFeatureEnabled('magazine-style');
       if (s.key === 'frenzy') return isFeatureEnabled('frenzy-style');
       if (s.key === 'eerie') return isFeatureEnabled('eerie-style');
       if (s.key === 'neon') return isFeatureEnabled('neon-style');
@@ -605,6 +644,10 @@ onMounted(() => {
   const savedConfig = localStorage.getItem('music-full-config');
   if (savedConfig) {
     config.value = { ...config.value, ...JSON.parse(savedConfig) };
+    config.value.lyricAlignment = normalizeLyricAlignment(
+      config.value.lyricAlignment,
+      config.value.centerLyrics
+    );
     updateCSSVariables(config.value);
   }
 });
@@ -657,6 +700,33 @@ defineExpose({
 
 .setting-item:hover {
   background: var(--d-surface-hover, rgba(255, 255, 255, 0.06));
+}
+
+.alignment-control {
+  display: grid;
+  grid-template-columns: repeat(3, 32px);
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--d-surface, #161616);
+}
+
+.alignment-control button {
+  display: grid;
+  width: 32px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--d-text-muted, #6c757d);
+  font-size: 16px;
+  place-items: center;
+}
+
+.alignment-control button.active {
+  background: var(--d-surface-active, #333);
+  color: var(--d-text-primary, #f8f9fa);
 }
 
 /* 切换开关 */
@@ -828,33 +898,6 @@ defineExpose({
   font-weight: 700;
   color: #fff;
   text-shadow: 0 1px 5px #000;
-}
-
-/* 杂志样式预览：白色背景 + 色块 + 分散文字 */
-.preview-magazine {
-  background: #fff;
-  position: relative;
-  overflow: hidden;
-}
-.preview-magazine::before {
-  content: 'Zephyrus';
-  position: absolute;
-  left: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  writing-mode: vertical-rl;
-  font-size: 8px;
-  font-weight: 800;
-  color: var(--accent-color, #888);
-}
-.preview-magazine::after {
-  content: 'Player';
-  position: absolute;
-  left: 30%;
-  top: 35%;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--accent-color, #888);
 }
 
 /* 狂躁样式预览：白色背景 + 黑色文字 + 红色强调 */

@@ -1,4 +1,25 @@
 export default {
+  metadataEditor: {
+    title: '編輯歌曲資訊',
+    edit: '編輯',
+    fieldTitle: '標題',
+    artist: '歌手',
+    album: '專輯',
+    year: '年份',
+    track: '音軌號',
+    disc: '碟號',
+    changeCover: '更換封面',
+    lyrics: '內嵌歌詞',
+    save: '寫回檔案',
+    saving: '寫入中…',
+    saved: '已寫回檔案標籤',
+    saveFailed: '寫入失敗，請重試',
+    unsupported: '該格式暫不支援寫回標籤',
+    cloudMatch: '雲端匹配',
+    matching: '匹配中…',
+    matchEmpty: '未找到匹配結果',
+    matchFailed: '雲端匹配失敗，請檢查網路後重試'
+  },
   menu: {
     play: '播放',
     playNext: '下一首播放',

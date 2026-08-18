@@ -14,6 +14,7 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.common.Format;
 import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
@@ -50,6 +51,7 @@ public final class NativeAudioEngine {
     private boolean resumeAfterFocusGain;
     private boolean keepAudioFocus;
     private float focusMultiplier = 1f;
+    private final Runnable reclaimAudioFocusRunnable = this::reclaimAudioFocus;
     @Nullable private volatile Slot current;
     @Nullable private volatile Slot pending;
     private float masterVolume = 1f;
@@ -113,9 +115,12 @@ public final class NativeAudioEngine {
         handler.post(() -> {
             keepAudioFocus = enabled;
             if (enabled && current != null && current.player.isPlaying()) requestAudioFocus();
-            if (!enabled && focusMultiplier != 1f) {
-                focusMultiplier = 1f;
-                updateSlotVolumes();
+            if (!enabled) {
+                handler.removeCallbacks(reclaimAudioFocusRunnable);
+                if (focusMultiplier != 1f) {
+                    focusMultiplier = 1f;
+                    updateSlotVolumes();
+                }
             }
         });
     }
@@ -541,6 +546,7 @@ public final class NativeAudioEngine {
     private void handleAudioFocusChange(int change) {
         handler.post(() -> {
             if (change == AudioManager.AUDIOFOCUS_GAIN) {
+                handler.removeCallbacks(reclaimAudioFocusRunnable);
                 hasAudioFocus = true;
                 focusMultiplier = 1f;
                 updateSlotVolumes();
@@ -557,6 +563,14 @@ public final class NativeAudioEngine {
                 return;
             }
             hasAudioFocus = false;
+            if (keepAudioFocus) {
+                // 后台保活：视频/录音类应用抢焦点时不暂停播放，
+                // 稍后重新申请焦点，夺回媒体通知与锁屏控制权。
+                focusMultiplier = 1f;
+                resumeAfterFocusGain = false;
+                scheduleAudioFocusReclaim();
+                return;
+            }
             resumeAfterFocusGain = change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT &&
                     ((current != null && current.player.isPlaying()) ||
                             (pending != null && pending.player.isPlaying()));
@@ -566,6 +580,22 @@ public final class NativeAudioEngine {
                 resumeAfterFocusGain = false;
             }
         });
+    }
+
+    private void scheduleAudioFocusReclaim() {
+        handler.removeCallbacks(reclaimAudioFocusRunnable);
+        handler.postDelayed(reclaimAudioFocusRunnable, 400);
+    }
+
+    private void reclaimAudioFocus() {
+        if (released || !keepAudioFocus || hasAudioFocus) return;
+        boolean playing = (current != null && current.player.isPlaying()) ||
+                (pending != null && pending.player.isPlaying());
+        if (!playing) return;
+        requestAudioFocus();
+        if (!hasAudioFocus) {
+            handler.postDelayed(reclaimAudioFocusRunnable, 1200);
+        }
     }
 
     private void updateSlotVolumes() {
@@ -605,6 +635,7 @@ public final class NativeAudioEngine {
         volatile long durationMs;
         volatile float mixFactor = 1f;
         volatile boolean suppressPauseEvent;
+        @Nullable volatile Format audioFormat;
 
         Slot(String token, ExoPlayer player, PeakSafeAudioProcessor processor, JSONObject track) {
             this.token = token;
@@ -625,6 +656,22 @@ public final class NativeAudioEngine {
                 json.put("playing", playing);
                 json.put("positionMs", positionMs);
                 json.put("durationMs", durationMs);
+                if (audioFormat != null) {
+                    JSONObject format = new JSONObject();
+                    if (audioFormat.sampleMimeType != null) {
+                        format.put("sampleMimeType", audioFormat.sampleMimeType);
+                    }
+                    if (audioFormat.sampleRate != Format.NO_VALUE) {
+                        format.put("sampleRate", audioFormat.sampleRate);
+                    }
+                    if (audioFormat.channelCount != Format.NO_VALUE) {
+                        format.put("channelCount", audioFormat.channelCount);
+                    }
+                    if (audioFormat.bitrate != Format.NO_VALUE) {
+                        format.put("bitrate", audioFormat.bitrate);
+                    }
+                    json.put("audioFormat", format);
+                }
             } catch (Exception ignored) {
             }
             return json;
@@ -635,6 +682,8 @@ public final class NativeAudioEngine {
             if (playbackState == Player.STATE_READY) {
                 state = "loaded";
                 durationMs = Math.max(0, player.getDuration());
+                // 播放就绪后轨道已选定，此时可取到实际解码格式（容器静态元数据缺失时的兜底）。
+                audioFormat = player.getAudioFormat();
                 emitState(this, "load", null);
             } else if (playbackState == Player.STATE_ENDED) {
                 state = "loaded";

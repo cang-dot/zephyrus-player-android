@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, getCurrentInstance, inject } from 'vue';
+import { computed, getCurrentInstance, inject, provide } from 'vue';
 
 import { SETTING_ACCORDION_KEY } from './settingAccordion';
 
@@ -83,6 +83,7 @@ const effectiveMode = computed(() => (props.clickable ? 'direct' : props.mode));
 const expanded = computed(
   () => effectiveMode.value === 'expandable' && accordion?.openItemId.value === resolvedId.value
 );
+provide('settingItemExpanded', expanded);
 
 const isInteractiveTarget = (target: EventTarget | null) =>
   target instanceof Element &&

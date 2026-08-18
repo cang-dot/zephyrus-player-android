@@ -8,7 +8,7 @@
         <div
           class="w-full max-w-md max-h-[85vh] bg-gray-900 rounded-3xl overflow-hidden shadow-2xl flex flex-col border border-white/10"
         >
-        >
+          >
 
           <!-- 标题 -->
           <div class="px-6 pt-8 pb-4 flex-shrink-0">
@@ -47,10 +47,11 @@
 </template>
 
 <script setup lang="ts">
+import { marked } from 'marked';
 import { onMounted, ref } from 'vue';
 
 import { isElectron, isLyricWindow } from '@/utils';
-import { marked } from 'marked';
+
 import userAgreementText from '../../../../用户协议.md?raw';
 
 const DISCLAIMER_AGREED_KEY = 'disclaimer_agreed_timestamp';

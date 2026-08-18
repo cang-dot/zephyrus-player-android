@@ -8,7 +8,8 @@
       miniUsesMenuAnchor ? 'is-menu-show' : 'is-menu-hide',
       idleCollapsed && !playerStore.musicFull ? 'idle-collapsed' : '',
       playlistSurfaceMounted && !playerStore.musicFull ? 'playlist-mounted' : '',
-      playlistSurfaceExpanded && !playerStore.musicFull ? 'playlist-open' : ''
+      playlistSurfaceExpanded && !playerStore.musicFull ? 'playlist-open' : '',
+      playlistSongSheetActive && !playerStore.musicFull ? 'song-sheet-open' : ''
     ]"
     :style="{
       color: playerStore.musicFull
@@ -79,7 +80,7 @@
 
 <script lang="ts" setup>
 import type { CSSProperties, Ref } from 'vue';
-import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
@@ -92,6 +93,7 @@ import { shouldOpenMobilePlayer } from '@/utils/mobileGestureThresholds';
 const shouldShowMobileMenu = inject('shouldShowMobileMenu') as Ref<boolean>;
 const playlistSurfaceMounted = inject('playlistSurfaceMounted', ref(false)) as Ref<boolean>;
 const playlistSurfaceExpanded = inject('playlistSurfaceExpanded', ref(false)) as Ref<boolean>;
+const playlistSongSheetActive = inject('playlistSongSheetActive', ref(false)) as Ref<boolean>;
 const capturePlayerTransitionOrigin = inject<() => void>('capturePlayerTransitionOrigin', () => {});
 const transitionStartedWithMenu = inject(
   'playerTransitionStartedWithMenu',
@@ -155,14 +157,21 @@ const playerSurfaceRendered = computed(
   () => playerStore.musicFull || playerTransition.state.value !== 'idle'
 );
 
-const openMusicFull = (initialVelocity = 0) => {
+let playerOpenFrame = 0;
+const openMusicFull = async (initialVelocity = 0) => {
   idleCollapsed.value = false;
   transitionStartedWithMenu.value = shouldShowMobileMenu.value;
   captureMiniIdentityLayout();
   capturePlayerTransitionOrigin();
   playerTransition.setDragging(Math.max(0.016, playerTransition.progress.value));
   playerStore.setMusicFull(true);
-  requestAnimationFrame(() => playerTransition.animateTo(1, initialVelocity));
+  await nextTick();
+  playerOpenFrame = requestAnimationFrame(() => {
+    playerOpenFrame = requestAnimationFrame(() => {
+      playerOpenFrame = 0;
+      if (playerStore.musicFull) playerTransition.animateTo(1, initialVelocity);
+    });
+  });
   settingsStore.showArtistDrawer = false;
 };
 
@@ -217,6 +226,7 @@ const miniSwipeOffset = ref(0);
 const miniSwipeAnimating = ref(false);
 const miniSwipeSwitching = ref(false);
 const miniSwipeAxis = ref<'none' | 'horizontal' | 'vertical'>('none');
+const miniVerticalGestureBlocked = ref(false);
 const miniVerticalOffset = ref(0);
 const suppressMiniClick = ref(false);
 // Keep the gesture compact so a track change reads as a nudge, not a displaced bar.
@@ -309,6 +319,7 @@ const onMiniPointerDown = (event: PointerEvent) => {
   miniPointerActive = true;
   miniPointerId = event.pointerId;
   miniSwipeAxis.value = 'none';
+  miniVerticalGestureBlocked.value = false;
   miniSwipeAnimating.value = false;
   miniVerticalOffset.value = 0;
   miniPointerStartedCollapsed = idleCollapsed.value;
@@ -334,7 +345,17 @@ const onMiniPointerMove = (event: PointerEvent) => {
   const deltaY = event.clientY - miniPointerStartY;
 
   if (miniSwipeAxis.value === 'none' && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
-    miniSwipeAxis.value = Math.abs(deltaX) > Math.abs(deltaY) * 1.08 ? 'horizontal' : 'vertical';
+    const isVertical = Math.abs(deltaY) >= Math.abs(deltaX) * 1.08;
+    if (isVertical && !shouldShowMobileMenu.value && deltaY > 0) {
+      miniVerticalGestureBlocked.value = true;
+      miniSwipeAxis.value = 'none';
+      if (miniLongPressTimer) {
+        clearTimeout(miniLongPressTimer);
+        miniLongPressTimer = undefined;
+      }
+      return;
+    }
+    miniSwipeAxis.value = isVertical ? 'vertical' : 'horizontal';
     if (miniLongPressTimer) {
       clearTimeout(miniLongPressTimer);
       miniLongPressTimer = undefined;
@@ -442,7 +463,11 @@ const onMiniPointerUp = (event: PointerEvent) => {
     clearTimeout(miniLongPressTimer);
     miniLongPressTimer = undefined;
   }
-  const verticalCommit = miniSwipeAxis.value === 'vertical' && Math.abs(deltaY) > 34;
+  const verticalCommit =
+    !miniVerticalGestureBlocked.value &&
+    miniSwipeAxis.value === 'vertical' &&
+    Math.abs(deltaY) > 34 &&
+    (shouldShowMobileMenu.value || deltaY < 0);
   if (commit) switchTrackWithAnimation(deltaX < 0 ? 'left' : 'right');
   else if (verticalCommit && miniPointerStartedCollapsed && deltaY < 0) {
     idleCollapsed.value = false;
@@ -484,6 +509,7 @@ const onMiniPointerCancel = (event: PointerEvent) => {
 };
 
 onBeforeUnmount(() => {
+  if (playerOpenFrame) cancelAnimationFrame(playerOpenFrame);
   if (miniSwipeTimer) clearTimeout(miniSwipeTimer);
   if (miniClickTimer) clearTimeout(miniClickTimer);
   if (miniLongPressTimer) clearTimeout(miniLongPressTimer);
@@ -641,6 +667,63 @@ watch(
     -webkit-backdrop-filter: blur(30px) saturate(175%);
   }
 
+  &.playlist-open.play-bar-mini.is-menu-hide.song-sheet-open {
+    height: min(48dvh, 430px);
+    min-height: 280px;
+  }
+
+  /* 无底栏页面进入播放界面时，迷你栏自身的玻璃与有底栏页面的底栏行为
+     一致：随转场进度渐隐，避免与形变中的播放器表面叠出双重玻璃。 */
+  &.player-active.is-menu-hide:not(.playlist-open) .mobile-mini-controls {
+    --mini-glass-fade: clamp(0, calc(1 - var(--player-open-progress, 0) * 3), 1);
+    border-color: color-mix(
+      in srgb,
+      color-mix(in srgb, var(--accent-color, #888) 24%, rgba(255, 255, 255, 0.22))
+        calc(var(--mini-glass-fade) * 100%),
+      transparent
+    );
+    background:
+      linear-gradient(
+        145deg,
+        rgba(255, 255, 255, calc(0.18 * var(--mini-glass-fade))),
+        rgba(var(--accent-color-rgb, 136, 136, 136), calc(0.12 * var(--mini-glass-fade)))
+      ),
+      color-mix(
+        in srgb,
+        var(--cover-surface, rgba(24, 24, 28, 0.78)) calc(var(--mini-glass-fade) * 100%),
+        transparent
+      );
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, calc(0.2 * var(--mini-glass-fade))),
+      inset 0 1px 0 rgba(255, 255, 255, calc(0.24 * var(--mini-glass-fade))),
+      inset 0 -1px 0 rgba(0, 0, 0, calc(0.08 * var(--mini-glass-fade)));
+    backdrop-filter: blur(calc(30px * var(--mini-glass-fade)))
+      saturate(calc(100% + 80% * var(--mini-glass-fade)));
+    -webkit-backdrop-filter: blur(calc(30px * var(--mini-glass-fade)))
+      saturate(calc(100% + 80% * var(--mini-glass-fade)));
+  }
+
+  &.player-active.playlist-open.play-bar-mini.is-menu-hide {
+    --mini-glass-fade: clamp(0, calc(1 - var(--player-open-progress, 0) * 3), 1);
+    border-color: color-mix(
+      in srgb,
+      var(--m-glass-border) calc(var(--mini-glass-fade) * 100%),
+      transparent
+    );
+    background: color-mix(
+      in srgb,
+      var(--m-glass-bg) calc(var(--mini-glass-fade) * 100%),
+      transparent
+    );
+    box-shadow:
+      0 18px 48px rgba(0, 0, 0, calc(0.2 * var(--mini-glass-fade))),
+      inset 0 1px 0 rgba(255, 255, 255, calc(0.22 * var(--mini-glass-fade)));
+    backdrop-filter: blur(calc(30px * var(--mini-glass-fade)))
+      saturate(calc(100% + 75% * var(--mini-glass-fade)));
+    -webkit-backdrop-filter: blur(calc(30px * var(--mini-glass-fade)))
+      saturate(calc(100% + 75% * var(--mini-glass-fade)));
+  }
+
   &.playlist-mounted.play-bar-mini.is-menu-hide .mobile-mini-controls {
     position: absolute;
     right: 3px;
@@ -762,8 +845,8 @@ watch(
     --mini-swipe-ease: cubic-bezier(0.22, 0.84, 0.24, 1.08);
     background: var(--m-glass-bg);
     border: 1px solid var(--m-glass-border);
-    backdrop-filter: blur(24px) saturate(165%);
-    -webkit-backdrop-filter: blur(24px) saturate(165%);
+    backdrop-filter: var(--m-glass-filter, blur(30px) saturate(175%));
+    -webkit-backdrop-filter: var(--m-glass-filter, blur(30px) saturate(175%));
     touch-action: none;
     user-select: none;
     /* 内部元素形变过渡 — 与外层同步 */
@@ -787,10 +870,15 @@ watch(
         --mini-swipe-duration: 180ms;
         --mini-swipe-opacity-duration: 180ms;
         --mini-swipe-ease: ease-out;
-      }
     }
+  }
 
-    .mini-song-info {
+  // 仅展示迷你栏的路由不把纵向触摸交给收起手势，允许页面继续处理下滑。
+  &.play-bar-mini.is-menu-hide:not(.player-active) .mobile-mini-controls {
+    touch-action: pan-y;
+  }
+
+  .mini-song-info {
       @apply flex items-center flex-1 min-w-0 cursor-pointer;
       transition: flex 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
@@ -933,8 +1021,10 @@ watch(
     gap: 0 !important;
     overflow: hidden;
     border-radius: 50%;
-    background: transparent;
-    border: 0;
+    background: var(--m-glass-bg);
+    border: 1px solid var(--m-glass-border);
+    backdrop-filter: var(--m-glass-filter, blur(30px) saturate(175%));
+    -webkit-backdrop-filter: var(--m-glass-filter, blur(30px) saturate(175%));
     box-shadow: none;
   }
 

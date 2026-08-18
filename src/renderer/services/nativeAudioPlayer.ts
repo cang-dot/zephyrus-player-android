@@ -1,6 +1,7 @@
 import { shallowRef } from 'vue';
 
 import type { SongResult } from '@/types/music';
+import { normalizeArtworkUrl, resolveArtworkSource } from '@/utils/artwork';
 
 import { isAndroidNative } from './androidNative';
 
@@ -14,6 +15,14 @@ export interface NativeAudioAnalysis {
   bpm: number;
 }
 
+/** 引擎侧实际解码格式（STATE_READY 时由 ExoPlayer 轨道信息取得）。 */
+export interface NativeAudioFormat {
+  sampleMimeType?: string;
+  sampleRate?: number;
+  channelCount?: number;
+  bitrate?: number;
+}
+
 interface NativeAudioEvent extends Partial<NativeAudioAnalysis> {
   token?: string;
   event?: string;
@@ -22,6 +31,7 @@ interface NativeAudioEvent extends Partial<NativeAudioAnalysis> {
   positionMs?: number;
   durationMs?: number;
   error?: string;
+  audioFormat?: NativeAudioFormat;
 }
 
 const EMPTY_ANALYSIS: NativeAudioAnalysis = {
@@ -32,6 +42,9 @@ const EMPTY_ANALYSIS: NativeAudioAnalysis = {
   bpm: 0
 };
 const analysisState = shallowRef<NativeAudioAnalysis>({ ...EMPTY_ANALYSIS });
+const tokenFormats = new Map<string, NativeAudioFormat>();
+let activeFormatToken: string | null = null;
+export const activeAudioFormat = shallowRef<NativeAudioFormat | null>(null);
 
 export class NativeAudioPlayer {
   private static players = new Map<string, NativeAudioPlayer>();
@@ -65,7 +78,7 @@ export class NativeAudioPlayer {
         title: track.name || '',
         artist: (track.ar || track.song?.artists || []).map((artist) => artist.name).join(', '),
         album: track.al?.name || track.song?.album?.name || '',
-        artworkUrl: track.picUrl || ''
+        artworkUrl: normalizeArtworkUrl(resolveArtworkSource(track))
       }),
       preload
     );
@@ -89,6 +102,20 @@ export class NativeAudioPlayer {
             bpm: Number(payload.bpm) || 0
           };
         }
+        if (payload.audioFormat && payload.token) {
+          const previous = tokenFormats.get(payload.token);
+          const next = payload.audioFormat;
+          if (
+            !previous ||
+            previous.sampleMimeType !== next.sampleMimeType ||
+            previous.sampleRate !== next.sampleRate ||
+            previous.channelCount !== next.channelCount ||
+            previous.bitrate !== next.bitrate
+          ) {
+            tokenFormats.set(payload.token, next);
+            if (payload.token === activeFormatToken) activeAudioFormat.value = next;
+          }
+        }
         if (payload.token) this.players.get(payload.token)?.handleNativeEvent(payload);
       } catch (error) {
         console.warn('[NativeAudio] 无法解析原生事件:', error);
@@ -105,6 +132,8 @@ export class NativeAudioPlayer {
     switch (payload.event) {
       case 'load':
         this.playState = 'loaded';
+        activeFormatToken = this.token;
+        activeAudioFormat.value = tokenFormats.get(this.token) ?? null;
         this.resolveLoad(this);
         this.emit('load');
         break;

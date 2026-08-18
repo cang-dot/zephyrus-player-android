@@ -38,6 +38,12 @@ export type LocalMusicMeta = {
   trackNumber: number;
   /** 年份 */
   year: number;
+  /** 平均比特率（bps，容器元数据缺失时为 0） */
+  bitrate?: number;
+  /** 采样率（Hz，Android 12 以下容器元数据缺失时为 0） */
+  sampleRate?: number;
+  /** 容器 MIME 类型（如 audio/flac） */
+  mime?: string;
 };
 
 /**

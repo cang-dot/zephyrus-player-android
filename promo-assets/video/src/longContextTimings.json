@@ -1,0 +1,325 @@
+{
+  "duration": 145.96,
+  "cues": [
+    {
+      "start": 0.0,
+      "end": 2.88,
+      "chapter": "开场",
+      "company": "1M CONTEXT",
+      "visual": "scale-question",
+      "text": "一百万 Token，大概是什么感觉？"
+    },
+    {
+      "start": 3.0,
+      "end": 5.88,
+      "chapter": "开场",
+      "company": "1M CONTEXT",
+      "visual": "books-stack",
+      "text": "把几本厚书，一次塞给模型。"
+    },
+    {
+      "start": 6.0,
+      "end": 8.24,
+      "chapter": "开场",
+      "company": "1M CONTEXT",
+      "visual": "door-first-step",
+      "text": "塞得进去，只是第一步。"
+    },
+    {
+      "start": 8.36,
+      "end": 11.72,
+      "chapter": "开场",
+      "company": "1M CONTEXT",
+      "visual": "three-problems",
+      "text": "模型还要记得住、找得准、算得动。"
+    },
+    {
+      "start": 11.84,
+      "end": 14.08,
+      "chapter": "Qwen",
+      "company": "阿里 / Qwen2.5-1M",
+      "visual": "qwen-material",
+      "text": "Qwen 先补训练材料。"
+    },
+    {
+      "start": 14.2,
+      "end": 18.84,
+      "chapter": "Qwen",
+      "company": "阿里 / Qwen2.5-1M",
+      "visual": "qwen-stitch",
+      "text": "它把短文章拼成长文章，让模型先练耐力。"
+    },
+    {
+      "start": 18.96,
+      "end": 24.72,
+      "chapter": "Qwen",
+      "company": "阿里 / Qwen2.5-1M",
+      "visual": "qwen-ruler",
+      "text": "训练时，窗口从十二万八，一步步拉到一百万。"
+    },
+    {
+      "start": 24.84,
+      "end": 27.56,
+      "chapter": "Qwen",
+      "company": "阿里 / Qwen2.5-1M",
+      "visual": "qwen-qa",
+      "text": "接着再练长文问答和长指令。"
+    },
+    {
+      "start": 27.68,
+      "end": 31.84,
+      "chapter": "Qwen",
+      "company": "阿里 / Qwen2.5-1M",
+      "visual": "qwen-chunks",
+      "text": "运行时，它只算重点，还把长文分块装入。"
+    },
+    {
+      "start": 31.96,
+      "end": 35.96,
+      "chapter": "Qwen",
+      "company": "阿里 / Qwen2.5-1M",
+      "visual": "qwen-speed",
+      "text": "所以一百万 Token 的装入速度，能快到三至七倍。"
+    },
+    {
+      "start": 36.08,
+      "end": 39.12,
+      "chapter": "MiniMax",
+      "company": "MiniMax / MiniMax-01",
+      "visual": "minimax-target",
+      "text": "MiniMax 先改最费钱的注意力。"
+    },
+    {
+      "start": 39.24,
+      "end": 42.76,
+      "chapter": "MiniMax",
+      "company": "MiniMax / MiniMax-01",
+      "visual": "minimax-quadratic",
+      "text": "普通方法读得越长，计算量涨得越凶。"
+    },
+    {
+      "start": 42.88,
+      "end": 46.24,
+      "chapter": "MiniMax",
+      "company": "MiniMax / MiniMax-01",
+      "visual": "minimax-linear",
+      "text": "Lightning Attention 把这条曲线压了下来。"
+    },
+    {
+      "start": 46.36,
+      "end": 49.56,
+      "chapter": "MiniMax",
+      "company": "MiniMax / MiniMax-01",
+      "visual": "minimax-workers",
+      "text": "再让多个专家、多台机器同时分工。"
+    },
+    {
+      "start": 49.68,
+      "end": 53.84,
+      "chapter": "MiniMax",
+      "company": "MiniMax / MiniMax-01",
+      "visual": "minimax-range",
+      "text": "它训练看一百万，推理还能试到四百万。"
+    },
+    {
+      "start": 53.96,
+      "end": 60.2,
+      "chapter": "Kimi",
+      "company": "月之暗面 / Kimi Linear",
+      "visual": "kimi-notes",
+      "text": "Kimi 的做法，像边读边记笔记。"
+    },
+    {
+      "start": 60.32,
+      "end": 63.2,
+      "chapter": "Kimi",
+      "company": "月之暗面 / Kimi Linear",
+      "visual": "kimi-summary",
+      "text": "大多数层只保存一份不断更新的摘要。"
+    },
+    {
+      "start": 63.32,
+      "end": 66.68,
+      "chapter": "Kimi",
+      "company": "月之暗面 / Kimi Linear",
+      "visual": "kimi-archive",
+      "text": "少数层保留原文，专门负责精确查找。"
+    },
+    {
+      "start": 66.8,
+      "end": 69.84,
+      "chapter": "Kimi",
+      "company": "月之暗面 / Kimi Linear",
+      "visual": "kimi-switch",
+      "text": "平时看摘要，需要时翻原文。"
+    },
+    {
+      "start": 69.96,
+      "end": 73.8,
+      "chapter": "Kimi",
+      "company": "月之暗面 / Kimi Linear",
+      "visual": "kimi-metrics",
+      "text": "这样显存最多省四分之三，生成最快提升六倍。"
+    },
+    {
+      "start": 73.92,
+      "end": 77.12,
+      "chapter": "DeepSeek",
+      "company": "DeepSeek / V4",
+      "visual": "deepseek-compress",
+      "text": "DeepSeek V4 先把长文压短。"
+    },
+    {
+      "start": 77.24,
+      "end": 80.28,
+      "chapter": "DeepSeek",
+      "company": "DeepSeek / V4",
+      "visual": "deepseek-four-one",
+      "text": "CSA 把每四个 Token 合成一组。"
+    },
+    {
+      "start": 80.4,
+      "end": 84.4,
+      "chapter": "DeepSeek",
+      "company": "DeepSeek / V4",
+      "visual": "deepseek-topk",
+      "text": "索引器只挑最相关的组，送去细看。"
+    },
+    {
+      "start": 84.52,
+      "end": 89.48,
+      "chapter": "DeepSeek",
+      "company": "DeepSeek / V4",
+      "visual": "deepseek-128",
+      "text": "HCA 压得更狠：一百二十八份，合成一份。"
+    },
+    {
+      "start": 89.6,
+      "end": 92.8,
+      "chapter": "DeepSeek",
+      "company": "DeepSeek / V4",
+      "visual": "deepseek-recent",
+      "text": "最近的原文单独保留，避免忘掉刚说过的话。"
+    },
+    {
+      "start": 92.92,
+      "end": 95.64,
+      "chapter": "MemAgent",
+      "company": "字节 Seed × 清华 / MemAgent",
+      "visual": "memagent-window",
+      "text": "MemAgent 没有硬撑大窗口。"
+    },
+    {
+      "start": 95.76,
+      "end": 98.48,
+      "chapter": "MemAgent",
+      "company": "字节 Seed × 清华 / MemAgent",
+      "visual": "memagent-paper",
+      "text": "它给模型一张固定大小的记事纸。"
+    },
+    {
+      "start": 98.6,
+      "end": 102.28,
+      "chapter": "MemAgent",
+      "company": "字节 Seed × 清华 / MemAgent",
+      "visual": "memagent-write",
+      "text": "长文分段读，重点不断写进记事纸。"
+    },
+    {
+      "start": 102.4,
+      "end": 105.28,
+      "chapter": "MemAgent",
+      "company": "字节 Seed × 清华 / MemAgent",
+      "visual": "memagent-erase",
+      "text": "空间不够，就擦掉旧内容，再写新的。"
+    },
+    {
+      "start": 105.4,
+      "end": 108.12,
+      "chapter": "MemAgent",
+      "company": "字节 Seed × 清华 / MemAgent",
+      "visual": "memagent-rl",
+      "text": "靠强化学习，它学会该留什么。"
+    },
+    {
+      "start": 108.24,
+      "end": 112.4,
+      "chapter": "MemAgent",
+      "company": "字节 Seed × 清华 / MemAgent",
+      "visual": "memagent-scale",
+      "text": "训练只用八千 Token，也能回答三百五十万 Token 的长文问题。"
+    },
+    {
+      "start": 112.52,
+      "end": 116.2,
+      "chapter": "LongWriter",
+      "company": "智谱 × 清华 / LongWriter",
+      "visual": "writer-question",
+      "text": "LongWriter 处理的是另一件事：怎么写得长。"
+    },
+    {
+      "start": 116.32,
+      "end": 119.2,
+      "chapter": "LongWriter",
+      "company": "智谱 × 清华 / LongWriter",
+      "visual": "writer-outline",
+      "text": "它先列章节，再一章一章写。"
+    },
+    {
+      "start": 119.32,
+      "end": 123.48,
+      "chapter": "LongWriter",
+      "company": "智谱 × 清华 / LongWriter",
+      "visual": "writer-training",
+      "text": "训练材料也换成长文章，最长三万二千词。"
+    },
+    {
+      "start": 123.6,
+      "end": 126.48,
+      "chapter": "LongWriter",
+      "company": "智谱 × 清华 / LongWriter",
+      "visual": "writer-counter",
+      "text": "最后，模型能写出一万词以上。"
+    },
+    {
+      "start": 126.6,
+      "end": 129.96,
+      "chapter": "总结",
+      "company": "六条路线",
+      "visual": "summary-problems",
+      "text": "这六条路线，解决的是同一组难题。"
+    },
+    {
+      "start": 130.08,
+      "end": 135.52,
+      "chapter": "总结",
+      "company": "六条路线",
+      "visual": "summary-qmk",
+      "text": "Qwen 补训练，MiniMax 和 Kimi 省计算。"
+    },
+    {
+      "start": 135.64,
+      "end": 139.16,
+      "chapter": "总结",
+      "company": "六条路线",
+      "visual": "summary-dm",
+      "text": "DeepSeek 压缩信息，MemAgent 边读边记。"
+    },
+    {
+      "start": 139.28,
+      "end": 141.84,
+      "chapter": "总结",
+      "company": "六条路线",
+      "visual": "summary-writer",
+      "text": "LongWriter 把长文真正写出来。"
+    },
+    {
+      "start": 141.96,
+      "end": 145.96,
+      "chapter": "总结",
+      "company": "六条路线",
+      "visual": "summary-system",
+      "text": "一百万上下文，要靠一整套工程一起工作。"
+    }
+  ]
+}

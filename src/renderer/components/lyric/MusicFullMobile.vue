@@ -63,10 +63,18 @@
       <!-- 播放设置弹窗 -->
       <mobile-player-settings v-model:visible="showPlayerSettings" />
 
-      <!-- 全屏歌词页面 - 竖屏模式下 -->
+      <!-- 全屏歌词页面 - 竖屏模式下（与其他样式共用的滚动歌词组件） -->
       <transition name="fade">
         <div v-if="showFullLyrics && !isLandscape" class="fullscreen-lyrics" :class="config.theme">
           <div class="fullscreen-header">
+            <button
+              type="button"
+              class="fullscreen-back no-toggle"
+              aria-label="返回播放器"
+              @click.stop="closeFullLyrics"
+            >
+              <i class="ri-arrow-down-s-line"></i>
+            </button>
             <div class="song-title" v-html="playMusic.name"></div>
             <div class="artist-name">
               <span v-for="(item, index) in artistList" :key="index">
@@ -75,52 +83,11 @@
             </div>
           </div>
 
-          <div
-            ref="lyricsScrollerRef"
-            class="lyrics-scroller"
-            @touchstart="handleTouchStart"
-            @touchmove="handleTouchMove"
-            @touchend="handleTouchEnd"
-            @scroll="handleScroll"
-          >
-            <div class="lyrics-padding-top"></div>
-            <!-- 无时间戳歌词提示 -->
-            <div v-if="!supportAutoScroll" class="lyric-line no-scroll-tip">
-              <span>{{ t('player.lrc.noAutoScroll') }}</span>
-            </div>
-            <div
-              v-for="(item, index) in lrcArray"
-              :key="index"
-              :id="`lyric-line-${index}`"
-              class="lyric-line"
-              :class="{
-                'now-text': index === nowIndex,
-                'hover-text': item.text && item.startTime !== -1
-              }"
-              @click="item.startTime !== -1 ? setAudioTime(index) : null"
-            >
-              <!-- 逐字歌词显示 -->
-              <div
-                v-if="item.hasWordByWord && item.words && item.words.length > 0"
-                class="word-by-word-lyric"
-              >
-                <template v-for="(word, wordIndex) in item.words" :key="wordIndex">
-                  <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)">
-                    {{ word.text }} </span
-                  ><span class="lyric-word" v-if="word.space">&nbsp;</span></template
-                >
-              </div>
-              <!-- 普通歌词显示 -->
-              <span v-else :style="getLrcStyle(index)">{{ item.text }}</span>
-              <div v-if="config.showTranslation && item.trText" class="translation">
-                {{ item.trText }}
-              </div>
-              <div v-if="config.showRomanization && item.romaText" class="romanization">
-                {{ item.romaText }}
-              </div>
-            </div>
-            <div class="lyrics-padding-bottom"></div>
-          </div>
+          <mobile-scrolling-lyrics
+            class="fullscreen-lyrics-body"
+            :back-closes="showFullLyrics"
+            @close="closeFullLyrics"
+          />
         </div>
       </transition>
 
@@ -139,14 +106,20 @@
             @click="cycleCoverStyle"
           >
             <div class="img-wrapper">
-              <n-image
-                ref="PicImgRef"
-                :src="getImgUrl(playMusic?.picUrl, '500y500')"
-                lazy
-                preview-disabled
+              <img
+                v-if="coverImageUrl"
+                :key="coverImageUrl"
+                :src="coverImageUrl"
+                alt=""
+                decoding="async"
                 class="cover-image"
                 :class="{ 'full-blend': config.mobileCoverStyle === 'full' }"
+                @load="handleCoverLoad"
+                @error="handleCoverError"
               />
+              <div v-else class="cover-placeholder" aria-hidden="true">
+                <i class="ri-music-2-fill"></i>
+              </div>
             </div>
           </div>
 
@@ -172,28 +145,9 @@
               </div>
             </div>
 
-            <!-- 歌词区域 -->
+            <!-- 歌词区域：与其他样式共用的滚动歌词组件 -->
             <div class="lyrics-container" v-if="!config.hideLyrics" @click="showFullLyricScreen">
-              <div v-if="lrcArray.length > 0" class="lyrics-wrapper">
-                <div v-for="(line, idx) in visibleLyrics" :key="idx" class="lyric-line">
-                  <!-- 逐字歌词显示 -->
-                  <div
-                    v-if="line.hasWordByWord && line.words && line.words.length > 0"
-                    class="word-by-word-lyric"
-                  >
-                    <template v-for="(word, wordIndex) in line.words" :key="wordIndex">
-                      <span
-                        class="lyric-word"
-                        :style="getWordStyle(line.originalIndex, wordIndex, word)"
-                      >
-                        {{ word.text }}</span
-                      ><span v-if="word.space">&nbsp;</span></template
-                    >
-                  </div>
-                  <!-- 普通歌词显示 -->
-                  <span v-else>{{ line.text }}</span>
-                </div>
-              </div>
+              <mobile-scrolling-lyrics v-if="lrcArray.length > 0" class="embedded-lyrics" />
               <div v-else class="no-lyrics">
                 {{ t('player.lrc.noLrc') }}
               </div>
@@ -217,13 +171,20 @@
             @click="cycleCoverStyle"
           >
             <div class="img-wrapper">
-              <n-image
-                :src="getImgUrl(playMusic?.picUrl, '500y500')"
-                lazy
-                preview-disabled
+              <img
+                v-if="coverImageUrl"
+                :key="`landscape-${coverImageUrl}`"
+                :src="coverImageUrl"
+                alt=""
+                decoding="async"
                 class="cover-image"
                 :class="{ 'full-blend': config.mobileCoverStyle === 'full' }"
+                @load="handleCoverLoad"
+                @error="handleCoverError"
               />
+              <div v-else class="cover-placeholder" aria-hidden="true">
+                <i class="ri-music-2-fill"></i>
+              </div>
             </div>
           </div>
 
@@ -292,53 +253,8 @@
             </div>
           </div>
 
-          <!-- 歌词滚动区域 -->
-          <div
-            ref="landscapeLyricsRef"
-            class="landscape-lyrics-scroller"
-            @touchstart="handleTouchStart"
-            @touchmove="handleTouchMove"
-            @touchend="handleTouchEnd"
-            @scroll="handleScroll"
-          >
-            <div class="lyrics-padding-top"></div>
-            <!-- 无时间戳歌词提示 -->
-            <div v-if="!supportAutoScroll" class="lyric-line no-scroll-tip">
-              <span>{{ t('player.lrc.noAutoScroll') }}</span>
-            </div>
-            <div
-              v-for="(item, index) in lrcArray"
-              :key="index"
-              :id="`landscape-lyric-line-${index}`"
-              class="lyric-line"
-              :class="{
-                'now-text': index === nowIndex,
-                'hover-text': item.text && item.startTime !== -1
-              }"
-              @click="item.startTime !== -1 ? setAudioTime(index) : null"
-            >
-              <!-- 逐字歌词显示 -->
-              <div
-                v-if="item.hasWordByWord && item.words && item.words.length > 0"
-                class="word-by-word-lyric"
-              >
-                <template v-for="(word, wordIndex) in item.words" :key="wordIndex">
-                  <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)">
-                    {{ word.text }} </span
-                  ><span class="lyric-word" v-if="word.space">&nbsp;</span></template
-                >
-              </div>
-              <!-- 普通歌词显示 -->
-              <span v-else :style="getLrcStyle(index)">{{ item.text }}</span>
-              <div v-if="config.showTranslation && item.trText" class="translation">
-                {{ item.trText }}
-              </div>
-              <div v-if="config.showRomanization && item.romaText" class="romanization">
-                {{ item.romaText }}
-              </div>
-            </div>
-            <div class="lyrics-padding-bottom"></div>
-          </div>
+          <!-- 歌词滚动区域（与其他样式共用的滚动歌词组件） -->
+          <mobile-scrolling-lyrics class="landscape-lyrics-body" />
 
           <!-- 右下角控制按钮 -->
           <div class="landscape-main-controls">
@@ -432,7 +348,7 @@
 
 <script setup lang="ts">
 import { useWindowSize } from '@vueuse/core';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
@@ -443,15 +359,11 @@ import { useTapToggle } from '@/composables/useTapToggle';
 import {
   allTime,
   artistList,
-  correctionTime,
   lrcArray,
-  nowIndex,
   nowTime,
   playMusic,
-  setAudioTime,
   sound,
-  textColors,
-  useLyricProgress
+  textColors
 } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
 import { usePlayMode } from '@/hooks/usePlayMode';
@@ -460,14 +372,17 @@ import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useTransitionStore } from '@/store/modules/transition';
 import { DEFAULT_LYRIC_CONFIG, LyricConfig } from '@/types/lyric';
 import { getImgUrl, secondToMinute } from '@/utils';
-import { animateGradient, getHoverBackgroundColor, getTextColors } from '@/utils/linearColor';
+import { appendArtworkRetry, normalizeArtworkUrl, resolveArtworkSource } from '@/utils/artwork';
+import { getHoverBackgroundColor, getTextColors } from '@/utils/linearColor';
 import { showBottomToast } from '@/utils/shortcutToast';
+
+import MobileScrollingLyrics from './MobileScrollingLyrics.vue';
 
 const { t } = useI18n();
 const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const transitionStore = useTransitionStore();
-const { styleVars, isCustom, customBackgroundActive, customFontActive, climaxColors } =
+const { styleVars, isCustom, customBackgroundActive, customFontActive } =
   usePlayerStyleAppearance('default');
 
 // ==================== Crossfade 进度条动画 ====================
@@ -511,6 +426,41 @@ const climaxMarkerStyles = computed(() => {
 // 播放控制相关
 const play = computed(() => playerStore.isPlay);
 const playIcon = computed(() => (play.value ? 'ri-pause-fill' : 'ri-play-fill'));
+
+const coverRetryAttempt = ref(0);
+const coverLoadFailed = ref(false);
+let coverRetryTimer: ReturnType<typeof setTimeout> | null = null;
+const coverSource = computed(() => normalizeArtworkUrl(resolveArtworkSource(playMusic.value)));
+const coverImageUrl = computed(() => {
+  if (!coverSource.value || coverLoadFailed.value) return '';
+  return appendArtworkRetry(getImgUrl(coverSource.value, '500y500'), coverRetryAttempt.value);
+});
+
+watch(coverSource, () => {
+  if (coverRetryTimer) clearTimeout(coverRetryTimer);
+  coverRetryTimer = null;
+  coverRetryAttempt.value = 0;
+  coverLoadFailed.value = false;
+});
+
+const handleCoverLoad = () => {
+  coverLoadFailed.value = false;
+};
+
+const handleCoverError = () => {
+  if (coverRetryTimer) return;
+  if (coverRetryAttempt.value >= 2) {
+    coverLoadFailed.value = true;
+    return;
+  }
+  coverRetryTimer = setTimeout(
+    () => {
+      coverRetryTimer = null;
+      coverRetryAttempt.value += 1;
+    },
+    coverRetryAttempt.value === 0 ? 250 : 600
+  );
+};
 
 // 播放设置弹窗
 const showPlayerSettings = ref(false);
@@ -581,15 +531,8 @@ const toggleFavorite = () => {
   }
 };
 
-// 歌词全屏控制
+// 歌词全屏控制（滚动与触摸交互由通用滚动歌词组件自行管理）
 const showFullLyrics = ref(false);
-const isAutoScrollEnabled = ref(true);
-const lyricsScrollerRef = ref<HTMLElement | null>(null);
-const isTouchScrolling = ref(false);
-const touchStartY = ref(0);
-const lastScrollTop = ref(0);
-const autoScrollTimer = ref<number | null>(null);
-const isSongChanging = ref(false);
 
 // 下滑关闭手势
 const drawerTargetRef = ref<HTMLElement | null>(null);
@@ -601,212 +544,25 @@ const { onTouchStart: onDrawerTouchStart, onTouchEnd: onDrawerTouchEnd } = useSw
 // 横屏检测相关
 const { width, height } = useWindowSize();
 const isLandscape = computed(() => width.value > height.value);
-const landscapeLyricsRef = ref<HTMLElement | null>(null);
 
-// 监听横屏变化
-watch(isLandscape, (newVal) => {
-  if (newVal) {
-    // 横屏模式下，确保歌词容器可见并滚动到当前歌词
-    nextTick(() => {
-      setTimeout(() => {
-        scrollToCurrentLyric(true, landscapeLyricsRef.value);
-      }, 300);
-    });
-  }
-});
-
-// 显示全屏歌词
 // 显示全屏歌词
 const showFullLyricScreen = () => {
   showFullLyrics.value = true;
-
-  // 使用多次延迟尝试滚动，确保能够滚动到当前歌词
-  nextTick(() => {
-    scrollToCurrentLyric(true);
-
-    setTimeout(() => {
-      scrollToCurrentLyric(true);
-    }, 200);
-
-    setTimeout(() => {
-      scrollToCurrentLyric(true);
-    }, 500);
-  });
+  playerStore.setFullLyricsVisible(true);
 };
-
-const supportAutoScroll = computed(() => {
-  return lrcArray.value.length > 0 && lrcArray.value[0].startTime !== -1;
-});
 
 // 关闭全屏歌词
 const closeFullLyrics = () => {
   showFullLyrics.value = false;
-  if (autoScrollTimer.value) {
-    clearTimeout(autoScrollTimer.value);
-    autoScrollTimer.value = null;
-  }
+  playerStore.setFullLyricsVisible(false);
 };
 
-// 滚动到当前歌词，添加错误处理和日志
-const scrollToCurrentLyric = (immediate = false, customScrollerRef?: HTMLElement | null) => {
-  try {
-    const scrollerRef = customScrollerRef || lyricsScrollerRef.value;
-    if (!scrollerRef) {
-      return;
-    }
-
-    if (!supportAutoScroll.value) {
-      return;
-    }
-
-    // 如果用户正在手动滚动，不打断他们的操作
-    if (isTouchScrolling.value && !immediate) {
-      return;
-    }
-
-    const prefix = customScrollerRef ? 'landscape-' : '';
-    const activeEl = document.getElementById(`${prefix}lyric-line-${nowIndex.value}`);
-    if (!activeEl) {
-      return;
-    }
-
-    const containerRect = scrollerRef.getBoundingClientRect();
-    const lineRect = activeEl.getBoundingClientRect();
-
-    // 优化滚动位置计算，确保当前歌词在视图中央
-    const scrollTop =
-      scrollerRef.scrollTop +
-      (lineRect.top - containerRect.top) -
-      containerRect.height / 2 +
-      lineRect.height / 2;
-
-    scrollerRef.scrollTo({
-      top: scrollTop,
-      behavior: immediate ? 'auto' : 'smooth'
-    });
-  } catch (err) {
-    console.error('滚动歌词出错:', err);
+watch(
+  () => playerStore.fullLyricsVisible,
+  (visible) => {
+    if (!visible) showFullLyrics.value = false;
   }
-};
-
-// 监听歌词变化，自动滚动
-watch(nowIndex, () => {
-  // 歌曲切换时不自动滚动
-  if (isSongChanging.value) return;
-
-  // 在竖屏全屏歌词模式下滚动
-  if (showFullLyrics.value) {
-    nextTick(() => {
-      scrollToCurrentLyric(false);
-    });
-  }
-  // 在横屏模式下滚动
-  else if (isLandscape.value) {
-    nextTick(() => {
-      scrollToCurrentLyric(false, landscapeLyricsRef.value);
-    });
-  }
-});
-
-// 当显示状态变化时，触发滚动
-watch(showFullLyrics, (newVal) => {
-  if (newVal) {
-    nextTick(() => {
-      setTimeout(() => {
-        scrollToCurrentLyric(true);
-      }, 300);
-    });
-  }
-});
-
-// 监听音乐播放时间变化，触发歌词滚动更新
-watch(nowTime, () => {
-  // 只有当系统不是由于用户手动拖动进度条而更新时间时才触发滚动
-  if (!isThumbDragging.value && !isTouchScrolling.value) {
-    // 在竖屏全屏歌词模式下滚动
-    if (showFullLyrics.value) {
-      scrollToCurrentLyric(false);
-    }
-    // 在横屏模式下滚动
-    else if (isLandscape.value) {
-      scrollToCurrentLyric(false, landscapeLyricsRef.value);
-    }
-  }
-});
-
-// 处理滚动事件
-const handleScroll = () => {
-  if (!isTouchScrolling.value) return;
-
-  // 用户手动滚动时，临时停止自动滚动
-  isAutoScrollEnabled.value = false;
-
-  // 清除之前的计时器
-  if (autoScrollTimer.value) {
-    clearTimeout(autoScrollTimer.value);
-  }
-
-  // 设置新的计时器，3秒后恢复自动滚动
-  autoScrollTimer.value = window.setTimeout(() => {
-    isAutoScrollEnabled.value = true;
-    isTouchScrolling.value = false;
-
-    // 滚动到当前歌词
-    if (showFullLyrics.value) {
-      scrollToCurrentLyric(false);
-    } else if (isLandscape.value) {
-      scrollToCurrentLyric(false, landscapeLyricsRef.value);
-    }
-  }, 3000);
-};
-
-// 触摸相关事件
-const handleTouchStart = (e: TouchEvent) => {
-  touchStartY.value = e.touches[0].clientY;
-
-  // 根据当前模式获取正确的滚动容器
-  const scrollerRef = showFullLyrics.value
-    ? lyricsScrollerRef.value
-    : isLandscape.value
-      ? landscapeLyricsRef.value
-      : lyricsScrollerRef.value;
-
-  lastScrollTop.value = scrollerRef?.scrollTop || 0;
-  isTouchScrolling.value = true;
-
-  // 用户开始触摸时，暂时停止自动滚动
-  isAutoScrollEnabled.value = false;
-
-  // 清除之前可能存在的计时器
-  if (autoScrollTimer.value) {
-    clearTimeout(autoScrollTimer.value);
-    autoScrollTimer.value = null;
-  }
-};
-
-const handleTouchMove = () => {
-  if (!isTouchScrolling.value) return;
-  // 实际的滚动处理由浏览器默认行为完成
-};
-
-const handleTouchEnd = () => {
-  // 设置计时器，3秒后恢复自动滚动
-  if (autoScrollTimer.value) {
-    clearTimeout(autoScrollTimer.value);
-  }
-
-  autoScrollTimer.value = window.setTimeout(() => {
-    isAutoScrollEnabled.value = true;
-    isTouchScrolling.value = false;
-
-    // 恢复自动滚动到当前歌词
-    if (showFullLyrics.value) {
-      scrollToCurrentLyric(true);
-    } else if (isLandscape.value) {
-      scrollToCurrentLyric(true, landscapeLyricsRef.value);
-    }
-  }, 3000);
-};
+);
 
 // 封面样式循环切换
 const cycleCoverStyle = () => {
@@ -957,42 +713,8 @@ const handleThumbTouchEnd = (e: TouchEvent) => {
 };
 
 // 背景相关
-const currentBackground = ref('');
-const animationFrame = ref<number | null>(null);
 const isDark = ref(false);
 const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
-
-// 可见歌词计算
-const visibleLyrics = computed(() => {
-  const centerIndex = nowIndex.value;
-  const numLines = 3;
-  const halfLines = Math.floor(numLines / 2);
-
-  let startIdx = centerIndex - halfLines;
-  let endIdx = centerIndex + halfLines;
-
-  // 处理奇偶数行数的情况
-  if (numLines % 2 === 0) {
-    endIdx -= 1;
-  }
-
-  // 处理边界情况
-  if (startIdx < 0) {
-    startIdx = 0;
-    endIdx = Math.min(numLines - 1, lrcArray.value.length - 1);
-  }
-
-  if (endIdx >= lrcArray.value.length) {
-    endIdx = lrcArray.value.length - 1;
-    startIdx = Math.max(0, endIdx - numLines + 1);
-  }
-
-  // 返回带有原始索引的歌词数组
-  return lrcArray.value.slice(startIdx, endIdx + 1).map((item, idx) => ({
-    ...item,
-    originalIndex: startIdx + idx
-  }));
-});
 
 const props = defineProps({
   modelValue: {
@@ -1043,21 +765,6 @@ const setTextColors = (background: string) => {
   let bgColor = playerStore.playMusic.primaryColor || 'rgba(25, 25, 25, 1)';
 
   document.documentElement.style.setProperty('--bg-color', bgColor);
-
-  // 处理背景颜色动画
-  if (currentBackground.value) {
-    if (animationFrame.value) {
-      cancelAnimationFrame(animationFrame.value);
-    }
-    const result = animateGradient(currentBackground.value, background, (gradient) => {
-      currentBackground.value = gradient;
-    });
-    if (typeof result === 'number') {
-      animationFrame.value = result;
-    }
-  } else {
-    currentBackground.value = background;
-  }
 };
 
 const targetBackground = computed(() => {
@@ -1080,13 +787,8 @@ watch(
 
 // 组件卸载时清理动画
 onBeforeUnmount(() => {
-  if (animationFrame.value) {
-    cancelAnimationFrame(animationFrame.value);
-  }
-  if (autoScrollTimer.value) {
-    clearTimeout(autoScrollTimer.value);
-  }
-
+  playerStore.setFullLyricsVisible(false);
+  if (coverRetryTimer) clearTimeout(coverRetryTimer);
   // 清理鼠标事件监听
   document.removeEventListener('mousemove', handleMouseMove);
   document.removeEventListener('mouseup', handleMouseUp);
@@ -1130,66 +832,12 @@ const closeMusicFull = () => {
 
 const { controlsVisible, handleTapToggle } = useTapToggle();
 
-// 添加对 playMusic.id 的监听，歌曲切换时滚动到顶部
-watch(
-  () => playMusic.value.id,
-  (newId, oldId) => {
-    // 只在歌曲真正切换时滚动到顶部
-    if (newId !== oldId && newId) {
-      isSongChanging.value = true;
-      // 延迟滚动，确保 nowIndex 已重置
-      setTimeout(() => {
-        // 在全屏歌词模式下滚动到顶部
-        if (showFullLyrics.value && lyricsScrollerRef.value) {
-          lyricsScrollerRef.value.scrollTo({
-            top: 0,
-            behavior: 'smooth'
-          });
-        }
-        // 在横屏模式下滚动到顶部
-        else if (isLandscape.value && landscapeLyricsRef.value) {
-          landscapeLyricsRef.value.scrollTo({
-            top: 0,
-            behavior: 'smooth'
-          });
-        }
-        // 延迟恢复自动滚动，等待歌词数据更新
-        setTimeout(() => {
-          isSongChanging.value = false;
-        }, 300);
-      }, 100);
-    }
-  }
-);
-
 // 加载保存的配置
 onMounted(() => {
   const savedConfig = localStorage.getItem('music-full-config');
   if (savedConfig) {
     config.value = { ...config.value, ...JSON.parse(savedConfig) };
   }
-
-  // 初始化自动滚动状态
-  isAutoScrollEnabled.value = true;
-  isTouchScrolling.value = false;
-
-  // 等待DOM元素渲染完成后初始化歌词滚动
-  nextTick(() => {
-    if (isVisible.value) {
-      // 在横屏模式下
-      if (isLandscape.value) {
-        setTimeout(() => {
-          scrollToCurrentLyric(true, landscapeLyricsRef.value);
-        }, 500);
-      }
-      // 在全屏歌词模式下
-      else if (showFullLyrics.value) {
-        setTimeout(() => {
-          scrollToCurrentLyric(true);
-        }, 500);
-      }
-    }
-  });
 });
 
 // 当显示状态变化时，更新封面与背景融合效果
@@ -1201,104 +849,9 @@ watch(isVisible, (newVal) => {
     }
   } else {
     showFullLyrics.value = false;
-    if (autoScrollTimer.value) {
-      clearTimeout(autoScrollTimer.value);
-      autoScrollTimer.value = null;
-    }
+    playerStore.setFullLyricsVisible(false);
   }
 });
-
-// 添加getLrcStyle函数
-const { getLrcStyle: originalLrcStyle } = useLyricProgress();
-
-// 修改 getLrcStyle 函数
-const getLrcStyle = (index: number) => {
-  const sourceColors = textColors.value || getTextColors();
-  const colors = isCustom.value
-    ? { primary: climaxColors.value.main, active: climaxColors.value.main }
-    : sourceColors;
-  const originalStyle = originalLrcStyle(index);
-
-  if (index === nowIndex.value) {
-    // 当前播放的歌词，使用渐变效果
-    // 只有原始样式包含 backgroundImage 时才设置 color: transparent
-    // 否则前奏阶段文字会因 transparent 而不可见
-    if (originalStyle.backgroundImage) {
-      return {
-        ...originalStyle,
-        backgroundImage: originalStyle.backgroundImage
-          .replace(/#ffffff/g, colors.active)
-          .replace(/#ffffff8a/g, `${colors.primary}`),
-        backgroundClip: 'text',
-        WebkitBackgroundClip: 'text',
-        color: 'transparent'
-      };
-    }
-    // 当前行但播放时间未到（前奏/间奏），用高亮色显示
-    return {
-      color: colors.active
-    };
-  }
-
-  // 非当前播放的歌词，使用普通颜色
-  return {
-    color: colors.primary
-  };
-};
-
-// 逐字歌词样式函数
-const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
-  const sourceColors = textColors.value || getTextColors();
-  const colors = isCustom.value
-    ? { primary: climaxColors.value.main, active: climaxColors.value.main }
-    : sourceColors;
-  // 如果不是当前行，返回普通样式
-  if (lineIndex !== nowIndex.value) {
-    return {
-      color: colors.primary,
-      transition: 'color 0.3s ease',
-      // 重置背景相关属性
-      backgroundImage: 'none',
-      WebkitTextFillColor: 'initial'
-    };
-  }
-
-  // 当前行的逐字效果，应用歌词矫正时间
-  const currentTime = (nowTime.value + correctionTime.value) * 1000; // 转换为毫秒，确保与word时间单位一致
-
-  // 直接使用绝对时间比较
-  const wordStartTime = word.startTime; // 单词开始的绝对时间（毫秒）
-  const wordEndTime = word.startTime + word.duration;
-
-  if (currentTime >= wordStartTime && currentTime < wordEndTime) {
-    // 当前正在播放的单词 - 使用渐变进度效果
-    const progress = Math.min((currentTime - wordStartTime) / word.duration, 1);
-    const progressPercent = Math.round(progress * 100);
-
-    return {
-      backgroundImage: `linear-gradient(to right, ${colors.active} 0%, ${colors.active} ${progressPercent}%, ${colors.primary} ${progressPercent}%, ${colors.primary} 100%)`,
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      textShadow: `0 0 8px ${colors.active}40`,
-      transition: 'all 0.1s ease'
-    };
-  } else if (currentTime >= wordEndTime) {
-    // 已经播放过的单词 - 纯色显示
-    return {
-      color: colors.active,
-      WebkitTextFillColor: 'initial',
-      transition: 'none'
-    };
-  } else {
-    // 还未播放的单词 - 普通状态
-    return {
-      color: colors.primary,
-      WebkitTextFillColor: 'initial',
-      transition: 'none'
-    };
-  }
-};
 </script>
 
 <style scoped lang="scss">
@@ -1457,8 +1010,22 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
 
     .cover-image {
       @apply w-full h-full rounded-full border-[2px] border-gray-900;
+      display: block;
+      object-fit: cover;
       animation: spin 20s linear infinite;
       animation-play-state: running;
+    }
+
+    .cover-placeholder {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      border-radius: inherit;
+      color: var(--text-color-primary);
+      background: rgba(0, 0, 0, 0.12);
+      font-size: clamp(32px, 10vw, 72px);
+      opacity: 0.42;
     }
 
     &.paused .cover-image {
@@ -1592,25 +1159,9 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
           }
         }
 
-        // 歌词滚动区域
-        .landscape-lyrics-scroller {
-          @apply h-full w-full overflow-y-auto pt-24 pb-24;
-          scroll-behavior: smooth;
-          -webkit-overflow-scrolling: touch;
-          mask-image: linear-gradient(
-            to bottom,
-            transparent 5%,
-            black 15%,
-            black 85%,
-            transparent 95%
-          );
-          -webkit-mask-image: linear-gradient(
-            to bottom,
-            transparent 5%,
-            black 15%,
-            black 85%,
-            transparent 95%
-          );
+        // 歌词滚动区域（通用滚动歌词组件，自带遮罩与内边距）
+        .landscape-lyrics-body {
+          @apply h-full w-full;
         }
 
         // 控制按钮
@@ -1957,10 +1508,31 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
     background: linear-gradient(to bottom, #1a1a1a, #000000);
   }
 
+  /* 通用滚动歌词组件在默认样式的竖屏全屏页中占满剩余空间 */
+  .fullscreen-lyrics-body {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
   .fullscreen-header {
     @apply pt-16 pb-4 px-6 flex flex-col items-center fixed top-0 left-0 w-full z-10;
     background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0) 100%);
     pointer-events: auto;
+
+    .fullscreen-back {
+      position: absolute;
+      top: calc(var(--safe-area-inset-top, 0px) + 16px);
+      left: 20px;
+      display: grid;
+      width: 40px;
+      height: 40px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.16);
+      color: var(--text-color-active);
+      font-size: 24px;
+      place-items: center;
+    }
 
     .song-title {
       @apply text-xl font-semibold text-center mb-1 max-w-full line-clamp-1;
@@ -2085,28 +1657,10 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
 
   .ios-layout-container {
     .lyrics-container {
-      @apply w-full flex-grow flex flex-col items-center justify-center mb-6 overflow-hidden cursor-pointer;
+      @apply w-full flex-grow min-h-[140px] flex flex-col items-stretch mb-6 overflow-hidden cursor-pointer;
 
-      .lyrics-wrapper {
-        @apply w-full flex flex-col items-center justify-center;
-
-        .lyric-line {
-          @apply text-center py-1 transition-all duration-300 opacity-70;
-
-          &:nth-child(2) {
-            @apply text-lg font-medium opacity-100;
-            color: var(--text-color-active);
-          }
-
-          .translation,
-          .romanization {
-            @apply text-sm opacity-60 mt-1;
-          }
-        }
-      }
-
-      .lyric-word {
-        @apply px-[2px];
+      :deep(.embedded-lyrics) {
+        @apply w-full flex-1 min-h-0;
       }
 
       .no-lyrics {

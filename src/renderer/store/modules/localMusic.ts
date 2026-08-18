@@ -10,9 +10,9 @@ import useIndexedDB from '@/hooks/IndexDBHook';
 import type { LocalMusicEntry } from '@/types/localMusic';
 
 // 扫描版本号，代码变更后递增可强制重新解析所有文件（解决封面/歌词提取逻辑变更后的缓存问题）
-const SCAN_VERSION = 4;
-import { removeStaleEntries } from '@/utils/localMusicUtils';
+const SCAN_VERSION = 5;
 import { isElectron } from '@/utils';
+import { removeStaleEntries } from '@/utils/localMusicUtils';
 
 const { message } = createDiscreteApi(['message']);
 
@@ -319,6 +319,23 @@ export const useLocalMusicStore = defineStore(
       return { total: lyricFiles.length, matched: matches.length };
     }
 
+    /** 元数据写回文件成功后，用原生复检返回的新元数据更新 IndexedDB 与列表。 */
+    async function applyEntryMetadata(metadataJson: string) {
+      const meta = JSON.parse(metadataJson) as LocalMusicEntry;
+      const entry: LocalMusicEntry = {
+        ...meta,
+        cover: meta.cover ?? null,
+        lyrics: meta.lyrics ?? null,
+        id: generateId(meta.filePath)
+      };
+      const db = await initLocalMusicDB();
+      await db.saveData(LOCAL_MUSIC_STORE, entry);
+      const index = musicList.value.findIndex((item) => item.id === entry.id);
+      if (index >= 0) musicList.value.splice(index, 1, entry);
+      else musicList.value.push(entry);
+      return entry;
+    }
+
     return {
       // 状态
       folderPaths,
@@ -332,7 +349,8 @@ export const useLocalMusicStore = defineStore(
       scanFolders,
       loadFromCache,
       clearCache,
-      bindLyricsFromDirectory
+      bindLyricsFromDirectory,
+      applyEntryMetadata
     };
   },
   {

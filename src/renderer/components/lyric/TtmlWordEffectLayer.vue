@@ -139,7 +139,7 @@ const ttmlDropTokenStyle = computed(() => {
 }
 
 .ttml-drop-enter-active {
-  animation: ttml-word-impact 300ms cubic-bezier(0.16, 0.84, 0.34, 1);
+  animation: ttml-word-impact 180ms cubic-bezier(0.16, 0.84, 0.34, 1);
 }
 .ttml-drop-token--ttml {
   animation: ttml-word-impact-ttml var(--ttml-drop-duration, 80ms) cubic-bezier(0.12, 0.72, 0.2, 1)

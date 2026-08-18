@@ -1,0 +1,24 @@
+{
+  "name": "zephyrus-horizontal-video",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "remotion studio src/index.ts",
+    "still": "remotion still src/index.ts ZephyrusHorizontal",
+    "still:long-context": "remotion still src/index.ts LongContextExplainer out/long-context-cover.png --frame=180",
+    "preflight": "powershell -ExecutionPolicy Bypass -File scripts/check-style-screenshots.ps1",
+    "render": "npm run preflight && remotion render src/index.ts ZephyrusHorizontal out/zephyrus-horizontal-remotion-rebuild.mp4",
+    "render:long-context": "remotion render src/index.ts LongContextExplainer out/china-ai-1m-context.mp4 --codec=h264 --crf=18"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.484",
+    "@remotion/media": "4.0.484",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "remotion": "4.0.484"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "typescript": "^6.0.3"
+  }
+}

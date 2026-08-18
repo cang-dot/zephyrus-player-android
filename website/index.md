@@ -60,7 +60,7 @@ titleTemplate: false
     <a href="/zephyrus/docs/features/custom-effects">查看外观与高潮效果 →</a>
   </div>
   <div class="docs-stage-names" aria-label="播放器样式">
-    <span>默认</span><span>舞台</span><span>诡谲</span><span>狂热</span><span>陈旧</span><span>杂志</span><span>雨夜</span><span>星盘</span><span>烟雾</span>
+    <span>默认</span><span>舞台</span><span>诡谲</span><span>狂热</span><span>陈旧</span><span>雨夜</span><span>星盘</span><span>烟雾</span>
   </div>
 </section>
 

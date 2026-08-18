@@ -2,7 +2,7 @@
  * 样式引擎 Store (StyleEngine)
  *
  * 聚合播放状态、音频特征、副歌数据、封面颜色、社区数据
- * 供所有视觉模式（Default/Stage/Magazine/Frenzy）消费
+ * 供所有视觉模式（Default/Stage/Frenzy 等）消费
  */
 
 import { defineStore } from 'pinia';

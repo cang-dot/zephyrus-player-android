@@ -68,6 +68,8 @@ class AudioService {
   private crossfadingSound: AudioHandle | null = null;
   private crossfadeGain: GainNode | null = null;
   private crossfadeCleanupTimeout: number | null = null;
+  // Invalidates asynchronous loads from older play requests.
+  private playbackGeneration = 0;
   /** 移动端 crossfade 的 setInterval timer IDs */
   private mobileFadeTimers: number[] = [];
 
@@ -1214,8 +1216,16 @@ class AudioService {
       return Promise.resolve(this.currentSound);
     }
 
+    if (!url || !track) {
+      return Promise.reject(new Error('缺少必要参数: url和track'));
+    }
+
+    // Every new track gets a generation. Native playback must use the same
+    // cancellation guard as the Howler path because load() is asynchronous.
+    const playbackGeneration = ++this.playbackGeneration;
+
     if (isAndroidNative()) {
-      return this.playNative(url, track, isPlay, seekTime, existingSound);
+      return this.playNative(url, track, isPlay, seekTime, existingSound, playbackGeneration);
     }
     if (existingSound instanceof NativeAudioPlayer) existingSound = undefined;
 
@@ -1231,12 +1241,6 @@ class AudioService {
       console.warn('audioService: 获取操作锁失败，强制继续');
       this.forceResetOperationLock();
       this.setOperationLock();
-    }
-
-    // 如果没有提供必要的参数，返回错误
-    if (!url || !track) {
-      this.releaseOperationLock();
-      return Promise.reject(new Error('缺少必要参数: url和track'));
     }
 
     // 检查是否是同一首歌曲的无缝切换（Hot-Swap）
@@ -1255,6 +1259,9 @@ class AudioService {
 
       const tryPlay = async () => {
         try {
+          if (playbackGeneration !== this.playbackGeneration) {
+            throw new Error('播放请求已取消');
+          }
           // 确保 Howler 上下文已初始化
           if (!Howler.ctx) {
             Howler.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -1384,9 +1391,14 @@ class AudioService {
               });
             } // close else (not LocalAudioPlayer)
 
-            const onLoaded = async () => {
-              try {
-                if (isHotSwap) {
+          const onLoaded = async () => {
+            try {
+              if (playbackGeneration !== this.playbackGeneration) {
+                if (newSound instanceof LocalAudioPlayer) newSound.unload();
+                reject(new Error('播放请求已取消'));
+                return;
+              }
+              if (isHotSwap) {
                   let targetPos = 0;
                   if (seekTime > 0) {
                     targetPos = seekTime;
@@ -1398,6 +1410,12 @@ class AudioService {
 
                   await this.disposeEQ(true);
                   await this.setupEQ(newSound);
+
+                  if (playbackGeneration !== this.playbackGeneration) {
+                    newSound.unload();
+                    reject(new Error('播放请求已取消'));
+                    return;
+                  }
 
                   if (isPlay) {
                     newSound.play();
@@ -1413,6 +1431,11 @@ class AudioService {
                   this.pendingSound = null;
                 } else {
                   await this.setupEQ(newSound);
+                  if (playbackGeneration !== this.playbackGeneration) {
+                    newSound.unload();
+                    reject(new Error('播放请求已取消'));
+                    return;
+                  }
                   this.currentSound = newSound;
                 }
 
@@ -1508,7 +1531,8 @@ class AudioService {
     track: SongResult,
     isPlay: boolean,
     seekTime: number,
-    existingSound?: AudioHandle
+    existingSound?: AudioHandle,
+    playbackGeneration: number = this.playbackGeneration
   ): Promise<NativeAudioPlayer> {
     this.cancelCrossfade();
     this.forceResetOperationLock();
@@ -1532,6 +1556,11 @@ class AudioService {
       this.setupSoundEvents(nextSound);
       await nextSound.load();
 
+      if (playbackGeneration !== this.playbackGeneration) {
+        nextSound.unload();
+        throw new Error('播放请求已取消');
+      }
+
       const oldSound = this.currentSound;
       this.currentSound = nextSound;
       this.currentTrack = track;
@@ -1553,11 +1582,16 @@ class AudioService {
       this.updateMediaSessionMetadata(track);
       this.updateMediaSessionPositionState();
       this.emit('load');
-      if (isPlay) nextSound.play();
+      if (playbackGeneration === this.playbackGeneration && isPlay) nextSound.play();
       return nextSound;
     } catch (error) {
-      this.emit('loaderror', { track, error });
-      if (!url.startsWith('local://')) this.emit('url_expired', track);
+      // Superseded loads are normal during rapid switching. Do not publish
+      // them as URL failures, otherwise playlist retry logic can advance and
+      // display duplicate parse-failure notifications.
+      if (playbackGeneration === this.playbackGeneration) {
+        this.emit('loaderror', { track, error });
+        if (!url.startsWith('local://')) this.emit('url_expired', track);
+      }
       throw error;
     } finally {
       this.releaseOperationLock();

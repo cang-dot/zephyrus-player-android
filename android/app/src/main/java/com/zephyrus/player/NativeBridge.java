@@ -16,10 +16,18 @@ import android.webkit.JavascriptInterface;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import org.jaudiotagger.audio.AudioFile;
+import org.jaudiotagger.audio.AudioFileIO;
+import org.jaudiotagger.tag.FieldKey;
+import org.jaudiotagger.tag.Tag;
+import org.jaudiotagger.tag.images.AndroidArtwork;
+import org.jaudiotagger.tag.images.Artwork;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -353,6 +361,14 @@ public class NativeBridge {
             String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
             String trackStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER);
             String yearStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR);
+            String mime = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE);
+            long bitrate = tryParseLong(
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE));
+            long sampleRate = 0;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                sampleRate = tryParseLong(
+                        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE));
+            }
 
             byte[] coverBytes = retriever.getEmbeddedPicture();
             String coverBase64 = null;
@@ -371,7 +387,10 @@ public class NativeBridge {
             // 尝试提取内嵌歌词
             String lyrics = extractEmbeddedLyrics(uri);
             result.put("lyrics", lyrics != null ? lyrics : JSONObject.NULL);
-            result.put("fileSize", 0);
+            result.put("fileSize", queryFileSize(uri));
+            result.put("bitrate", bitrate);
+            result.put("sampleRate", sampleRate);
+            result.put("mime", mime != null ? mime : JSONObject.NULL);
             result.put("modifiedTime", 0);
             result.put("diskNumber", 0);
             result.put("trackNumber", parseTrackNumber(trackStr));
@@ -387,6 +406,9 @@ public class NativeBridge {
                 result.put("cover", JSONObject.NULL);
                 result.put("lyrics", JSONObject.NULL);
                 result.put("fileSize", 0);
+                result.put("bitrate", 0);
+                result.put("sampleRate", 0);
+                result.put("mime", JSONObject.NULL);
                 result.put("modifiedTime", 0);
                 result.put("diskNumber", 0);
                 result.put("trackNumber", 0);
@@ -398,6 +420,157 @@ public class NativeBridge {
             try { retriever.release(); } catch (Exception e) { /* ignore */ }
         }
         return result.toString();
+    }
+
+    /** 通过 AssetFileDescriptor 读取 SAF 文档的真实大小。 */
+    private long queryFileSize(Uri uri) {
+        try (android.content.res.AssetFileDescriptor descriptor =
+                     activity.getContentResolver().openAssetFileDescriptor(uri, "r")) {
+            if (descriptor != null) return descriptor.getLength();
+        } catch (Exception ignored) { }
+        return 0;
+    }
+
+    private long tryParseLong(String value) {
+        if (value == null) return 0;
+        try { return Long.parseLong(value.trim()); } catch (Exception ignored) { return 0; }
+    }
+
+    /** 支持标签写回的容器扩展名白名单。 */
+    private static final java.util.Set<String> TAG_WRITABLE_EXTENSIONS = new java.util.HashSet<>(
+            java.util.Arrays.asList("mp3", "flac", "m4a", "mp4", "ogg", "oga"));
+
+    /**
+     * 将元数据修改写回音频文件标签（JAudioTagger）。
+     * changesJson: { requestId, title?, artist?, album?, year?, trackNumber?, diskNumber?, coverBase64?, lyrics? }
+     * 后台线程执行，结果通过 window.__metadataWriteResult(json) 回调：
+     * { requestId, success, error?, metadata? }，metadata 为写回后重新提取的完整元数据。
+     */
+    @JavascriptInterface
+    public void writeAudioMetadata(String uriStr, String changesJson) {
+        new Thread(() -> {
+            String result;
+            try {
+                result = performMetadataWrite(uriStr, changesJson);
+            } catch (Exception error) {
+                Log.e("NativeBridge", "writeAudioMetadata error: " + uriStr, error);
+                result = metadataWriteResult(extractRequestId(changesJson), false,
+                        error.getMessage() == null ? "写入失败" : error.getMessage(), null);
+            }
+            String payload = result;
+            activity.runOnUiThread(() -> activity.evaluateJavascript(
+                    "window.__metadataWriteResult && window.__metadataWriteResult("
+                            + JSONObject.quote(payload) + ");"));
+        }).start();
+    }
+
+    private String extractRequestId(String changesJson) {
+        try {
+            return new JSONObject(changesJson == null ? "{}" : changesJson).optString("requestId", "");
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String metadataWriteResult(
+            String requestId, boolean success, String error, String metadataJson) {
+        JSONObject json = new JSONObject();
+        try {
+            json.put("requestId", requestId);
+            json.put("success", success);
+            if (error != null) json.put("error", error);
+            if (metadataJson != null) json.put("metadata", new JSONObject(metadataJson));
+        } catch (Exception ignored) { }
+        return json.toString();
+    }
+
+    private String performMetadataWrite(String uriStr, String changesJson) throws Exception {
+        JSONObject changes = new JSONObject(changesJson == null ? "{}" : changesJson);
+        String requestId = changes.optString("requestId", "");
+        Uri uri = Uri.parse(uriStr);
+        String extension = fileExtensionOf(uri);
+        if (!TAG_WRITABLE_EXTENSIONS.contains(extension)) {
+            throw new IllegalArgumentException("不支持的格式: " + extension.toUpperCase());
+        }
+
+        ContentResolver resolver = activity.getContentResolver();
+        // 标签库需要随机访问，先复制到缓存工作文件；另留一份原字节备份用于写回失败恢复。
+        File work = new File(activity.getCacheDir(),
+                "meta-edit-" + System.currentTimeMillis() + "." + extension);
+        File backup = new File(work.getPath() + ".bak");
+        try {
+            try (InputStream source = resolver.openInputStream(uri);
+                 FileOutputStream sink = new FileOutputStream(work)) {
+                copyStream(source, sink);
+            }
+            try (InputStream source = resolver.openInputStream(uri);
+                 FileOutputStream sink = new FileOutputStream(backup)) {
+                copyStream(source, sink);
+            }
+
+            AudioFile audioFile = AudioFileIO.read(work);
+            Tag tag = audioFile.getTag();
+            if (changes.has("title")) setTagField(tag, FieldKey.TITLE, changes.optString("title"));
+            if (changes.has("artist")) setTagField(tag, FieldKey.ARTIST, changes.optString("artist"));
+            if (changes.has("album")) setTagField(tag, FieldKey.ALBUM, changes.optString("album"));
+            if (changes.has("year")) {
+                setTagField(tag, FieldKey.YEAR, String.valueOf(changes.optLong("year", 0)));
+            }
+            if (changes.has("trackNumber")) {
+                setTagField(tag, FieldKey.TRACK, String.valueOf(changes.optLong("trackNumber", 0)));
+            }
+            if (changes.has("diskNumber")) {
+                setTagField(tag, FieldKey.DISC_NO, String.valueOf(changes.optLong("diskNumber", 0)));
+            }
+            if (changes.has("lyrics")) setTagField(tag, FieldKey.LYRICS, changes.optString("lyrics"));
+            if (changes.has("coverBase64")) {
+                byte[] coverBytes = Base64.decode(changes.optString("coverBase64"), Base64.NO_WRAP);
+                if (coverBytes.length == 0) throw new IllegalArgumentException("封面数据为空");
+                Artwork artwork = new AndroidArtwork();
+                artwork.setBinaryData(coverBytes);
+                artwork.setMimeType(changes.optString("coverMime", "image/jpeg"));
+                artwork.setDescription("cover");
+                tag.deleteArtworkField();
+                tag.setField(artwork);
+            }
+            AudioFileIO.write(audioFile);
+
+            try (OutputStream target = resolver.openOutputStream(uri, "wt");
+                 InputStream source = new java.io.FileInputStream(work)) {
+                copyStream(source, target);
+            } catch (Exception writeError) {
+                Log.e("NativeBridge", "writeAudioMetadata write-back failed, restoring", writeError);
+                try (OutputStream target = resolver.openOutputStream(uri, "wt");
+                     InputStream source = new java.io.FileInputStream(backup)) {
+                    copyStream(source, target);
+                } catch (Exception restoreError) {
+                    Log.e("NativeBridge", "writeAudioMetadata restore failed", restoreError);
+                }
+                throw new Exception("写回文件失败，已尝试恢复原文件");
+            }
+        } finally {
+            work.delete();
+            backup.delete();
+        }
+
+        return metadataWriteResult(requestId, true, null, getAudioMetadata(uriStr));
+    }
+
+    private void setTagField(Tag tag, FieldKey key, String value) throws Exception {
+        tag.deleteField(key);
+        tag.setField(key, value);
+    }
+
+    private String fileExtensionOf(Uri uri) {
+        String name = extractFileNameFromUri(uri);
+        int dot = name.lastIndexOf('.');
+        return dot >= 0 ? name.substring(dot + 1).toLowerCase() : "";
+    }
+
+    private void copyStream(InputStream source, OutputStream sink) throws Exception {
+        byte[] buffer = new byte[64 * 1024];
+        int read;
+        while ((read = source.read(buffer)) > 0) sink.write(buffer, 0, read);
     }
 
     /**
@@ -920,6 +1093,12 @@ public class NativeBridge {
     @JavascriptInterface
     public void updateStatusBarLyricState(String stateJson) {
         StatusBarLyricOverlay.getInstance(activity).updateState(stateJson);
+    }
+
+    /** 提供整首歌的歌词时间轴，供原生时钟在后台推送停摆期间自行推进。 */
+    @JavascriptInterface
+    public void setStatusBarLyricTimeline(String timelineJson) {
+        StatusBarLyricOverlay.getInstance(activity).setTimeline(timelineJson);
     }
 
     /** Installs a TTF/OTF into the app-private font directory and returns its stable file id. */

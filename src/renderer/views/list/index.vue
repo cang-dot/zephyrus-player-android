@@ -54,7 +54,11 @@
           </div>
           <div class="cover-text">
             <p class="cover-name">{{ item.alt }}</p>
-            <span class="cover-type-badge" :class="item.type">
+            <span v-if="item.isLocal" class="cover-type-badge local">
+              <i class="ri-folder-music-line" />
+              本地 · 歌曲
+            </span>
+            <span v-else class="cover-type-badge" :class="item.type">
               <platform-logo :platform="item.platform" :size="13" />
               {{ platformName(item.platform) }} ·
               {{ item.type === 'album' ? 'Album' : 'Playlist' }}
@@ -76,7 +80,7 @@
 
 <script lang="ts" setup>
 import { useMessage } from 'naive-ui';
-import { computed, defineAsyncComponent } from 'vue';
+import { computed, defineAsyncComponent, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import GlowTabs from '@/components/common/GlowTabs.vue';
@@ -85,6 +89,12 @@ import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import { useUserStore } from '@/store';
 import { type MusicPlatform, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { getImgUrl } from '@/utils';
+import {
+  orderPlaylistCards,
+  PLAYLIST_CARD_MRU_KEY,
+  readPlaylistCardMru,
+  touchPlaylistCardMru
+} from '@/utils/playlistCardMru';
 
 defineOptions({ name: 'MyMusic' });
 
@@ -115,8 +125,34 @@ const playlistSourceTabs = computed(() => [
 const platformName = (platform: MusicPlatform) =>
   ({ netease: '网易云', qq: 'QQ 音乐', kugou: '酷狗音乐', spotify: 'Spotify' })[platform];
 
+// "全部"页新增的本地歌曲入口卡片（点击跳转本地标签页）。
+const LOCAL_SONGS_ITEM = {
+  id: 'local-songs',
+  src: '',
+  alt: '本地歌曲',
+  type: 'playlist' as const,
+  platform: 'local',
+  accountId: 'local',
+  isLocal: true,
+  raw: {}
+};
+
+const cardMru = ref(readPlaylistCardMru(localStorage.getItem(PLAYLIST_CARD_MRU_KEY)));
+const touchCardMru = (item: any) => {
+  cardMru.value = touchPlaylistCardMru(cardMru.value, item);
+  try {
+    localStorage.setItem(PLAYLIST_CARD_MRU_KEY, JSON.stringify(cardMru.value));
+  } catch {
+    /* 忽略持久化失败 */
+  }
+};
+
 const items = computed(() => {
   const result: any[] = [];
+
+  if (playlistSourceFilter.value === 'all') {
+    result.push({ ...LOCAL_SONGS_ITEM });
+  }
 
   for (const account of accountStore.accounts) {
     if (playlistSourceFilter.value !== 'all' && account.platform !== playlistSourceFilter.value) {
@@ -158,10 +194,15 @@ const items = computed(() => {
     }
   }
 
-  return result;
+  return playlistSourceFilter.value === 'all' ? orderPlaylistCards(result, cardMru.value) : result;
 });
 
 const handleItemClick = (item: any) => {
+  touchCardMru(item);
+  if (item.isLocal) {
+    router.push('/local-music');
+    return;
+  }
   const account = accountStore.accounts.find((candidate) => candidate.accountId === item.accountId);
   if (!account) return;
 

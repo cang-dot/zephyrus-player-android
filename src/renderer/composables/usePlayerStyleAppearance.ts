@@ -8,6 +8,17 @@ import { getFontFamily } from '@/utils/fontLoader';
 
 type PlayerAppearanceVars = Record<string, string>;
 
+const ORIGINAL_STYLE_BACKGROUNDS: Record<MobilePlayerStyleKey, string> = {
+  default: '',
+  stage: '#1a1a1a',
+  starChart: '#050505',
+  frenzy: '#f5f5f5',
+  eerie: '',
+  neon: '#1a1814',
+  rain: '#0a0a0f',
+  smoke: '#111111'
+};
+
 function gradientValue(colors: string[], direction: string, fallback: string): string {
   const validColors = colors.filter(Boolean);
   if (validColors.length < 2) return fallback;
@@ -57,6 +68,18 @@ export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
     }
     return config.value.solidColor;
   });
+  const backgroundColor = computed(() => {
+    if (!customBackgroundActive.value) {
+      return ORIGINAL_STYLE_BACKGROUNDS[styleKey] || themeColor.value;
+    }
+    if (config.value.backgroundMode === 'gradient') {
+      return config.value.gradientColors.colors[1] || config.value.gradientColors.colors[0] || '#111111';
+    }
+    if (config.value.backgroundMode === 'image') {
+      return config.value.imageBrightness > 70 ? '#eeeeee' : '#111111';
+    }
+    return config.value.solidColor;
+  });
 
   const baseLyricColor = computed(() => config.value.lyricColor || '#ffffff');
   const selectedFontFamily = computed(() => {
@@ -96,6 +119,7 @@ export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
         }
       : {}),
     '--player-style-background': background.value,
+    '--player-style-background-color': backgroundColor.value,
     '--player-style-background-blur': `${
       customBackgroundActive.value && config.value.backgroundMode === 'image'
         ? config.value.imageBlur
@@ -124,6 +148,7 @@ export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
     isCustom,
     customBackgroundActive,
     background,
+    backgroundColor,
     baseLyricColor,
     climaxColors,
     themeColor,

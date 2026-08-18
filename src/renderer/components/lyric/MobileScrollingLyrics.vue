@@ -1,128 +1,62 @@
 <template>
-  <div class="scrolling-lyrics" :class="[config.theme, { 'select-mode': selectMode }]">
-    <!-- 拖动时显示时间指示器 -->
-    <transition name="fade">
-      <div
-        v-if="isDragging && !selectMode"
-        class="time-indicator"
-        @click.stop="handleTimeIndicatorClick"
-      >
-        {{ currentTimeText }}
-      </div>
-    </transition>
-
-    <!-- 歌词滚动区（全屏，点击空白关闭） -->
-    <div
-      ref="scrollerRef"
-      class="lyrics-scroller"
-      :class="{ 'select-scroller': selectMode }"
-      @click="handleEmptyClick"
-      @touchstart="handleTouchStart"
-      @touchmove="handleTouchMove"
-      @touchend="handleTouchEnd"
-      @scroll="handleScroll"
+  <div
+    ref="rootRef"
+    class="scrolling-lyrics amll-scrolling-lyrics"
+    :class="[
+      config.theme,
+      `align-${lyricAlignment}`,
+      {
+        'select-mode': selectMode,
+        'is-interacting': isPointerScrolling,
+        'android-lite': androidNative
+      }
+    ]"
+    @click.capture="handleCaptureClick"
+    @pointerdown.capture="handlePointerDown"
+    @pointermove.capture="handlePointerMove"
+    @pointerup.capture="handlePointerEnd"
+    @pointercancel.capture="handlePointerCancel"
+    @touchend.capture="handleTouchEndCapture"
     >
-      <div class="lyrics-padding-top"></div>
-      <div v-if="!supportAutoScroll" class="lyric-line no-scroll-tip">
-        <span>{{ t('player.lrc.noAutoScroll') }}</span>
+    <Transition name="lyrics-loading">
+      <div v-if="showPreparingOverlay && hasSourceLyrics" class="lyrics-loading-overlay" aria-live="polite">
+        <i class="ri-loader-4-line" aria-hidden="true"></i>
       </div>
-      <div
-        v-for="(item, index) in displayLyrics"
-        :key="index"
-        :id="`msl-lyric-${index}`"
-        class="lyric-line"
-        :class="{
-          'now-text': index === displayIndex,
-          'hover-text': item.text && item.startTime !== -1,
-          selected: selectedSet.has(index),
-          selectable: selectMode && item.text && item.text.trim()
-        }"
-        @click.stop="handleLyricClick(index, item)"
-        @touchstart.passive="handleLyricTouchStart(index, item, $event)"
-        @touchend="handleLyricTouchEnd"
-        @touchmove="handleLyricTouchMove"
-      >
-        <div class="lyric-main-row">
-          <!-- 选择模式的复选框 -->
-          <div v-if="selectMode && item.text && item.text.trim()" class="lyric-checkbox">
-            <i
-              :class="
-                selectedSet.has(index) ? 'ri-checkbox-circle-fill' : 'ri-checkbox-blank-circle-line'
-              "
-            ></i>
-          </div>
+    </Transition>
 
-          <span
-            v-if="item.hasWordByWord && item.words && item.words.length > 0"
-            class="timed-lyric-line"
-          >
-            <template v-for="(word, wordIndex) in item.words" :key="`${index}-${wordIndex}`">
-              <span
-                class="timed-lyric-word"
-                :class="getTimedWordClasses(index, word)"
-                :style="getTimedWordStyle(index, word)"
-                >{{ word.text }}</span
-              >
-              <span v-if="word.space" class="timed-lyric-space">&nbsp;</span>
-            </template>
-          </span>
-          <span v-else :style="getLineStyle(index)">{{ item.text }}</span>
-        </div>
-        <div v-if="index === displayIndex" class="auxiliary-lyric-stack">
-          <div
-            v-for="line in backgroundLyricLines"
-            :key="line.sourceKey"
-            class="background-lyric-line"
-            :style="getAuxiliaryLyricStyle()"
-          >
-            <template v-if="line.words.length">
-              <template
-                v-for="(word, wordIndex) in line.words"
-                :key="`${line.sourceKey}-${wordIndex}`"
-              >
-                <span
-                  class="auxiliary-timed-word"
-                  :class="getAuxiliaryWordClasses(word)"
-                  :style="getAuxiliaryWordStyle(word)"
-                  >{{ word.text }}</span
-                ><span v-if="word.space" class="timed-lyric-space">&nbsp;</span>
-              </template>
-            </template>
-            <template v-else>{{ line.text }}</template>
-          </div>
-          <div
-            v-for="line in duetLyricLines"
-            :key="line.sourceKey"
-            class="duet-lyric-line"
-            :style="getAuxiliaryLyricStyle()"
-          >
-            <template v-if="line.words.length">
-              <template
-                v-for="(word, wordIndex) in line.words"
-                :key="`${line.sourceKey}-${wordIndex}`"
-              >
-                <span
-                  class="auxiliary-timed-word"
-                  :class="getAuxiliaryWordClasses(word)"
-                  :style="getAuxiliaryWordStyle(word)"
-                  >{{ word.text }}</span
-                ><span v-if="word.space" class="timed-lyric-space">&nbsp;</span>
-              </template>
-            </template>
-            <template v-else>{{ line.text }}</template>
-          </div>
-        </div>
-        <div v-if="config.showTranslation && item.trText" class="translation">
-          {{ item.trText }}
-        </div>
-        <div v-if="config.showRomanization && item.romaText" class="romanization">
-          {{ item.romaText }}
-        </div>
-      </div>
-      <div class="lyrics-padding-bottom"></div>
+    <LyricPlayer
+      v-if="renderAmllPlayer"
+      ref="playerRef"
+      class="amll-player"
+      :lyric-lines="amllLines"
+      :current-time="currentTimeMs"
+      :disabled="amllDisabled"
+      :playing="isPlaying && !amllDisabled"
+      align-anchor="center"
+      :align-position="0.48"
+      :enable-spring="springEnabled"
+      :enable-blur="blurEnabled"
+      :enable-scale="!androidNative && !reduceMotion"
+      :word-fade-width="1"
+      :optimize-options="optimizeOptions"
+      @line-click="handleLineClick"
+      @line-contextmenu="handleLineContextMenu"
+    />
+
+    <div v-else-if="hasSourceLyrics" class="lyric-transition-placeholder" aria-hidden="true">
+      {{ transitionLyricText }}
     </div>
 
-    <!-- 截断提示 Toast -->
+    <button
+      v-else
+      type="button"
+      class="empty-lyrics"
+      :aria-label="t('player.lrc.noLrc')"
+      @click.stop="emit('close')"
+    >
+      {{ t('player.lrc.noLrc') }}
+    </button>
+
     <Transition name="toast">
       <div v-if="toastMsg" class="lyric-toast">
         <i class="ri-information-line"></i>
@@ -133,51 +67,312 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import type { LyricLine, LyricLineMouseEvent } from '@applemusic-like-lyrics/core';
+import { LyricPlayer, type LyricPlayerRef } from '@applemusic-like-lyrics/vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+
+import '@applemusic-like-lyrics/core/style.css';
 
 import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
-import { sound, textColors } from '@/hooks/MusicHook';
-import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
-import type { ILyricText } from '@/types/music';
+import { sound } from '@/hooks/MusicHook';
+import { isAndroidNative } from '@/services/androidNative';
+import { registerMobileBackLayer } from '@/services/mobileBackStack';
+import { usePlayerStore } from '@/store/modules/player';
+import { DEFAULT_LYRIC_CONFIG, type LyricConfig, normalizeLyricAlignment } from '@/types/lyric';
 import type { SelectedLyric } from '@/types/share';
-import { getTextColors } from '@/utils/linearColor';
+import {
+  lyricLineText,
+  MOBILE_AMLL_OPTIMIZE_OPTIONS,
+  providerLyricsToAmll,
+  ttmlLyricsToAmll
+} from '@/utils/amllLyricAdapter';
 
+let scrollingLyricsInstanceId = 0;
+
+const props = withDefaults(defineProps<{ backCloses?: boolean }>(), {
+  backCloses: false
+});
+const emit = defineEmits<{ close: []; interact: []; generatePoster: [lyrics: SelectedLyric[]] }>();
 const { t } = useI18n();
-const wordPlayback = useWordTimedPlayback();
+const playerStore = usePlayerStore();
+const playback = useWordTimedPlayback();
 const lyricSelection = useLyricSelectionSurface();
 const playerTransition = useMobilePlayerTransition();
-const selectionOwner = Symbol('mobile-scrolling-lyrics');
-const displayLyrics = wordPlayback.displayLines;
-const displayTimes = wordPlayback.displayTimes;
-const displayIndex = wordPlayback.displayIndex;
-const correctedTime = wordPlayback.correctedTime;
-const auxiliaryLines = wordPlayback.auxiliaryLines;
-const backgroundLyricLines = computed(() => auxiliaryLines.value.filter((line) => !line.agent));
-const duetLyricLines = computed(() => auxiliaryLines.value.filter((line) => Boolean(line.agent)));
-
-const emit = defineEmits<{ close: []; interact: []; generatePoster: [lyrics: SelectedLyric[]] }>();
-
-// ==================== 多选模式 ====================
-const POSTER_MAX_LYRICS = 12; // 海报最多展示的歌词行数
+const selectionOwner = Symbol('amll-mobile-scrolling-lyrics');
+const playerRef = ref<LyricPlayerRef | null>(null);
+const rootRef = ref<HTMLElement | null>(null);
+const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
+const reduceMotion = ref(false);
+const isIntersecting = ref(true);
+const pageVisible = ref(!document.hidden);
+const hasMountedPlayer = ref(false);
+const showPreparingOverlay = ref(false);
+const isPointerScrolling = ref(false);
 const selectMode = ref(false);
 const selectedSet = ref<Set<number>>(new Set());
-
-// 长按检测
+const toastMsg = ref('');
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+let motionQuery: MediaQueryList | null = null;
+let visibilityObserver: IntersectionObserver | null = null;
 let longPressTimer: ReturnType<typeof setTimeout> | null = null;
-const longPressThreshold = 500; // 500ms
-let longPressStartX = 0;
-let longPressStartY = 0;
+let pointerId: number | null = null;
+let pointerStartX = 0;
+let pointerStartY = 0;
+let longPressTarget: HTMLElement | null = null;
+let longPressSourceIndex: number | null = null;
+let longPressTriggered = false;
+let suppressLineClickUntil = 0;
+let mountTimer: ReturnType<typeof setTimeout> | null = null;
+let mountIdleCallback = 0;
+let unregisterBackLayer: (() => void) | null = null;
+const androidNative = isAndroidNative();
+const backLayerId = `mobile-scrolling-lyrics-${++scrollingLyricsInstanceId}`;
 
-/** 进入选择模式并预选某行 */
-function enterSelectMode(initialIndex: number) {
-  selectMode.value = true;
-  selectedSet.value = new Set();
-  if (initialIndex >= 0) {
-    selectedSet.value.add(initialIndex);
+const optimizeOptions = MOBILE_AMLL_OPTIMIZE_OPTIONS;
+
+const currentTimeMs = computed(() => Math.max(0, Math.round(playback.correctedTime.value * 1000)));
+const isPlaying = computed(() => playerStore.isPlaying);
+const lyricAlignment = computed(() =>
+  normalizeLyricAlignment(config.value.lyricAlignment, config.value.centerLyrics)
+);
+const transitionSettled = computed(
+  () =>
+    playerTransition.state.value === 'open' ||
+    (playerTransition.state.value === 'idle' && playerStore.musicFull)
+);
+const amllDisabled = computed(
+  () => !transitionSettled.value || !isIntersecting.value || !pageVisible.value
+);
+const springEnabled = computed(() => !reduceMotion.value);
+const blurEnabled = computed(
+  () => !androidNative && !reduceMotion.value && !isPointerScrolling.value && !amllDisabled.value
+);
+const allAmllLines = computed<LyricLine[]>(() => {
+  if (playback.usingTtml.value && playback.lyric.value) {
+    return ttmlLyricsToAmll(playback.lyric.value);
   }
+  return providerLyricsToAmll(playback.displayLines.value);
+});
+const hasSourceLyrics = computed(
+  () => playback.displayLines.value.length > 0 || Boolean(playback.lyric.value?.lines.length)
+);
+const amllLines = computed(() =>
+  allAmllLines.value.map((line) => ({
+    ...line,
+    translatedLyric: config.value.showTranslation ? line.translatedLyric : '',
+    romanLyric: config.value.showRomanization ? line.romanLyric : ''
+  }))
+);
+const renderAmllPlayer = computed(() => hasMountedPlayer.value && amllLines.value.length > 0);
+const transitionLyricText = computed(
+  () =>
+    playback.currentDisplayLine.value?.text ||
+    playback.displayLines.value[0]?.text ||
+    playback.lyric.value?.lines[0]?.words.map((word) => word.word).join('') ||
+    ''
+);
+const selectableIndices = computed(() =>
+  amllLines.value
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => !line.isBG && lyricLineText(line))
+    .map(({ index }) => index)
+);
+const isAllSelected = computed(
+  () =>
+    selectableIndices.value.length > 0 && selectedSet.value.size === selectableIndices.value.length
+);
+
+function loadConfig() {
+  try {
+    const next = {
+      ...DEFAULT_LYRIC_CONFIG,
+      ...JSON.parse(localStorage.getItem('music-full-config') || '{}')
+    };
+    next.lyricAlignment = normalizeLyricAlignment(next.lyricAlignment, next.centerLyrics);
+    config.value = next;
+  } catch {
+    config.value = { ...DEFAULT_LYRIC_CONFIG };
+  }
+}
+
+type AmllLineHandle = {
+  getElement?: () => HTMLElement;
+  getLine?: () => { __zephyrusSourceIndex?: number };
+};
+
+function getAmllLineHandle(line: LyricLineMouseEvent['line']): AmllLineHandle {
+  return line as unknown as AmllLineHandle;
+}
+
+function sourceIndexForEvent(event: LyricLineMouseEvent): number {
+  return getAmllLineHandle(event.line).getLine?.().__zephyrusSourceIndex ?? event.lineIndex;
+}
+
+function elementForEvent(event: LyricLineMouseEvent): HTMLElement | null {
+  return getAmllLineHandle(event.line).getElement?.() ?? null;
+}
+
+function seekToLine(index: number) {
+  const line = amllLines.value[index];
+  if (!line || !sound.value) return;
+  sound.value.seek(line.startTime / 1000);
+  sound.value.play();
+  playerRef.value?.lyricPlayer?.resetScroll();
+  emit('interact');
+}
+
+function handleLineClick(event: LyricLineMouseEvent) {
+  event.stopPropagation();
+  if (performance.now() < suppressLineClickUntil) return;
+  const sourceIndex = sourceIndexForEvent(event);
+  if (selectMode.value) {
+    toggleSelection(sourceIndex, elementForEvent(event));
+    return;
+  }
+  seekToLine(sourceIndex);
+}
+
+function handleLineElementClick(lineElement: HTMLElement) {
+  const sourceIndex = sourceIndexForElement(lineElement);
+  if (sourceIndex === null) return;
+  if (selectMode.value) {
+    toggleSelection(sourceIndex, lineElement);
+    return;
+  }
+  seekToLine(sourceIndex);
+}
+
+function handleLineContextMenu(event: LyricLineMouseEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  if (navigator.vibrate) navigator.vibrate(30);
+  const sourceIndex = sourceIndexForEvent(event);
+  if (!selectMode.value) enterSelectMode(sourceIndex, elementForEvent(event));
+  else toggleSelection(sourceIndex, elementForEvent(event));
+}
+
+function handleSurfaceClick() {
+  if (selectMode.value) exitSelectMode();
+  else emit('close');
+}
+
+function lyricHitTarget(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof Element)) return null;
+  const line = target.closest<HTMLElement>('.FmKaba_lyricLine');
+  if (!line || !rootRef.value?.contains(line)) return null;
+  return line;
+}
+
+function handleCaptureClick(event: MouseEvent) {
+  if (performance.now() < suppressLineClickUntil) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  const line = lyricHitTarget(event.target);
+  if (line) {
+    // Handle the entire AMLL row here. This intentionally does not inspect
+    // child text nodes, which are rebuilt by word animations.
+    event.stopPropagation();
+    handleLineElementClick(line);
+    return;
+  }
+  const target = event.target instanceof Element ? event.target : null;
+  if (target?.closest('.amll-player')) {
+    // Keep player-surface clicks from reaching the outer player toggle when
+    // AMLL is between DOM rebuilds. The next stable click is handled by AMLL.
+    event.stopPropagation();
+    return;
+  }
+  event.stopPropagation();
+  handleSurfaceClick();
+}
+
+function clearLongPress() {
+  if (longPressTimer) clearTimeout(longPressTimer);
+  longPressTimer = null;
+  pointerId = null;
+  longPressTarget = null;
+  longPressSourceIndex = null;
+  isPointerScrolling.value = false;
+}
+
+function handlePointerDown(event: PointerEvent) {
+  if (!event.isPrimary) return;
+  isPointerScrolling.value = true;
+  pointerStartX = event.clientX;
+  pointerStartY = event.clientY;
+  longPressTriggered = false;
+  longPressTarget = lyricHitTarget(event.target);
+  // Do not leave a pointer id armed for taps on padding/background. A stale
+  // id makes later pointer events look unrelated and disables both seek and
+  // long-press selection until the next complete gesture.
+  if (!longPressTarget) {
+    pointerId = null;
+    isPointerScrolling.value = false;
+    return;
+  }
+  longPressSourceIndex = sourceIndexForElement(longPressTarget);
+  if (longPressSourceIndex === null) {
+    clearLongPress();
+    return;
+  }
+  pointerId = event.pointerId;
+  longPressTimer = setTimeout(() => {
+    const sourceIndex = longPressSourceIndex;
+    if (sourceIndex === null) return;
+    longPressTriggered = true;
+    suppressLineClickUntil = performance.now() + 700;
+    if (navigator.vibrate) navigator.vibrate(30);
+    const currentElement = elementForSourceIndex(sourceIndex);
+    if (!selectMode.value) enterSelectMode(sourceIndex, currentElement);
+    else toggleSelection(sourceIndex, currentElement);
+  }, 520);
+}
+
+function handlePointerMove(event: PointerEvent) {
+  if (event.pointerId !== pointerId) return;
+  if (Math.hypot(event.clientX - pointerStartX, event.clientY - pointerStartY) > 10) {
+    if (longPressTimer) clearTimeout(longPressTimer);
+    longPressTimer = null;
+    longPressTarget = null;
+    longPressSourceIndex = null;
+  }
+}
+
+function handlePointerEnd(event: PointerEvent) {
+  if (event.pointerId !== pointerId) return;
+  if (!longPressTriggered) clearLongPress();
+  else {
+    if (longPressTimer) clearTimeout(longPressTimer);
+    longPressTimer = null;
+    pointerId = null;
+    longPressTarget = null;
+    longPressSourceIndex = null;
+    isPointerScrolling.value = false;
+  }
+}
+
+function handlePointerCancel(event: PointerEvent) {
+  if (event.pointerId === pointerId) clearLongPress();
+}
+
+function handleTouchEndCapture(event: TouchEvent) {
+  if (!longPressTriggered) return;
+  event.preventDefault();
+  event.stopPropagation();
+  longPressTriggered = false;
+}
+
+function enterSelectMode(initialIndex: number, element?: HTMLElement | null) {
+  const line = amllLines.value[initialIndex];
+  if (!line || line.isBG || !lyricLineText(line)) return;
+  selectMode.value = true;
+  selectedSet.value = new Set([initialIndex]);
+  if (element) element.dataset.lyricSelected = 'true';
   lyricSelection.begin(
     selectionOwner,
     {
@@ -186,757 +381,460 @@ function enterSelectMode(initialIndex: number) {
       onCopy: handleCopyLyrics,
       onGeneratePoster: handleGeneratePoster
     },
-    { selectedCount: selectedSet.value.size, allSelected: isAllSelected.value }
+    { selectedCount: 1, allSelected: false }
   );
   playerTransition.setSurfaceMode('controls');
   playerTransition.showControls(false);
   emit('interact');
 }
 
-/** 退出选择模式 */
 function exitSelectMode() {
+  clearSelectionDecorations();
   selectMode.value = false;
   selectedSet.value = new Set();
   lyricSelection.end(selectionOwner);
   playerTransition.showControls();
 }
 
-/** 切换某行选中状态 */
-function toggleSelection(index: number) {
-  if (selectedSet.value.has(index)) {
-    selectedSet.value.delete(index);
-    selectedSet.value = new Set(selectedSet.value); // 触发响应式
-  } else {
-    selectedSet.value.add(index);
-    selectedSet.value = new Set(selectedSet.value); // 触发响应式
+function updateSelectionSurface() {
+  lyricSelection.update(selectionOwner, {
+    selectedCount: selectedSet.value.size,
+    allSelected: isAllSelected.value
+  });
+}
+
+function currentAmllLineHandles(): AmllLineHandle[] {
+  const player = playerRef.value?.lyricPlayer as unknown as {
+    currentLyricGroups?: Array<{ mainLine?: AmllLineHandle }>;
+  } | null;
+  return (player?.currentLyricGroups || [])
+    .map((group) => group.mainLine)
+    .filter((line): line is AmllLineHandle => Boolean(line));
+}
+
+function sourceIndexForElement(element: HTMLElement): number | null {
+  for (const line of currentAmllLineHandles()) {
+    if (line.getElement?.() !== element) continue;
+    const index = line.getLine?.().__zephyrusSourceIndex;
+    return index === undefined ? null : index;
+  }
+  return null;
+}
+
+function elementForSourceIndex(sourceIndex: number): HTMLElement | null {
+  for (const line of currentAmllLineHandles()) {
+    if (line.getLine?.().__zephyrusSourceIndex === sourceIndex) return line.getElement?.() ?? null;
+  }
+  return null;
+}
+
+function syncSelectionDecorations() {
+  for (const line of currentAmllLineHandles()) {
+    const index = line.getLine?.().__zephyrusSourceIndex;
+    const element = line.getElement?.();
+    if (index === undefined || !element) continue;
+    if (selectMode.value && selectedSet.value.has(index)) element.dataset.lyricSelected = 'true';
+    else delete element.dataset.lyricSelected;
   }
 }
 
-/** 全选/取消全选 */
-const isAllSelected = computed(() => {
-  const validLines = displayLyrics.value.filter((l) => l.text && l.text.trim());
-  return validLines.length > 0 && selectedSet.value.size >= validLines.length;
-});
+function clearSelectionDecorations() {
+  for (const line of currentAmllLineHandles()) {
+    const element = line.getElement?.();
+    if (element) delete element.dataset.lyricSelected;
+  }
+}
 
-watch(
-  () => [selectMode.value, selectedSet.value.size, isAllSelected.value] as const,
-  ([active, selectedCount, allSelected]) => {
-    if (active) lyricSelection.update(selectionOwner, { selectedCount, allSelected });
-  },
-  { flush: 'sync' }
-);
+function toggleSelection(index: number, element?: HTMLElement | null) {
+  const line = amllLines.value[index];
+  if (!line || line.isBG || !lyricLineText(line)) return;
+  const next = new Set(selectedSet.value);
+  if (next.has(index)) next.delete(index);
+  else next.add(index);
+  selectedSet.value = next;
+  if (element) {
+    if (next.has(index)) element.dataset.lyricSelected = 'true';
+    else delete element.dataset.lyricSelected;
+  }
+  updateSelectionSurface();
+}
 
 function toggleSelectAll() {
-  if (isAllSelected.value) {
-    selectedSet.value = new Set();
-  } else {
-    const indices: number[] = [];
-    for (let i = 0; i < displayLyrics.value.length; i++) {
-      if (displayLyrics.value[i].text && displayLyrics.value[i].text.trim()) {
-        indices.push(i);
-      }
-    }
-    selectedSet.value = new Set(indices);
-  }
+  selectedSet.value = isAllSelected.value ? new Set() : new Set(selectableIndices.value);
+  syncSelectionDecorations();
+  updateSelectionSurface();
 }
 
-/** 处理歌词点击 */
-function seekToLyric(index: number) {
-  const currentSound = sound.value;
-  const seekTime = displayTimes.value[index];
-  if (!currentSound || !Number.isFinite(seekTime)) return;
-  currentSound.seek(seekTime);
-  currentSound.play();
-}
-
-function handleLyricClick(index: number, item: ILyricText) {
-  if (selectMode.value) {
-    if (item.text && item.text.trim()) {
-      toggleSelection(index);
-    }
-    return;
-  }
-  // 非选择模式：点击跳转播放
-  if (item.startTime !== -1) {
-    seekToLyric(index);
-  }
-}
-
-/** 歌词行触摸开始 - 检测长按 */
-function handleLyricTouchStart(index: number, item: ILyricText, e: TouchEvent) {
-  if (selectMode.value) return;
-  if (!item.text || !item.text.trim()) return;
-
-  longPressStartX = e.touches[0].clientX;
-  longPressStartY = e.touches[0].clientY;
-
-  if (longPressTimer) clearTimeout(longPressTimer);
-  longPressTimer = setTimeout(() => {
-    // 震动反馈
-    if (navigator.vibrate) navigator.vibrate(30);
-    enterSelectMode(index);
-  }, longPressThreshold);
-}
-
-/** 歌词行触摸移动 - 取消长按检测 */
-function handleLyricTouchMove(e: TouchEvent) {
-  if (selectMode.value) return;
-  if (!longPressTimer) return;
-
-  const moveX = Math.abs(e.touches[0].clientX - longPressStartX);
-  const moveY = Math.abs(e.touches[0].clientY - longPressStartY);
-  // 移动超过阈值则取消长按
-  if (moveX > 10 || moveY > 10) {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-  }
-}
-
-/** 歌词行触摸结束 */
-function handleLyricTouchEnd() {
-  if (longPressTimer) {
-    clearTimeout(longPressTimer);
-    longPressTimer = null;
-  }
-}
-
-/** 复制选中的歌词 */
-function handleCopyLyrics() {
-  const sortedIndices = Array.from(selectedSet.value).sort((a, b) => a - b);
-  const lines: string[] = [];
-  for (const index of sortedIndices) {
-    const item = displayLyrics.value[index];
-    if (item) {
-      lines.push(item.text);
-      if (config.value.showTranslation && item.trText) {
-        lines.push(item.trText);
-      }
-      if (config.value.showRomanization && item.romaText) {
-        lines.push(item.romaText);
-      }
-    }
-  }
-  const text = lines.join('\n');
-  navigator.clipboard
-    ?.writeText(text)
-    .then(() => {
-      if (navigator.vibrate) navigator.vibrate(20);
-    })
-    .catch(() => {
-      // Fallback for environments without clipboard API
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-    });
-  exitSelectMode();
-}
-
-/** 生成海报 */
-function handleGeneratePoster() {
-  const lyrics: SelectedLyric[] = [];
-  // 按索引排序
-  const sortedIndices = Array.from(selectedSet.value).sort((a, b) => a - b);
-  for (const index of sortedIndices) {
-    const item = displayLyrics.value[index];
-    if (item) {
-      lyrics.push({
+function selectedLyrics(): SelectedLyric[] {
+  return [...selectedSet.value]
+    .sort((a, b) => a - b)
+    .map((index) => {
+      const line = amllLines.value[index];
+      return {
         index,
-        text: item.text,
-        trText: item.trText || undefined
-      });
-    }
-  }
-  // 超过海报最大行数时截断
-  if (lyrics.length > POSTER_MAX_LYRICS) {
-    const truncated = lyrics.slice(0, POSTER_MAX_LYRICS);
-    emit('generatePoster', truncated);
-    // 提示用户已截断
-    if (navigator.vibrate) navigator.vibrate([20, 50, 20]);
-    // 使用 toast 提示（通过 emit interact 保持选择模式，然后退出）
-    showToast(t('player.share.lyricsTruncated') || `选中内容过长，已截断至${POSTER_MAX_LYRICS}句`);
-  } else {
-    emit('generatePoster', lyrics);
+        text: lyricLineText(line),
+        trText: line.translatedLyric || undefined
+      };
+    });
+}
+
+function handleCopyLyrics() {
+  const text = selectedLyrics()
+    .flatMap((line) => [line.text, line.trText].filter(Boolean))
+    .join('\n');
+  void navigator.clipboard?.writeText(text);
+  exitSelectMode();
+}
+
+function handleGeneratePoster() {
+  const selected = selectedLyrics();
+  const lyrics = selected.slice(0, 12);
+  emit('generatePoster', lyrics);
+  if (selected.length > lyrics.length) {
+    toastMsg.value = t('player.share.lyricsTruncated') || '选中内容过长，已截断至12句';
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (toastMsg.value = ''), 3000);
   }
   exitSelectMode();
 }
 
-/** 简易 toast 提示 */
-let toastTimer: ReturnType<typeof setTimeout> | null = null;
-const toastMsg = ref('');
-function showToast(msg: string) {
-  toastMsg.value = msg;
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toastMsg.value = '';
-  }, 3000);
+function handleConfigUpdate() {
+  loadConfig();
 }
 
-// ==================== 拖动 & 滚动逻辑 ====================
-
-const isDragging = ref(false);
-const currentTimeText = ref('');
-const closestIndex = ref(-1);
-
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
+function handleMotionChange(event: MediaQueryListEvent | MediaQueryList) {
+  reduceMotion.value = event.matches;
 }
 
-// 点击时间指示器跳转
-function handleTimeIndicatorClick() {
-  if (closestIndex.value >= 0) {
-    seekToLyric(closestIndex.value);
+function handleVisibilityChange() {
+  pageVisible.value = !document.hidden;
+}
+
+function cancelDeferredMount() {
+  if (mountTimer) clearTimeout(mountTimer);
+  mountTimer = null;
+  if (mountIdleCallback && 'cancelIdleCallback' in window) {
+    window.cancelIdleCallback(mountIdleCallback);
   }
+  mountIdleCallback = 0;
 }
 
-// 点击空白区域关闭
-function handleEmptyClick() {
-  if (selectMode.value) {
-    exitSelectMode();
-    return;
-  }
-  emit('close');
-}
-
-// 歌词配置
-const config = ref<LyricConfig>(DEFAULT_LYRIC_CONFIG);
-function loadConfig() {
-  const saved = localStorage.getItem('music-full-config');
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      config.value = { ...DEFAULT_LYRIC_CONFIG, ...parsed };
-    } catch {
-      // ignore
+function mountPlayerWhenIdle() {
+  if (!transitionSettled.value || hasMountedPlayer.value) return;
+  showPreparingOverlay.value = true;
+  // Let the loading surface paint before AMLL creates its lyric tree. One
+  // frame is enough; waiting for browser idle can leave the user staring at a
+  // blank lyric area for hundreds of milliseconds on a busy Android WebView.
+  requestAnimationFrame(() => {
+    if (!transitionSettled.value) {
+      showPreparingOverlay.value = false;
+      return;
     }
-  }
-}
-loadConfig();
-
-// 滚动控制
-const scrollerRef = ref<HTMLElement | null>(null);
-const isAutoScrollEnabled = ref(true);
-const isTouchScrolling = ref(false);
-const touchStartY = ref(0);
-let autoScrollTimer: ReturnType<typeof setTimeout> | null = null;
-
-const supportAutoScroll = computed(() => {
-  return displayLyrics.value.length > 0 && Number.isFinite(displayTimes.value[0]);
-});
-
-// 自动滚动到当前歌词
-function scrollToCurrentLyric(immediate = false) {
-  if (!isAutoScrollEnabled.value || !scrollerRef.value) return;
-
-  const el = document.getElementById(`msl-lyric-${displayIndex.value}`);
-  if (!el) return;
-
-  const container = scrollerRef.value;
-  const containerHeight = container.clientHeight;
-  const elTop = el.offsetTop;
-  const elHeight = el.offsetHeight;
-  const targetScroll = elTop - containerHeight / 2 + elHeight / 2;
-
-  if (immediate) {
-    container.scrollTop = targetScroll;
-  } else {
-    container.scrollTo({ top: targetScroll, behavior: 'smooth' });
-  }
+    hasMountedPlayer.value = true;
+    showPreparingOverlay.value = false;
+  });
 }
 
-// 监听歌词索引变化
-watch(displayIndex, () => {
-  if (isAutoScrollEnabled.value && !selectMode.value) {
-    nextTick(() => scrollToCurrentLyric());
-  }
-});
+watch(
+  transitionSettled,
+  (settled) => {
+    cancelDeferredMount();
+    if (!settled || hasMountedPlayer.value) return;
 
-// 触摸事件
-const handleTouchStart = (e: TouchEvent) => {
-  touchStartY.value = e.touches[0].clientY;
-  isTouchScrolling.value = true;
-  isDragging.value = true;
-  emit('interact');
-};
+    // Paint the loading surface first, then mount AMLL on the next frame. The
+    // previous Android-specific 320ms delay plus requestIdleCallback made the
+    // first lyric view feel unresponsive even when the device was otherwise
+    // idle.
+    showPreparingOverlay.value = hasSourceLyrics.value;
+    mountTimer = setTimeout(() => {
+      mountTimer = null;
+      if (!transitionSettled.value) return;
+      mountPlayerWhenIdle();
+    }, androidNative ? 0 : 16);
+  },
+  { immediate: true }
+);
 
-const handleTouchMove = () => {
-  if (!isTouchScrolling.value) return;
-  isAutoScrollEnabled.value = false;
-  updateTimeIndicator();
-};
-
-const handleTouchEnd = () => {
-  isTouchScrolling.value = false;
-  if (autoScrollTimer) clearTimeout(autoScrollTimer);
-  autoScrollTimer = setTimeout(() => {
-    isAutoScrollEnabled.value = true;
-    isDragging.value = false;
-    if (!selectMode.value) nextTick(() => scrollToCurrentLyric());
-  }, 3000);
-};
-
-const handleScroll = () => {
-  if (!isTouchScrolling.value) return;
-  isAutoScrollEnabled.value = false;
-  updateTimeIndicator();
-  if (autoScrollTimer) clearTimeout(autoScrollTimer);
-  autoScrollTimer = setTimeout(() => {
-    isAutoScrollEnabled.value = true;
-    isDragging.value = false;
-    if (!selectMode.value) nextTick(() => scrollToCurrentLyric());
-  }, 3000);
-};
-
-// 获取当前可视中心歌词的时间
-function updateTimeIndicator() {
-  if (!scrollerRef.value) return;
-  const container = scrollerRef.value;
-  const centerY = container.scrollTop + container.clientHeight / 2;
-  let closestTime = 0;
-  let closestDist = Infinity;
-  closestIndex.value = -1;
-  for (let i = 0; i < displayLyrics.value.length; i++) {
-    const el = document.getElementById(`msl-lyric-${i}`);
-    if (!el) continue;
-    const elCenter = el.offsetTop + el.offsetHeight / 2;
-    const dist = Math.abs(elCenter - centerY);
-    if (dist < closestDist) {
-      closestDist = dist;
-      closestIndex.value = i;
-      closestTime = displayTimes.value[i] || 0;
+onMounted(() => {
+  unregisterBackLayer = registerMobileBackLayer({
+    id: backLayerId,
+    // Keep settings (520) above lyrics, while still taking precedence over
+    // the player-level fallback layer (500).
+    priority: 510,
+    isActive: () => props.backCloses,
+    onBack: () => {
+      emit('close');
+      return true;
     }
-  }
-  currentTimeText.value = formatTime(closestTime);
-}
-
-const getTimedWordState = (lineIndex: number, word: { startTime: number; duration: number }) => {
-  if (lineIndex !== displayIndex.value) return 'upcoming';
-  const now = correctedTime.value * 1000;
-  const start = Number.isFinite(word.startTime) ? word.startTime : 0;
-  const duration = Math.max(0, Number(word.duration) || 0);
-  const end = start + Math.max(duration, 60);
-  if (now >= end) return 'finished';
-  if (now >= start) return 'active';
-  return 'upcoming';
-};
-
-const getTimedWordClasses = (lineIndex: number, word: { startTime: number; duration: number }) => ({
-  [`is-${getTimedWordState(lineIndex, word)}`]: true,
-  'is-sustained': Math.max(0, Number(word.duration) || 0) >= 420
-});
-
-const getTimedWordStyle = (lineIndex: number, word: { startTime: number; duration: number }) => {
-  const colors = textColors.value || getTextColors();
-  const upcomingColor = `var(--player-style-custom-main-color, ${colors.primary})`;
-  const activeColor = `var(--player-style-custom-main-color, ${colors.active})`;
-  const state = getTimedWordState(lineIndex, word);
-  const duration = Math.max(Number(word.duration) || 0, 60);
-  const progress =
-    state === 'active'
-      ? Math.min(Math.max((correctedTime.value * 1000 - word.startTime) / duration, 0), 1)
-      : state === 'finished'
-        ? 1
-        : 0;
-  const active = state === 'active';
-  const longSyllable = duration >= 420;
-  return {
-    color: state === 'upcoming' ? upcomingColor : activeColor,
-    backgroundImage: active
-      ? `linear-gradient(90deg, ${activeColor} ${Math.round(progress * 100)}%, ${upcomingColor} ${Math.round(progress * 100)}%)`
-      : 'none',
-    backgroundClip: active ? 'text' : 'initial',
-    WebkitBackgroundClip: active ? 'text' : 'initial',
-    WebkitTextFillColor: active ? 'transparent' : 'initial',
-    textShadow: active
-      ? `0 0 ${longSyllable ? 14 : 9}px color-mix(in srgb, ${activeColor} 60%, transparent)`
-      : 'none'
-  };
-};
-
-const getAuxiliaryLyricStyle = () => {
-  const colors = textColors.value || getTextColors();
-  return {
-    '--lyric-aux-color': `var(--player-style-custom-auxiliary-color, ${colors.active})`
-  };
-};
-
-const getAuxiliaryWordState = (word: { startTime: number; duration: number }) => {
-  const now = correctedTime.value * 1000;
-  const start = Number.isFinite(word.startTime) ? word.startTime : 0;
-  const duration = Math.max(0, Number(word.duration) || 0);
-  if (now >= start + Math.max(duration, 60)) return 'finished';
-  if (now >= start) return 'active';
-  return 'upcoming';
-};
-
-const getAuxiliaryWordClasses = (word: { startTime: number; duration: number }) => ({
-  [`is-${getAuxiliaryWordState(word)}`]: true
-});
-
-const getAuxiliaryWordStyle = (word: { startTime: number; duration: number }) => {
-  const colors = textColors.value || getTextColors();
-  const state = getAuxiliaryWordState(word);
-  const duration = Math.max(Number(word.duration) || 0, 60);
-  const progress =
-    state === 'active'
-      ? Math.min(Math.max((correctedTime.value * 1000 - word.startTime) / duration, 0), 1)
-      : state === 'finished'
-        ? 1
-        : 0;
-  const customAuxiliary = `var(--player-style-custom-auxiliary-color, ${colors.active})`;
-  const activeColor = `color-mix(in srgb, #fff 82%, ${customAuxiliary})`;
-  const upcomingColor = `color-mix(in srgb, #fff 42%, ${customAuxiliary})`;
-  return {
-    color: state === 'upcoming' ? upcomingColor : activeColor,
-    backgroundImage:
-      state === 'active'
-        ? `linear-gradient(90deg, ${activeColor} ${Math.round(progress * 100)}%, ${upcomingColor} ${Math.round(progress * 100)}%)`
-        : 'none',
-    backgroundClip: state === 'active' ? 'text' : 'initial',
-    WebkitBackgroundClip: state === 'active' ? 'text' : 'initial',
-    WebkitTextFillColor: state === 'active' ? 'transparent' : 'initial',
-    textShadow:
-      state === 'active'
-        ? `0 0 10px color-mix(in srgb, ${customAuxiliary} 45%, transparent)`
-        : 'none'
-  };
-};
-
-const getLineStyle = (lineIndex: number) => {
-  if (lineIndex !== displayIndex.value) return {};
-  const colors = textColors.value || getTextColors();
-  const start = displayTimes.value[lineIndex] || 0;
-  const itemDuration = (displayLyrics.value[lineIndex]?.duration || 0) / 1000;
-  const end = displayTimes.value[lineIndex + 1] ?? start + Math.max(itemDuration, 1);
-  const progress = Math.min(
-    Math.max((correctedTime.value - start) / Math.max(end - start, 0.001), 0),
-    1
+  });
+  loadConfig();
+  motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  handleMotionChange(motionQuery);
+  motionQuery.addEventListener('change', handleMotionChange);
+  visibilityObserver = new IntersectionObserver(
+    ([entry]) => {
+      isIntersecting.value = entry?.isIntersecting ?? true;
+    },
+    { threshold: 0.01 }
   );
-  const progressPercent = Math.round(progress * 100);
-  return {
-    backgroundImage: `linear-gradient(to right, ${colors.active} ${progressPercent}%, ${colors.primary} ${progressPercent}%)`,
-    backgroundClip: 'text',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent'
-  };
-};
+  if (rootRef.value) visibilityObserver.observe(rootRef.value);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('music-full-config-updated', handleConfigUpdate);
+});
 
 onBeforeUnmount(() => {
-  if (autoScrollTimer) clearTimeout(autoScrollTimer);
-  if (longPressTimer) clearTimeout(longPressTimer);
+  unregisterBackLayer?.();
+  unregisterBackLayer = null;
+  cancelDeferredMount();
   if (toastTimer) clearTimeout(toastTimer);
+  clearLongPress();
   lyricSelection.end(selectionOwner);
+  visibilityObserver?.disconnect();
+  motionQuery?.removeEventListener('change', handleMotionChange);
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
+  window.removeEventListener('music-full-config-updated', handleConfigUpdate);
 });
 </script>
 
-<style scoped lang="scss">
+<style scoped>
 .scrolling-lyrics {
-  width: 100%;
-  height: 100%;
   position: relative;
   z-index: 10;
-
-  &.light {
-    color: #333;
-  }
-  &.dark {
-    color: #fff;
-  }
-}
-
-.lyrics-scroller {
   width: 100%;
   height: 100%;
-  overflow-y: auto;
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-  padding: 0 16px;
-
-  /* 顶部和底部渐变遮罩 */
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    black 17%,
-    black 82%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(to bottom, transparent 0%, black 17%, black 82%, transparent 100%);
-
-  &.select-scroller {
-    padding-top: calc(var(--safe-area-inset-top, 0px) + 62px);
-    padding-bottom: calc(var(--safe-area-inset-bottom, 0px) + 104px);
-    -webkit-mask-image: linear-gradient(
-      to bottom,
-      transparent 0%,
-      black 18%,
-      black 80%,
-      transparent 100%
-    );
-    mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 80%, transparent 100%);
-  }
+  min-height: 0;
+  overflow: hidden;
+  contain: layout paint style;
+  touch-action: pan-y;
 }
 
-.lyrics-padding-top {
-  height: 50vh;
-}
-
-.lyrics-padding-bottom {
-  height: 50vh;
-}
-
-.select-mode .lyrics-padding-top,
-.select-mode .lyrics-padding-bottom {
-  height: 20px;
-}
-
-.lyric-line {
-  width: fit-content;
-  max-width: 90%;
-  margin: 10px auto;
-  padding: 6px 12px;
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 1.6;
-  opacity: 0.45;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-direction: column;
-
-  &.now-text {
-    opacity: 1;
-    font-size: 22px;
-    font-weight: 600;
-    padding: 10px 16px;
-  }
-
-  @media (hover: hover) {
-    &.hover-text:hover {
-      opacity: 0.8;
-    }
-  }
-
-  /* 选择模式样式 */
-  &.selectable {
-    opacity: 0.7;
-    &:active {
-      opacity: 0.5;
-    }
-  }
-
-  &.selected {
-    opacity: 1;
-    background: rgba(var(--accent-color-rgb, 99, 102, 241), 0.15);
-    border-radius: 12px;
-  }
-}
-
-.lyric-main-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  gap: 8px;
-}
-
-.lyric-checkbox {
-  flex-shrink: 0;
-  font-size: 22px;
-  color: rgba(var(--accent-color-rgb, 99, 102, 241), 1);
-
-  .ri-checkbox-blank-circle-line {
-    color: rgba(255, 255, 255, 0.4);
-  }
-}
-
-.translation,
-.romanization {
-  font-size: 14px;
-  opacity: 0.6;
-  margin-top: 4px;
-}
-
-.timed-lyric-line {
-  position: relative;
-  display: inline-flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: baseline;
-  max-width: 100%;
-  text-align: center;
-}
-
-.timed-lyric-word {
-  display: inline-block;
-  white-space: pre-wrap;
-  transform: translateY(0) scale(1);
-  transform-origin: center bottom;
-  transition:
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    text-shadow 220ms ease,
-    color 160ms ease;
-  will-change: transform, text-shadow;
-}
-
-.timed-lyric-word.is-active {
-  transform: translateY(-2px) scale(1.015);
-}
-
-.timed-lyric-word.is-active.is-sustained {
-  transform: translateY(-4px) scale(1.025);
-}
-
-.timed-lyric-space {
-  white-space: pre;
-}
-
-.auxiliary-lyric-stack {
-  width: 100%;
+.lyrics-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
   display: grid;
-  justify-items: center;
-  gap: 4px;
+  place-items: center;
+  background: color-mix(in srgb, var(--player-style-background, #111) 42%, transparent);
+  color: var(--player-ink, #fff);
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
-.background-lyric-line,
-.duet-lyric-line {
-  width: 100%;
-  margin-top: 2px;
-  color: color-mix(in srgb, #fff 82%, var(--lyric-aux-color, #fff));
-  font-weight: 500;
-  line-height: 1.35;
-  letter-spacing: 0;
-  opacity: 0.78;
-  text-align: center;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+.lyrics-loading-overlay i {
+  font-size: 28px;
+  animation: lyrics-loading-spin 720ms linear infinite;
 }
 
-.auxiliary-timed-word {
-  display: inline;
-  transition:
-    color 120ms linear,
-    text-shadow 160ms ease;
+.lyrics-loading-enter-active,
+.lyrics-loading-leave-active {
+  transition: opacity 160ms ease;
 }
 
-.background-lyric-line {
-  font-size: 0.72em;
+.lyrics-loading-enter-from,
+.lyrics-loading-leave-to {
+  opacity: 0;
 }
 
-.duet-lyric-line {
-  font-size: 1em;
-  font-weight: inherit;
-  opacity: 0.92;
-  text-shadow: 0 0 10px color-mix(in srgb, var(--lyric-aux-color, #fff) 48%, transparent);
-  transform: translateY(-2px);
-}
-
-.no-scroll-tip {
-  opacity: 0.3;
-  font-size: 14px;
-  text-align: center;
+@keyframes lyrics-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .timed-lyric-word {
-    transition: color 120ms linear;
-  }
-
-  .timed-lyric-word.is-active,
-  .timed-lyric-word.is-active.is-sustained {
-    transform: none;
+  .lyrics-loading-overlay i {
+    animation: none;
   }
 }
 
-.time-indicator {
+.amll-player {
+  width: 100%;
+  height: 100%;
+  --amll-lp-color: var(
+    --player-style-custom-main-color,
+    var(--text-color-active, var(--player-ink, #fff))
+  );
+  --amll-lp-font-size: clamp(20px, 6.5vw, 36px);
+  --amll-lp-hover-bg-color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.08);
+  --amll-lp-line-width-aspect: 0.9;
+}
+
+.lyric-transition-placeholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+  color: var(--player-style-custom-main-color, var(--text-color-active, var(--player-ink, #fff)));
+  font-size: clamp(20px, 6.5vw, 36px);
+  font-weight: 650;
+  opacity: 0.92;
+  place-items: center;
+}
+
+:deep(.FmKaba_lyricLineWrapper) {
+  /* Keep the entire row tappable, including translation and empty padding. */
+  pointer-events: auto;
+}
+
+:deep(.FmKaba_lyricLine) {
+  pointer-events: auto;
+}
+
+:deep(.FmKaba_lyricMainLine span),
+:deep(.FmKaba_lyricMainLine ruby),
+:deep(.FmKaba_lyricMainLine rt) {
+  pointer-events: auto;
+}
+
+.is-interacting :deep(.FmKaba_lyricLineWrapper),
+.is-interacting :deep(.FmKaba_lyricLine),
+.is-interacting :deep(.FmKaba_interludeDots) {
+  filter: none !important;
+  transition: none !important;
+}
+
+.align-left :deep(.FmKaba_lyricLineWrapper) {
+  align-items: flex-start !important;
+}
+
+.align-center :deep(.FmKaba_lyricLineWrapper) {
+  align-items: center !important;
+}
+
+.align-right :deep(.FmKaba_lyricLineWrapper) {
+  align-items: flex-end !important;
+}
+
+.align-left :deep(.FmKaba_lyricLine) {
+  text-align: left;
+  transform-origin: left center;
+}
+
+.align-center :deep(.FmKaba_lyricLine) {
+  text-align: center;
+  transform-origin: center;
+}
+
+.align-right :deep(.FmKaba_lyricLine) {
+  text-align: right;
+  transform-origin: right center;
+}
+
+/* AMLL positions interludes independently from lyric lines. The individual
+ * translate property composes with AMLL's inline transform, preserving its
+ * vertical animation while following the configured horizontal alignment. */
+.align-left :deep(.FmKaba_interludeDots) {
+  right: auto !important;
+  left: 0 !important;
+  translate: var(--lyric-line-padding-x, 20px) 0;
+}
+
+.align-center :deep(.FmKaba_interludeDots) {
+  right: auto !important;
+  left: 50% !important;
+  translate: -50% 0;
+}
+
+.align-right :deep(.FmKaba_interludeDots) {
+  right: 0 !important;
+  left: auto !important;
+  translate: calc(-1 * var(--lyric-line-padding-x, 20px)) 0;
+}
+
+.light .amll-player {
+  --amll-lp-color: var(--player-style-custom-main-color, var(--text-color-active, #171717));
+}
+
+.select-mode .amll-player {
+  --amll-lp-hover-bg-color: rgba(var(--accent-color-rgb, 99, 102, 241), 0.18);
+}
+
+.select-mode :deep(.FmKaba_lyricLine[data-lyric-selected='true']) {
+  border-radius: 0.34em;
+  background-color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.14);
+  box-shadow: inset 0 0 0 1px rgba(var(--player-ink-rgb, 255, 255, 255), 0.08);
+  transition:
+    background-color 180ms ease-out,
+    box-shadow 180ms ease-out;
+}
+
+.select-mode.align-left :deep(.FmKaba_lyricLine[data-lyric-selected='true']::after),
+.select-mode.align-right :deep(.FmKaba_lyricLine[data-lyric-selected='true']::after) {
+  content: '\2713';
   position: absolute;
-  right: 20px;
   top: 50%;
+  display: grid;
+  width: 1.15em;
+  height: 1.15em;
+  border-radius: 50%;
+  background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.16);
+  color: var(--player-ink, #fff);
+  font-size: 0.56em;
+  line-height: 1;
+  opacity: 0.9;
   transform: translateY(-50%);
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  font-size: 16px;
-  font-weight: 600;
-  padding: 8px 14px;
-  border-radius: 20px;
-  z-index: 15;
-  cursor: pointer;
-  font-variant-numeric: tabular-nums;
-
-  &:active {
-    background: rgba(0, 0, 0, 0.8);
-  }
+  place-items: center;
 }
 
-/* ===== 过渡动画 ===== */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+.select-mode.align-left :deep(.FmKaba_lyricLine[data-lyric-selected='true']::after) {
+  right: 0.42em;
 }
 
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-}
-.slide-down-enter-from,
-.slide-down-leave-to {
-  opacity: 0;
-  transform: translateY(-100%);
+.select-mode.align-right :deep(.FmKaba_lyricLine[data-lyric-selected='true']::after) {
+  left: 0.42em;
 }
 
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-}
-.slide-up-enter-from,
-.slide-up-leave-to {
-  opacity: 0;
-  transform: translateY(100%);
+.empty-lyrics {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--amll-lp-color, var(--player-ink, #fff));
+  opacity: 0.48;
+  place-items: center;
 }
 
-/* ===== Toast 提示 ===== */
 .lyric-toast {
   position: absolute;
-  bottom: 120px;
+  bottom: 18%;
   left: 50%;
-  transform: translateX(-50%);
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
-  border-radius: 20px;
-  background: rgba(20, 20, 25, 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  max-width: calc(100% - 40px);
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.76);
   color: #fff;
   font-size: 13px;
-  z-index: 30;
-  white-space: nowrap;
-  max-width: 90%;
+  transform: translateX(-50%);
 }
 
 .toast-enter-active,
 .toast-leave-active {
-  transition: all 0.3s ease;
+  transition: opacity 160ms ease;
 }
 
 .toast-enter-from,
 .toast-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(20px);
+}
+
+@media (orientation: landscape) {
+  .amll-player {
+    --amll-lp-font-size: clamp(18px, 4.2vw, 32px);
+    --amll-lp-line-width-aspect: 0.82;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter-active,
+  .toast-leave-active {
+    transition: none;
+  }
 }
 </style>

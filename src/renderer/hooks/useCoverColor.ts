@@ -61,7 +61,6 @@ async function extractColorFromImage(picUrl: string): Promise<{ r: number; g: nu
     return null;
   }
 }
-
 /**
  * 将 RGB 颜色调整为适合 UI 的强调色
  * 偏暖、提高饱和度和亮度
@@ -260,77 +259,4 @@ export function useCoverColor() {
     averageColor,
     averageColorRgb
   };
-}
-
-/**
- * 从封面图片的不同随机区域提取多个平均色
- *
- * 用于 Magazine 移动端模式的色块：每个色块从封面不同位置取色，
- * 产生差异化视觉效果。
- *
- * @param picUrl 封面图片 URL
- * @param count 需要提取的颜色数量
- * @returns CSS 颜色字符串数组，如 ['rgb(100,50,30)', 'rgb(200,180,160)', ...]
- */
-export async function extractRegionalColors(
-  picUrl: string,
-  count: number = 5
-): Promise<string[]> {
-  try {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = getImgUrl(picUrl, '100y100');
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-    });
-
-    const canvas = document.createElement('canvas');
-    canvas.width = 100;
-    canvas.height = 100;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return [];
-
-    ctx.drawImage(img, 0, 0, 100, 100);
-
-    const colors: string[] = [];
-    const regionSize = 20; // 每个采样区域 20x20 像素
-    const usedPositions: { sx: number; sy: number }[] = [];
-
-    for (let i = 0; i < count; i++) {
-      // 随机选取一个不重复的区域
-      let sx: number, sy: number;
-      let attempts = 0;
-      do {
-        sx = Math.floor(Math.random() * (100 - regionSize));
-        sy = Math.floor(Math.random() * (100 - regionSize));
-        attempts++;
-      } while (
-        attempts < 50 &&
-        usedPositions.some(
-          (p) => Math.abs(p.sx - sx) < regionSize && Math.abs(p.sy - sy) < regionSize
-        )
-      );
-      usedPositions.push({ sx, sy });
-
-      const data = ctx.getImageData(sx, sy, regionSize, regionSize).data;
-      let r = 0, g = 0, b = 0;
-      const pixels = data.length / 4;
-      for (let j = 0; j < data.length; j += 4) {
-        r += data[j];
-        g += data[j + 1];
-        b += data[j + 2];
-      }
-
-      r = Math.round(r / pixels);
-      g = Math.round(g / pixels);
-      b = Math.round(b / pixels);
-      colors.push(`rgb(${r}, ${g}, ${b})`);
-    }
-
-    return colors;
-  } catch {
-    // 提取失败时返回基于主色的变体
-    return Array(count).fill(primaryColor.value);
-  }
 }

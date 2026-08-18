@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="cover-ripple"
-    :style="containerStyle"
-  >
+  <div class="cover-ripple" :style="containerStyle">
     <!-- 封面图片 -->
     <div class="cover-image" :style="imageStyle">
       <img v-if="src" :src="src" alt="cover" />
@@ -16,7 +13,7 @@
 <script setup lang="ts">
 /**
  * CoverRipple - 封面显示组件（简化版，无涟漪效果）
- * 
+ *
  * 功能：
  * - 显示歌曲封面（圆角方形）
  */
@@ -48,16 +45,18 @@ const imageStyle = {
 .cover-ripple {
   position: relative;
   overflow: hidden;
-  box-shadow: 
+  box-shadow:
     0 0 60px rgba(0, 0, 0, 0.5),
     0 0 100px rgba(255, 255, 255, 0.1),
     inset 0 0 60px rgba(0, 0, 0, 0.3);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
 .cover-ripple:hover {
   transform: scale(1.02);
-  box-shadow: 
+  box-shadow:
     0 0 80px rgba(0, 0, 0, 0.6),
     0 0 120px rgba(255, 255, 255, 0.15),
     inset 0 0 60px rgba(0, 0, 0, 0.3);

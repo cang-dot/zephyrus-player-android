@@ -5,6 +5,26 @@
       <span>{{ platformName }}</span>
     </div>
 
+    <div
+      v-if="platform === 'qq'"
+      class="qq-provider-switch"
+      role="tablist"
+      aria-label="QQ 音乐登录方式"
+    >
+      <button
+        v-for="item in qqProviders"
+        :key="item.key"
+        type="button"
+        role="tab"
+        :aria-selected="provider === item.key"
+        :class="{ active: provider === item.key }"
+        @click="switchProvider(item.key)"
+      >
+        <i :class="item.icon" />
+        <span>{{ item.label }}</span>
+      </button>
+    </div>
+
     <div class="qr-container">
       <div v-if="qrStatus === 'loading'" class="qr-loading">
         <n-spin size="large" />
@@ -65,7 +85,7 @@ import QRCode from 'qrcode';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { createPlatformQr, pollPlatformQr } from '@/api/platformQrApi';
+import { createPlatformQr, pollPlatformQr, type QqLoginProvider } from '@/api/platformQrApi';
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
 
 type QrStatus = 'loading' | 'active' | 'expired' | 'scanned' | 'confirmed' | 'error';
@@ -91,6 +111,12 @@ const errorText = ref('');
 const consecutivePollFailures = ref(0);
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
 let pollingStopped = false;
+let requestVersion = 0;
+const provider = ref<QqLoginProvider>('qq');
+const qqProviders: Array<{ key: QqLoginProvider; label: string; icon: string }> = [
+  { key: 'qq', label: 'QQ 扫码', icon: 'ri-qq-fill' },
+  { key: 'wechat', label: '微信扫码', icon: 'ri-wechat-fill' }
+];
 
 const statusText = computed(() => {
   switch (qrStatus.value) {
@@ -98,7 +124,9 @@ const statusText = computed(() => {
       return t('login.message.qrLoading');
     case 'active':
       return props.platform === 'qq'
-        ? '请使用 QQ APP 扫码登录'
+        ? provider.value === 'wechat'
+          ? '请使用微信扫码并确认登录'
+          : '请使用 QQ APP 扫码登录'
         : `请使用${props.platformName} APP扫码登录`;
     case 'expired':
       return t('login.message.qrExpired');
@@ -129,9 +157,14 @@ const schedulePoll = (delay = 3000) => {
 
 const pollOnce = async () => {
   if (pollingStopped || !qrKey.value) return;
+  const version = requestVersion;
+  const key = qrKey.value;
+  const activeProvider = provider.value;
 
   try {
-    const result = await pollPlatformQr(props.platform, qrKey.value);
+    const result = await pollPlatformQr(props.platform, key, activeProvider);
+    if (version !== requestVersion || key !== qrKey.value || activeProvider !== provider.value)
+      return;
     consecutivePollFailures.value = 0;
     switch (result.code) {
       case 'waiting':
@@ -189,6 +222,8 @@ const normalizeQrUrl = async (sourceUrl: string) => {
 };
 
 const loadQr = async () => {
+  const version = ++requestVersion;
+  const activeProvider = provider.value;
   isRefreshing.value = true;
   qrStatus.value = 'loading';
   qrUrl.value = '';
@@ -199,7 +234,8 @@ const loadQr = async () => {
   clearPollTimer();
 
   try {
-    const result = await createPlatformQr(props.platform);
+    const result = await createPlatformQr(props.platform, activeProvider);
+    if (version !== requestVersion || activeProvider !== provider.value) return;
     if (result.error || !result.key || !result.qrUrl) {
       throw new Error(result.error || t('login.message.qrCheckFailed'));
     }
@@ -209,19 +245,27 @@ const loadQr = async () => {
     qrStatus.value = 'active';
     schedulePoll(1000);
   } catch (error: any) {
+    if (version !== requestVersion) return;
     const errorMessage = error?.message || t('login.message.qrCheckFailed');
     errorText.value = errorMessage;
     qrStatus.value = 'error';
     message.error(errorMessage);
     emit('loginError', errorMessage);
   } finally {
-    isRefreshing.value = false;
+    if (version === requestVersion) isRefreshing.value = false;
   }
+};
+
+const switchProvider = (nextProvider: QqLoginProvider) => {
+  if (provider.value === nextProvider) return;
+  provider.value = nextProvider;
+  void loadQr();
 };
 
 onMounted(loadQr);
 
 onUnmounted(() => {
+  requestVersion += 1;
   pollingStopped = true;
   clearPollTimer();
 });
@@ -249,6 +293,40 @@ onUnmounted(() => {
     font-size: 17px;
     font-weight: 700;
   }
+}
+
+.qq-provider-switch {
+  display: grid;
+  width: min(300px, 78vw);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 3px;
+  border: 1px solid var(--cover-border, rgba(128, 128, 128, 0.12));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cover-surface, #888) 48%, transparent);
+}
+
+.qq-provider-switch button {
+  display: inline-flex;
+  min-width: 0;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cover-text-muted, var(--d-text-muted));
+  font-size: 12px;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.qq-provider-switch button.active {
+  background: var(--cover-surface, rgba(128, 128, 128, 0.14));
+  color: var(--cover-text-primary, var(--d-text-primary));
 }
 
 .qr-container {

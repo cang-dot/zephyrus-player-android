@@ -12,6 +12,7 @@
           <shared-song-card ref="sharedSongCardRef"></shared-song-card>
           <mobile-update-modal v-if="!isElectron" />
           <onboarding-overlay v-if="!isElectron" ref="onboardingRef" />
+          <splash-screen v-if="startupSplashVisible" @finish="startupSplashVisible = false" />
         </n-message-provider>
       </n-dialog-provider>
     </n-config-provider>
@@ -28,6 +29,7 @@ import { useRouter } from 'vue-router';
 import DisclaimerModal from '@/components/common/DisclaimerModal.vue';
 import MobileUpdateModal from '@/components/common/MobileUpdateModal.vue';
 import SharedSongCard from '@/components/common/SharedSongCard.vue';
+import SplashScreen from '@/components/splash/SplashScreen.vue';
 import TrafficWarningDrawer from '@/components/TrafficWarningDrawer.vue';
 import { setSmartAudioInstance, useSmartAudio } from '@/composables/useSmartAudio';
 import { registerBuiltinFeatures } from '@/features/register';
@@ -60,6 +62,7 @@ const router = useRouter();
 const { primaryColor } = useCoverColor();
 const styleEngine = useStyleEngineStore();
 const onboardingRef = ref();
+const startupSplashVisible = ref(isAndroidNative() && !isLyricWindow.value);
 
 watch(
   () => accountStore.activeAccount,

@@ -22,11 +22,10 @@
 import { useWindowSize } from '@vueuse/core';
 import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue';
 
+import DefaultMobilePlayerV2 from '@/components/lyric/DefaultMobilePlayerV2.vue';
 import EerieMobilePlayer from '@/components/lyric/EerieMobilePlayer.vue';
 import FrenzyMobilePlayer from '@/components/lyric/FrenzyMobilePlayer.vue';
-import MagazineMobilePlayer from '@/components/lyric/MagazineMobilePlayer.vue';
 import MusicFull from '@/components/lyric/MusicFull.vue';
-import MusicFullMobile from '@/components/lyric/MusicFullMobile.vue';
 import NeonMobilePlayer from '@/components/lyric/NeonMobilePlayer.vue';
 import RainMobilePlayer from '@/components/lyric/RainMobilePlayer.vue';
 import SmokeMobilePlayer from '@/components/lyric/SmokeMobilePlayer.vue';
@@ -103,7 +102,6 @@ const isFullScreenStyle = computed(() => {
 
 // 移动端专用组件映射
 const mobileStyleComponents: Record<string, any> = {
-  magazine: markRaw(MagazineMobilePlayer),
   stage: markRaw(StageMobilePlayer),
   starChart: markRaw(StarChartPlayer),
   frenzy: markRaw(FrenzyMobilePlayer),
@@ -133,8 +131,8 @@ const componentToUse = computed(() => {
       return mobileStyleComponents[style.key];
     }
 
-    // 默认样式使用 MusicFullMobile
-    return markRaw(MusicFullMobile);
+    // 默认样式使用稳定网格布局的 V2 播放器，旧组件暂留作回退。
+    return markRaw(DefaultMobilePlayerV2);
   }
 
   // 桌面端：直接使用原始组件

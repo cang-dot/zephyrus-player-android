@@ -89,7 +89,11 @@
             >
               <span class="flex items-center justify-center gap-2">
                 <i
-                  :class="downloadState === 'ready' ? 'ri-check-double-line text-lg' : 'ri-download-2-line text-lg'"
+                  :class="
+                    downloadState === 'ready'
+                      ? 'ri-check-double-line text-lg'
+                      : 'ri-download-2-line text-lg'
+                  "
                 ></i>
                 {{
                   downloadState === 'downloading'

@@ -244,8 +244,7 @@ let hideTimer: ReturnType<typeof setTimeout> | null = null;
 const playerStyles = [
   { key: 'default' as const, icon: 'ri-music-2-line', label: '默认' },
   { key: 'classic' as const, icon: 'ri-disc-line', label: '经典' },
-  { key: 'stage' as const, icon: 'ri-live-line', label: '舞台' },
-  { key: 'magazine' as const, icon: 'ri-layout-masonry-line', label: '杂志' }
+  { key: 'stage' as const, icon: 'ri-live-line', label: '舞台' }
 ];
 
 const currentStyleIndex = computed(() => {

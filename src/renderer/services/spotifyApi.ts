@@ -5,9 +5,9 @@
  * 所有请求自动携带有效的 access_token（通过 spotifyAuth 模块获取）
  */
 
-import { getValidAccessToken } from './spotifyAuth';
-
 import type { Artist, SongResult } from '@/types/music';
+
+import { getValidAccessToken } from './spotifyAuth';
 
 const API_BASE = 'https://api.spotify.com/v1';
 

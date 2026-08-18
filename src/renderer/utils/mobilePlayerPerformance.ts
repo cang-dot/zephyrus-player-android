@@ -7,5 +7,5 @@ export function isMobilePlayerSurfaceMorphing(): boolean {
 }
 
 export function shouldSkipMobilePlayerFrame(lastFrameAt: number, now = performance.now()): boolean {
-  return isMobilePlayerSurfaceMorphing() && now - lastFrameAt < 33;
+  return isMobilePlayerSurfaceMorphing() && now - lastFrameAt < 50;
 }

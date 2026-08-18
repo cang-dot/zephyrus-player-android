@@ -78,8 +78,8 @@ import { onBeforeUnmount, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
-import { useSpotifyStore } from '@/store/modules/spotify';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
+import { useSpotifyStore } from '@/store/modules/spotify';
 
 const { t } = useI18n();
 const emit = defineEmits<{

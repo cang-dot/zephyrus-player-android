@@ -35,14 +35,6 @@ export function registerBuiltinFeatures() {
   });
 
   registerFeature({
-    id: 'magazine-style',
-    name: '杂志样式',
-    description: '杂志排版风格的歌词展示',
-    icon: 'ri-article-line',
-    type: 'playerStyle'
-  });
-
-  registerFeature({
     id: 'frenzy-style',
     name: '狂躁样式',
     description: '全屏动态效果的歌词展示',

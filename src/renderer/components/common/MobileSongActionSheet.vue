@@ -1,15 +1,27 @@
 <template>
-  <Teleport to="body">
-    <transition name="sheet-up">
+  <Teleport to="body" :disabled="embedded">
+    <transition name="sheet-up" :css="!embedded">
       <div
         v-if="show"
         class="mobile-sheet-overlay"
-        :class="`origin-${origin}`"
+        :class="[`origin-${origin}`, { embedded }]"
         @click="$emit('update:show', false)"
       >
-        <div class="mobile-action-sheet" :style="sheetStyle" @click.stop>
-          <div class="sheet-handle" />
-          <div class="sheet-song-preview">
+        <div class="mobile-action-sheet" :style="panelStyle" @click.stop>
+          <div
+            class="sheet-handle"
+            @pointerdown="onSheetPointerDown"
+            @pointermove="onSheetPointerMove"
+            @pointerup="onSheetPointerUp"
+            @pointercancel="onSheetPointerCancel"
+          />
+          <div
+            class="sheet-song-preview"
+            @pointerdown="onSheetPointerDown"
+            @pointermove="onSheetPointerMove"
+            @pointerup="onSheetPointerUp"
+            @pointercancel="onSheetPointerCancel"
+          >
             <n-image
               :src="getImgUrl(coverUrl, '200y200')"
               class="sheet-song-cover"
@@ -22,6 +34,13 @@
                 {{ artistNames || '未知艺术家' }}
               </div>
             </div>
+          </div>
+
+          <div v-if="audioParamSegments.length" class="sheet-audio-params">
+            <span v-for="segment in audioParamSegments" :key="segment">{{ segment }}</span>
+            <button type="button" class="sheet-audio-edit" @click.stop="metadataEditorShow = true">
+              <i class="ri-edit-line" />{{ t('songItem.metadataEditor.edit') }}
+            </button>
           </div>
 
           <div class="sheet-actions">
@@ -84,13 +103,10 @@
               <span>{{ t('songItem.menu.removeFromPlaylist') }}</span>
             </button>
           </div>
-
-          <button class="sheet-cancel-btn" @click="$emit('update:show', false)">
-            {{ t('common.cancel') }}
-          </button>
         </div>
       </div>
     </transition>
+    <song-metadata-editor v-model:show="metadataEditorShow" :song="item" />
   </Teleport>
 </template>
 
@@ -105,15 +121,22 @@ import type {
   MobileSongActionGeometry,
   MobileSongActionOrigin
 } from '@/composables/useMobileSongActionSurface';
+import { playMusic } from '@/hooks/MusicHook';
+import { isLocalSong } from '@/hooks/useLocalMusic';
+import { activeAudioFormat } from '@/services/nativeAudioPlayer';
+import { useLocalMusicStore } from '@/store/modules/localMusic';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
+import { formatAudioSegments } from '@/utils/audioFormat';
 
 import InlinePlaylistPicker from './InlinePlaylistPicker.vue';
+import SongMetadataEditor from './SongMetadataEditor.vue';
 
 const { t } = useI18n();
 const props = defineProps<{
   item: SongResult;
   show: boolean;
+  embedded?: boolean;
   isFavorite?: boolean;
   canRemove?: boolean;
   origin?: MobileSongActionOrigin;
@@ -152,8 +175,27 @@ const isServerItem = computed(() => isServerSongResult(props.item));
 const coverUrl = computed(
   () => props.item.picUrl || props.item.al?.picUrl || props.item.album?.picUrl || ''
 );
+// 本地歌曲展示音频参数：静态容器元数据 + 当前播放时的引擎实际解码格式。
+const localMusicStore = useLocalMusicStore();
+const audioParamSegments = computed(() => {
+  if (!isLocalSong(props.item)) return [] as string[];
+  const entry = localMusicStore.musicList.find((meta) => meta.id === String(props.item.id));
+  const runtime =
+    playMusic?.value && String(playMusic.value.id) === String(props.item.id)
+      ? activeAudioFormat.value
+      : null;
+  return formatAudioSegments({
+    mime: runtime?.sampleMimeType || entry?.mime,
+    sampleRate: runtime?.sampleRate || entry?.sampleRate,
+    channelCount: runtime?.channelCount,
+    bitrate: runtime?.bitrate || entry?.bitrate,
+    fileSize: entry?.fileSize
+  });
+});
 const playlistExpanded = ref(false);
+const metadataEditorShow = ref(false);
 const origin = computed(() => props.origin ?? 'mini-player');
+const embedded = computed(() => props.embedded === true);
 const sheetStyle = computed<CSSProperties>(() => {
   const style: Record<string, string> = {};
   if (props.sourceGeometry) {
@@ -174,10 +216,75 @@ const sheetStyle = computed<CSSProperties>(() => {
   return style as CSSProperties;
 });
 
+// 把手与预览区可拖拽下滑关闭：跟手位移，超过阈值或快速下滑即关闭，否则弹回。
+const sheetDragOffset = ref(0);
+const sheetDragging = ref(false);
+let sheetPointerId: number | null = null;
+let sheetPointerStartY = 0;
+let sheetPointerStartTime = 0;
+
+const panelStyle = computed<CSSProperties>(() => {
+  const style: CSSProperties = { ...sheetStyle.value };
+  if (sheetDragOffset.value > 0) {
+    style.transform = `translate3d(0, ${sheetDragOffset.value}px, 0)`;
+    style.transition = sheetDragging.value
+      ? 'none'
+      : 'transform 260ms cubic-bezier(0.32, 0.72, 0, 1)';
+  }
+  return style;
+});
+
+const releaseSheetPointer = (event: PointerEvent) => {
+  const target = event.currentTarget as HTMLElement;
+  if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+  sheetPointerId = null;
+};
+
+const onSheetPointerDown = (event: PointerEvent) => {
+  if (!event.isPrimary || sheetPointerId !== null) return;
+  sheetPointerId = event.pointerId;
+  sheetPointerStartY = event.clientY;
+  sheetPointerStartTime = performance.now();
+  sheetDragging.value = true;
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+};
+
+const onSheetPointerMove = (event: PointerEvent) => {
+  if (sheetPointerId !== event.pointerId) return;
+  event.preventDefault();
+  const delta = event.clientY - sheetPointerStartY;
+  sheetDragOffset.value = delta > 0 ? delta : delta * 0.16;
+};
+
+const onSheetPointerUp = (event: PointerEvent) => {
+  if (sheetPointerId !== event.pointerId) return;
+  const elapsed = Math.max(1, performance.now() - sheetPointerStartTime);
+  const velocity = sheetDragOffset.value / elapsed;
+  releaseSheetPointer(event);
+  sheetDragging.value = false;
+  if (sheetDragOffset.value > 72 || velocity > 0.55) {
+    emit('update:show', false);
+    return;
+  }
+  sheetDragOffset.value = 0;
+};
+
+const onSheetPointerCancel = (event: PointerEvent) => {
+  if (sheetPointerId !== event.pointerId) return;
+  releaseSheetPointer(event);
+  sheetDragging.value = false;
+  sheetDragOffset.value = 0;
+};
+
 watch(
   () => props.show,
   (show) => {
-    if (!show) playlistExpanded.value = false;
+    if (show) {
+      sheetDragOffset.value = 0;
+      sheetDragging.value = false;
+    } else {
+      playlistExpanded.value = false;
+    }
   }
 );
 
@@ -221,58 +328,78 @@ const handleAction = (action: string) => {
   justify-content: center;
 }
 
+/* In the playing-list variant the sheet borrows the very same glass surface:
+ * it fills the playlist panel and swaps in the song action elements instead
+ * of spawning its own container. Dismissal is handled by the page-level mask
+ * outside the dock and by the action rows themselves. */
+.mobile-sheet-overlay.embedded {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  align-items: stretch;
+  justify-content: stretch;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  pointer-events: auto;
+
+  .mobile-action-sheet {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .sheet-actions {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+
 .mobile-action-sheet {
   width: 100%;
-  max-width: 500px;
-  max-height: min(82dvh, 680px);
+  max-height: min(70dvh, 600px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--cover-border, rgba(128, 128, 128, 0.12));
   border-bottom: 0;
   border-radius: 24px 24px 0 0;
-  padding: 8px 0 max(8px, var(--safe-area-inset-bottom, 0px));
+  padding: 6px 0 max(6px, var(--safe-area-inset-bottom, 0px));
   background: var(--m-surface-raised, var(--d-surface, #fff));
   box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.18);
 }
 
-.mobile-sheet-overlay.origin-playing-list {
-  align-items: flex-start;
-
-  .mobile-action-sheet {
-    position: fixed;
-    top: var(--action-final-top);
-    left: var(--action-final-left);
-    width: var(--action-final-width);
-    height: var(--action-final-height);
-    max-width: none;
-    max-height: none;
-    border-bottom: 1px solid var(--cover-border, rgba(128, 128, 128, 0.12));
-    border-radius: var(--action-final-radius);
-  }
-}
-
 .sheet-handle {
-  width: 38px;
+  width: 32px;
   height: 4px;
   flex-shrink: 0;
-  margin: 0 auto 6px;
+  margin: 0 auto 4px;
   border-radius: 9999px;
   background: var(--d-border, rgba(128, 128, 128, 0.24));
+  touch-action: none;
+  cursor: grab;
 }
 
 .sheet-song-preview {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 20px 16px;
+  gap: 10px;
+  padding: 6px 16px 12px;
   border-bottom: 1px solid var(--d-border, rgba(0, 0, 0, 0.06));
+  touch-action: none;
+  cursor: grab;
 }
 
 .sheet-song-cover {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
   overflow: hidden;
   flex-shrink: 0;
 
@@ -289,7 +416,7 @@ const handleAction = (action: string) => {
 }
 
 .sheet-song-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--d-text-primary, #1a1a1a);
   overflow: hidden;
@@ -298,7 +425,7 @@ const handleAction = (action: string) => {
 }
 
 .sheet-song-artist {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--d-text-secondary, #999);
   margin-top: 2px;
   overflow: hidden;
@@ -306,8 +433,47 @@ const handleAction = (action: string) => {
   white-space: nowrap;
 }
 
+.sheet-audio-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 8px;
+  padding: 0 16px 10px;
+
+  span {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--d-surface-hover, rgba(128, 128, 128, 0.12));
+    color: var(--d-text-secondary, #999);
+    font-size: 10px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sheet-audio-edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    border: 1px solid color-mix(in srgb, var(--accent-color) 32%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent-color) 12%, transparent);
+    color: var(--accent-color);
+    font-size: 10px;
+    font-weight: 500;
+
+    i {
+      font-size: 11px;
+    }
+
+    &:active {
+      transform: scale(0.96);
+    }
+  }
+}
+
 .sheet-actions {
-  padding: 8px 0;
+  padding: 6px 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -315,15 +481,15 @@ const handleAction = (action: string) => {
 .sheet-action-btn {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   width: 100%;
-  padding: 14px 20px;
+  padding: 11px 16px;
   border: none;
   background: transparent;
-  font-size: 15px;
+  font-size: 14px;
   color: var(--d-text-primary, #1a1a1a);
   cursor: pointer;
-  min-height: 50px;
+  min-height: 44px;
   transition:
     background-color 150ms ease,
     transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
@@ -338,8 +504,8 @@ const handleAction = (action: string) => {
   }
 
   i {
-    font-size: 22px;
-    width: 24px;
+    font-size: 20px;
+    width: 22px;
     text-align: center;
     color: var(--d-text-secondary, #666);
   }
@@ -367,13 +533,13 @@ const handleAction = (action: string) => {
 
   small {
     color: var(--d-text-muted, #999);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
   }
 
   strong {
     overflow: hidden;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -381,41 +547,27 @@ const handleAction = (action: string) => {
 }
 
 .sheet-action-btn .sheet-action-arrow {
-  width: 18px;
+  width: 16px;
   color: var(--d-text-muted, #999);
-  font-size: 18px;
-}
-
-.sheet-cancel-btn {
-  display: block;
-  width: calc(100% - 32px);
-  margin: 8px 16px;
-  padding: 14px;
-  border: none;
-  border-radius: 12px;
-  background: var(--d-surface-hover, rgba(0, 0, 0, 0.04));
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--d-text-secondary, #666);
-  cursor: pointer;
-  transition:
-    background-color 150ms ease,
-    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-
-  &:active {
-    background: var(--d-border, rgba(0, 0, 0, 0.08));
-    transform: scale(0.98);
-  }
+  font-size: 16px;
 }
 
 /* Transition */
-.sheet-up-enter-active,
+.sheet-up-enter-active {
+  /* 300ms matches the panel keyframe so Vue waits for the rebound to finish */
+  transition: opacity 300ms ease;
+}
+
 .sheet-up-leave-active {
   transition: opacity 180ms ease;
+}
 
-  .mobile-action-sheet {
-    transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
-  }
+.sheet-up-enter-active .mobile-action-sheet {
+  animation: sheet-up-in 300ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.sheet-up-leave-active .mobile-action-sheet {
+  transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .sheet-up-enter-from,
@@ -423,15 +575,25 @@ const handleAction = (action: string) => {
   opacity: 0;
 
   .mobile-action-sheet {
-    transform: translateY(100%) scale(0.96);
+    transform: translateY(100%) scale(0.9);
   }
 }
 
-.origin-playing-list.sheet-up-enter-from,
-.origin-playing-list.sheet-up-leave-to {
-  .mobile-action-sheet {
-    transform: scale(0.965);
-    transform-origin: right bottom;
+.origin-playing-list .mobile-action-sheet {
+  transform-origin: right bottom;
+}
+
+@keyframes sheet-up-in {
+  from {
+    transform: translateY(100%) scale(0.9);
+  }
+
+  72% {
+    transform: translateY(0) scale(1.02);
+  }
+
+  to {
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -440,13 +602,15 @@ const handleAction = (action: string) => {
   .sheet-up-leave-active,
   .sheet-up-enter-active .mobile-action-sheet,
   .sheet-up-leave-active .mobile-action-sheet,
-  .sheet-action-btn,
-  .sheet-cancel-btn {
+  .sheet-action-btn {
     transition-duration: 0ms;
   }
 
-  .sheet-action-btn:active,
-  .sheet-cancel-btn:active {
+  .sheet-up-enter-active .mobile-action-sheet {
+    animation-duration: 0ms;
+  }
+
+  .sheet-action-btn:active {
     transform: none;
   }
 }

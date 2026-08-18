@@ -20,9 +20,11 @@ import { setPlatformCookie } from '../multiPlatformSearch';
 // ==================== 类型定义 ====================
 
 export type LoginPlatform = 'qq' | 'kugou';
+export type QqLoginProvider = 'qq' | 'wechat';
 
 export interface QrCreateResult {
   platform: LoginPlatform;
+  provider?: QqLoginProvider | 'kugou';
   qrUrl: string;
   key: string;
   expiredAt: number;
@@ -30,6 +32,7 @@ export interface QrCreateResult {
 
 export interface QrPollResult {
   platform: LoginPlatform;
+  provider?: QqLoginProvider | 'kugou';
   /** 状态码 */
   code: QrStatus;
   /** 状态描述 */
@@ -170,6 +173,7 @@ async function createQQQrCode(): Promise<QrCreateResult> {
 
   return {
     platform: 'qq',
+    provider: 'qq',
     qrUrl: base64,
     key: qrsig,
     expiredAt: Date.now() + 2 * 60 * 1000 // 2 分钟过期
@@ -949,9 +953,10 @@ async function pollKugouQrStatus(key: string): Promise<QrPollResult> {
  */
 export function initializePlatformLogin(): void {
   // 创建二维码
-  ipcMain.handle('platform-qr-create', async (_event, platform: LoginPlatform) => {
+  ipcMain.handle('platform-qr-create', async (_event, platform: LoginPlatform, provider: QqLoginProvider = 'qq') => {
     try {
       if (platform === 'qq') {
+        if (provider !== 'qq') return { error: '微信扫码登录请使用统一登录网关' };
         return await createQQQrCode();
       }
       if (platform === 'kugou') {
@@ -965,9 +970,12 @@ export function initializePlatformLogin(): void {
   });
 
   // 轮询扫码状态
-  ipcMain.handle('platform-qr-poll', async (_event, platform: LoginPlatform, key: string) => {
+  ipcMain.handle('platform-qr-poll', async (_event, platform: LoginPlatform, key: string, provider: QqLoginProvider = 'qq') => {
     try {
       if (platform === 'qq') {
+        if (provider !== 'qq') {
+          return { platform, provider, code: QrStatus.Error, message: '微信扫码登录请使用统一登录网关' };
+        }
         return await pollQQQrStatus(key);
       }
       if (platform === 'kugou') {

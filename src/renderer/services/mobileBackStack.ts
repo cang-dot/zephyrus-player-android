@@ -14,6 +14,7 @@ type RegisteredLayer = MobileBackLayer & { order: number };
 export class MobileBackStack {
   private readonly layers = new Map<string, RegisteredLayer>();
   private order = 0;
+  private gestureLayer: RegisteredLayer | undefined;
 
   register(layer: MobileBackLayer) {
     const registered: RegisteredLayer = { ...layer, order: ++this.order };
@@ -30,9 +31,16 @@ export class MobileBackStack {
   }
 
   handleBack() {
+    const gestureLayer = this.gestureLayer;
+    this.gestureLayer = undefined;
     const candidates = [...this.layers.values()]
       .filter((layer) => layer.isActive())
       .sort((a, b) => b.priority - a.priority || b.order - a.order);
+    if (gestureLayer?.isActive()) {
+      const index = candidates.indexOf(gestureLayer);
+      if (index >= 0) candidates.splice(index, 1);
+      candidates.unshift(gestureLayer);
+    }
 
     for (const layer of candidates) {
       const result = layer.onBack();
@@ -41,12 +49,19 @@ export class MobileBackStack {
     return false;
   }
 
+  startProgress() {
+    this.gestureLayer = this.top();
+    this.gestureLayer?.onProgress?.(0);
+  }
+
   updateProgress(progress: number) {
-    this.top()?.onProgress?.(Math.max(0, Math.min(1, progress)));
+    if (!this.gestureLayer) this.gestureLayer = this.top();
+    this.gestureLayer?.onProgress?.(Math.max(0, Math.min(1, progress)));
   }
 
   cancelProgress() {
-    this.top()?.onCancel?.();
+    (this.gestureLayer ?? this.top())?.onCancel?.();
+    this.gestureLayer = undefined;
   }
 
   activeLayerId() {
@@ -63,6 +78,7 @@ export const handleMobileBack = () => mobileBackStack.handleBack();
 declare global {
   interface Window {
     __handleAndroidBack?: () => boolean;
+    __handleAndroidBackStart?: () => void;
     __handleAndroidBackProgress?: (progress: number) => void;
     __handleAndroidBackCancel?: () => void;
     __activeAndroidBackLayer?: () => string;
@@ -75,6 +91,7 @@ export function installMobileBackBridge() {
   if (bridgeInstalled || typeof window === 'undefined') return;
   bridgeInstalled = true;
   window.__handleAndroidBack = () => mobileBackStack.handleBack();
+  window.__handleAndroidBackStart = () => mobileBackStack.startProgress();
   window.__handleAndroidBackProgress = (progress) => mobileBackStack.updateProgress(progress);
   window.__handleAndroidBackCancel = () => mobileBackStack.cancelProgress();
   window.__activeAndroidBackLayer = () => mobileBackStack.activeLayerId();

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zephyrus 逐句配音工作台</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <strong>Zephyrus</strong>
+          <span>逐句配音工作台</span>
+        </div>
+      </div>
+      <div class="progress-copy"><span id="confirmed-count">0</span>/<span id="total-count">0</span> 句已确认</div>
+    </header>
+
+    <main class="workspace">
+      <aside class="control-rail">
+        <section class="rail-section">
+          <p class="section-kicker">连接</p>
+          <label for="api-key">MiMo API Key</label>
+          <div class="secret-field">
+            <input id="api-key" type="password" autocomplete="off" placeholder="仅保存在当前标签页" />
+            <button id="toggle-key" class="icon-button" type="button" title="显示或隐藏 API Key" aria-label="显示或隐藏 API Key">◉</button>
+          </div>
+          <p class="field-note">密钥通过本机服务转发，不写入项目文件。</p>
+        </section>
+
+        <section class="rail-section">
+          <p class="section-kicker">语气</p>
+          <label for="style-prompt">全局语气指令</label>
+          <textarea id="style-prompt" rows="6"></textarea>
+          <p class="field-note">修改后只影响下一次生成，不会改变已有音频。</p>
+        </section>
+
+        <section class="rail-section summary-section">
+          <p class="section-kicker">完成</p>
+          <div class="meter" aria-hidden="true"><span id="meter-fill"></span></div>
+          <p id="completion-hint" class="completion-hint">请逐句生成并确认。</p>
+          <button id="complete-button" class="primary-button" type="button" disabled>完成并合成</button>
+          <div id="final-output" class="final-output" hidden>
+            <audio id="final-audio" controls></audio>
+            <a id="download-output" class="download-link" download>下载完整 WAV</a>
+          </div>
+        </section>
+      </aside>
+
+      <section class="editor-pane">
+        <div class="editor-header">
+          <div>
+            <p class="section-kicker">文案</p>
+            <h1>逐句生成，满意后确认</h1>
+          </div>
+          <div class="legend"><span class="dot ready"></span>已生成 <span class="dot accepted"></span>已确认</div>
+        </div>
+        <div id="global-message" class="global-message" hidden></div>
+        <div id="sentence-list" class="sentence-list" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <template id="sentence-template">
+      <article class="sentence-row">
+        <div class="sentence-index"></div>
+        <div class="sentence-content">
+          <textarea class="sentence-text" rows="2"></textarea>
+          <input class="line-style" type="text" placeholder="本句语气（可选），例如：更兴奋，英文名放慢读" />
+          <div class="sentence-meta">
+            <label>句后停顿 <input class="gap-input" type="number" min="0" max="3000" step="50" /> ms</label>
+            <label>版本 <select class="version-select"></select></label>
+            <span class="row-status">未生成</span>
+          </div>
+          <audio class="line-audio" preload="none"></audio>
+        </div>
+        <div class="sentence-actions">
+          <button class="play-button icon-button" type="button" title="试听" aria-label="试听" disabled>▶</button>
+          <button class="generate-button secondary-button" type="button">生成</button>
+          <button class="accept-button confirm-button" type="button" disabled>确认</button>
+        </div>
+      </article>
+    </template>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -2,7 +2,6 @@ export const MOBILE_PLAYER_STYLE_KEYS = [
   'default',
   'stage',
   'starChart',
-  'magazine',
   'frenzy',
   'eerie',
   'neon',
@@ -39,6 +38,10 @@ export interface PlayerStyleCustomConfig {
   imageBlur: number;
   imageBrightness: number;
   lyricColor: string;
+  frenzyNormalMainColor: string;
+  frenzyNormalAuxiliaryColor: string;
+  frenzyClimaxMainColor: string;
+  frenzyClimaxAuxiliaryColor: string;
   builtinFontId?: string;
   customFontFamily?: string;
   customFontName?: string;
@@ -67,7 +70,6 @@ export interface PlayerStyleCustomConfig {
   staggeredRowGap?: number;
   staggeredOffset?: number;
   staggeredRotation?: number;
-  flipSpeed?: number;
   smokeDensity?: number;
   smokeChaos?: number;
   smokeLoudnessResponse?: number;

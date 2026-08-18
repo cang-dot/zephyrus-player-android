@@ -17,7 +17,6 @@
           {{ st('landscape') }}
         </button>
       </div>
-      <button class="glass-button" @click="showActualPreview">{{ st('actualPreview') }}</button>
     </div>
 
     <div class="position-grid">
@@ -217,19 +216,18 @@
 
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core';
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import type { Ref } from 'vue';
+import { computed, inject, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import {
-  applyStatusBarLyricConfig,
-  finishStatusBarLyricPreview,
+  applyStatusBarLyricLiveConfig,
   hasStatusBarLyricPermission,
   installStatusBarLyricFont,
-  previewStatusBarLyric,
   readStatusBarLyricConfig,
   requestStatusBarLyricPermission,
   saveStatusBarLyricConfig,
-  updateStatusBarLyricPreview
+  setStatusBarLyricInAppVisible
 } from '@/services/androidNative';
 import {
   normalizeStatusBarLyricConfig,
@@ -255,6 +253,11 @@ const surfaceParts: Array<{ key: 'fill' | 'border'; label: string }> = [
   { key: 'border', label: st('surfaceBorder') }
 ];
 
+// 设置项展开期间，状态栏歌词悬浮窗持续显示在应用上层（真实歌词，非假数据）；
+// 收起或离开页面时恢复常规行为（应用前台时隐藏悬浮窗）。
+const settingExpanded = inject<Ref<boolean>>('settingItemExpanded', ref(true));
+watch(settingExpanded, (expanded) => setStatusBarLyricInAppVisible(expanded), { immediate: true });
+
 const fontSelection = computed({
   get: () =>
     config.font.source === 'system' ? 'system' : `${config.font.source}:${config.font.id || ''}`,
@@ -266,25 +269,15 @@ const fontSelection = computed({
 });
 
 const currentPosition = computed(() => config.positions[orientation.value]);
-const previewActive = ref(false);
-let previewActivityTimer: number | null = null;
+const previewActive = computed(() => settingExpanded.value);
 let livePreviewFrame: number | null = null;
 let livePreviewFinishFrame: number | null = null;
 const formatPositionPercent = (value: number) => (value * 100).toFixed(1).replace(/\.0$/, '');
-const keepPreviewActive = () => {
-  previewActive.value = true;
-  if (previewActivityTimer !== null) window.clearTimeout(previewActivityTimer);
-  previewActivityTimer = window.setTimeout(() => {
-    previewActive.value = false;
-    previewActivityTimer = null;
-  }, 5000);
-};
 const updateLivePreview = () => {
-  keepPreviewActive();
   if (livePreviewFrame !== null) return;
   livePreviewFrame = window.requestAnimationFrame(() => {
     livePreviewFrame = null;
-    updateStatusBarLyricPreview(normalizeStatusBarLyricConfig(config));
+    applyStatusBarLyricLiveConfig(normalizeStatusBarLyricConfig(config));
   });
 };
 const finishLivePreview = () => {
@@ -294,19 +287,13 @@ const finishLivePreview = () => {
     if (livePreviewFrame !== null) {
       window.cancelAnimationFrame(livePreviewFrame);
       livePreviewFrame = null;
-      updateStatusBarLyricPreview(normalizeStatusBarLyricConfig(config));
+      applyStatusBarLyricLiveConfig(normalizeStatusBarLyricConfig(config));
     }
     const saved = saveStatusBarLyricConfig(normalizeStatusBarLyricConfig(config), {
       applyNative: false,
       notify: false
     });
-    previewActive.value = false;
-    if (previewActivityTimer !== null) {
-      window.clearTimeout(previewActivityTimer);
-      previewActivityTimer = null;
-    }
     emit('update:enabled', saved.enabled);
-    finishStatusBarLyricPreview();
   });
 };
 const setPosition = (axis: 'x' | 'y', event: Event) => {
@@ -333,7 +320,7 @@ const persist = useDebounceFn(() => {
     applyNative: !previewActive.value,
     notify: !previewActive.value
   });
-  if (previewActive.value) applyStatusBarLyricConfig({ ...normalized, enabled: true });
+  if (previewActive.value) applyStatusBarLyricLiveConfig(normalized);
   emit('update:enabled', saved.enabled);
 }, 120);
 watch(config, persist, { deep: true });
@@ -363,14 +350,6 @@ const setSurfaceEnabled = (key: 'fill' | 'border', enabled: boolean) => {
   else config.colors.surface.borderEnabled = enabled;
 };
 
-const showActualPreview = () => {
-  if (!previewStatusBarLyric(normalizeStatusBarLyricConfig(config))) {
-    window.$message?.info(st('previewPermission'));
-    return;
-  }
-  keepPreviewActive();
-};
-
 const importFont = async (event: Event) => {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -388,14 +367,13 @@ const importFont = async (event: Event) => {
 };
 
 onBeforeUnmount(() => {
-  if (previewActivityTimer !== null) window.clearTimeout(previewActivityTimer);
   if (livePreviewFrame !== null) window.cancelAnimationFrame(livePreviewFrame);
   if (livePreviewFinishFrame !== null) window.cancelAnimationFrame(livePreviewFinishFrame);
   saveStatusBarLyricConfig(normalizeStatusBarLyricConfig(config), {
     applyNative: false,
     notify: false
   });
-  finishStatusBarLyricPreview();
+  setStatusBarLyricInAppVisible(false);
 });
 </script>
 

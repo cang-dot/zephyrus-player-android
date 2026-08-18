@@ -14,13 +14,16 @@ import axios, { type AxiosError } from 'axios';
 
 import type { SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
+import { normalizePlatformQrProvider, normalizePlatformQrStatus } from '@/utils/platformQr';
 
 // ==================== 类型定义 ====================
 
 export type LoginPlatform = 'qq' | 'kugou';
+export type QqLoginProvider = 'qq' | 'wechat';
 
 export interface QrCreateResult {
   platform: LoginPlatform;
+  provider: QqLoginProvider | 'kugou';
   qrUrl: string;
   key: string;
   expiredAt: number;
@@ -29,6 +32,7 @@ export interface QrCreateResult {
 
 export interface QrPollResult {
   platform: LoginPlatform;
+  provider: QqLoginProvider | 'kugou';
   code: 'waiting' | 'scanned' | 'success' | 'expired' | 'error';
   message: string;
   cookie?: string;
@@ -93,10 +97,13 @@ function gatewayError(error: unknown, action: string): Error {
  * 通过服务器中转 API 创建二维码
  * 路由：GET /platform/{platform}/qr/create
  */
-async function createQrViaServer(platform: LoginPlatform): Promise<QrCreateResult> {
+async function createQrViaServer(
+  platform: LoginPlatform,
+  provider: QqLoginProvider = 'qq'
+): Promise<QrCreateResult> {
   try {
     const response = await gatewayRequest.get(`/platform/${platform}/qr/create`, {
-      params: { noCache: Date.now() }
+      params: { provider: platform === 'qq' ? provider : undefined, noCache: Date.now() }
     });
     const json = response.data;
     if (json.code !== 200 || !json.data) {
@@ -104,6 +111,7 @@ async function createQrViaServer(platform: LoginPlatform): Promise<QrCreateResul
     }
     return {
       platform,
+      provider: normalizePlatformQrProvider(platform, json.data.provider, provider),
       qrUrl: json.data.qrUrl,
       key: json.data.key,
       expiredAt: json.data.expiredAt
@@ -117,15 +125,20 @@ async function createQrViaServer(platform: LoginPlatform): Promise<QrCreateResul
  * 通过服务器中转 API 轮询扫码状态
  * 路由：GET /platform/{platform}/qr/poll?key=xxx
  */
-async function pollQrViaServer(platform: LoginPlatform, key: string): Promise<QrPollResult> {
+async function pollQrViaServer(
+  platform: LoginPlatform,
+  key: string,
+  provider: QqLoginProvider = 'qq'
+): Promise<QrPollResult> {
   try {
     const response = await gatewayRequest.get(`/platform/${platform}/qr/poll`, {
-      params: { key, noCache: Date.now() }
+      params: { key, provider: platform === 'qq' ? provider : undefined, noCache: Date.now() }
     });
     const json = response.data;
     if (json.code !== 200 || !json.data) {
       return {
         platform,
+        provider: normalizePlatformQrProvider(platform, json.data?.provider, provider),
         code: json.data?.status === 'expired' ? 'expired' : 'error',
         message: json.data?.message || json.msg || '轮询状态失败'
       };
@@ -133,7 +146,8 @@ async function pollQrViaServer(platform: LoginPlatform, key: string): Promise<Qr
     const data = json.data;
     return {
       platform,
-      code: data.status,
+      provider: normalizePlatformQrProvider(platform, data.provider, provider),
+      code: normalizePlatformQrStatus(data.status),
       message: data.message,
       cookie: data.cookie,
       userInfo: data.userInfo
@@ -150,13 +164,16 @@ async function pollQrViaServer(platform: LoginPlatform, key: string): Promise<Qr
  * - Electron: 走 IPC
  * - 移动端: 走服务器中转
  */
-export async function createPlatformQr(platform: LoginPlatform): Promise<QrCreateResult> {
+export async function createPlatformQr(
+  platform: LoginPlatform,
+  provider: QqLoginProvider = 'qq'
+): Promise<QrCreateResult> {
   // Electron 环境：走 IPC
-  if (isElectron && (window as any).api?.platformQrCreate) {
-    return (window as any).api.platformQrCreate(platform);
+  if (provider !== 'wechat' && isElectron && (window as any).api?.platformQrCreate) {
+    return (window as any).api.platformQrCreate(platform, provider);
   }
 
-  return createQrViaServer(platform);
+  return createQrViaServer(platform, provider);
 }
 
 /**
@@ -164,13 +181,17 @@ export async function createPlatformQr(platform: LoginPlatform): Promise<QrCreat
  * - Electron: 走 IPC
  * - 移动端: 走服务器中转
  */
-export async function pollPlatformQr(platform: LoginPlatform, key: string): Promise<QrPollResult> {
+export async function pollPlatformQr(
+  platform: LoginPlatform,
+  key: string,
+  provider: QqLoginProvider = 'qq'
+): Promise<QrPollResult> {
   // Electron 环境：走 IPC
-  if (isElectron && (window as any).api?.platformQrPoll) {
-    return (window as any).api.platformQrPoll(platform, key);
+  if (provider !== 'wechat' && isElectron && (window as any).api?.platformQrPoll) {
+    return (window as any).api.platformQrPoll(platform, key, provider);
   }
 
-  return pollQrViaServer(platform, key);
+  return pollQrViaServer(platform, key, provider);
 }
 
 /**

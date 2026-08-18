@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-import type { Artist, SongResult } from '@/types/music';
-import { isSpotifyLoggedIn } from '@/services/spotifyAuth';
 import { searchTracks as searchTracksDirect } from '@/services/spotifyApi';
+import { isSpotifyLoggedIn } from '@/services/spotifyAuth';
+import type { Artist, SongResult } from '@/types/music';
 
 const gatewayBaseURL = (import.meta.env.VITE_MUSIC_GATEWAY || 'https://mucang.xyz/zephyrus/api')
   .replace(/\/+$/, '')

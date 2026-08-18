@@ -1,0 +1,49 @@
+[
+  {"chapter":"开场","company":"1M CONTEXT","visual":"scale-question","text":"一百万 Token，大概是什么感觉？"},
+  {"chapter":"开场","company":"1M CONTEXT","visual":"books-stack","text":"把几本厚书，一次塞给模型。"},
+  {"chapter":"开场","company":"1M CONTEXT","visual":"door-first-step","text":"塞得进去，只是第一步。"},
+  {"chapter":"开场","company":"1M CONTEXT","visual":"three-problems","text":"模型还要记得住、找得准、算得动。"},
+
+  {"chapter":"Qwen","company":"阿里 / Qwen2.5-1M","visual":"qwen-material","text":"Qwen 先补训练材料。"},
+  {"chapter":"Qwen","company":"阿里 / Qwen2.5-1M","visual":"qwen-stitch","text":"它把短文章拼成长文章，让模型先练耐力。"},
+  {"chapter":"Qwen","company":"阿里 / Qwen2.5-1M","visual":"qwen-ruler","text":"训练时，窗口从十二万八，一步步拉到一百万。"},
+  {"chapter":"Qwen","company":"阿里 / Qwen2.5-1M","visual":"qwen-qa","text":"接着再练长文问答和长指令。"},
+  {"chapter":"Qwen","company":"阿里 / Qwen2.5-1M","visual":"qwen-chunks","text":"运行时，它只算重点，还把长文分块装入。"},
+  {"chapter":"Qwen","company":"阿里 / Qwen2.5-1M","visual":"qwen-speed","text":"所以一百万 Token 的装入速度，能快到三至七倍。"},
+
+  {"chapter":"MiniMax","company":"MiniMax / MiniMax-01","visual":"minimax-target","text":"MiniMax 先改最费钱的注意力。"},
+  {"chapter":"MiniMax","company":"MiniMax / MiniMax-01","visual":"minimax-quadratic","text":"普通方法读得越长，计算量涨得越凶。"},
+  {"chapter":"MiniMax","company":"MiniMax / MiniMax-01","visual":"minimax-linear","text":"Lightning Attention 把这条曲线压了下来。"},
+  {"chapter":"MiniMax","company":"MiniMax / MiniMax-01","visual":"minimax-workers","text":"再让多个专家、多台机器同时分工。"},
+  {"chapter":"MiniMax","company":"MiniMax / MiniMax-01","visual":"minimax-range","text":"它训练看一百万，推理还能试到四百万。"},
+
+  {"chapter":"Kimi","company":"月之暗面 / Kimi Linear","visual":"kimi-notes","text":"Kimi 的做法，像边读边记笔记。"},
+  {"chapter":"Kimi","company":"月之暗面 / Kimi Linear","visual":"kimi-summary","text":"大多数层只保存一份不断更新的摘要。"},
+  {"chapter":"Kimi","company":"月之暗面 / Kimi Linear","visual":"kimi-archive","text":"少数层保留原文，专门负责精确查找。"},
+  {"chapter":"Kimi","company":"月之暗面 / Kimi Linear","visual":"kimi-switch","text":"平时看摘要，需要时翻原文。"},
+  {"chapter":"Kimi","company":"月之暗面 / Kimi Linear","visual":"kimi-metrics","text":"这样显存最多省四分之三，生成最快提升六倍。"},
+
+  {"chapter":"DeepSeek","company":"DeepSeek / V4","visual":"deepseek-compress","text":"DeepSeek V4 先把长文压短。"},
+  {"chapter":"DeepSeek","company":"DeepSeek / V4","visual":"deepseek-four-one","text":"CSA 把每四个 Token 合成一组。"},
+  {"chapter":"DeepSeek","company":"DeepSeek / V4","visual":"deepseek-topk","text":"索引器只挑最相关的组，送去细看。"},
+  {"chapter":"DeepSeek","company":"DeepSeek / V4","visual":"deepseek-128","text":"HCA 压得更狠：一百二十八份，合成一份。"},
+  {"chapter":"DeepSeek","company":"DeepSeek / V4","visual":"deepseek-recent","text":"最近的原文单独保留，避免忘掉刚说过的话。"},
+
+  {"chapter":"MemAgent","company":"字节 Seed × 清华 / MemAgent","visual":"memagent-window","text":"MemAgent 没有硬撑大窗口。"},
+  {"chapter":"MemAgent","company":"字节 Seed × 清华 / MemAgent","visual":"memagent-paper","text":"它给模型一张固定大小的记事纸。"},
+  {"chapter":"MemAgent","company":"字节 Seed × 清华 / MemAgent","visual":"memagent-write","text":"长文分段读，重点不断写进记事纸。"},
+  {"chapter":"MemAgent","company":"字节 Seed × 清华 / MemAgent","visual":"memagent-erase","text":"空间不够，就擦掉旧内容，再写新的。"},
+  {"chapter":"MemAgent","company":"字节 Seed × 清华 / MemAgent","visual":"memagent-rl","text":"靠强化学习，它学会该留什么。"},
+  {"chapter":"MemAgent","company":"字节 Seed × 清华 / MemAgent","visual":"memagent-scale","text":"训练只用八千 Token，也能回答三百五十万 Token 的长文问题。"},
+
+  {"chapter":"LongWriter","company":"智谱 × 清华 / LongWriter","visual":"writer-question","text":"LongWriter 处理的是另一件事：怎么写得长。"},
+  {"chapter":"LongWriter","company":"智谱 × 清华 / LongWriter","visual":"writer-outline","text":"它先列章节，再一章一章写。"},
+  {"chapter":"LongWriter","company":"智谱 × 清华 / LongWriter","visual":"writer-training","text":"训练材料也换成长文章，最长三万二千词。"},
+  {"chapter":"LongWriter","company":"智谱 × 清华 / LongWriter","visual":"writer-counter","text":"最后，模型能写出一万词以上。"},
+
+  {"chapter":"总结","company":"六条路线","visual":"summary-problems","text":"这六条路线，解决的是同一组难题。"},
+  {"chapter":"总结","company":"六条路线","visual":"summary-qmk","text":"Qwen 补训练，MiniMax 和 Kimi 省计算。"},
+  {"chapter":"总结","company":"六条路线","visual":"summary-dm","text":"DeepSeek 压缩信息，MemAgent 边读边记。"},
+  {"chapter":"总结","company":"六条路线","visual":"summary-writer","text":"LongWriter 把长文真正写出来。"},
+  {"chapter":"总结","company":"六条路线","visual":"summary-system","text":"一百万上下文，要靠一整套工程一起工作。"}
+]

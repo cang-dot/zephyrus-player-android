@@ -3,6 +3,7 @@
   "version": "1.2.0",
   "description": "Zephyrus Player",
   "author": "Zephyrus <WEISTUDIOWEI@126.com>",
+  "license": "AGPL-3.0-only",
   "main": "./out/main/index.js",
   "homepage": "https://github.com/cang-dot/zephyrus-player",
   "scripts": {
@@ -38,6 +39,7 @@
     ]
   },
   "dependencies": {
+    "@applemusic-like-lyrics/vue": "^0.5.2",
     "@capacitor/android": "^8.4.2",
     "@capacitor/core": "^8.4.2",
     "@capacitor/filesystem": "^8.1.2",

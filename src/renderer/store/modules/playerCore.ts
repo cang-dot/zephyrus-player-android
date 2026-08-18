@@ -425,7 +425,12 @@ export const usePlayerCoreStore = defineStore(
         }
       } catch (error) {
         console.error('处理播放音乐失败:', error);
-        message.error(i18n.global.t('player.playFailed'));
+        // A newer tap/cut has already superseded this request. The old
+        // request is expected to fail silently; showing its error produces
+        // stacked toasts during rapid switching.
+        if (playbackRequestManager.getCurrentRequestId() === requestId) {
+          message.error(i18n.global.t('player.playFailed'));
+        }
         if (playMusic.value) {
           playMusic.value.playLoading = false;
         }

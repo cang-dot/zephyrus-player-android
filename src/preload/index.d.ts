@@ -100,8 +100,9 @@ interface API {
   onPlatformLoginCookie: (callback: (platform: string, cookie: string) => void) => void;
 
   /** 平台扫码登录 */
-  platformQrCreate: (platform: string) => Promise<{
+  platformQrCreate: (platform: string, provider?: 'qq' | 'wechat') => Promise<{
     platform: string;
+    provider: string;
     qrUrl: string;
     key: string;
     expiredAt: number;
@@ -109,9 +110,11 @@ interface API {
   }>;
   platformQrPoll: (
     platform: string,
-    key: string
+    key: string,
+    provider?: 'qq' | 'wechat'
   ) => Promise<{
     platform: string;
+    provider: string;
     code: 'waiting' | 'scanned' | 'success' | 'expired' | 'error';
     message: string;
     cookie?: string;

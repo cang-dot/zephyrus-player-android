@@ -8,16 +8,10 @@
         </div>
         <div class="spotify-info">
           <h3 class="spotify-title">Spotify</h3>
-          <p class="spotify-desc">
-            连接 Spotify 账号，搜索曲库、浏览歌单、播放音乐
-          </p>
+          <p class="spotify-desc">连接 Spotify 账号，搜索曲库、浏览歌单、播放音乐</p>
         </div>
       </div>
-      <button
-        class="spotify-login-btn"
-        :disabled="spotifyStore.authLoading"
-        @click="handleLogin"
-      >
+      <button class="spotify-login-btn" :disabled="spotifyStore.authLoading" @click="handleLogin">
         <span v-if="spotifyStore.authLoading" class="loading-spinner" />
         <i v-else class="ri-spotify-fill" />
         <span>{{ spotifyStore.authLoading ? '等待授权...' : '使用 Spotify 登录' }}</span>
@@ -85,7 +79,11 @@
             </div>
           </div>
         </div>
-        <button v-if="spotifyStore.playlists.length > 5" class="show-more-btn" @click="refreshPlaylists">
+        <button
+          v-if="spotifyStore.playlists.length > 5"
+          class="show-more-btn"
+          @click="refreshPlaylists"
+        >
           <i class="ri-refresh-line"></i>
           刷新歌单
         </button>
@@ -93,7 +91,11 @@
 
       <!-- 操作按钮 -->
       <div class="spotify-actions">
-        <button class="action-btn" @click="refreshPlaylists" :disabled="spotifyStore.loadingPlaylists">
+        <button
+          class="action-btn"
+          @click="refreshPlaylists"
+          :disabled="spotifyStore.loadingPlaylists"
+        >
           <i class="ri-refresh-line"></i>
           {{ spotifyStore.loadingPlaylists ? '加载中...' : '刷新歌单' }}
         </button>
@@ -107,11 +109,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
 import { useMessage } from 'naive-ui';
+import { onMounted } from 'vue';
 
-import { useSpotifyStore } from '@/store/modules/spotify';
 import type { SpotifyPlaylist } from '@/services/spotifyApi';
+import { useSpotifyStore } from '@/store/modules/spotify';
 
 import SettingSection from '../SettingSection.vue';
 

@@ -13,7 +13,14 @@
     @mousedown.stop="emitInteract"
   >
     <div class="player-info-row">
-      <div class="player-info-main">
+      <div
+        class="player-info-main"
+        :style="infoSwipeStyle"
+        @pointerdown="onInfoPointerDown"
+        @pointermove="onInfoPointerMove"
+        @pointerup="onInfoPointerUp"
+        @pointercancel="onInfoPointerCancel"
+      >
         <img class="player-info-cover" :src="coverUrl" alt="" />
         <div class="player-info-copy">
           <strong>{{ songTitle }}</strong>
@@ -112,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import { allTime, artistList, nowTime, pause, play, playMusic, sound } from '@/hooks/MusicHook';
@@ -197,6 +204,122 @@ function handleNext() {
   playerStore.nextPlay();
   emitInteract();
 }
+
+// —— 歌曲封面与信息横滑切歌：与迷你播放栏同款手势（轴判定/阻尼/投影速度阈值一致） ——
+const infoSwipeOffset = ref(0);
+const infoSwipeAnimating = ref(false);
+const infoSwipeSwitching = ref(false);
+let infoPointerId: number | null = null;
+let infoStartX = 0;
+let infoStartY = 0;
+let infoStartTime = 0;
+let infoAxis: 'none' | 'horizontal' | 'vertical' = 'none';
+let infoSwipeTimer: number | undefined;
+
+const getInfoSwipeLimit = () => Math.min(36, Math.max(28, window.innerWidth * 0.085));
+const infoSwipeProgress = computed(() =>
+  Math.min(Math.abs(infoSwipeOffset.value) / getInfoSwipeLimit(), 1)
+);
+const infoSwipeStyle = computed(() => ({
+  transform: `translate3d(${infoSwipeOffset.value}px, 0, 0) scale(${1 - infoSwipeProgress.value * 0.012})`,
+  opacity: String(1 - infoSwipeProgress.value * 0.12),
+  transition: infoSwipeAnimating.value
+    ? 'transform 280ms cubic-bezier(0.32, 0.72, 0, 1), opacity 200ms ease'
+    : 'none'
+}));
+
+const finishInfoSwipeAnimation = () => {
+  infoSwipeAnimating.value = true;
+  infoSwipeOffset.value = 0;
+  if (infoSwipeTimer) window.clearTimeout(infoSwipeTimer);
+  infoSwipeTimer = window.setTimeout(() => {
+    infoSwipeAnimating.value = false;
+    infoSwipeSwitching.value = false;
+    infoAxis = 'none';
+    infoSwipeTimer = undefined;
+  }, 280);
+};
+
+const switchTrackWithAnimation = (direction: 'left' | 'right') => {
+  infoSwipeSwitching.value = true;
+  infoSwipeAnimating.value = true;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (direction === 'left') handleNext();
+    else handlePrev();
+    finishInfoSwipeAnimation();
+    return;
+  }
+  const travel = Math.min(getInfoSwipeLimit() * 1.2, 44);
+  const exitOffset = direction === 'left' ? -travel : travel;
+  infoSwipeOffset.value = exitOffset;
+  if (infoSwipeTimer) window.clearTimeout(infoSwipeTimer);
+  infoSwipeTimer = window.setTimeout(() => {
+    if (direction === 'left') handleNext();
+    else handlePrev();
+    infoSwipeAnimating.value = false;
+    infoSwipeOffset.value = -exitOffset * 0.42;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => finishInfoSwipeAnimation());
+    });
+  }, 150);
+};
+
+const releaseInfoPointer = (event: PointerEvent) => {
+  const target = event.currentTarget as HTMLElement;
+  if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+  infoPointerId = null;
+};
+
+const onInfoPointerDown = (event: PointerEvent) => {
+  if (!event.isPrimary || infoPointerId !== null) return;
+  infoPointerId = event.pointerId;
+  infoStartX = event.clientX;
+  infoStartY = event.clientY;
+  infoStartTime = Date.now();
+  infoAxis = 'none';
+};
+
+const onInfoPointerMove = (event: PointerEvent) => {
+  if (infoPointerId !== event.pointerId || infoSwipeSwitching.value) return;
+  const deltaX = event.clientX - infoStartX;
+  const deltaY = event.clientY - infoStartY;
+  if (infoAxis === 'none' && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
+    infoAxis = Math.abs(deltaX) > Math.abs(deltaY) * 1.08 ? 'horizontal' : 'vertical';
+  }
+  if (infoAxis !== 'horizontal') return;
+  if (!(event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) {
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  }
+  event.preventDefault();
+  const maxDrag = getInfoSwipeLimit();
+  infoSwipeOffset.value = maxDrag * Math.tanh(deltaX / maxDrag);
+};
+
+const onInfoPointerUp = (event: PointerEvent) => {
+  if (infoPointerId !== event.pointerId) return;
+  const deltaX = event.clientX - infoStartX;
+  const elapsed = Math.max(1, Date.now() - infoStartTime);
+  const projectedX = deltaX + (deltaX / elapsed) * 110;
+  const swipeLimit = getInfoSwipeLimit();
+  const commitThreshold = Math.min(40, Math.max(32, swipeLimit));
+  const projectedThreshold = Math.min(58, Math.max(48, swipeLimit * 1.45));
+  const commit =
+    infoAxis === 'horizontal' &&
+    (Math.abs(deltaX) >= commitThreshold || Math.abs(projectedX) >= projectedThreshold);
+  releaseInfoPointer(event);
+  if (commit) switchTrackWithAnimation(deltaX < 0 ? 'left' : 'right');
+  else finishInfoSwipeAnimation();
+};
+
+const onInfoPointerCancel = (event: PointerEvent) => {
+  if (infoPointerId !== event.pointerId) return;
+  releaseInfoPointer(event);
+  finishInfoSwipeAnimation();
+};
+
+onBeforeUnmount(() => {
+  if (infoSwipeTimer) window.clearTimeout(infoSwipeTimer);
+});
 
 function handleTogglePlayMode() {
   togglePlayMode();
@@ -348,6 +471,9 @@ const handleThumbTouchEnd = () => {
   min-width: 0;
   align-items: center;
   gap: 10px;
+  /* 横滑切歌手势由指针事件接管，禁用浏览器横向默认行为 */
+  touch-action: pan-y;
+  will-change: transform;
 }
 
 .player-info-cover {
@@ -375,22 +501,16 @@ const handleThumbTouchEnd = () => {
 }
 
 .player-info-copy strong {
-  color: rgba(255, 255, 255, 0.96);
-  font-size: calc(14px + var(--player-open-progress, 0) * 2px);
+  color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.96);
+  font-size: 16px;
   font-weight: 700;
-  transition:
-    color 180ms ease,
-    font-size 180ms ease,
-    line-height 180ms ease;
+  transition: color 180ms ease;
 }
 
 .player-info-copy span {
-  color: rgba(255, 255, 255, 0.64);
-  font-size: calc(11px + var(--player-open-progress, 0) * 1px);
-  transition:
-    color 180ms ease,
-    font-size 180ms ease,
-    line-height 180ms ease;
+  color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.64);
+  font-size: 12px;
+  transition: color 180ms ease;
 }
 
 .player-info-actions {
@@ -408,7 +528,7 @@ const handleThumbTouchEnd = () => {
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.78);
   font-size: 20px;
   place-items: center;
 }
@@ -437,7 +557,7 @@ const handleThumbTouchEnd = () => {
 .apple-style-progress {
   position: relative;
   height: 4px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.15);
   border-radius: 2px;
   cursor: pointer;
 }
@@ -460,7 +580,7 @@ const handleThumbTouchEnd = () => {
 
   /* 上一首播放到尽头后：主体色渐变为轨道背景色，然后隐藏 */
   &.fading-out {
-    background: rgba(255, 255, 255, 0.15) !important;
+    background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.15) !important;
     box-shadow: none;
     transition:
       background 0.6s ease,

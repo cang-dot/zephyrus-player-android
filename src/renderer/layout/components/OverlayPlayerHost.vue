@@ -4,7 +4,7 @@
     - 不使用 n-drawer / Teleport to="#layout-main"，避免切换布局时 DOM 崩溃
     - 根据 playerStyle 动态切换播放器组件
     - default / classic 样式使用 MusicFullBackground（轻量，无 drawer）
-    - stage / magazine / frenzy 直接渲染（它们 teleport to="body" 或 position:fixed）
+    - stage / frenzy 直接渲染（它们 teleport to="body" 或 position:fixed）
   -->
   <component
     v-if="currentComponent"
@@ -22,8 +22,9 @@ import { computed, markRaw, onMounted, onUnmounted, ref } from 'vue';
 import MusicFullBackground from '@/components/lyric/MusicFullBackground.vue';
 import { getStyle } from '@/playerStyles';
 import { DEFAULT_LYRIC_CONFIG } from '@/types/lyric';
+import { isMobilePlayerStyleKey } from '@/types/playerStyle';
 
-const props = defineProps({
+defineProps({
   background: {
     type: String,
     default: '#000'
@@ -37,7 +38,16 @@ function loadConfig() {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      playerStyle.value = parsed.playerStyle || DEFAULT_LYRIC_CONFIG.playerStyle;
+      const savedStyle = parsed.playerStyle;
+      const normalized =
+        savedStyle === 'classic' || isMobilePlayerStyleKey(savedStyle)
+          ? savedStyle
+          : DEFAULT_LYRIC_CONFIG.playerStyle;
+      playerStyle.value = normalized;
+      if (savedStyle !== normalized) {
+        parsed.playerStyle = normalized;
+        localStorage.setItem('music-full-config', JSON.stringify(parsed));
+      }
     } catch {
       playerStyle.value = DEFAULT_LYRIC_CONFIG.playerStyle;
     }
@@ -63,7 +73,7 @@ const currentComponent = computed(() => {
   if (playerStyle.value === 'default' || playerStyle.value === 'classic') {
     return markRaw(MusicFullBackground);
   }
-  // 其他样式：直接渲染注册的组件（stage/magazine teleport to body，frenzy position:fixed）
+  // 其他样式：直接渲染注册的组件（stage teleport to body，frenzy position:fixed）
   const style = getStyle(playerStyle.value);
   if (style) {
     return markRaw(style.component);

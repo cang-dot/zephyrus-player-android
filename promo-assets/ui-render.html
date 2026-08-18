@@ -1,0 +1,1850 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zephyrus Player Promo UI</title>
+    <style>
+      :root {
+        --bg: #090b09;
+        --panel: rgba(23, 29, 24, 0.82);
+        --panel-strong: #171d18;
+        --ink: #f2f7f0;
+        --muted: rgba(242, 247, 240, 0.5);
+        --line: rgba(242, 247, 240, 0.14);
+        --acid: #b9f78b;
+        --coral: #ff785c;
+        --cyan: #7edbce;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+        letter-spacing: 0;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.22;
+        background-size: 72px 72px;
+        background-image:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px);
+        mask-image: linear-gradient(90deg, transparent, #000 28%, #000 82%, transparent);
+      }
+
+      .frame {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        min-width: 1280px;
+        min-height: 720px;
+        isolation: isolate;
+      }
+
+      .frame::after {
+        content: "";
+        position: absolute;
+        inset: 22px;
+        border: 1px solid rgba(242, 247, 240, 0.08);
+        pointer-events: none;
+      }
+
+      .brand {
+        position: absolute;
+        top: 58px;
+        left: 72px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        z-index: 10;
+        font-size: 17px;
+        font-weight: 760;
+      }
+
+      .mark {
+        position: relative;
+        width: 38px;
+        height: 25px;
+      }
+
+      .mark::before,
+      .mark::after {
+        content: "";
+        position: absolute;
+        left: 1px;
+        width: 35px;
+        height: 7px;
+        background: var(--ink);
+        transform: skewX(-34deg);
+      }
+
+      .mark::before {
+        top: 1px;
+      }
+
+      .mark::after {
+        bottom: 1px;
+      }
+
+      .scene-index {
+        position: absolute;
+        right: 72px;
+        top: 62px;
+        z-index: 10;
+        color: var(--muted);
+        font-family: Consolas, monospace;
+        font-size: 14px;
+      }
+
+      .eyebrow {
+        margin: 0 0 20px;
+        color: var(--acid);
+        font-family: Consolas, monospace;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+
+      .copy {
+        position: absolute;
+        left: 8.4vw;
+        top: 50%;
+        width: 35vw;
+        transform: translateY(-47%);
+        z-index: 3;
+      }
+
+      .copy h1,
+      .copy h2 {
+        max-width: 720px;
+        font-size: clamp(76px, 6.3vw, 124px);
+        line-height: 0.95;
+        font-weight: 820;
+      }
+
+      .scene-sources .copy h2,
+      .scene-status .copy h2,
+      .scene-local .copy h2 {
+        font-size: clamp(64px, 5vw, 96px);
+      }
+
+      .copy p:last-child {
+        max-width: 530px;
+        margin-top: 28px;
+        color: var(--muted);
+        font-size: 19px;
+        line-height: 1.7;
+      }
+
+      .ui-shell {
+        position: absolute;
+        right: 7vw;
+        top: 13vh;
+        width: 47vw;
+        height: 74vh;
+        min-width: 650px;
+        min-height: 520px;
+        overflow: hidden;
+        border: 1px solid rgba(242, 247, 240, 0.19);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.12),
+          0 48px 120px rgba(0, 0, 0, 0.48);
+        backdrop-filter: blur(24px) saturate(130%);
+      }
+
+      .ui-topbar {
+        height: 66px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .window-dots {
+        display: flex;
+        gap: 8px;
+      }
+
+      .window-dots i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: rgba(242, 247, 240, 0.26);
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font-family: Consolas, monospace;
+        font-size: 11px;
+      }
+
+      .tag.acid {
+        border-color: rgba(185, 247, 139, 0.35);
+        color: var(--acid);
+      }
+
+      .progress {
+        position: absolute;
+        left: 28px;
+        right: 28px;
+        bottom: 28px;
+        height: 3px;
+        background: rgba(242, 247, 240, 0.14);
+      }
+
+      .progress i {
+        display: block;
+        width: 43%;
+        height: 100%;
+        background: var(--acid);
+        box-shadow: 0 0 18px rgba(185, 247, 139, 0.5);
+      }
+
+      .hero-orbit {
+        position: absolute;
+        right: 6vw;
+        top: 15vh;
+        width: 48vw;
+        height: 72vh;
+        perspective: 1400px;
+      }
+
+      .hero-orbit::before,
+      .hero-orbit::after {
+        content: "";
+        position: absolute;
+        border: 1px solid rgba(126, 219, 206, 0.23);
+      }
+
+      .hero-orbit::before {
+        inset: 12% -4% -6% 18%;
+        transform: translateZ(-60px) rotate(4deg);
+      }
+
+      .hero-orbit::after {
+        inset: -5% 20% 17% -6%;
+        border-color: rgba(255, 120, 92, 0.18);
+        transform: translateZ(-120px) rotate(-3deg);
+      }
+
+      .hero-card {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        border: 1px solid rgba(242, 247, 240, 0.22);
+        border-radius: 8px;
+        background: rgba(23, 29, 24, 0.86);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.14),
+          0 70px 160px rgba(0, 0, 0, 0.58);
+        transform: rotateY(-12deg) rotateX(3deg);
+        transform-origin: center;
+        backdrop-filter: blur(26px);
+      }
+
+      .hero-card .visual-word {
+        position: absolute;
+        left: 56px;
+        bottom: 116px;
+        font-size: clamp(106px, 10vw, 190px);
+        font-weight: 900;
+        line-height: 0.8;
+      }
+
+      .hero-card .visual-word span {
+        color: var(--acid);
+      }
+
+      .hero-card .subline {
+        position: absolute;
+        left: 62px;
+        bottom: 82px;
+        color: var(--muted);
+        font-size: 17px;
+      }
+
+      .hero-card .side-rail {
+        position: absolute;
+        right: 30px;
+        top: 98px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .hero-card .side-rail i {
+        width: 5px;
+        height: 44px;
+        background: rgba(242, 247, 240, 0.12);
+      }
+
+      .hero-card .side-rail i.active {
+        background: var(--coral);
+      }
+
+      .lyric-layout {
+        display: grid;
+        grid-template-columns: 190px 1fr;
+        height: calc(100% - 66px);
+      }
+
+      .lyric-meta {
+        padding: 30px 24px;
+        border-right: 1px solid var(--line);
+      }
+
+      .lyric-meta strong {
+        display: block;
+        margin-bottom: 26px;
+        color: var(--cyan);
+        font-family: Consolas, monospace;
+        font-size: 20px;
+      }
+
+      .lyric-meta .tag {
+        margin: 0 6px 8px 0;
+      }
+
+      .lyric-stage {
+        position: relative;
+        overflow: hidden;
+        padding: 54px 54px 80px;
+      }
+
+      .lyric-stage .backing {
+        position: absolute;
+        top: 26px;
+        right: -30px;
+        color: rgba(126, 219, 206, 0.12);
+        font-size: 94px;
+        font-weight: 900;
+        white-space: nowrap;
+      }
+
+      .lyric-stage .main-line {
+        position: relative;
+        max-width: 620px;
+        margin-top: 62px;
+        font-size: clamp(76px, 6.8vw, 130px);
+        font-weight: 900;
+        line-height: 1.06;
+      }
+
+      .lyric-stage .main-line .sung {
+        color: var(--acid);
+      }
+
+      .lyric-stage .main-line .current {
+        color: var(--coral);
+      }
+
+      .lyric-stage .translation {
+        margin-top: 28px;
+        color: var(--muted);
+        font-size: 17px;
+      }
+
+      .search-body {
+        padding: 28px;
+      }
+
+      .search-bar {
+        height: 58px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        color: var(--muted);
+      }
+
+      .sources {
+        display: flex;
+        gap: 8px;
+        margin: 20px 0 16px;
+      }
+
+      .result-row {
+        display: grid;
+        grid-template-columns: 52px 1fr auto;
+        align-items: center;
+        gap: 18px;
+        min-height: 76px;
+        border-top: 1px solid var(--line);
+      }
+
+      .result-row:first-of-type {
+        border-top: 0;
+      }
+
+      .track-glyph {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--acid);
+        font-size: 19px;
+      }
+
+      .result-row strong,
+      .local-row strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 16px;
+      }
+
+      .result-row small,
+      .local-row small {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .source-badge {
+        min-width: 72px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: rgba(185, 247, 139, 0.1);
+        color: var(--acid);
+        text-align: center;
+        font-size: 11px;
+      }
+
+      .styles-shell {
+        position: absolute;
+        left: 7vw;
+        right: 7vw;
+        top: 17vh;
+        height: 66vh;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+      }
+
+      .style-panel {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+
+      .style-panel:nth-child(2) {
+        transform: translateY(42px);
+      }
+
+      .style-panel header {
+        display: flex;
+        justify-content: space-between;
+        padding: 22px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .style-panel .style-word {
+        position: absolute;
+        left: 26px;
+        bottom: 58px;
+        font-size: clamp(72px, 6.4vw, 124px);
+        font-weight: 900;
+        line-height: 0.86;
+      }
+
+      .style-panel.stage .style-word span {
+        color: var(--acid);
+      }
+
+      .style-panel.rain::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        opacity: 0.24;
+        background-size: 34px 110px;
+        background-image: repeating-linear-gradient(78deg, transparent 0 24px, var(--cyan) 25px 26px, transparent 27px 34px);
+      }
+
+      .style-panel.rain .style-word {
+        z-index: 2;
+        color: var(--cyan);
+      }
+
+      .style-panel.smoke::before,
+      .style-panel.smoke::after {
+        content: "";
+        position: absolute;
+        width: 280px;
+        height: 280px;
+        border: 28px solid rgba(255, 120, 92, 0.14);
+        border-radius: 48% 52% 41% 59%;
+        filter: blur(18px);
+      }
+
+      .style-panel.smoke::before {
+        left: -80px;
+        bottom: -70px;
+      }
+
+      .style-panel.smoke::after {
+        right: -110px;
+        top: 50px;
+        border-color: rgba(185, 247, 139, 0.12);
+      }
+
+      .style-panel.smoke .style-word {
+        z-index: 2;
+        color: var(--coral);
+      }
+
+      .status-shell {
+        right: 5vw;
+        top: 15vh;
+        width: 53vw;
+        height: 70vh;
+        background: #111511;
+      }
+
+      .android-status {
+        height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 26px;
+        border-bottom: 1px solid var(--line);
+        font-family: Consolas, monospace;
+        font-size: 13px;
+      }
+
+      .status-pill {
+        position: absolute;
+        top: 76px;
+        left: 50%;
+        width: 410px;
+        min-height: 54px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 20px;
+        border: 1px solid rgba(242, 247, 240, 0.2);
+        border-radius: 999px;
+        background: rgba(9, 11, 9, 0.78);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.1),
+          0 18px 50px rgba(0, 0, 0, 0.3);
+        transform: translateX(-50%);
+        backdrop-filter: blur(24px);
+      }
+
+      .status-pill .mini-mark {
+        width: 8px;
+        height: 22px;
+        border-radius: 4px;
+        background: var(--coral);
+      }
+
+      .status-pill .words {
+        flex: 1;
+        font-size: 16px;
+      }
+
+      .status-pill .words b {
+        color: var(--acid);
+      }
+
+      .home-lines {
+        position: absolute;
+        left: 48px;
+        right: 48px;
+        top: 188px;
+        bottom: 84px;
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 22px;
+      }
+
+      .home-block {
+        border: 1px solid rgba(242, 247, 240, 0.08);
+        background: rgba(242, 247, 240, 0.025);
+      }
+
+      .home-block:first-child {
+        display: flex;
+        align-items: flex-end;
+        padding: 28px;
+        color: rgba(242, 247, 240, 0.18);
+        font-size: 68px;
+        font-weight: 900;
+      }
+
+      .home-stack {
+        display: grid;
+        gap: 22px;
+      }
+
+      .local-body {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        height: calc(100% - 66px);
+      }
+
+      .local-nav {
+        padding: 28px 24px;
+        border-right: 1px solid var(--line);
+      }
+
+      .library-count {
+        margin: 10px 0 34px;
+        color: var(--acid);
+        font-size: 52px;
+        font-weight: 800;
+      }
+
+      .local-nav .tag {
+        display: flex;
+        width: fit-content;
+        margin-bottom: 9px;
+      }
+
+      .local-list {
+        padding: 18px 28px;
+      }
+
+      .local-row {
+        display: grid;
+        grid-template-columns: 42px 1fr auto auto;
+        align-items: center;
+        gap: 16px;
+        min-height: 82px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .file-icon {
+        width: 32px;
+        height: 40px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        color: var(--cyan);
+        display: grid;
+        place-items: center;
+        font-size: 11px;
+      }
+
+      .codec {
+        color: var(--muted);
+        font-family: Consolas, monospace;
+        font-size: 11px;
+      }
+
+      .chapter {
+        display: grid;
+        align-content: center;
+        height: 100%;
+        padding: 0 4.5vw;
+      }
+
+      .chapter h1 {
+        max-width: 92vw;
+        font-size: clamp(160px, 17vw, 330px);
+        font-weight: 900;
+        line-height: 0.78;
+      }
+
+      .chapter h1.long-title {
+        font-size: clamp(120px, 13vw, 250px);
+      }
+
+      .chapter h1 span {
+        color: var(--acid);
+      }
+
+      .chapter p {
+        position: absolute;
+        right: 5vw;
+        bottom: 5vh;
+        color: var(--muted);
+        font-family: Consolas, monospace;
+        font-size: 15px;
+      }
+
+      .finale {
+        display: grid;
+        place-items: center;
+        height: 100%;
+      }
+
+      .finale-inner {
+        display: grid;
+        justify-items: center;
+        gap: 30px;
+      }
+
+      .finale .mark {
+        width: 110px;
+        height: 72px;
+      }
+
+      .finale .mark::before,
+      .finale .mark::after {
+        width: 102px;
+        height: 19px;
+      }
+
+      .finale h1 {
+        font-size: 72px;
+        font-weight: 820;
+      }
+
+      .finale p {
+        color: var(--muted);
+        font-size: 20px;
+      }
+
+      .recommend-cover .copy h1 {
+        font-size: clamp(68px, 4.5vw, 88px);
+      }
+
+      .recommend-label {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        margin-bottom: 24px;
+        padding: 0 12px;
+        border: 1px solid rgba(185, 247, 139, 0.4);
+        border-radius: 999px;
+        color: var(--acid);
+        font-family: Consolas, monospace;
+        font-size: 13px;
+      }
+
+      .recommend-fit {
+        display: grid;
+        grid-template-columns: 0.95fr 1.05fr;
+        gap: 70px;
+        align-items: center;
+        height: 100%;
+        padding: 110px 8vw 80px;
+      }
+
+      .recommend-fit h1 {
+        max-width: 650px;
+        font-size: 94px;
+        line-height: 1.02;
+      }
+
+      .fit-columns {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+
+      .fit-column {
+        min-height: 430px;
+        padding: 34px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      .fit-column h2 {
+        margin-bottom: 30px;
+        color: var(--acid);
+        font-size: 24px;
+      }
+
+      .fit-column.muted h2 {
+        color: var(--muted);
+      }
+
+      .fit-column p {
+        display: flex;
+        align-items: center;
+        min-height: 68px;
+        border-top: 1px solid var(--line);
+        font-size: 20px;
+      }
+
+      .recommend-finale {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: center;
+        gap: 80px;
+        height: 100%;
+        padding: 110px 10vw 70px;
+      }
+
+      .recommend-finale h1 {
+        margin-top: 30px;
+        font-size: 74px;
+        line-height: 1;
+      }
+
+      .fast-frame {
+        height: 100%;
+        padding: 92px 86px 62px;
+        background: #0b0d0c;
+      }
+
+      .review-hud {
+        position: absolute;
+        top: 34px;
+        left: 86px;
+        right: 86px;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: rgba(242, 247, 240, 0.52);
+        font: 700 13px Consolas, monospace;
+      }
+
+      .review-hud strong {
+        color: var(--ink);
+        font-size: 15px;
+      }
+
+      .review-progress {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 5px;
+        background: rgba(242, 247, 240, 0.08);
+      }
+
+      .review-progress i {
+        display: block;
+        width: 27%;
+        height: 100%;
+        background: var(--acid);
+      }
+
+      .phone-compare {
+        display: grid;
+        grid-template-columns: 1fr 180px 1fr;
+        align-items: center;
+        height: 100%;
+        max-width: 1500px;
+        margin: 0 auto;
+      }
+
+      .phone-ui {
+        position: relative;
+        width: min(470px, 31vw);
+        height: min(790px, 77vh);
+        margin: 0 auto;
+        overflow: hidden;
+        border: 1px solid rgba(242, 247, 240, 0.2);
+        border-radius: 24px;
+        background: #151915;
+        box-shadow: 0 26px 70px rgba(0, 0, 0, 0.42);
+      }
+
+      .phone-status {
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 22px;
+        color: rgba(242, 247, 240, 0.7);
+        font: 12px Consolas, monospace;
+      }
+
+      .phone-song {
+        padding: 16px 26px;
+        color: rgba(242, 247, 240, 0.55);
+        font-size: 13px;
+      }
+
+      .phone-lyrics {
+        position: absolute;
+        inset: 165px 30px 130px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 22px;
+      }
+
+      .phone-lyrics p {
+        color: rgba(242, 247, 240, 0.2);
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+
+      .phone-lyrics .focus-line {
+        color: var(--ink);
+        font-size: 38px;
+      }
+
+      .phone-lyrics .word-line span:nth-child(-n + 3) {
+        color: var(--acid);
+      }
+
+      .phone-lyrics .word-line span:nth-child(4) {
+        color: var(--coral);
+        text-shadow: 0 0 22px rgba(255, 120, 92, 0.38);
+      }
+
+      .phone-scrubber {
+        position: absolute;
+        left: 30px;
+        right: 30px;
+        bottom: 96px;
+        height: 3px;
+        background: rgba(242, 247, 240, 0.13);
+      }
+
+      .phone-scrubber i {
+        display: block;
+        width: 45%;
+        height: 100%;
+        background: var(--ink);
+      }
+
+      .compare-label {
+        position: absolute;
+        left: 22px;
+        bottom: 24px;
+        color: rgba(242, 247, 240, 0.44);
+        font: 700 12px Consolas, monospace;
+      }
+
+      .compare-swap {
+        display: grid;
+        justify-items: center;
+        gap: 18px;
+      }
+
+      .compare-swap strong {
+        color: var(--acid);
+        font-size: 76px;
+        line-height: 1;
+      }
+
+      .compare-swap span {
+        color: var(--muted);
+        font: 12px Consolas, monospace;
+      }
+
+      .cursor-ring {
+        position: absolute;
+        z-index: 8;
+        width: 58px;
+        height: 58px;
+        border: 2px solid var(--coral);
+        border-radius: 50%;
+        box-shadow: 0 0 0 10px rgba(255, 120, 92, 0.1);
+      }
+
+      .phone-ui.word-mode .cursor-ring {
+        right: 70px;
+        top: 49%;
+      }
+
+      .fast-styles-layout {
+        display: grid;
+        grid-template-columns: 310px 1fr;
+        gap: 32px;
+        height: 100%;
+      }
+
+      .style-nav {
+        padding: 32px 28px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #141714;
+      }
+
+      .style-nav h1 {
+        margin-bottom: 36px;
+        font-size: 64px;
+        line-height: 0.95;
+      }
+
+      .style-nav p {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 54px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 16px;
+      }
+
+      .style-nav p.active {
+        color: var(--acid);
+      }
+
+      .style-stage-grid {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 14px;
+        min-width: 0;
+      }
+
+      .fast-style-card {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(242, 247, 240, 0.16);
+        border-radius: 8px;
+        background: #161916;
+      }
+
+      .fast-style-card header {
+        position: absolute;
+        top: 22px;
+        left: 22px;
+        right: 22px;
+        z-index: 3;
+        display: flex;
+        justify-content: space-between;
+        color: var(--muted);
+        font: 12px Consolas, monospace;
+      }
+
+      .fast-style-card strong {
+        position: absolute;
+        left: 30px;
+        bottom: 52px;
+        z-index: 2;
+        font-size: 92px;
+        line-height: 0.9;
+      }
+
+      .fast-style-card.stage-card strong { color: var(--acid); }
+      .fast-style-card.rain-card strong { color: var(--cyan); }
+      .fast-style-card.smoke-card strong { color: var(--coral); }
+
+      .fast-style-card.rain-card {
+        background-image: repeating-linear-gradient(77deg, transparent 0 28px, rgba(126, 219, 206, 0.22) 29px 30px, transparent 31px 46px);
+      }
+
+      .fast-style-card.smoke-card::before,
+      .fast-style-card.smoke-card::after {
+        content: "";
+        position: absolute;
+        width: 330px;
+        height: 330px;
+        border: 34px solid rgba(255, 120, 92, 0.16);
+        border-radius: 46% 54% 42% 58%;
+        filter: blur(20px);
+      }
+
+      .fast-style-card.smoke-card::before { left: -150px; bottom: -100px; }
+      .fast-style-card.smoke-card::after { right: -170px; top: 70px; border-color: rgba(185, 247, 139, 0.12); }
+
+      .beat-cuts {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 18px;
+        z-index: 5;
+        display: grid;
+        grid-template-columns: repeat(9, 1fr);
+        gap: 5px;
+        padding: 0 20px;
+      }
+
+      .beat-cuts i {
+        height: 5px;
+        background: rgba(242, 247, 240, 0.19);
+      }
+
+      .beat-cuts i:nth-child(-n + 6) { background: var(--acid); }
+
+      .status-review-layout {
+        display: grid;
+        grid-template-columns: 0.72fr 1.28fr;
+        gap: 34px;
+        align-items: stretch;
+        height: 100%;
+      }
+
+      .leave-app {
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #141714;
+      }
+
+      .leave-app div {
+        display: grid;
+        justify-items: center;
+        gap: 20px;
+      }
+
+      .leave-app .mini-phone {
+        width: 176px;
+        height: 310px;
+        border: 1px solid rgba(242, 247, 240, 0.24);
+        border-radius: 18px;
+        background: #0c0e0d;
+        display: grid;
+        place-items: center;
+        color: var(--acid);
+        font-size: 38px;
+        font-weight: 900;
+      }
+
+      .leave-app .arrow {
+        color: var(--coral);
+        font-size: 56px;
+      }
+
+      .leave-app small {
+        color: var(--muted);
+        font: 12px Consolas, monospace;
+      }
+
+      .other-app {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #f1f2ed;
+        color: #151715;
+      }
+
+      .other-status {
+        height: 56px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 24px;
+        border-bottom: 1px solid rgba(21, 23, 21, 0.13);
+        font: 12px Consolas, monospace;
+      }
+
+      .native-pill {
+        position: absolute;
+        top: 76px;
+        left: 50%;
+        width: 440px;
+        min-height: 58px;
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        padding: 0 18px;
+        border-radius: 999px;
+        background: #111411;
+        color: var(--ink);
+        box-shadow: 0 14px 34px rgba(0, 0, 0, 0.25);
+        transform: translateX(-50%);
+      }
+
+      .native-pill i {
+        width: 8px;
+        height: 24px;
+        border-radius: 4px;
+        background: var(--coral);
+      }
+
+      .native-pill span { flex: 1; font-size: 16px; }
+      .native-pill b { color: var(--acid); }
+
+      .other-content {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 22px;
+        padding: 120px 42px 42px;
+        height: calc(100% - 56px);
+      }
+
+      .other-content div {
+        border: 1px solid rgba(21, 23, 21, 0.12);
+        background: rgba(21, 23, 21, 0.035);
+      }
+
+      .other-content .other-stack {
+        border: 0;
+        background: transparent;
+        display: grid;
+        gap: 22px;
+      }
+
+      .permission-note {
+        position: absolute;
+        right: 20px;
+        bottom: 18px;
+        color: rgba(21, 23, 21, 0.48);
+        font: 12px Consolas, monospace;
+      }
+
+      .festival-stage {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #050606;
+      }
+
+      .festival-stage::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 7;
+        pointer-events: none;
+        opacity: 0.22;
+        background-image: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, 0.06) 4px);
+      }
+
+      .festival-truss {
+        position: absolute;
+        left: 7vw;
+        right: 7vw;
+        top: 6vh;
+        height: 48px;
+        border-top: 8px solid #292c2a;
+        border-bottom: 5px solid #191b1a;
+        transform: perspective(900px) rotateX(58deg);
+      }
+
+      .festival-screen {
+        position: absolute;
+        left: 18vw;
+        right: 18vw;
+        top: 11vh;
+        bottom: 20vh;
+        z-index: 2;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid rgba(242, 247, 240, 0.16);
+        background:
+          linear-gradient(115deg, rgba(255, 120, 92, 0.13), transparent 36%),
+          linear-gradient(248deg, rgba(126, 219, 206, 0.1), transparent 44%),
+          #101310;
+        box-shadow: 0 0 110px rgba(255, 120, 92, 0.1);
+      }
+
+      .festival-calligraphy {
+        position: relative;
+        z-index: 3;
+        font-family: KaiTi, STKaiti, "Noto Serif SC", serif;
+        font-size: clamp(190px, 21vw, 390px);
+        font-weight: 900;
+        line-height: 0.75;
+        color: #f4f1e8;
+        text-shadow:
+          9px 9px 0 rgba(255, 120, 92, 0.85),
+          -7px -4px 0 rgba(126, 219, 206, 0.54),
+          0 0 50px rgba(244, 241, 232, 0.28);
+        transform: rotate(-3deg);
+      }
+
+      .festival-subline {
+        position: absolute;
+        left: 50%;
+        bottom: 9%;
+        z-index: 3;
+        color: rgba(244, 241, 232, 0.6);
+        font-size: 22px;
+        transform: translateX(-50%);
+      }
+
+      .festival-beam {
+        position: absolute;
+        top: 0;
+        z-index: 1;
+        width: 21vw;
+        height: 85vh;
+        opacity: 0.32;
+        filter: blur(15px);
+        clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%);
+        transform-origin: 50% 0;
+      }
+
+      .festival-beam.one { left: 4vw; background: rgba(185, 247, 139, 0.56); transform: rotate(-9deg); }
+      .festival-beam.two { left: 27vw; background: rgba(126, 219, 206, 0.5); transform: rotate(7deg); }
+      .festival-beam.three { right: 26vw; background: rgba(255, 120, 92, 0.52); transform: rotate(-7deg); }
+      .festival-beam.four { right: 4vw; background: rgba(242, 247, 240, 0.44); transform: rotate(9deg); }
+
+      .festival-side-screen {
+        position: absolute;
+        top: 18vh;
+        z-index: 2;
+        width: 13vw;
+        height: 50vh;
+        border: 1px solid rgba(242, 247, 240, 0.12);
+        background: #0e100f;
+      }
+
+      .festival-side-screen.left { left: 3vw; }
+      .festival-side-screen.right { right: 3vw; }
+
+      .festival-side-screen::after {
+        content: "风";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        color: var(--acid);
+        font-family: KaiTi, STKaiti, serif;
+        font-size: 96px;
+        transform: translate(-50%, -50%);
+      }
+
+      .festival-side-screen.right::after {
+        content: "声";
+        color: var(--coral);
+      }
+
+      .festival-crowd {
+        position: absolute;
+        left: -2vw;
+        right: -2vw;
+        bottom: -2vh;
+        z-index: 6;
+        height: 23vh;
+        background:
+          radial-gradient(circle at 3% 26%, #050505 0 24px, transparent 25px),
+          radial-gradient(circle at 10% 38%, #050505 0 31px, transparent 32px),
+          radial-gradient(circle at 18% 21%, #050505 0 26px, transparent 27px),
+          radial-gradient(circle at 27% 42%, #050505 0 35px, transparent 36px),
+          radial-gradient(circle at 36% 18%, #050505 0 29px, transparent 30px),
+          radial-gradient(circle at 46% 37%, #050505 0 34px, transparent 35px),
+          radial-gradient(circle at 55% 22%, #050505 0 28px, transparent 29px),
+          radial-gradient(circle at 64% 43%, #050505 0 33px, transparent 34px),
+          radial-gradient(circle at 73% 17%, #050505 0 27px, transparent 28px),
+          radial-gradient(circle at 82% 39%, #050505 0 35px, transparent 36px),
+          radial-gradient(circle at 91% 24%, #050505 0 28px, transparent 29px),
+          radial-gradient(circle at 98% 40%, #050505 0 34px, transparent 35px),
+          linear-gradient(0deg, #050505 0 70%, transparent 71%);
+      }
+
+      .festival-rec {
+        position: absolute;
+        top: 34px;
+        left: 42px;
+        z-index: 9;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: rgba(242, 247, 240, 0.72);
+        font: 700 13px Consolas, monospace;
+      }
+
+      .festival-rec i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--coral);
+        box-shadow: 0 0 16px rgba(255, 120, 92, 0.75);
+      }
+
+      .festival-timecode {
+        position: absolute;
+        top: 36px;
+        right: 42px;
+        z-index: 9;
+        color: rgba(242, 247, 240, 0.6);
+        font: 13px Consolas, monospace;
+      }
+
+      .festival-reveal {
+        display: grid;
+        place-items: center;
+        width: 100%;
+        height: 100%;
+        background: #090b09;
+      }
+
+      .reveal-phone {
+        position: relative;
+        width: 510px;
+        height: 900px;
+        overflow: hidden;
+        border: 2px solid rgba(242, 247, 240, 0.32);
+        border-radius: 44px;
+        background:
+          linear-gradient(145deg, rgba(255, 120, 92, 0.1), transparent 42%),
+          #151815;
+        box-shadow:
+          0 54px 130px rgba(0, 0, 0, 0.58),
+          0 0 0 12px #080908;
+      }
+
+      .reveal-phone::before {
+        content: "";
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        z-index: 4;
+        width: 112px;
+        height: 28px;
+        border-radius: 20px;
+        background: #050605;
+        transform: translateX(-50%);
+      }
+
+      .reveal-player-header {
+        position: absolute;
+        top: 58px;
+        left: 30px;
+        right: 30px;
+        z-index: 3;
+        display: flex;
+        justify-content: space-between;
+        color: rgba(242, 247, 240, 0.5);
+        font-size: 13px;
+      }
+
+      .reveal-word {
+        position: absolute;
+        left: 50%;
+        top: 44%;
+        z-index: 2;
+        color: #f4f1e8;
+        font-family: KaiTi, STKaiti, "Noto Serif SC", serif;
+        font-size: 160px;
+        font-weight: 900;
+        line-height: 0.8;
+        text-align: center;
+        text-shadow: 7px 6px 0 rgba(255, 120, 92, 0.8);
+        transform: translate(-50%, -50%) rotate(-3deg);
+      }
+
+      .reveal-translation {
+        position: absolute;
+        left: 50%;
+        top: 65%;
+        color: rgba(242, 247, 240, 0.43);
+        font-size: 17px;
+        white-space: nowrap;
+        transform: translateX(-50%);
+      }
+
+      .reveal-controls {
+        position: absolute;
+        left: 48px;
+        right: 48px;
+        bottom: 62px;
+      }
+
+      .reveal-track {
+        height: 4px;
+        background: rgba(242, 247, 240, 0.14);
+      }
+
+      .reveal-track i {
+        display: block;
+        width: 62%;
+        height: 100%;
+        background: var(--acid);
+      }
+
+      .reveal-buttons {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 44px;
+        margin-top: 34px;
+      }
+
+      .reveal-buttons i {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: rgba(242, 247, 240, 0.55);
+      }
+
+      .reveal-buttons i:nth-child(2) {
+        width: 58px;
+        height: 58px;
+        background: var(--ink);
+      }
+
+      .reveal-style-list {
+        position: absolute;
+        left: calc(50% + 320px);
+        top: 50%;
+        display: grid;
+        gap: 10px;
+        transform: translateY(-50%);
+      }
+
+      .reveal-style-list span {
+        width: 150px;
+        padding: 17px 20px;
+        border-left: 2px solid rgba(242, 247, 240, 0.13);
+        color: rgba(242, 247, 240, 0.35);
+        font-size: 16px;
+      }
+
+      .reveal-style-list span.active {
+        border-color: var(--acid);
+        color: var(--acid);
+      }
+
+      .reveal-note {
+        position: absolute;
+        left: calc(50% - 555px);
+        top: 50%;
+        width: 260px;
+        color: rgba(242, 247, 240, 0.48);
+        font-size: 22px;
+        line-height: 1.55;
+        transform: translateY(-50%);
+      }
+
+      .reveal-note strong {
+        display: block;
+        margin-bottom: 18px;
+        color: var(--ink);
+        font-size: 42px;
+        line-height: 1.05;
+      }
+
+      .install-specs {
+        display: grid;
+        gap: 12px;
+      }
+
+      .install-specs div {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 88px;
+        padding: 0 26px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 17px;
+      }
+
+      .install-specs strong {
+        color: var(--ink);
+        font-family: Consolas, monospace;
+        font-size: 24px;
+      }
+
+      .scene {
+        display: none;
+        width: 100%;
+        height: 100%;
+      }
+
+      body[data-scene="hero"] .scene-hero,
+      body[data-scene="lyrics"] .scene-lyrics,
+      body[data-scene="sources"] .scene-sources,
+      body[data-scene="styles"] .scene-styles,
+      body[data-scene="status"] .scene-status,
+      body[data-scene="local"] .scene-local,
+      body[data-scene="chapter"] .scene-chapter,
+      body[data-scene="finale"] .scene-finale,
+      body[data-scene="recommend-cover"] .scene-recommend-cover,
+      body[data-scene="recommend-fit"] .scene-recommend-fit,
+      body[data-scene="recommend-finale"] .scene-recommend-finale,
+      body[data-scene="fast-hook"] .scene-fast-hook,
+      body[data-scene="fast-styles"] .scene-fast-styles,
+      body[data-scene="fast-status"] .scene-fast-status,
+      body[data-scene="festival-hook"] .scene-festival-hook,
+      body[data-scene="festival-reveal"] .scene-festival-reveal {
+        display: block;
+      }
+    </style>
+  </head>
+  <body data-scene="hero">
+    <main class="frame">
+      <section class="scene scene-hero">
+        <div class="brand"><span class="mark"></span><span>Zephyrus Player</span></div>
+        <div class="scene-index">01 / INTERFACE HERO</div>
+        <div class="copy">
+          <p class="eyebrow">ANDROID · WORD-TIMED</p>
+          <h1>歌词，<br />跟上音乐。</h1>
+          <p>逐字、逐句，都按播放进度显示。</p>
+        </div>
+        <div class="hero-orbit">
+          <div class="hero-card">
+            <div class="ui-topbar">
+              <div class="window-dots"><i></i><i></i><i></i></div>
+              <span>逐字舞台</span><span>04:18</span>
+            </div>
+            <div class="visual-word"><span>听</span>见风</div>
+            <div class="subline">合成演示歌词 · TTML</div>
+            <div class="side-rail"><i></i><i class="active"></i><i></i><i></i></div>
+            <div class="progress"><i></i></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene-lyrics">
+        <div class="brand"><span class="mark"></span><span>Zephyrus Player</span></div>
+        <div class="scene-index">02 / WORD TIMELINE</div>
+        <div class="copy">
+          <p class="eyebrow">TTML · YRC · QRC · LRC</p>
+          <h2>歌词跟着<br />进度走。</h2>
+          <p>支持主唱、背景声部、对唱、翻译和罗马音。</p>
+        </div>
+        <div class="ui-shell">
+          <div class="ui-topbar">
+            <div class="window-dots"><i></i><i></i><i></i></div>
+            <span>LYRIC ENGINE</span><span>00:42.180</span>
+          </div>
+          <div class="lyric-layout">
+            <aside class="lyric-meta">
+              <strong>04</strong>
+              <span class="tag acid">主唱</span><span class="tag">背景</span>
+              <span class="tag">对唱</span><span class="tag">翻译</span>
+            </aside>
+            <div class="lyric-stage">
+              <div class="backing">直到下一句到来</div>
+              <div class="main-line"><span class="sung">把风</span><span class="current">留</span>在耳边</div>
+              <p class="translation">Keep the wind close.</p>
+              <div class="progress"><i></i></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene-sources">
+        <div class="brand"><span class="mark"></span><span>Zephyrus Player</span></div>
+        <div class="scene-index">03 / MULTI-SOURCE</div>
+        <div class="copy">
+          <p class="eyebrow">SEARCH · FILTER · PLAY</p>
+          <h2>搜索多个<br />音乐平台。</h2>
+          <p>所有结果放在同一个列表中，并可按来源筛选。</p>
+        </div>
+        <div class="ui-shell">
+          <div class="ui-topbar">
+            <div class="window-dots"><i></i><i></i><i></i></div>
+            <span>SEARCH</span><span>12 RESULTS</span>
+          </div>
+          <div class="search-body">
+            <div class="search-bar"><span>风的方向</span><span>⌕</span></div>
+            <div class="sources"><span class="tag acid">全部 12</span><span class="tag">网易云 4</span><span class="tag">QQ 3</span><span class="tag">酷狗 3</span><span class="tag">Spotify 2</span></div>
+            <div class="result-row"><span class="track-glyph">01</span><div><strong>风的方向</strong><small>合成歌手 · 演示专辑</small></div><span class="source-badge">网易云</span></div>
+            <div class="result-row"><span class="track-glyph">02</span><div><strong>风的方向</strong><small>合成歌手 · 现场版本</small></div><span class="source-badge">QQ</span></div>
+            <div class="result-row"><span class="track-glyph">03</span><div><strong>风的方向</strong><small>合成歌手 · 无损版本</small></div><span class="source-badge">酷狗</span></div>
+            <div class="result-row"><span class="track-glyph">04</span><div><strong>风的方向</strong><small>合成歌手 · 收藏歌单</small></div><span class="source-badge">Spotify</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene-styles">
+        <div class="brand"><span class="mark"></span><span>Zephyrus Player</span></div>
+        <div class="scene-index">04 / NINE STAGES</div>
+        <div class="styles-shell">
+          <article class="style-panel stage"><header><span>舞台</span><span>01</span></header><div class="style-word"><span>声</span><br />起</div></article>
+          <article class="style-panel rain"><header><span>雨夜</span><span>02</span></header><div class="style-word">落<br />雨</div></article>
+          <article class="style-panel smoke"><header><span>烟雾</span><span>03</span></header><div class="style-word">入<br />雾</div></article>
+        </div>
+      </section>
+
+      <section class="scene scene-status">
+        <div class="brand"><span class="mark"></span><span>Zephyrus Player</span></div>
+        <div class="scene-index">05 / ANDROID NATIVE</div>
+        <div class="copy">
+          <p class="eyebrow">STATUS BAR LYRICS</p>
+          <h2>切到别的应用，<br />歌词还在。</h2>
+          <p>允许悬浮窗权限后，状态栏会继续显示主歌词。</p>
+        </div>
+        <div class="ui-shell status-shell">
+          <div class="android-status"><span>22:16</span><span>5G&nbsp;&nbsp;&nbsp;87%</span></div>
+          <div class="status-pill"><span class="mini-mark"></span><span class="words"><b>让歌词</b> 留在屏幕边缘</span><span>Ⅱ</span></div>
+          <div class="home-lines"><div class="home-block">ZEPHYRUS</div><div class="home-stack"><div class="home-block"></div><div class="home-block"></div></div></div>
+        </div>
+      </section>
+
+      <section class="scene scene-local">
+        <div class="brand"><span class="mark"></span><span>Zephyrus Player</span></div>
+        <div class="scene-index">06 / LOCAL LIBRARY</div>
+        <div class="copy">
+          <p class="eyebrow">LOCAL · LOSSLESS · LYRICS</p>
+          <h2>歌曲和歌词，<br />一起扫描。</h2>
+          <p>支持常见音频格式，以及 LRC、YRC、TTML 和纯文本歌词。</p>
+        </div>
+        <div class="ui-shell">
+          <div class="ui-topbar">
+            <div class="window-dots"><i></i><i></i><i></i></div>
+            <span>LOCAL MUSIC</span><span>SCAN COMPLETE</span>
+          </div>
+          <div class="local-body">
+            <aside class="local-nav"><span class="tag acid">LIBRARY</span><div class="library-count">128</div><span class="tag">歌曲</span><span class="tag">专辑</span><span class="tag">文件夹</span></aside>
+            <div class="local-list">
+              <div class="local-row"><span class="file-icon">FLAC</span><div><strong>潮汐之后</strong><small>合成歌手 · 本地音乐</small></div><span class="codec">24bit / 96kHz</span><span class="tag acid">TTML</span></div>
+              <div class="local-row"><span class="file-icon">M4A</span><div><strong>向风而行</strong><small>合成歌手 · 本地音乐</small></div><span class="codec">AAC / 320kbps</span><span class="tag">YRC</span></div>
+              <div class="local-row"><span class="file-icon">MP3</span><div><strong>夜的回声</strong><small>合成歌手 · 本地音乐</small></div><span class="codec">MP3 / 320kbps</span><span class="tag">LRC</span></div>
+              <div class="local-row"><span class="file-icon">OGG</span><div><strong>微光航线</strong><small>合成歌手 · 本地音乐</small></div><span class="codec">OGG / VBR</span><span class="tag">TXT</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene-chapter">
+        <div class="chapter"><h1 id="chapter-title">逐字<span>。</span></h1><p>FEATURE / 01</p></div>
+      </section>
+
+      <section class="scene scene-finale">
+        <div class="finale"><div class="finale-inner"><span class="mark"></span><h1>Zephyrus Player</h1><p>让音乐响起，也让歌词跟上。</p></div></div>
+      </section>
+
+      <section class="scene scene-recommend-cover recommend-cover">
+        <div class="brand"><span class="mark"></span><span>Zephyrus Player</span></div>
+        <div class="scene-index">TOOL / RECOMMENDATION</div>
+        <div class="copy">
+          <span class="recommend-label">ANDROID · 开源工具</span>
+          <h1>Android 上的<br />逐字歌词播放器</h1>
+          <p>适合在意歌词同步、本地曲库和播放器样式的用户。</p>
+        </div>
+        <div class="hero-orbit">
+          <div class="hero-card">
+            <div class="ui-topbar"><div class="window-dots"><i></i><i></i><i></i></div><span>逐字歌词</span><span>04:18</span></div>
+            <div class="visual-word"><span>听</span>见风</div>
+            <div class="subline">合成演示歌词 · TTML</div>
+            <div class="side-rail"><i></i><i class="active"></i><i></i><i></i></div>
+            <div class="progress"><i></i></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene-recommend-fit">
+        <div class="brand"><span class="mark"></span><span>Zephyrus Player</span></div>
+        <div class="recommend-fit">
+          <div><p class="eyebrow">WHO IS IT FOR</p><h1>这款播放器<br />适合你吗？</h1></div>
+          <div class="fit-columns">
+            <article class="fit-column"><h2>更适合</h2><p>经常查看歌词</p><p>有自己的本地曲库</p><p>喜欢调整播放器外观</p></article>
+            <article class="fit-column muted"><h2>可能用不到</h2><p>只需要基础播放</p><p>不想调整较多设置</p><p>不使用 Android 手机</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene-recommend-finale">
+        <div class="brand"><span class="mark"></span><span>Zephyrus Player</span></div>
+        <div class="recommend-finale">
+          <div><span class="recommend-label">安装信息</span><span class="mark"></span><h1>Zephyrus<br />Player</h1></div>
+          <div class="install-specs"><div><span>系统要求</span><strong>Android 8.0+</strong></div><div><span>安装方式</span><strong>APK</strong></div><div><span>项目状态</span><strong>OPEN SOURCE</strong></div><div><span>下载与源码</span><strong>视频简介</strong></div></div>
+        </div>
+      </section>
+
+      <section class="scene scene-fast-hook">
+        <div class="review-progress"><i></i></div>
+        <div class="review-hud"><strong>逐字歌词对比</strong><span>00:02 / 01:50</span></div>
+        <div class="fast-frame">
+          <div class="phone-compare">
+            <article class="phone-ui">
+              <div class="phone-status"><span>22:16</span><span>5G&nbsp;&nbsp;87%</span></div>
+              <div class="phone-song">合成歌曲 · 普通 LRC</div>
+              <div class="phone-lyrics"><p>下一句歌词</p><p class="focus-line">风从耳边经过</p><p>还有下一句</p></div>
+              <div class="phone-scrubber"><i></i></div>
+              <span class="compare-label">整句滚动</span>
+            </article>
+            <div class="compare-swap"><strong>→</strong><span>同一时间点</span></div>
+            <article class="phone-ui word-mode">
+              <div class="phone-status"><span>22:16</span><span>5G&nbsp;&nbsp;87%</span></div>
+              <div class="phone-song">合成歌曲 · TTML</div>
+              <div class="phone-lyrics"><p>下一句歌词</p><p class="focus-line word-line"><span>风</span><span>从</span><span>耳</span><span>边</span><span>经</span><span>过</span></p><p>还有下一句</p></div>
+              <div class="phone-scrubber"><i></i></div>
+              <span class="cursor-ring"></span>
+              <span class="compare-label">逐字进度</span>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene-fast-styles">
+        <div class="review-progress"><i style="width: 58%"></i></div>
+        <div class="review-hud"><strong>播放器样式</strong><span>00:55 / 01:50</span></div>
+        <div class="fast-frame">
+          <div class="fast-styles-layout">
+            <aside class="style-nav">
+              <h1>9 种<br />样式</h1>
+              <p class="active"><span>当前</span><strong>雨夜</strong></p>
+              <p><span>设置</span><strong>独立保存</strong></p>
+              <p><span>切换</span><strong>跟拍</strong></p>
+            </aside>
+            <div class="style-stage-grid">
+              <article class="fast-style-card stage-card"><header><span>舞台</span><span>01</span></header><strong>声<br />起</strong></article>
+              <article class="fast-style-card rain-card"><header><span>雨夜</span><span>02</span></header><strong>落<br />雨</strong><span class="cursor-ring" style="right: 50px; top: 43%"></span></article>
+              <article class="fast-style-card smoke-card"><header><span>烟雾</span><span>03</span></header><strong>入<br />雾</strong></article>
+              <div class="beat-cuts"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene-fast-status">
+        <div class="review-progress"><i style="width: 74%"></i></div>
+        <div class="review-hud"><strong>切出播放器</strong><span>01:18 / 01:50</span></div>
+        <div class="fast-frame">
+          <div class="status-review-layout">
+            <div class="leave-app"><div><div class="mini-phone">风</div><span class="arrow">→</span><small>返回桌面</small></div></div>
+            <div class="other-app">
+              <div class="other-status"><span>22:16</span><span>5G&nbsp;&nbsp;87%</span></div>
+              <div class="native-pill"><i></i><span><b>让歌词</b> 留在屏幕边缘</span><strong>Ⅱ</strong></div>
+              <div class="other-content"><div></div><div class="other-stack"><div></div><div></div></div></div>
+              <span class="permission-note">需要悬浮窗权限</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene-festival-hook">
+        <div class="festival-stage">
+          <div class="festival-rec"><i></i><span>LIVE</span></div>
+          <div class="festival-timecode">00:00:02:18</div>
+          <div class="festival-truss"></div>
+          <span class="festival-beam one"></span><span class="festival-beam two"></span><span class="festival-beam three"></span><span class="festival-beam four"></span>
+          <div class="festival-side-screen left"></div><div class="festival-side-screen right"></div>
+          <div class="festival-screen"><strong class="festival-calligraphy">风起</strong><span class="festival-subline">把声音留在眼前</span></div>
+          <div class="festival-crowd"></div>
+        </div>
+      </section>
+
+      <section class="scene scene-festival-reveal">
+        <div class="festival-reveal">
+          <p class="reveal-note"><strong>等等，<br />这是播放器。</strong>刚才的舞美，缩进了手机里。</p>
+          <article class="reveal-phone">
+            <div class="reveal-player-header"><span>舞台</span><span>22:16</span></div>
+            <div class="reveal-word">风起</div>
+            <p class="reveal-translation">把声音留在眼前</p>
+            <div class="reveal-controls"><div class="reveal-track"><i></i></div><div class="reveal-buttons"><i></i><i></i><i></i></div></div>
+          </article>
+          <div class="reveal-style-list"><span class="active">舞台</span><span>诡谲</span><span>狂热</span><span>雨夜</span><span>烟雾</span></div>
+        </div>
+      </section>
+    </main>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const scene = params.get('scene') || 'hero';
+      document.body.dataset.scene = scene;
+      const chapter = params.get('title');
+      if (chapter) {
+        const chapterTitle = document.getElementById('chapter-title');
+        chapterTitle.innerHTML = `${chapter}<span>。</span>`;
+        chapterTitle.classList.toggle('long-title', chapter.length >= 5);
+      }
+    </script>
+  </body>
+</html>

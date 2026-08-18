@@ -17,6 +17,7 @@ import {
   type StatusBarLyricConfig
 } from '@/types/lyric';
 import { getImgUrl } from '@/utils';
+import { normalizeArtworkUrl, resolveArtworkSource } from '@/utils/artwork';
 import { getFontAssetUrl } from '@/utils/fontLoader';
 
 type NativeBridge = {
@@ -46,7 +47,9 @@ type NativeBridge = {
   applyStatusBarLyricConfig?: (configJson: string) => boolean;
   setStatusBarLyricPreviewVisible?: (visible: boolean) => boolean;
   updateStatusBarLyricState?: (stateJson: string) => void;
+  setStatusBarLyricTimeline?: (timelineJson: string) => void;
   installStatusBarLyricFont?: (name: string, base64Data: string) => string;
+  writeAudioMetadata?: (uriStr: string, changesJson: string) => void;
   setBackgroundKeepAlive: (enabled: boolean) => void;
   installApkFromCache: (fileName: string) => void;
   startApkDownload: (url: string, expectedSize: number) => void;
@@ -75,6 +78,7 @@ declare global {
   interface Window {
     AndroidNative?: NativeBridge;
     __nativeAudioEvent?: (payload: string | Record<string, unknown>) => void;
+    __metadataWriteResult?: ((json: string) => void) | null;
   }
 }
 
@@ -177,7 +181,7 @@ export function updateMusicNotification() {
   const artists = artistList?.value || [];
   const artist = artists.map((a: any) => a.name).join(' / ');
   const album = song.al?.name || song.album?.name || '';
-  const rawArtwork = song.picUrl || song.al?.picUrl || song.album?.picUrl || '';
+  const rawArtwork = normalizeArtworkUrl(resolveArtworkSource(song));
   const artworkUrl = getImgUrl(rawArtwork, '300y300');
   const isPlaying = playerStore.isPlay;
   const duration = allTime.value || 0;
@@ -431,6 +435,7 @@ export function refreshStatusBarLyric(applyConfig = true) {
           currentWordProgress: config.wordByWord ? currentWordProgress : 0,
           wordByWord: config.wordByWord && words.length > 0,
           themeColor: accentColor,
+          positionMs: currentMs,
           paused: !usePlayerStore().isPlay
         })
       );
@@ -443,6 +448,27 @@ export function refreshStatusBarLyric(applyConfig = true) {
 }
 
 let statusBarLyricBridgeInitialized = false;
+
+/** 推送整首歌的歌词时间轴；WebView 后台计时器节流时，原生侧用它自行推进歌词。 */
+function pushStatusBarLyricTimeline() {
+  if (!isAndroidNative() || !window.AndroidNative!.setStatusBarLyricTimeline) return;
+  const lines = (lrcArray.value || [])
+    .map((line) => ({
+      text: (line?.text || '').trim(),
+      startTime: line?.startTime ?? -1,
+      endTime:
+        line?.startTime != null && line?.duration ? line.startTime + line.duration : -1,
+      words: (line?.words || [])
+        .filter((word) => word.text)
+        .map((word) => ({ text: word.text, startTime: word.startTime, duration: word.duration }))
+    }))
+    .filter((line) => line.text && line.startTime >= 0);
+  try {
+    window.AndroidNative!.setStatusBarLyricTimeline(JSON.stringify({ lines }));
+  } catch (e) {
+    console.warn('[NativeBridge] 推送状态栏歌词时间轴失败:', e);
+  }
+}
 
 function setupStatusBarLyricBridge() {
   if (statusBarLyricBridgeInitialized) return;
@@ -459,7 +485,10 @@ function setupStatusBarLyricBridge() {
       () => wordTimedPlayback?.displayLineKey.value,
       () => wordTimedPlayback?.stableAnimationKey.value
     ],
-    () => refreshStatusBarLyric(),
+    () => {
+      pushStatusBarLyricTimeline();
+      refreshStatusBarLyric();
+    },
     { immediate: true }
   );
   watch(
@@ -471,59 +500,22 @@ function setupStatusBarLyricBridge() {
   (window as any).__statusBarLyricPermissionChanged = () => refreshStatusBarLyric();
 }
 
-let statusBarLyricPreviewTimer: number | null = null;
-
-const statusBarLyricPreviewState = (config: StatusBarLyricConfig) => ({
-  text: '风吹过城市的夜',
-  words: [
-    { text: '风吹过', startTime: 0, duration: 900 },
-    { text: '城市', startTime: 900, duration: 700 },
-    { text: '的夜', startTime: 1600, duration: 900 }
-  ],
-  currentWordIndex: config.wordByWord ? 1 : -1,
-  currentWordProgress: config.wordByWord ? 0.5 : 0,
-  wordByWord: config.wordByWord,
-  themeColor: playMusic?.value?.primaryColor || '#ff6b55',
-  paused: false
-});
-
-export function updateStatusBarLyricPreview(config = readStatusBarLyricConfig()) {
-  if (!isAndroidNative()) return false;
-  if (!hasStatusBarLyricPermission()) {
+/** 设置面板展开期间：允许悬浮窗盖在自身应用上，持续显示真实歌词。 */
+export function setStatusBarLyricInAppVisible(visible: boolean) {
+  if (!isAndroidNative()) return;
+  if (visible && !hasStatusBarLyricPermission()) {
     requestStatusBarLyricPermission();
-    return false;
-  }
-  if (statusBarLyricPreviewTimer !== null) {
-    window.clearTimeout(statusBarLyricPreviewTimer);
-    statusBarLyricPreviewTimer = null;
-  }
-  window.AndroidNative!.setStatusBarLyricPreviewVisible?.(true);
-  applyStatusBarLyricConfig({ ...config, enabled: true });
-  window.AndroidNative!.updateStatusBarLyricState?.(
-    JSON.stringify(statusBarLyricPreviewState(config))
-  );
-  return true;
-}
-
-export function finishStatusBarLyricPreview(delay = 0) {
-  if (statusBarLyricPreviewTimer !== null) window.clearTimeout(statusBarLyricPreviewTimer);
-  if (delay <= 0) {
-    statusBarLyricPreviewTimer = null;
-    refreshStatusBarLyric();
-    window.AndroidNative?.setStatusBarLyricPreviewVisible?.(false);
     return;
   }
-  statusBarLyricPreviewTimer = window.setTimeout(() => {
-    statusBarLyricPreviewTimer = null;
-    refreshStatusBarLyric();
-    window.AndroidNative?.setStatusBarLyricPreviewVisible?.(false);
-  }, delay);
+  window.AndroidNative!.setStatusBarLyricPreviewVisible?.(visible);
+  refreshStatusBarLyric();
 }
 
-export function previewStatusBarLyric(config = readStatusBarLyricConfig()) {
-  if (!updateStatusBarLyricPreview(config)) return false;
-  finishStatusBarLyricPreview(5000);
-  return true;
+/** 调整位置等实时预览：只推配置，真实歌词状态由常规刷新通道继续推送，显示不间断。 */
+export function applyStatusBarLyricLiveConfig(config: StatusBarLyricConfig) {
+  if (!isAndroidNative()) return;
+  window.AndroidNative!.setStatusBarLyricPreviewVisible?.(true);
+  applyStatusBarLyricConfig({ ...config, enabled: true });
 }
 
 /**
@@ -536,6 +528,50 @@ export function setBackgroundKeepAlive(enabled: boolean) {
   } catch (e) {
     console.warn('[NativeBridge] 设置后台保活失败:', e);
   }
+}
+
+export interface MetadataWriteResult {
+  requestId: string;
+  success: boolean;
+  error?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * 将元数据修改写回本地音频文件标签。
+ * changes 的键：title/artist album/year/trackNumber/diskNumber/lyrics/coverBase64/coverMime。
+ */
+export function writeAudioMetadata(
+  uri: string,
+  changes: Record<string, unknown>
+): Promise<MetadataWriteResult> {
+  return new Promise((resolve, reject) => {
+    if (!isAndroidNative() || !window.AndroidNative?.writeAudioMetadata) {
+      reject(new Error('当前环境不支持写入元数据'));
+      return;
+    }
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    let settled = false;
+    const finish = (payload: MetadataWriteResult) => {
+      if (settled || payload.requestId !== requestId) return;
+      settled = true;
+      window.clearTimeout(timer);
+      window.__metadataWriteResult = null;
+      if (payload.success) resolve(payload);
+      else reject(new Error(payload.error || '写入失败'));
+    };
+    const timer = window.setTimeout(() => {
+      finish({ requestId, success: false, error: '写入超时，文件可能较大，请重试' });
+    }, 60000);
+    window.__metadataWriteResult = (json: string) => {
+      try {
+        finish(JSON.parse(json) as MetadataWriteResult);
+      } catch (error) {
+        console.warn('[NativeBridge] 元数据写回回调解析失败:', error);
+      }
+    };
+    window.AndroidNative.writeAudioMetadata(uri, JSON.stringify({ ...changes, requestId }));
+  });
 }
 
 /**

@@ -19,6 +19,7 @@
         embedded,
         'embedded-settled': embedded && embeddedSettled,
         'embedded-closing': embedded && closing,
+        'song-action-variant': embedded && embeddedSongActionRequest,
         dragging: panelDragging
       }
     ]"
@@ -70,6 +71,23 @@
         </template>
       </n-virtual-list>
     </div>
+
+    <mobile-song-action-sheet
+      v-if="embeddedSongActionRequest"
+      embedded
+      :item="embeddedSongActionRequest.item"
+      :show="songActionSurface.visible.value"
+      :is-favorite="embeddedSongActionRequest.isFavorite"
+      :can-remove="embeddedSongActionRequest.canRemove"
+      :origin="embeddedSongActionRequest.origin"
+      @update:show="(visible) => !visible && songActionSurface.close()"
+      @play="invokeSongAction('play')"
+      @play-next="invokeSongAction('playNext')"
+      @favorite="invokeSongAction('favorite')"
+      @remove="invokeSongAction('remove')"
+      @goto-artist="(id) => invokeSongAction('gotoArtist', id)"
+      @goto-album="(id) => invokeSongAction('gotoAlbum', id)"
+    />
   </div>
 </template>
 
@@ -78,7 +96,9 @@ import { useDialog, useMessage } from 'naive-ui';
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import MobileSongActionSheet from '@/components/common/MobileSongActionSheet.vue';
 import SongItem from '@/components/common/SongItem.vue';
+import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
 import { usePlayerStore } from '@/store/modules/player';
 import type { SongResult } from '@/types/music';
 import { isMobile } from '@/utils';
@@ -101,6 +121,24 @@ const embedded = computed(() => props.embedded && isMobile.value);
 const playList = computed(() => playerStore.playList as SongResult[]);
 const isPlaybackPlaylist = computed(() => props.fullscreen && isMobile.value);
 provide('mobileSongActionOrigin', 'playing-list');
+const songActionSurface = useMobileSongActionSurface();
+const embeddedSongActionRequest = computed(() => {
+  const current = songActionSurface.request.value;
+  // Gate on visible: the request is never cleared elsewhere, so without this
+  // the drawer would re-open into the song action variant indefinitely.
+  // Any origin is hosted here — page long-presses reuse the same glass.
+  return embedded.value && songActionSurface.visible.value ? current : null;
+});
+const invokeSongAction = (
+  action: 'play' | 'playNext' | 'favorite' | 'remove' | 'gotoArtist' | 'gotoAlbum',
+  id?: number
+) => {
+  const callback = songActionSurface.request.value?.callbacks?.[action] as
+    | ((id?: number) => void | Promise<void>)
+    | undefined;
+  if (callback) void callback(id);
+  songActionSurface.close();
+};
 const isLandscape = ref(false);
 const updateOrientation = () => {
   isLandscape.value = window.matchMedia('(orientation: landscape)').matches;
@@ -213,6 +251,7 @@ watch(
         }
       });
     } else {
+      if (songActionSurface.visible.value) songActionSurface.close();
       if (embedded.value) {
         closing.value = true;
         embeddedSettled.value = false;
@@ -374,6 +413,13 @@ const handleDeleteSong = (song: SongResult) => {
 
     .music-play-list-content {
       border-radius: 14px;
+    }
+
+    &.song-action-variant {
+      .playlist-panel-header,
+      .playlist-panel-content {
+        visibility: hidden;
+      }
     }
   }
 

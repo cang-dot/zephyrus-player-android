@@ -69,6 +69,7 @@
           <mobile-scrolling-lyrics
             v-if="showFullLyrics"
             class="scrolling-lyrics-overlay"
+            :back-closes="showFullLyrics"
             @close="showFullLyrics = false"
             @interact="showControls"
             @generatePoster="handleGeneratePoster"

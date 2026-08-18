@@ -2,7 +2,6 @@
 import './default';
 import './stage';
 import './starChart';
-import './magazine';
 import './frenzy';
 import './eerie';
 import './neon';

@@ -77,4 +77,37 @@ describe('MobileBackStack', () => {
     stack.cancelProgress();
     expect(cancelPlayer).toHaveBeenCalledOnce();
   });
+
+  it('locks predictive progress and cancellation to the layer active at gesture start', () => {
+    const stack = new MobileBackStack();
+    const playerProgress = vi.fn();
+    const cancelMenu = vi.fn();
+    const menuProgress = vi.fn();
+    let menuVisible = true;
+    stack.register({
+      id: 'player',
+      priority: 100,
+      isActive: () => true,
+      onBack: () => undefined,
+      onProgress: playerProgress
+    });
+    stack.register({
+      id: 'menu',
+      priority: 300,
+      isActive: () => menuVisible,
+      onBack: () => undefined,
+      onProgress: menuProgress,
+      onCancel: cancelMenu
+    });
+
+    stack.startProgress();
+    menuVisible = false;
+    stack.updateProgress(0.6);
+    stack.cancelProgress();
+
+    expect(menuProgress).toHaveBeenNthCalledWith(1, 0);
+    expect(menuProgress).toHaveBeenNthCalledWith(2, 0.6);
+    expect(playerProgress).not.toHaveBeenCalled();
+    expect(cancelMenu).toHaveBeenCalledOnce();
+  });
 });

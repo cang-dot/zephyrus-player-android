@@ -78,7 +78,8 @@ public class MainActivity extends BridgeActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackStarted(BackEventCompat backEvent) {
-                dispatchBackProgressToWeb(0f);
+                evaluateJavascript(
+                        "window.__handleAndroidBackStart && window.__handleAndroidBackStart()");
             }
 
             @Override
