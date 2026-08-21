@@ -10,6 +10,15 @@ export interface AIProvider {
 
 export const AI_PROVIDERS: AIProvider[] = [
   {
+    id: 'gateway',
+    name: 'Zephyrus AI 网关',
+    baseUrl: 'https://mucang.xyz/v1',
+    defaultModel: 'opencode-v4f',
+    needApiKey: true,
+    badge: '荐',
+    description: '使用网易云账号验证后访问多模型 AI，支持流式歌词解析和每日积分。'
+  },
+  {
     id: 'pollinations',
     name: 'Pollinations (免费)',
     baseUrl: 'https://text.pollinations.ai/v1',

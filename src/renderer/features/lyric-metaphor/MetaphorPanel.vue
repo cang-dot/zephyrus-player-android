@@ -44,10 +44,13 @@
     </div>
     <div class="metaphor-panel-content">
       <template v-if="loading">
-        <div class="metaphor-loading">
+        <div v-if="result" class="metaphor-stream-text">
+          <div class="metaphor-result" v-html="sanitizedResult"></div>
+          <span class="typing-caret" aria-hidden="true"></span>
+        </div>
+        <div v-else class="metaphor-loading">
           <i class="ri-loader-4-line animate-spin text-3xl"></i>
-          <p>正在分析歌词隐喻...</p>
-          <p class="text-xs opacity-60 mt-1">使用 AI 分析可能需要 10-30 秒</p>
+          <p>正在连接模型...</p>
         </div>
       </template>
       <template v-else-if="error">
@@ -60,6 +63,12 @@
       </template>
       <template v-else-if="result">
         <div class="metaphor-result" v-html="sanitizedResult"></div>
+        <div class="metaphor-result-actions">
+          <button type="button" class="copy-btn" @click="copyPlainText">
+            <i :class="copyState ? 'ri-check-line' : 'ri-file-copy-line'"></i>
+            {{ copyState ? '已复制' : '复制纯文本' }}
+          </button>
+        </div>
         <div v-if="cached" class="metaphor-cached-badge">
           <i class="ri-database-2-line mr-1"></i> 缓存结果
         </div>
@@ -101,6 +110,7 @@ const internalVisible = ref(false);
 const closing = ref(false);
 
 const { loading, error, result, cached, analyze, clear } = useMetaphor();
+const copyState = ref(false);
 
 const lastSongKey = ref('');
 
@@ -150,7 +160,9 @@ async function doAnalyze() {
     try {
       const res = await getAlbum(props.albumId);
       albumDesc = res?.data?.album?.description || '';
-    } catch {}
+    } catch {
+      // Album context is optional; lyric analysis can continue without it.
+    }
   }
   await analyze(props.lyrics, props.songName, props.artist, albumDesc);
   lastSongKey.value = `${props.songName}|${props.artist}`;
@@ -162,6 +174,32 @@ function handleReanalyze() {
 
 function handleConfigure() {
   emit('configure');
+}
+
+const plainTextResult = computed(() => {
+  if (!result.value) return '';
+  const html = marked.parse(result.value) as string;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return (doc.body.textContent || '').replace(/\u00a0/g, ' ').trim();
+});
+
+async function copyPlainText() {
+  const text = plainTextResult.value;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
+  }
+  copyState.value = true;
+  window.setTimeout(() => (copyState.value = false), 1600);
 }
 
 const sanitizedResult = computed(() => {
@@ -239,6 +277,8 @@ onUnmounted(() => {
   &-content {
     @apply h-[calc(70vh-56px)] overflow-y-auto;
     @apply px-4 py-4;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -312,6 +352,48 @@ onUnmounted(() => {
   :deep(hr) {
     @apply my-4 border-gray-200 dark:border-gray-700;
   }
+}
+
+.metaphor-stream-text {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.metaphor-result-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: var(--accent-color);
+  background: color-mix(in srgb, var(--accent-color) 12%, transparent);
+  cursor: pointer;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.copy-btn:hover { background: color-mix(in srgb, var(--accent-color) 20%, transparent); }
+.copy-btn:active { transform: scale(0.97); }
+
+.typing-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: var(--accent-color);
+  animation: metaphor-caret-blink 720ms steps(1, end) infinite;
+}
+
+@keyframes metaphor-caret-blink {
+  50% { opacity: 0; }
 }
 
 .metaphor-cached-badge {

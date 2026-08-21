@@ -69,6 +69,13 @@ export const useMixEngineStore = defineStore('mixEngine', () => {
   const smartMixEnabled = ref<boolean>(
     localStorage.getItem('smartMixEnabled') === 'true'
   );
+  const gaplessEnabled = ref<boolean>(
+    localStorage.getItem('gaplessPlayback') === 'true'
+  );
+  if (gaplessEnabled.value && smartMixEnabled.value) {
+    smartMixEnabled.value = false;
+    localStorage.setItem('smartMixEnabled', 'false');
+  }
   const transitionLevel = ref<TransitionLevel>(
     parseInt(localStorage.getItem('mixTransitionLevel') || '1') as TransitionLevel
   );
@@ -97,6 +104,19 @@ export const useMixEngineStore = defineStore('mixEngine', () => {
   const setSmartMixEnabled = (enabled: boolean) => {
     smartMixEnabled.value = enabled;
     localStorage.setItem('smartMixEnabled', String(enabled));
+    if (enabled && gaplessEnabled.value) {
+      gaplessEnabled.value = false;
+      localStorage.setItem('gaplessPlayback', 'false');
+    }
+  };
+
+  const setGaplessEnabled = (enabled: boolean) => {
+    gaplessEnabled.value = enabled;
+    localStorage.setItem('gaplessPlayback', String(enabled));
+    if (enabled && smartMixEnabled.value) {
+      smartMixEnabled.value = false;
+      localStorage.setItem('smartMixEnabled', 'false');
+    }
   };
 
   const setTransitionLevel = (level: TransitionLevel) => {
@@ -142,6 +162,7 @@ export const useMixEngineStore = defineStore('mixEngine', () => {
   return {
     // state
     smartMixEnabled,
+    gaplessEnabled,
     transitionLevel,
     crossfadeDuration,
     bpmPreAnalysis,
@@ -153,6 +174,7 @@ export const useMixEngineStore = defineStore('mixEngine', () => {
     currentBpm,
     // actions
     setSmartMixEnabled,
+    setGaplessEnabled,
     setTransitionLevel,
     setCrossfadeDuration,
     setBpmPreAnalysis,

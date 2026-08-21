@@ -67,6 +67,22 @@
               </button>
             </div>
           </div>
+          <div class="setting-item alignment-setting">
+            <span>滚动歌词手势</span>
+            <div class="swipe-direction-control" role="radiogroup">
+              <button
+                v-for="option in swipeDirectionOptions"
+                :key="option.value"
+                type="button"
+                :class="{ active: config.lyricSwipeDirection === option.value }"
+                :aria-checked="config.lyricSwipeDirection === option.value"
+                role="radio"
+                @click="config.lyricSwipeDirection = option.value"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
           <div class="setting-item">
             <span>{{ t('settings.lyricSettings.showTranslation') }}</span>
             <input
@@ -90,7 +106,9 @@
             <input
               type="checkbox"
               :checked="config.alwaysShowPlayerControls"
-              @change="config.alwaysShowPlayerControls = ($event.target as HTMLInputElement).checked"
+              @change="
+                config.alwaysShowPlayerControls = ($event.target as HTMLInputElement).checked
+              "
               class="toggle-switch"
             />
           </div>
@@ -448,7 +466,12 @@ import { useI18n } from 'vue-i18n';
 import { isFeatureEnabled } from '@/features/store';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { getAllStyles, getStyle } from '@/playerStyles';
-import { DEFAULT_LYRIC_CONFIG, LyricConfig, normalizeLyricAlignment } from '@/types/lyric';
+import {
+  DEFAULT_LYRIC_CONFIG,
+  LyricConfig,
+  normalizeLyricAlignment,
+  normalizeLyricSwipeDirection
+} from '@/types/lyric';
 
 import SettingRenderer from './SettingRenderer.vue';
 
@@ -480,6 +503,12 @@ const alignmentOptions = computed(() => [
     icon: 'ri-align-right'
   }
 ]);
+
+const swipeDirectionOptions = [
+  { value: 'none' as const, label: '关闭' },
+  { value: 'left' as const, label: '左划' },
+  { value: 'right' as const, label: '右划' }
+];
 
 function setLyricAlignment(value: LyricConfig['lyricAlignment']) {
   config.value.lyricAlignment = value;
@@ -648,6 +677,9 @@ onMounted(() => {
       config.value.lyricAlignment,
       config.value.centerLyrics
     );
+    config.value.lyricSwipeDirection = normalizeLyricSwipeDirection(
+      config.value.lyricSwipeDirection
+    );
     updateCSSVariables(config.value);
   }
 });
@@ -725,6 +757,31 @@ defineExpose({
 }
 
 .alignment-control button.active {
+  background: var(--d-surface-active, #333);
+  color: var(--d-text-primary, #f8f9fa);
+}
+
+.swipe-direction-control {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--d-surface, #161616);
+}
+
+.swipe-direction-control button {
+  min-width: 38px;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--d-text-muted, #6c757d);
+  font-size: 11px;
+}
+
+.swipe-direction-control button.active {
   background: var(--d-surface-active, #333);
   color: var(--d-text-primary, #f8f9fa);
 }

@@ -1,6 +1,7 @@
 <template>
   <n-modal
     :show="modelValue"
+    :z-index="100001"
     title="AI 设置"
     preset="card"
     style="width: 480px; max-width: 90vw"
@@ -19,7 +20,28 @@
         <p class="text-xs text-gray-400 mt-1">{{ currentProviderDesc }}</p>
       </div>
 
-      <div v-if="needsApiKey">
+      <div v-if="config.provider === 'gateway'">
+        <label class="block text-sm font-medium mb-1">共享访问 Token</label>
+        <n-input
+          v-model:value="config.accessToken"
+          type="text"
+          placeholder="输入 Zephyrus AI 访问 Token"
+        />
+        <div class="flex items-center gap-2 mt-2">
+          <s-btn size="small" @click="pasteGatewayToken">
+            <i class="ri-clipboard-line mr-1"></i>粘贴
+          </s-btn>
+          <s-btn size="small" :disabled="gatewayLoading" @click="connectGateway">
+            {{ gatewayLoading ? '验证中...' : '验证网易云账号' }}
+          </s-btn>
+          <span v-if="gatewayCredits" class="text-xs text-gray-400">
+            今日剩余 {{ gatewayCredits.remaining }}/{{ gatewayCredits.total }} 积分
+          </span>
+        </div>
+        <p v-if="gatewayError" class="text-xs text-red-400 mt-2">{{ gatewayError }}</p>
+      </div>
+
+      <div v-if="needsApiKey && config.provider !== 'gateway'">
         <template v-if="config.provider !== 'github-models'">
           <label class="block text-sm font-medium mb-1">API 密钥</label>
           <n-input
@@ -83,7 +105,23 @@
         </template>
       </div>
 
-      <div>
+      <div v-if="config.provider === 'gateway'">
+        <label class="block text-sm font-medium mb-1">模型</label>
+        <n-select
+          v-model:value="config.model"
+          :options="gatewayModelOptions"
+          :loading="gatewayLoading"
+          placeholder="先验证账号并加载模型"
+        />
+        <p v-if="selectedGatewayModel" class="text-xs text-gray-400 mt-1">
+          每次分析消耗 {{ selectedGatewayModel.multiplier }} 积分
+          <span v-if="selectedGatewayModel.privacy" class="text-amber-500">
+            · 可能用于服务改进或训练，请勿提交敏感信息</span
+          >
+        </p>
+      </div>
+
+      <div v-else>
         <label class="block text-sm font-medium mb-1">模型名称</label>
         <n-input v-model:value="config.model" :placeholder="defaultModelPlaceholder" />
         <p class="text-xs text-gray-400 mt-1">留空则使用默认模型</p>
@@ -107,6 +145,13 @@
 import { computed, h, reactive, ref, watch } from 'vue';
 
 import { AI_PROVIDERS, getProvider } from '@/features/ai/providers';
+import {
+  createGatewaySession,
+  getGatewayCredits,
+  listGatewayModels,
+  type GatewayCredits,
+  type GatewayModel
+} from '@/features/ai/gateway';
 import { getMetaphorConfig, saveMetaphorConfig } from '@/features/lyric-metaphor/useMetaphor';
 import SBtn from '@/views/set/SBtn.vue';
 
@@ -121,6 +166,10 @@ const emit = defineEmits<{
 
 const config = reactive(getMetaphorConfig());
 const githubStep = ref(config.apiKey ? 'done' : 'account');
+const gatewayModels = ref<GatewayModel[]>([]);
+const gatewayCredits = ref<GatewayCredits | null>(null);
+const gatewayLoading = ref(false);
+const gatewayError = ref('');
 const tokenUrl = 'https://github.com/settings/tokens/new';
 
 watch(
@@ -130,6 +179,7 @@ watch(
       const saved = getMetaphorConfig();
       config.provider = saved.provider;
       config.apiKey = saved.apiKey;
+      config.accessToken = saved.accessToken || '';
       config.model = saved.model;
       config.baseUrl = saved.baseUrl;
       githubStep.value = saved.apiKey ? 'done' : 'account';
@@ -142,6 +192,16 @@ const providerOptions = AI_PROVIDERS.map((p) => ({
   value: p.id,
   badge: p.badge
 }));
+
+const gatewayModelOptions = computed(() =>
+  gatewayModels.value.map((model) => ({
+    label: `${model.name} · ${model.multiplier}x`,
+    value: model.id
+  }))
+);
+const selectedGatewayModel = computed(() =>
+  gatewayModels.value.find((model) => model.id === config.model)
+);
 
 const renderLabel = (option: { label: string; badge?: string }) => {
   if (option.badge) {
@@ -186,6 +246,34 @@ function onProviderChange(providerId: string) {
   if (providerId === 'github-models') {
     githubStep.value = 'account';
   }
+  if (providerId === 'gateway' && config.accessToken) void connectGateway();
+}
+
+async function connectGateway() {
+  gatewayLoading.value = true;
+  gatewayError.value = '';
+  try {
+    localStorage.setItem('ai-gateway-access-token', config.accessToken || '');
+    await createGatewaySession(config.accessToken || '');
+    gatewayModels.value = await listGatewayModels(config.accessToken || '');
+    gatewayCredits.value = await getGatewayCredits(config.accessToken || '');
+    if (!gatewayModels.value.some((model) => model.id === config.model)) {
+      config.model = gatewayModels.value[0]?.id || 'opencode-v4f';
+    }
+  } catch (error: any) {
+    gatewayError.value = error?.message || 'AI 网关验证失败';
+  } finally {
+    gatewayLoading.value = false;
+  }
+}
+
+async function pasteGatewayToken() {
+  try {
+    const value = await navigator.clipboard?.readText();
+    if (value?.trim()) config.accessToken = value.trim();
+  } catch {
+    gatewayError.value = '无法读取剪贴板，请长按输入框粘贴';
+  }
 }
 
 function openUrl(url: string) {
@@ -228,6 +316,9 @@ function handleSave() {
     return;
   }
   saveMetaphorConfig({ ...config });
+  if (config.provider === 'gateway') {
+    localStorage.setItem('ai-gateway-access-token', config.accessToken || '');
+  }
   emit('saved');
   emit('update:modelValue', false);
 }

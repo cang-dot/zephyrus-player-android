@@ -719,7 +719,7 @@ const loadSuggestions = async (keyword: string) => {
 const debouncedLoadSuggestions = useDebounceFn(loadSuggestions, 240);
 
 const openSearchAssist = () => {
-  if (!isSearchResultPage.value && !isSettingsPage.value) return;
+  if (!isSearchPage.value && !isSettingsPage.value) return;
 
   searchTypeExpanded.value = false;
   if (isSettingsPage.value) {
@@ -902,8 +902,6 @@ const goToSettings = () => router.push('/set');
 const onSearchInput = (e: Event) => {
   const value = (e.target as HTMLInputElement).value;
   searchStore.setSearchValue(value);
-  if (!isSearchResultPage.value) return;
-
   showSearchAssist.value = true;
   if (value.trim()) {
     debouncedLoadSuggestions(value);

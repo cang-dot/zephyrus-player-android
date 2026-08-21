@@ -75,6 +75,7 @@ import { useDebounceFn } from '@vueuse/core';
 import { useDialog, useMessage } from 'naive-ui';
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import {
@@ -98,6 +99,7 @@ import PlaybackTab from './tabs/PlaybackTab.vue';
 import SystemTab from './tabs/SystemTab.vue';
 
 const settingsStore = useSettingsStore();
+const router = useRouter();
 const message = useMessage();
 const dialog = useDialog();
 const { t } = useI18n();
@@ -172,6 +174,21 @@ const navSections = computed(() => {
 });
 
 const currentSection = ref('basic');
+
+const applyRouteTarget = () => {
+  if (router.currentRoute.value.query.section !== 'basic') return;
+  currentSection.value = 'basic';
+  const focus = String(router.currentRoute.value.query.focus || '');
+  if (focus) {
+    nextTick(() =>
+      nextTick(() =>
+        document.getElementById(focus)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      )
+    );
+  }
+};
+
+watch(() => router.currentRoute.value.query, applyRouteTarget, { immediate: true });
 
 const syncSettingsTopbar = () => {
   registerMobileTopbarGroup({
@@ -351,6 +368,7 @@ onMounted(() => {
   if (!['lru', 'fifo'].includes(setData.value.diskCacheCleanupPolicy)) {
     setData.value = { ...setData.value, diskCacheCleanupPolicy: 'lru' };
   }
+  applyRouteTarget();
 });
 </script>
 

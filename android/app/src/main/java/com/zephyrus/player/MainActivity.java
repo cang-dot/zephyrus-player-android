@@ -10,6 +10,7 @@ import android.view.WindowManager;
 import android.graphics.Color;
 import android.webkit.WebView;
 import android.util.Log;
+import org.json.JSONObject;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.BackEventCompat;
@@ -28,6 +29,8 @@ public class MainActivity extends BridgeActivity {
     // 标记是否已通过 deep link intent 处理过（避免与剪贴板重复）
     private boolean deepLinkHandled = false;
     private boolean backEvaluationPending = false;
+    private String pendingSpotifyCallback;
+    private String lastSpotifyCallback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -198,14 +201,13 @@ public class MainActivity extends BridgeActivity {
 
         // Spotify OAuth 回调：zephyrus://auth/callback?code=xxx
         if (url.startsWith("zephyrus://auth/callback")) {
-            Log.i("SpotifyAuth", "Received OAuth callback: " + url);
-            WebView webView = bridge.getWebView();
-            if (webView != null) {
-                final String js = "window.__handleSpotifyCallback && window.__handleSpotifyCallback('" + url + "');";
-                webView.postDelayed(() -> evaluateJavascript(js), 500);
-                webView.postDelayed(() -> evaluateJavascript(js), 1500);
-                webView.postDelayed(() -> evaluateJavascript(js), 3000);
+            if (url.equals(lastSpotifyCallback)) {
+                Log.i("SpotifyAuth", "Ignoring duplicate OAuth callback");
+                return true;
             }
+            lastSpotifyCallback = url;
+            Log.i("SpotifyAuth", "Received OAuth callback: " + url);
+            dispatchSpotifyCallback(url, 0);
             lastClipboardContent = url;
             return true;
         }
@@ -225,6 +227,32 @@ public class MainActivity extends BridgeActivity {
         // 记录到 lastClipboardContent 防止 onResume 重复处理
         lastClipboardContent = url;
         return true;
+    }
+
+    /**
+     * 将 OAuth 回调可靠地投递到 WebView。冷启动时 WebView/JS 可能尚未完成，
+     * 因此在 10 秒窗口内重试；JSONObject.quote 可正确处理 URL 中的参数字符。
+     */
+    private void dispatchSpotifyCallback(String url, int attempt) {
+        pendingSpotifyCallback = url;
+        WebView webView = bridge.getWebView();
+        if (webView == null) {
+            if (attempt < 40) {
+                new android.os.Handler(getMainLooper()).postDelayed(
+                        () -> dispatchSpotifyCallback(url, attempt + 1), 250);
+            }
+            return;
+        }
+
+        final String js = "(function(){if(typeof window.__handleSpotifyCallback==='function'){window.__handleSpotifyCallback("
+                + JSONObject.quote(url) + ");return true;}return false;})();";
+        webView.evaluateJavascript(js, result -> {
+            // JS 已接收后停止重试，避免同一 OAuth code 被反复处理并触发状态闪烁。
+            boolean accepted = "true".equalsIgnoreCase(result == null ? "" : result.replace("\"", ""));
+            if (!accepted && attempt < 40) {
+                webView.postDelayed(() -> dispatchSpotifyCallback(url, attempt + 1), 250);
+            }
+        });
     }
 
     /**

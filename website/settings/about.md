@@ -2,7 +2,7 @@
 
 ## 当前版本
 
-Zephyrus Player for Android 当前文档对应 **v1.2.0**。
+Zephyrus Player for Android 当前文档对应 **v1.2.5**。
 
 - [打开官方网站](https://mucang.xyz/zephyrus/)
 - [下载最新正式版 APK](https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk)

@@ -79,8 +79,8 @@
       </setting-item>
     </setting-section>
 
-    <setting-section title="智能混音">
-      <setting-item title="智能混音引擎" description="切歌时自动平滑过渡，避免硬切中断">
+    <setting-section title="智能过渡">
+      <setting-item title="智能过渡" description="在歌曲尾部衔接下一首，减少切歌停顿">
         <smart-mix-settings />
       </setting-item>
     </setting-section>

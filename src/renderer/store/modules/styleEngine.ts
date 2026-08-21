@@ -50,8 +50,12 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
   // ==================== 音频特征更新 ====================
   let beatUnsubscribe: (() => void) | null = null;
   let climaxUnsubscribe: (() => void) | null = null;
+  let analysisStarted = false;
+  const beatResetTimers = new Set<ReturnType<typeof setTimeout>>();
 
   function startAudioAnalysis() {
+    if (analysisStarted) return;
+    analysisStarted = true;
     // 启动鼓点检测
     drumDetector.start();
     beatUnsubscribe = drumDetector.onBeat((info: BeatInfo) => {
@@ -62,10 +66,12 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
       isStrongBeat.value = info.isStrong;
 
       // 重置 isBeat（单帧信号）
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        beatResetTimers.delete(timer);
         isBeat.value = false;
         isStrongBeat.value = false;
       }, 50);
+      beatResetTimers.add(timer);
     });
 
     // 启动高潮检测
@@ -76,6 +82,7 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
   }
 
   function stopAudioAnalysis() {
+    analysisStarted = false;
     if (beatUnsubscribe) {
       beatUnsubscribe();
       beatUnsubscribe = null;
@@ -86,6 +93,8 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
     }
     drumDetector.stop();
     climaxDetector.stop();
+    for (const timer of beatResetTimers) clearTimeout(timer);
+    beatResetTimers.clear();
   }
 
   // ==================== 副歌数据同步 ====================

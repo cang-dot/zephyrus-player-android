@@ -59,6 +59,7 @@ import { artistList, playMusic } from '@/hooks/MusicHook';
 import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 import { shouldSkipMobilePlayerFrame } from '@/utils/mobilePlayerPerformance';
+import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 
 import LyricSettings from './LyricSettings.vue';
 
@@ -195,8 +196,9 @@ function disconnectAudio() {
 function getFrequencyBands(): { bass: number; mid: number; treble: number } {
   if (!analyser || !frequencyData) return { bass: 0, mid: 0, treble: 0 };
 
-  analyser.getByteFrequencyData(frequencyData);
-  const len = frequencyData.length;
+  const data = frequencyData as Uint8Array<ArrayBuffer>;
+  analyser.getByteFrequencyData(data);
+  const len = data.length;
   if (len === 0) return { bass: 0, mid: 0, treble: 0 };
 
   const bassEnd = Math.floor(len * 0.15);
@@ -205,9 +207,9 @@ function getFrequencyBands(): { bass: number; mid: number; treble: number } {
   let bass = 0,
     mid = 0,
     treble = 0;
-  for (let i = 0; i < bassEnd; i++) bass += frequencyData[i];
-  for (let i = bassEnd; i < midEnd; i++) mid += frequencyData[i];
-  for (let i = midEnd; i < len; i++) treble += frequencyData[i];
+  for (let i = 0; i < bassEnd; i++) bass += data[i];
+  for (let i = bassEnd; i < midEnd; i++) mid += data[i];
+  for (let i = midEnd; i < len; i++) treble += data[i];
 
   bass = bassEnd > 0 ? bass / bassEnd / 255 : 0;
   mid = midEnd - bassEnd > 0 ? mid / (midEnd - bassEnd) / 255 : 0;
@@ -223,6 +225,8 @@ let ctx: CanvasRenderingContext2D | null = null;
 let particles: StarParticle[] = [];
 let rafId: number | null = null;
 let lastRenderAt = 0;
+let pageVisible = !document.hidden;
+let releaseCanvasLoop: (() => void) | null = null;
 
 const PARALLAX_STRENGTH = 40;
 const MOUSE_SMOOTHING = 0.08;
@@ -302,7 +306,12 @@ function initParticles(count?: number) {
 
 function renderLoop() {
   const canvas = canvasRef.value;
-  if (!canvas || !ctx) return;
+  if (!canvas || !ctx || !isVisible.value || !pageVisible) {
+    rafId = null;
+    releaseCanvasLoop?.();
+    releaseCanvasLoop = null;
+    return;
+  }
 
   const now = performance.now();
   if (shouldSkipMobilePlayerFrame(lastRenderAt, now)) {
@@ -323,11 +332,30 @@ function renderLoop() {
   ctx.clearRect(0, 0, w, h);
 
   for (const p of particles) {
-    updateParticle(p, w, h, bass, mid, treble, energy);
+    updateParticle(p, w, h, bass, mid, energy);
     drawParticle(p);
   }
 
   rafId = requestAnimationFrame(renderLoop);
+}
+
+function stopRenderLoop() {
+  if (rafId !== null) cancelAnimationFrame(rafId);
+  rafId = null;
+  releaseCanvasLoop?.();
+  releaseCanvasLoop = null;
+}
+
+function handlePageVisibility() {
+  pageVisible = !document.hidden;
+  if (pageVisible && isVisible.value && rafId === null) startRenderLoop();
+  if (!pageVisible) stopRenderLoop();
+}
+
+function startRenderLoop() {
+  if (rafId !== null || !pageVisible || !isVisible.value) return;
+  releaseCanvasLoop = acquirePlayerResource('canvas-loop');
+  renderLoop();
 }
 
 function updateParticle(
@@ -336,7 +364,6 @@ function updateParticle(
   h: number,
   bass: number,
   mid: number,
-  treble: number,
   energy: number
 ) {
   const dx = p.homeX - p.x;
@@ -467,21 +494,19 @@ watch(
   (visible) => {
     if (visible) {
       nextTick(() => {
+        if (!pageVisible) return;
         if (!ctx && canvasRef.value) {
           ctx = canvasRef.value.getContext('2d');
           updateWindowSize();
           initParticles(particleCount.value);
-          renderLoop();
+          startRenderLoop();
         }
         connectAudio();
       });
     } else {
       disconnectAudio();
       ctx = null;
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
+      stopRenderLoop();
     }
   }
 );
@@ -502,6 +527,7 @@ function updateWindowSize() {
 onMounted(() => {
   resetHideTimer();
   document.addEventListener('fullscreenchange', handleFullScreenChange);
+  document.addEventListener('visibilitychange', handlePageVisibility);
   window.addEventListener('resize', updateWindowSize);
   window.addEventListener('music-full-config-updated', handleConfigUpdate);
 
@@ -510,7 +536,7 @@ onMounted(() => {
     ctx = canvas.getContext('2d');
     updateWindowSize();
     initParticles(particleCount.value);
-    renderLoop();
+    if (pageVisible && isVisible.value) startRenderLoop();
   }
 
   if (isVisible.value) {
@@ -524,13 +550,11 @@ onBeforeUnmount(() => {
     clearTimeout(hideTimer);
     hideTimer = null;
   }
-  if (rafId !== null) {
-    cancelAnimationFrame(rafId);
-    rafId = null;
-  }
+  stopRenderLoop();
   window.removeEventListener('resize', updateWindowSize);
   window.removeEventListener('fullscreenchange', handleFullScreenChange);
   window.removeEventListener('music-full-config-updated', handleConfigUpdate);
+  document.removeEventListener('visibilitychange', handlePageVisibility);
   if (document.fullscreenElement) document.exitFullscreen();
 });
 </script>

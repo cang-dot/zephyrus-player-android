@@ -1,93 +1,80 @@
 <template>
-  <div class="smart-mix-settings">
-    <!-- 总开关 -->
-    <div class="sm-switch-row">
-      <div class="sm-switch-info">
-        <span class="sm-switch-label">智能混音引擎</span>
-        <span class="sm-switch-desc">切歌时自动平滑过渡，避免硬切中断</span>
+  <div class="smart-transition-settings">
+    <div class="st-primary-row">
+      <div class="st-copy">
+        <span class="st-title">智能过渡</span>
+        <span class="st-description">在歌曲尾部预加载下一首并平滑衔接</span>
       </div>
-      <n-switch v-model:value="enabled" size="small">
-        <template #checked>开</template>
-        <template #unchecked>关</template>
-      </n-switch>
+      <n-switch v-model:value="smartTransitionEnabled" aria-label="启用智能过渡" />
     </div>
 
-    <!-- 三种模式选择 -->
-    <transition name="sm-expand">
-      <div v-if="enabled" class="sm-modes">
-        <div class="sm-modes-grid">
-          <div
-            v-for="mode in modes"
-            :key="mode.level"
-            class="sm-mode-card"
-            :class="{
-              'is-selected': transitionLevel === mode.level,
-              'is-recommended': recommendedLevel === mode.level,
-              'is-disabled': !mode.available
-            }"
-            @click="selectMode(mode.level)"
-          >
-            <!-- 推荐徽章 -->
-            <div v-if="recommendedLevel === mode.level" class="sm-badge">
-              <i class="ri-star-fill"></i> 推荐
-            </div>
-
-            <!-- 图标 -->
-            <div class="sm-mode-icon">
-              <i :class="mode.icon"></i>
-            </div>
-
-            <!-- 标题 -->
-            <div class="sm-mode-title">{{ mode.title }}</div>
-            <div class="sm-mode-subtitle">Level {{ mode.level }}</div>
-
-            <!-- 描述 -->
-            <div class="sm-mode-desc">{{ mode.desc }}</div>
-
-            <!-- 不可用提示 -->
-            <div v-if="!mode.available" class="sm-unavailable">
-              {{ mode.unavailableReason }}
-            </div>
-          </div>
-        </div>
-
-        <!-- 硬件信息 -->
-        <div class="sm-hardware">
-          <div class="sm-hw-item">
-            <i class="ri-cpu-line"></i>
-            <span>CPU: {{ hardwareCores }} 核</span>
-          </div>
-          <div class="sm-hw-item">
-            <i class="ri-ram-line"></i>
-            <span>内存: {{ hardwareMem }} GB</span>
-          </div>
-          <div class="sm-hw-reason">{{ hardwareReason }}</div>
-        </div>
-
-        <!-- 过渡时长 -->
-        <div class="sm-duration-row">
-          <span class="sm-duration-label">过渡时长</span>
-          <n-slider
-            v-model:value="duration"
-            :min="2"
-            :max="15"
-            :step="0.5"
-            :marks="{ 2: '2s', 5: '5s', 8: '8s', 12: '12s', 15: '15s' }"
-            style="max-width: 300px"
-          />
-          <span class="sm-duration-value">{{ duration.toFixed(1) }}s</span>
-        </div>
-
-        <!-- BPM 预分析 -->
-        <div class="sm-bpm-row">
-          <div class="sm-bpm-info">
-            <span class="sm-bpm-label">BPM 预分析</span>
-            <span class="sm-bpm-desc">后台计算精确 BPM，提升节拍对齐质量（占用额外 CPU）</span>
-          </div>
-          <n-switch v-model:value="bpmPreAnalysis" size="small" />
+    <div class="st-slider-section" :class="{ disabled: !smartTransitionEnabled }">
+      <div class="st-slider-labels" aria-hidden="true">
+        <span>更轻量</span>
+        <span>更智能</span>
+      </div>
+      <div
+        class="st-engine-slider"
+        :class="{ dragging: isEngineDragging, disabled: !smartTransitionEnabled }"
+        :style="engineSliderStyle"
+        role="slider"
+        tabindex="0"
+        :aria-valuemin="1"
+        :aria-valuemax="availableMaxLevel"
+        :aria-valuenow="selectedSliderLevel"
+        :aria-valuetext="transitionLabel"
+        aria-label="智能过渡引擎强度"
+        @pointerdown="handleEnginePointerDown"
+        @pointermove="handleEnginePointerMove"
+        @pointerup="handleEnginePointerUp"
+        @pointercancel="handleEnginePointerCancel"
+        @keydown="handleEngineKeydown"
+      >
+        <div ref="engineRailRef" class="st-engine-rail">
+          <div class="st-engine-fill" :style="{ width: `${engineSliderPosition * 100}%` }"></div>
+          <span
+            v-for="level in availableMaxLevel"
+            :key="level"
+            class="st-engine-tick"
+            :style="{ left: `${levelPosition(level) * 100}%` }"
+          ></span>
+          <span class="st-engine-handle" :style="{ left: `${engineSliderPosition * 100}%` }"></span>
         </div>
       </div>
-    </transition>
+      <div class="st-slider-value">{{ transitionLabel }}</div>
+    </div>
+
+    <div class="st-detail-row" :class="{ disabled: !smartTransitionEnabled }">
+      <span class="st-detail-label">过渡时长</span>
+      <n-slider
+        v-model:value="duration"
+        class="st-duration-slider"
+        :style="engineSliderStyle"
+        :min="2"
+        :max="15"
+        :step="0.5"
+        :disabled="!smartTransitionEnabled"
+        :tooltip="false"
+        aria-label="智能过渡时长"
+      />
+      <output class="st-duration-value">{{ duration.toFixed(1) }} 秒</output>
+    </div>
+
+    <div class="st-secondary-row">
+      <div class="st-copy">
+        <span class="st-detail-label">无缝切歌</span>
+        <span class="st-description">首尾直接拼接，不使用淡入淡出</span>
+      </div>
+      <n-switch v-model:value="gaplessEnabled" aria-label="启用无缝切歌" />
+    </div>
+
+    <div v-if="smartTransitionEnabled" class="st-secondary-row st-bpm-row">
+      <div class="st-copy">
+        <span class="st-detail-label">BPM 预分析</span>
+        <span class="st-description">提升节拍和乐句衔接质量</span>
+      </div>
+      <n-switch v-model:value="bpmPreAnalysis" aria-label="启用 BPM 预分析" />
+    </div>
   </div>
 </template>
 
@@ -95,327 +82,361 @@
 import { NSlider, NSwitch } from 'naive-ui';
 import { computed, onMounted, ref, watch } from 'vue';
 
+import { playMusic } from '@/hooks/MusicHook';
 import {
   isLevelAvailable,
   type TransitionLevel,
   useMixEngineStore
 } from '@/store/modules/mixEngine';
+import { parseRepresentativeCssColor } from '@/utils/playerInk';
 
 const mixEngine = useMixEngineStore();
 
-// 状态
-const enabled = ref(mixEngine.smartMixEnabled);
-const transitionLevel = ref<TransitionLevel>(mixEngine.transitionLevel);
-const duration = ref(mixEngine.crossfadeDuration);
-const bpmPreAnalysis = ref(mixEngine.bpmPreAnalysis);
+const smartTransitionEnabled = computed({
+  get: () => mixEngine.smartMixEnabled,
+  set: (value: boolean) => mixEngine.setSmartMixEnabled(value)
+});
 
-const recommendedLevel = computed(() => mixEngine.hardwareScore?.level ?? 1);
-const hardwareCores = computed(
-  () => mixEngine.hardwareScore?.cpuCores ?? navigator.hardwareConcurrency ?? 4
-);
-const hardwareMem = computed(() => (navigator as any).deviceMemory ?? 4);
-const hardwareReason = computed(() => mixEngine.hardwareScore?.reason ?? '');
+const gaplessEnabled = computed({
+  get: () => mixEngine.gaplessEnabled,
+  set: (value: boolean) => mixEngine.setGaplessEnabled(value)
+});
 
-// 模式定义
-const modes = computed(() => [
-  {
-    level: 1 as TransitionLevel,
-    title: '等功率',
-    icon: 'ri-equalizer-line',
-    desc: '余弦曲线淡入淡出\n总功率恒定，避免音量凹陷',
-    available: isLevelAvailable(1),
-    unavailableReason: ''
-  },
-  {
-    level: 2 as TransitionLevel,
-    title: '节拍对齐',
-    icon: 'ri-pulse-line',
-    desc: 'BPM 对齐 + 乐句边界\n4 拍过渡窗口',
-    available: isLevelAvailable(2),
-    unavailableReason: isLevelAvailable(2) ? '' : '需要至少 2 核 CPU / 2GB 内存'
-  },
-  {
-    level: 3 as TransitionLevel,
-    title: '频域拼接',
-    icon: 'ri-equalizer-2-line',
-    desc: '三频段独立淡出\n低频晚/中频早/高频中等',
-    available: isLevelAvailable(3),
-    unavailableReason: isLevelAvailable(3) ? '' : '需要至少 4 核 CPU / 4GB 内存'
-  }
-]);
+const transitionLevel = computed({
+  get: () => mixEngine.transitionLevel,
+  set: (value: number) => mixEngine.setTransitionLevel(value as TransitionLevel)
+});
 
-// 选择模式
-const selectMode = (level: TransitionLevel) => {
-  if (!isLevelAvailable(level)) return;
-  transitionLevel.value = level;
-  mixEngine.setTransitionLevel(level);
+const duration = computed({
+  get: () => mixEngine.crossfadeDuration,
+  set: (value: number) => mixEngine.setCrossfadeDuration(value)
+});
+
+const bpmPreAnalysis = computed({
+  get: () => mixEngine.bpmPreAnalysis,
+  set: (value: boolean) => mixEngine.setBpmPreAnalysis(value)
+});
+
+const availableMaxLevel = computed<TransitionLevel>(() => {
+  if (isLevelAvailable(3)) return 3;
+  if (isLevelAvailable(2)) return 2;
+  return 1;
+});
+
+const transitionLabel = computed(() => {
+  if (transitionLevel.value === 1) return '轻量';
+  if (transitionLevel.value === 2) return '均衡';
+  return '智能';
+});
+
+const engineRailRef = ref<HTMLElement | null>(null);
+const engineSliderPosition = ref(0);
+const isEngineDragging = ref(false);
+
+const selectedSliderLevel = computed(() => {
+  const maxLevel = availableMaxLevel.value;
+  if (maxLevel <= 1) return 1;
+  return 1 + Math.round(engineSliderPosition.value * (maxLevel - 1));
+});
+
+const levelPosition = (level: number) => {
+  const maxLevel = availableMaxLevel.value;
+  return maxLevel <= 1 ? 0 : (level - 1) / (maxLevel - 1);
 };
 
-// watch 状态变化
-watch(enabled, (val) => mixEngine.setSmartMixEnabled(val));
-watch(duration, (val) => mixEngine.setCrossfadeDuration(val));
-watch(bpmPreAnalysis, (val) => mixEngine.setBpmPreAnalysis(val));
+const syncEngineSlider = () => {
+  const maxLevel = availableMaxLevel.value;
+  engineSliderPosition.value = maxLevel <= 1 ? 0 : (transitionLevel.value - 1) / (maxLevel - 1);
+};
+
+watch([transitionLevel, availableMaxLevel], syncEngineSlider, { immediate: true });
+
+const sliderColor = computed(() => {
+  const song = playMusic?.value;
+  const parsed = parseRepresentativeCssColor(song?.primaryColor || song?.backgroundColor);
+  if (!parsed) return { color: '#1677d9', rgb: '22, 119, 217' };
+  return {
+    color: `rgb(${parsed.r}, ${parsed.g}, ${parsed.b})`,
+    rgb: `${parsed.r}, ${parsed.g}, ${parsed.b}`
+  };
+});
+
+const engineSliderStyle = computed(() => ({
+  '--st-slider-color': sliderColor.value.color,
+  '--st-slider-color-rgb': sliderColor.value.rgb
+}));
+
+const clampSliderPosition = (value: number) => Math.min(1, Math.max(0, value));
+
+const updateEngineSliderFromPointer = (event: PointerEvent) => {
+  const rail = engineRailRef.value;
+  if (!rail) return;
+  const rect = rail.getBoundingClientRect();
+  if (!rect.width) return;
+  engineSliderPosition.value = clampSliderPosition((event.clientX - rect.left) / rect.width);
+};
+
+const handleEnginePointerDown = (event: PointerEvent) => {
+  if (!smartTransitionEnabled.value || !event.isPrimary) return;
+  const target = event.currentTarget as HTMLElement;
+  target.setPointerCapture(event.pointerId);
+  isEngineDragging.value = true;
+  updateEngineSliderFromPointer(event);
+  event.preventDefault();
+};
+
+const handleEnginePointerMove = (event: PointerEvent) => {
+  if (!isEngineDragging.value || !event.isPrimary) return;
+  updateEngineSliderFromPointer(event);
+  event.preventDefault();
+};
+
+const finishEnginePointer = (event: PointerEvent, commit: boolean) => {
+  const target = event.currentTarget as HTMLElement;
+  if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+
+  if (commit) {
+    const maxLevel = availableMaxLevel.value;
+    const snappedPosition =
+      maxLevel <= 1 ? 0 : Math.round(engineSliderPosition.value * (maxLevel - 1)) / (maxLevel - 1);
+    engineSliderPosition.value = snappedPosition;
+    transitionLevel.value = (1 + Math.round(snappedPosition * (maxLevel - 1))) as TransitionLevel;
+  } else {
+    syncEngineSlider();
+  }
+  isEngineDragging.value = false;
+};
+
+const handleEnginePointerUp = (event: PointerEvent) => {
+  if (!isEngineDragging.value) return;
+  finishEnginePointer(event, true);
+};
+
+const handleEnginePointerCancel = (event: PointerEvent) => {
+  if (!isEngineDragging.value) return;
+  finishEnginePointer(event, false);
+};
+
+const handleEngineKeydown = (event: KeyboardEvent) => {
+  if (!smartTransitionEnabled.value) return;
+  const maxLevel = availableMaxLevel.value;
+  let nextLevel = transitionLevel.value;
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') nextLevel -= 1;
+  else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') nextLevel += 1;
+  else if (event.key === 'Home') nextLevel = 1;
+  else if (event.key === 'End') nextLevel = maxLevel;
+  else return;
+  event.preventDefault();
+  transitionLevel.value = Math.min(maxLevel, Math.max(1, nextLevel)) as TransitionLevel;
+};
 
 onMounted(() => {
   mixEngine.evaluateAndRecommend();
+  if (mixEngine.transitionLevel > availableMaxLevel.value) {
+    mixEngine.setTransitionLevel(availableMaxLevel.value);
+  }
 });
 </script>
 
-<style lang="scss" scoped>
-.smart-mix-settings {
+<style scoped lang="scss">
+.smart-transition-settings {
+  display: flex;
   width: 100%;
+  flex-direction: column;
+  gap: 18px;
 }
 
-.sm-switch-row {
+.st-primary-row,
+.st-secondary-row,
+.st-detail-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 0;
+  gap: 18px;
 }
 
-.sm-switch-info {
+.st-copy {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
-.sm-switch-label {
+.st-title,
+.st-detail-label {
+  color: #1f1f22;
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
-  .dark & {
-    color: #e0e0e0;
-  }
 }
 
-.sm-switch-desc {
+.st-description {
+  color: #888b92;
   font-size: 12px;
-  color: #888;
+  line-height: 1.45;
 }
 
-.sm-modes {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.sm-modes-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-
-.sm-mode-card {
+.st-slider-section {
   position: relative;
-  padding: 16px 12px;
-  border-radius: 12px;
-  border: 2px solid rgba(0, 0, 0, 0.06);
-  background: rgba(0, 0, 0, 0.02);
+  padding: 2px 4px 0;
+  transition: opacity 180ms ease;
+}
+
+.st-slider-section.disabled,
+.st-detail-row.disabled {
+  opacity: 0.42;
+}
+
+.st-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #8b8d94;
+  font-size: 12px;
+}
+
+.st-engine-slider {
+  height: 40px;
+  padding: 5px 0;
+  touch-action: none;
+  user-select: none;
   cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: center;
-
-  .dark & {
-    border-color: rgba(255, 255, 255, 0.06);
-    background: rgba(255, 255, 255, 0.03);
-  }
-
-  &:hover:not(.is-disabled) {
-    border-color: rgba(var(--accent-color-rgb, 100, 100, 100), 0.4);
-    background: rgba(var(--accent-color-rgb, 100, 100, 100), 0.05);
-  }
-
-  &.is-selected {
-    border-color: var(--accent-color, #4f46e5);
-    background: rgba(var(--accent-color-rgb, 79, 70, 229), 0.08);
-  }
-
-  &.is-recommended {
-    &::before {
-      content: '';
-      position: absolute;
-      inset: -2px;
-      border-radius: 12px;
-      border: 2px solid rgba(var(--accent-color-rgb, 79, 70, 229), 0.3);
-      pointer-events: none;
-    }
-  }
-
-  &.is-disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
+  outline: none;
 }
 
-.sm-badge {
+.st-engine-slider.disabled {
+  cursor: not-allowed;
+}
+
+.st-engine-slider:focus-visible .st-engine-handle {
+  box-shadow:
+    0 0 0 4px rgba(var(--st-slider-color-rgb), 0.22),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.st-engine-rail {
+  position: relative;
+  width: calc(100% - 40px);
+  margin: 0 20px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(var(--st-slider-color-rgb), 0.2);
+}
+
+.st-engine-fill {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #fff;
-  background: var(--accent-color, #4f46e5);
-  padding: 2px 6px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-
-  i {
-    font-size: 10px;
-  }
+  inset: 0 auto 0 0;
+  min-width: 30px;
+  border-radius: inherit;
+  background: var(--st-slider-color);
 }
 
-.sm-mode-icon {
-  font-size: 28px;
-  color: var(--accent-color, #4f46e5);
-  margin-bottom: 8px;
-  opacity: 0.7;
-
-  .is-selected & {
-    opacity: 1;
-  }
+.st-engine-tick {
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.46);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
-.sm-mode-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1a1a1a;
-  .dark & {
-    color: #e0e0e0;
-  }
+.st-engine-handle {
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
-.sm-mode-subtitle {
+.st-engine-slider:not(.dragging) .st-engine-handle {
+  transition:
+    left 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 160ms ease;
+}
+
+.st-engine-slider.dragging .st-engine-handle {
+  transform: translate(-50%, -50%) scale(1.04);
+  box-shadow: 0 2px 9px rgba(0, 0, 0, 0.22);
+}
+
+.st-slider-value {
+  margin-top: 4px;
+  color: #6b6e76;
   font-size: 11px;
-  color: #999;
-  margin-bottom: 6px;
+  text-align: center;
 }
 
-.sm-mode-desc {
-  font-size: 11px;
-  color: #777;
-  line-height: 1.5;
-  white-space: pre-line;
-
-  .dark & {
-    color: #999;
-  }
+.st-detail-row {
+  min-height: 32px;
 }
 
-.sm-unavailable {
-  margin-top: 6px;
-  font-size: 10px;
-  color: #ef4444;
+.st-duration-slider {
+  flex: 1;
+  min-width: 100px;
+  --n-rail-height: 30px !important;
+  --n-handle-size: 40px !important;
+  --n-rail-color: rgba(var(--st-slider-color-rgb), 0.2) !important;
+  --n-rail-color-hover: rgba(var(--st-slider-color-rgb), 0.28) !important;
+  --n-fill-color: var(--st-slider-color) !important;
+  --n-fill-color-hover: var(--st-slider-color) !important;
+  --n-handle-color: #fff !important;
+  --n-handle-box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18) !important;
+  --n-handle-box-shadow-hover: 0 2px 9px rgba(0, 0, 0, 0.22) !important;
+  --n-handle-box-shadow-active: 0 2px 9px rgba(0, 0, 0, 0.22) !important;
 }
 
-.sm-hardware {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.03);
-  .dark & {
-    background: rgba(255, 255, 255, 0.03);
-  }
+.st-duration-slider :deep(.n-slider-handle) {
+  box-sizing: border-box;
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-.sm-hw-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.st-duration-value {
+  min-width: 48px;
+  color: #6b6e76;
   font-size: 12px;
-  color: #666;
-  .dark & {
-    color: #aaa;
-  }
-
-  i {
-    font-size: 16px;
-  }
-}
-
-.sm-hw-reason {
-  font-size: 12px;
-  color: var(--accent-color, #4f46e5);
-  margin-left: auto;
-  font-weight: 500;
-}
-
-.sm-duration-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.sm-duration-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: #333;
-  .dark & {
-    color: #ccc;
-  }
-  white-space: nowrap;
-}
-
-.sm-duration-value {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent-color, #4f46e5);
-  min-width: 36px;
   text-align: right;
 }
 
-.sm-bpm-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.st-secondary-row {
+  min-height: 38px;
+  padding-top: 2px;
+  border-top: 1px solid rgba(118, 118, 128, 0.14);
 }
 
-.sm-bpm-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.st-bpm-row {
+  padding-top: 14px;
 }
 
-.sm-bpm-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: #333;
-  .dark & {
-    color: #ccc;
-  }
+:global(.dark) .st-title,
+:global(.dark) .st-detail-label {
+  color: #f0f0f3;
 }
 
-.sm-bpm-desc {
-  font-size: 11px;
-  color: #888;
+:global(.dark) .st-description,
+:global(.dark) .st-slider-labels,
+:global(.dark) .st-slider-value,
+:global(.dark) .st-duration-value {
+  color: #a6a8b0;
 }
 
-// 过渡动画
-.sm-expand-enter-active,
-.sm-expand-leave-active {
-  transition: all 0.3s ease;
-  overflow: hidden;
-}
-.sm-expand-enter-from,
-.sm-expand-leave-to {
-  opacity: 0;
-  max-height: 0;
-  margin-top: 0;
-}
-.sm-expand-enter-to,
-.sm-expand-leave-from {
-  max-height: 500px;
+:global(.dark) .st-duration-slider :deep(.n-slider-rail) {
+  background: rgba(var(--st-slider-color-rgb), 0.24);
 }
 
-// 响应式
-@media (max-width: 640px) {
-  .sm-modes-grid {
-    grid-template-columns: 1fr;
+@media (prefers-reduced-motion: reduce) {
+  .st-slider-section,
+  .st-engine-slider:not(.dragging) .st-engine-handle,
+  .st-duration-slider :deep(.n-slider-rail),
+  .st-duration-slider :deep(.n-slider-rail__fill),
+  .st-duration-slider :deep(.n-slider-handle) {
+    transition: none;
   }
 }
 </style>

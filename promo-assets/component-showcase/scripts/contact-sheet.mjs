@@ -1,0 +1,12 @@
+import sharp from 'sharp';
+import { mkdir } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+const root = resolve(import.meta.dirname, '..');
+const frames = resolve(root, 'out/frames');
+const out = resolve(root, 'out/qa');
+await mkdir(out, { recursive: true });
+const picks = [0, 99, 195, 300, 390, 510, 600, 720, 852, 899];
+const images = await Promise.all(picks.map(async (f) => sharp(join(frames, `frame-${String(f).padStart(4, '0')}.png`)).resize(480, 270).png().toBuffer()));
+const sheet = sharp({ create: { width: 960, height: 1350, channels: 4, background: '#15151a' } });
+const composites = images.map((input, i) => ({ input, left: (i % 2) * 480, top: Math.floor(i / 2) * 270 }));
+await sheet.composite(composites).png().toFile(join(out, 'contact-sheet.png'));

@@ -4,6 +4,8 @@
 import { Mesh, Program, Renderer, Triangle } from 'ogl';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
+
 const props = withDefaults(
   defineProps<{
     color: string;
@@ -12,8 +14,16 @@ const props = withDefaults(
     loudness?: number;
     opacity?: number;
     reducedMotion?: boolean;
+    active?: boolean;
   }>(),
-  { density: 0.58, chaos: 0.42, loudness: 0, opacity: 0.76, reducedMotion: false }
+  {
+    density: 0.58,
+    chaos: 0.42,
+    loudness: 0,
+    opacity: 0.76,
+    reducedMotion: false,
+    active: true
+  }
 );
 
 const host = ref<HTMLDivElement | null>(null);
@@ -25,6 +35,9 @@ let resize: (() => void) | null = null;
 let lastRenderTime = 0;
 let isPlayerMorphing = false;
 let bodyClassObserver: MutationObserver | null = null;
+let pageVisible = true;
+let releaseCanvasLoop: (() => void) | null = null;
+let startedAt = 0;
 const smokeColor = new Float32Array([0.4, 0.4, 0.4]);
 
 const vertex = `#version 300 es
@@ -56,9 +69,48 @@ function updateSmokeColor(color: string): void {
   smokeColor[2] = nextColor[2];
 }
 
+function stopLoop() {
+  if (frameId) cancelAnimationFrame(frameId);
+  frameId = 0;
+  releaseCanvasLoop?.();
+  releaseCanvasLoop = null;
+}
+
+function draw(time: number) {
+  if (!props.active || !pageVisible || props.reducedMotion) {
+    stopLoop();
+    return;
+  }
+  frameId = requestAnimationFrame(draw);
+  if (!renderer || !program || !mesh) return;
+  // During the geometry morph, the compositor already has a full-screen transform to process.
+  // Keep the smoke responsive without competing for every display frame.
+  if (isPlayerMorphing && time - lastRenderTime < 33) return;
+  lastRenderTime = time;
+  program.uniforms.uTime.value = (time - startedAt) / 1000;
+  program.uniforms.uLoudness.value = props.loudness;
+  program.uniforms.uDensity.value = props.density;
+  program.uniforms.uChaos.value = props.chaos;
+  program.uniforms.uOpacity.value = props.opacity;
+  renderer.render({ scene: mesh });
+}
+
+function startLoop() {
+  if (frameId || !pageVisible || !props.active || props.reducedMotion || !renderer) return;
+  releaseCanvasLoop = acquirePlayerResource('canvas-loop');
+  frameId = requestAnimationFrame(draw);
+}
+
+function handlePageVisibility() {
+  pageVisible = !document.hidden;
+  if (pageVisible) startLoop();
+  else stopLoop();
+}
+
 onMounted(() => {
   const element = host.value;
   if (!element || props.reducedMotion) return;
+  pageVisible = !document.hidden;
   try {
     updateSmokeColor(props.color);
     const syncMorphingState = () => {
@@ -86,22 +138,7 @@ onMounted(() => {
     });
     mesh = new Mesh(gl, { geometry: new Triangle(gl), program });
     element.appendChild(gl.canvas);
-    const started = performance.now();
-    const draw = (time: number) => {
-      frameId = requestAnimationFrame(draw);
-      if (!renderer || !program || !mesh) return;
-      // During the geometry morph, the compositor already has a full-screen transform to process.
-      // Keep the smoke responsive without competing for every display frame.
-      if (isPlayerMorphing && time - lastRenderTime < 33) return;
-      lastRenderTime = time;
-      program.uniforms.uTime.value = (time - started) / 1000;
-      program.uniforms.uLoudness.value = props.loudness;
-      program.uniforms.uDensity.value = props.density;
-      program.uniforms.uChaos.value = props.chaos;
-      program.uniforms.uOpacity.value = props.opacity;
-      renderer.render({ scene: mesh });
-    };
-    frameId = requestAnimationFrame(draw);
+    startedAt = performance.now();
     resize = () => {
       if (!renderer || !program) return;
       const resolutionScale = isPlayerMorphing ? 0.7 : 1;
@@ -114,6 +151,8 @@ onMounted(() => {
     };
     resize();
     window.addEventListener('resize', resize);
+    document.addEventListener('visibilitychange', handlePageVisibility);
+    startLoop();
   } catch {
     renderer = null;
   }
@@ -121,7 +160,15 @@ onMounted(() => {
 watch(
   () => props.reducedMotion,
   (reduced) => {
-    if (reduced && frameId) cancelAnimationFrame(frameId);
+    if (reduced) stopLoop();
+    else startLoop();
+  }
+);
+watch(
+  () => props.active,
+  (active) => {
+    if (active) startLoop();
+    else stopLoop();
   }
 );
 watch(
@@ -129,7 +176,8 @@ watch(
   (color) => updateSmokeColor(color)
 );
 onBeforeUnmount(() => {
-  if (frameId) cancelAnimationFrame(frameId);
+  stopLoop();
+  document.removeEventListener('visibilitychange', handlePageVisibility);
   if (resize) window.removeEventListener('resize', resize);
   bodyClassObserver?.disconnect();
   bodyClassObserver = null;

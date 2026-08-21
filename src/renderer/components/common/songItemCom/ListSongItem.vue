@@ -56,6 +56,16 @@
             </template>
           </n-ellipsis>
         </div>
+        <button
+          v-if="item.al?.name || (item as any).album?.name"
+          type="button"
+          class="song-item-content-album"
+          @click.stop="onAlbumClick"
+        >
+          <n-ellipsis line-clamp="1">
+            {{ item.al?.name || (item as any).album?.name }}
+          </n-ellipsis>
+        </button>
       </div>
     </template>
 
@@ -79,7 +89,7 @@ import { getImgUrl } from '@/utils';
 
 import BaseSongItem from './BaseSongItem.vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     item: SongResult;
     favorite?: boolean;
@@ -110,6 +120,10 @@ const onToggleSelect = () => {
 };
 const onImageLoad = (event: Event) => baseItem.value?.imageLoad(event);
 const onArtistClick = (id: number) => baseItem.value?.handleArtistClick(id);
+const onAlbumClick = () => {
+  const albumId = props.item.al?.id ?? (props.item as any).album?.id ?? -1;
+  baseItem.value?.handleAlbumClick(albumId);
+};
 const onMenuClick = (event: MouseEvent) => baseItem.value?.openItemMenu(event);
 </script>
 
@@ -155,6 +169,18 @@ const onMenuClick = (event: MouseEvent) => baseItem.value?.openItemMenu(event);
       flex: 1;
       min-width: 0;
       color: var(--d-text-secondary);
+    }
+
+    &-album {
+      max-width: 32%;
+      margin-left: 12px;
+      padding: 0;
+      overflow: hidden;
+      border: 0;
+      background: transparent;
+      color: var(--d-text-muted);
+      font-size: var(--d-text-xs);
+      text-align: left;
     }
   }
 

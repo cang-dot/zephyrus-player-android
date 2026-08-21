@@ -12,9 +12,14 @@
         :style="{
           ...styleVars,
           '--accent-color': accentColor,
-          '--accent-color-rgb': accentColorRgb
+          '--accent-color-rgb': accentColorRgb,
+          ...lyricsSwipeStyle
         }"
         @click="handleTapToggle"
+        @pointerdown.capture="onLyricsSwipePointerDown"
+        @pointermove.capture="onLyricsSwipePointerMove"
+        @pointerup.capture="onLyricsSwipePointerUp"
+        @pointercancel.capture="onLyricsSwipePointerCancel"
         @touchstart="onSwipeCloseTouchStart"
         @touchend="onSwipeCloseTouchEnd"
       >
@@ -43,10 +48,11 @@
 
         <transition name="star-chart-chart">
           <main
-            v-if="!showFullLyrics"
+            v-show="!showFullLyrics || lyricsSwipePreview"
             ref="chartFrame"
             class="chart-shell"
             :class="{ 'is-playing': isPlaying, 'is-climax': styleEngine.isInClimax }"
+            :style="lyricsUnderlayStyle"
           >
             <div class="chart-rotor" aria-hidden="true">
               <canvas ref="chartCanvas" class="chart-canvas" />
@@ -59,7 +65,7 @@
                 type="button"
                 class="lyric-focus no-toggle"
                 aria-label="打开滚动歌词"
-                @click.stop="showFullLyrics = true"
+                @click.stop="openLyricsAnimated"
               >
                 <span class="lyric-main">{{ currentLyricText }}</span>
                 <span v-if="currentTranslation" class="lyric-translation">
@@ -72,11 +78,12 @@
 
         <transition name="star-chart-content">
           <button
-            v-if="!showFullLyrics"
+            v-show="!showFullLyrics || lyricsSwipePreview"
             type="button"
             class="landscape-lyric no-toggle"
             aria-label="打开滚动歌词"
-            @click.stop="showFullLyrics = true"
+                @click.stop="openLyricsAnimated"
+            :style="lyricsUnderlayStyle"
           >
             <span class="lyric-main">{{ currentLyricText }}</span>
             <span v-if="currentTranslation" class="lyric-translation">
@@ -85,24 +92,31 @@
           </button>
         </transition>
 
-        <transition name="star-chart-overlay">
-          <div v-if="showFullLyrics" class="lyrics-backdrop" @click="showFullLyrics = false" />
-        </transition>
-        <transition name="star-chart-overlay">
+        <div
+          v-show="showFullLyrics || lyricsSwipePreview"
+          class="lyrics-backdrop"
+          :style="lyricsBackdropStyle"
+          @click="closeLyricsAnimated"
+        />
+        <div
+          v-show="showFullLyrics || lyricsSwipePreview"
+          class="scrolling-lyrics-overlay"
+          :style="lyricsOverlayStyle"
+        >
           <mobile-scrolling-lyrics
-            v-if="showFullLyrics"
-            class="scrolling-lyrics-overlay"
+            class="scrolling-lyrics-content"
             :back-closes="showFullLyrics"
-            @close="showFullLyrics = false"
+            :active="showFullLyrics || lyricsSwipePreview"
+            @close="closeLyricsAnimated"
             @interact="showControls"
             @generatePoster="handleGeneratePoster"
           />
-        </transition>
+        </div>
 
         <mobile-controls-area
           :visible="controlsVisible"
           :is-fullscreen="showFullLyrics"
-          @close="showFullLyrics = false"
+          @close="closeLyricsAnimated"
           @showPlaylist="openPlaylist"
           @show-settings="showPlayerSettings = true"
           @interact="showControls"
@@ -122,6 +136,7 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
@@ -133,6 +148,7 @@ import { climaxDetector } from '@/services/climaxDetector';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { shouldSkipMobilePlayerFrame } from '@/utils/mobilePlayerPerformance';
+import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -150,11 +166,34 @@ const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare
 const { styleVars, isCustom, customBackgroundActive, customFontActive } =
   usePlayerStyleAppearance('starChart');
 const showFullLyrics = ref(false);
+const {
+  style: lyricsSwipeStyle,
+  overlayStyle: lyricsOverlayStyle,
+  underlayStyle: lyricsUnderlayStyle,
+  backdropStyle: lyricsBackdropStyle,
+  previewing: lyricsSwipePreview,
+  onPointerDown: onLyricsSwipePointerDown,
+  onPointerMove: onLyricsSwipePointerMove,
+  onPointerUp: onLyricsSwipePointerUp,
+  onPointerCancel: onLyricsSwipePointerCancel,
+  animateOpen: openLyricsAnimated,
+  animateClose: closeLyricsAnimated
+} = useLyricSwipeGesture({
+  isOpen: () => showFullLyrics.value,
+  onOpen: () => {
+    openLyricsAnimated();
+  },
+  onClose: () => {
+    showFullLyrics.value = false;
+  }
+});
 const chartFrame = ref<HTMLElement>();
 const chartCanvas = ref<HTMLCanvasElement>();
 let resizeObserver: ResizeObserver | undefined;
 let renderVersion = 0;
 let spectrumFrameId: number | null = null;
+let pageVisible = !document.hidden;
+let releaseCanvasLoop: (() => void) | null = null;
 let lastSpectrumRenderAt = 0;
 
 interface ChartPoint {
@@ -173,7 +212,7 @@ let chartSize = 0;
 
 const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
   onDoubleClick: () => {
-    showFullLyrics.value = true;
+    openLyricsAnimated();
   }
 });
 
@@ -376,11 +415,13 @@ function stopSpectrumLoop() {
     cancelAnimationFrame(spectrumFrameId);
     spectrumFrameId = null;
   }
+  releaseCanvasLoop?.();
+  releaseCanvasLoop = null;
 }
 
 function renderSpectrumFrame() {
   const canvas = chartCanvas.value;
-  if (!canvas || !chartPoints.length || !isVisible.value || showFullLyrics.value) {
+  if (!canvas || !chartPoints.length || !isVisible.value || showFullLyrics.value || !pageVisible) {
     stopSpectrumLoop();
     return;
   }
@@ -399,7 +440,15 @@ function renderSpectrumFrame() {
 
 function startSpectrumLoop() {
   stopSpectrumLoop();
+  if (!pageVisible || !isVisible.value || showFullLyrics.value) return;
+  releaseCanvasLoop = acquirePlayerResource('canvas-loop');
   spectrumFrameId = requestAnimationFrame(renderSpectrumFrame);
+}
+
+function handlePageVisibility() {
+  pageVisible = !document.hidden;
+  if (pageVisible && isVisible.value && !showFullLyrics.value) startSpectrumLoop();
+  if (!pageVisible) stopSpectrumLoop();
 }
 
 watch(
@@ -428,13 +477,15 @@ onMounted(() => {
   resizeObserver = new ResizeObserver(() => renderChart());
   if (chartFrame.value) resizeObserver.observe(chartFrame.value);
   void nextTick(() => renderChart());
-  startSpectrumLoop();
+  document.addEventListener('visibilitychange', handlePageVisibility);
+  if (pageVisible && !showFullLyrics.value) startSpectrumLoop();
 });
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   stopSpectrumLoop();
   renderVersion++;
+  document.removeEventListener('visibilitychange', handlePageVisibility);
 });
 </script>
 
@@ -644,6 +695,11 @@ onBeforeUnmount(() => {
 
 .scrolling-lyrics-overlay {
   z-index: 50;
+}
+
+.scrolling-lyrics-content {
+  width: 100%;
+  height: 100%;
 }
 
 @keyframes star-chart-spin {

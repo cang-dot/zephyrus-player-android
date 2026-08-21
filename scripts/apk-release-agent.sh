@@ -12,7 +12,10 @@ set -uo pipefail
 
 # ==================== 配置 ====================
 GITHUB_REPO="cang-dot/zephyrus-player-android"
-GITHUB_TOKEN="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"
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+  echo "GITHUB_TOKEN is required" >&2
+  exit 1
+fi
 APK_DIR="/var/www/zephyrus/apks"
 DOCS_DIR="/var/www/zephyrus/docs"
 DOCS_INSTALL_HTML="${DOCS_DIR}/guide/installation.html"

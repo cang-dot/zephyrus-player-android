@@ -3,7 +3,7 @@
  *
  * 职责：
  *   1. 监控当前播放进度（由 MusicHook 的进度 interval 调用）
- *   2. 当剩余时间 <= crossfadeDuration 时，预加载下一首并触发 crossfade
+ *   2. 提前准备下一首，在智能过渡窗口或无缝切歌窗口启动衔接
  *   3. crossfade 完成后更新播放状态（歌词/播放列表索引/标题等）
  *   4. 协调 'end' 事件处理（crossfade 期间跳过 nextPlay）
  *
@@ -24,6 +24,23 @@ import { preloadService } from './preloadService';
 
 class SmartMixService {
   private isCrossfading = false;
+
+  /**
+   * 下一首音频的准备任务。准备和真正的 crossfade 启动分离，避免网络加载
+   * 占用最后几秒的过渡窗口，也避免进度 interval 重复创建多个下一首实例。
+   */
+  private crossfadePreparation: Promise<void> | null = null;
+  private crossfadePreparationGeneration = 0;
+
+  /**
+   * 至少提前这么多秒准备下一首；实际渐变仍在设置的时长窗口内开始。
+   *
+   * 在线歌曲需要先解析播放地址，再等待 Howler/原生音频完成加载。8 秒
+   * 只够覆盖本地歌曲，网络稍慢时准备任务会错过最后的过渡窗口，随后由
+   * 普通 end 事件直接切歌，看起来就像智能过渡没有触发。提前 24 秒只扩大
+   * 预加载窗口，不会改变用户设置的实际淡入淡出时长。
+   */
+  private readonly PRELOAD_LEAD_SECONDS = 24;
 
   // ==================== 段落门控 ====================
   /** 是否正在等待段落结束以触发 crossfade */
@@ -153,60 +170,68 @@ class SmartMixService {
   }
 
   /**
-   * 检查是否应该触发 crossfade
-   * 由 MusicHook 的进度 interval 每 50ms 调用
+   * 检查是否应该准备/触发 crossfade。
+   * 由 MusicHook 的进度 interval 每 50ms 调用。
+   *
+   * 准备窗口比实际过渡窗口提前 PRELOAD_LEAD_SECONDS 秒打开；准备完成后
+   * 会等待到歌曲剩余 crossfadeDuration 秒时才调用 audioService.crossfadeToNext。
    */
   async checkCrossfade(currentTime: number, duration: number): Promise<void> {
     // 延迟导入避免循环依赖
     const { useMixEngineStore } = await import('@/store/modules/mixEngine');
     const mixEngine = useMixEngineStore();
 
-    if (!mixEngine.smartMixEnabled) return;
-    if (this.isCrossfading) return;
-    if (audioService.isCrossfading()) return;
+    const gaplessEnabled = mixEngine.gaplessEnabled;
+    if (!mixEngine.smartMixEnabled && !gaplessEnabled) return;
+    if (this.isCrossfading || audioService.isCrossfading()) return;
+    if (this.crossfadePreparation) return;
 
     // 需要有效时长
     if (!duration || duration <= 0) return;
 
     const remaining = duration - currentTime;
-    const crossfadeDuration = mixEngine.crossfadeDuration;
+    const crossfadeDuration = gaplessEnabled ? 0.08 : mixEngine.crossfadeDuration;
+    const preparationWindow = gaplessEnabled
+      ? this.PRELOAD_LEAD_SECONDS
+      : crossfadeDuration + Math.max(this.PRELOAD_LEAD_SECONDS, crossfadeDuration);
 
-    // 触发窗口：剩余时间 <= crossfadeDuration
-    if (remaining > crossfadeDuration || remaining < 0.3) {
-      // 离开触发窗口时清理 pending 状态（用户 seek 等）
+    // 在准备窗口外不做任何工作；低于 0.3 秒则交给正常 end 流程，避免迟到的渐变。
+    if (remaining > preparationWindow || remaining < 0.3) {
       this.clearPending();
       return;
     }
 
-    // ===== 署名类歌词检测：命中则绕过门控直接开始渐变 =====
-    let bypassGate = false;
+    const sourceTrackId = String(audioService.getCurrentTrack()?.id ?? '');
+    const generation = this.crossfadePreparationGeneration;
+    const preparation = this.prepareAndStartCrossfade(
+      currentTime,
+      duration,
+      crossfadeDuration,
+      mixEngine.transitionLevel,
+      sourceTrackId,
+      generation,
+      gaplessEnabled
+    );
+    this.crossfadePreparation = preparation;
     try {
-      const { lrcArray, nowIndex } = await import('@/hooks/MusicHook');
-      const currentLine = lrcArray.value[nowIndex.value];
-      if (currentLine?.text && this.isAttributionLyric(currentLine.text)) {
-        bypassGate = true;
-        this.clearPending();
-      }
-    } catch {
-      // 歌词数据不可用，跳过
+      await preparation;
+    } finally {
+      if (this.crossfadePreparation === preparation) this.crossfadePreparation = null;
     }
+  }
 
-    // ===== 段落门控：高潮段或正在唱的歌词行时延迟 crossfade =====
-    if (!bypassGate) {
-      const blocking = await this.isSegmentBlocking(currentTime);
-      if (blocking) {
-        if (!this.pendingCrossfade) {
-          this.pendingCrossfade = true;
-          this.pendingSince = Date.now();
-        }
-        if (Date.now() - this.pendingSince < this.MAX_DEFER_MS) {
-          return; // 等待段落结束
-        }
-        // 超过硬上限，强制触发
-        console.warn('[SmartMix] 段落门控超时，强制触发 crossfade');
-      }
-      this.clearPending();
-    }
+  /** 执行一次受 generation 保护的预加载和定时启动流程。 */
+  private async prepareAndStartCrossfade(
+    initialTime: number,
+    initialDuration: number,
+    crossfadeDuration: number,
+    transitionLevel: 1 | 2 | 3,
+    sourceTrackId: string,
+    generation: number,
+    seamless: boolean
+  ): Promise<void> {
+    // 如果准备期间用户切换了歌曲、关闭智能混音或取消了任务，直接丢弃结果。
+    if (!this.isPreparationCurrent(sourceTrackId, generation)) return;
 
     // 获取下一首
     const { usePlaylistStore } = await import('@/store/modules/playlist');
@@ -238,9 +263,12 @@ class SmartMixService {
     if (currentTrack && nextSong.id === currentTrack.id) return;
 
     // ===== 预取下一首背景色（确保 crossfade-start 事件 payload 已带色）=====
+    // 取色只服务于视觉过渡，不能阻塞下一首音频的准备。封面请求在
+    // Android WebView 或跨域网关异常时可能没有及时触发 onerror，因此设置
+    // 短超时后使用默认颜色继续走音频路径。
     if (!nextSong.backgroundColor || !nextSong.primaryColor) {
       try {
-        const bg = await getImageLinearBackground(getImgUrl(nextSong?.picUrl, '30y30'));
+        const bg = await this.resolveSongColors(nextSong, 1200);
         if (bg.backgroundColor) nextSong.backgroundColor = bg.backgroundColor;
         if (bg.primaryColor) nextSong.primaryColor = bg.primaryColor;
       } catch (e) {
@@ -323,13 +351,58 @@ class SmartMixService {
       }
     }
 
+    // 下一首准备完成后，等待到设置的精确过渡窗口；准备速度快时不会提前淡入。
+    if (initialDuration - initialTime > crossfadeDuration) {
+      const ready = await this.waitForCrossfadeWindow(crossfadeDuration, sourceTrackId, generation);
+      if (!ready) return;
+    }
+
+    const currentProgress = this.getCurrentProgress();
+    if (!currentProgress || !this.isPreparationCurrent(sourceTrackId, generation)) return;
+
+    const currentTime = currentProgress.currentTime;
+    const duration = currentProgress.duration;
+
+    // ===== 署名类歌词检测：命中则绕过门控直接开始渐变 =====
+    let bypassGate = false;
+    try {
+      const { lrcArray, nowIndex } = await import('@/hooks/MusicHook');
+      const currentLine = lrcArray.value[nowIndex.value];
+      if (currentLine?.text && this.isAttributionLyric(currentLine.text)) {
+        bypassGate = true;
+        this.clearPending();
+      }
+    } catch {
+      // 歌词数据不可用，跳过
+    }
+
+    // ===== 段落门控：只允许在目标窗口之前延迟，不能把过渡推到歌曲结束后 =====
+    if (!bypassGate) {
+      const blocking = await this.isSegmentBlocking(currentTime);
+      if (blocking && duration - currentTime > crossfadeDuration) {
+        if (!this.pendingCrossfade) {
+          this.pendingCrossfade = true;
+          this.pendingSince = Date.now();
+        }
+        if (Date.now() - this.pendingSince < this.MAX_DEFER_MS) {
+          return; // 等待段落结束
+        }
+        // 超过硬上限，强制触发
+        console.warn('[SmartMix] 段落门控超时，强制触发 crossfade');
+      }
+      this.clearPending();
+    }
+
     // 触发 crossfade
+    if (!this.isPreparationCurrent(sourceTrackId, generation)) return;
+
     const crossfadeStarted = await this.doCrossfade(
       nextSound,
       nextSong,
       nextIndex,
       crossfadeDuration,
-      mixEngine.transitionLevel
+      transitionLevel,
+      seamless
     );
 
     // crossfade 成功启动后才从预加载缓存中移除
@@ -338,13 +411,78 @@ class SmartMixService {
     }
   }
 
+  /** 等待当前歌曲进入“剩余 crossfadeDuration 秒”的精确启动窗口。 */
+  private async waitForCrossfadeWindow(
+    crossfadeDuration: number,
+    sourceTrackId: string,
+    generation: number
+  ): Promise<boolean> {
+    const deadline =
+      Date.now() + Math.max(30000, (crossfadeDuration + this.PRELOAD_LEAD_SECONDS) * 4000);
+
+    while (Date.now() < deadline) {
+      if (!this.isPreparationCurrent(sourceTrackId, generation)) return false;
+      const progress = this.getCurrentProgress();
+      if (!progress) return false;
+
+      const remaining = progress.duration - progress.currentTime;
+      const terminalThreshold = Math.max(0.02, Math.min(0.3, crossfadeDuration));
+      if (remaining < terminalThreshold) return false;
+      if (remaining <= crossfadeDuration) return true;
+
+      // 使用短等待保持时间精度，同时避免 50ms interval 之外再产生高频轮询。
+      const waitMs = Math.max(30, Math.min(120, (remaining - crossfadeDuration) * 1000));
+      await new Promise((resolve) => window.setTimeout(resolve, waitMs));
+    }
+
+    return false;
+  }
+
+  private getCurrentProgress(): { currentTime: number; duration: number } | null {
+    const sound = audioService.getCurrentSound();
+    if (!sound) return null;
+    const currentTime = Number(sound.seek());
+    const duration = Number(sound.duration());
+    if (!Number.isFinite(currentTime) || !Number.isFinite(duration) || duration <= 0) return null;
+    return { currentTime, duration };
+  }
+
+  /**
+   * Resolve cover colors without making playback state wait for an image request.
+   * A timeout returns empty colors; the transition UI already has stable fallbacks.
+   */
+  private async resolveSongColors(
+    song: SongResult,
+    timeoutMs: number
+  ): Promise<{ backgroundColor: string; primaryColor: string }> {
+    const fallback = { backgroundColor: '', primaryColor: '' };
+    const colorPromise = getImageLinearBackground(getImgUrl(song.picUrl, '30y30'));
+    return Promise.race([
+      colorPromise,
+      new Promise<{ backgroundColor: string; primaryColor: string }>((resolve) => {
+        window.setTimeout(() => resolve(fallback), timeoutMs);
+      })
+    ]);
+  }
+
+  private isPreparationCurrent(sourceTrackId: string, generation: number): boolean {
+    if (generation !== this.crossfadePreparationGeneration) return false;
+    if (audioService.isCrossfading()) return false;
+    const smartMixEnabled = localStorage.getItem('smartMixEnabled') === 'true';
+    const gaplessEnabled = localStorage.getItem('gaplessPlayback') === 'true';
+    if (!smartMixEnabled && !gaplessEnabled) return false;
+    const currentTrackId = String(audioService.getCurrentTrack()?.id ?? '');
+    return Boolean(sourceTrackId) && currentTrackId === sourceTrackId;
+  }
+
   /** 执行 crossfade 并监听完成/取消事件，返回是否成功启动 */
   private async doCrossfade(
     nextSound: AudioHandle,
     nextSong: SongResult,
     nextIndex: number,
     duration: number,
-    level: 1 | 2 | 3
+    level: 1 | 2 | 3,
+    seamless = false
   ): Promise<boolean> {
     this.isCrossfading = true;
 
@@ -354,7 +492,9 @@ class SmartMixService {
         drumDetector.start();
       }
 
-      const success = await audioService.crossfadeToNext(nextSound, nextSong, duration, level);
+      const success = await audioService.crossfadeToNext(nextSound, nextSong, duration, level, {
+        seamless
+      });
       if (!success) {
         this.isCrossfading = false;
         return false;
@@ -413,7 +553,7 @@ class SmartMixService {
               backgroundColor: nextSong.backgroundColor,
               primaryColor: nextSong.primaryColor
             })
-          : getImageLinearBackground(getImgUrl(nextSong?.picUrl, '30y30'))
+          : this.resolveSongColors(nextSong, 1500)
       ]);
 
       nextSong.lyric = lyrics;
@@ -474,7 +614,7 @@ class SmartMixService {
       // 避免 finishTransition() 把 displaySrc 闪回旧封面
       try {
         const { useTransitionStore } = await import('@/store/modules/transition');
-        useTransitionStore().end();
+        useTransitionStore().end(String(nextSong.id));
       } catch {
         /* transition store 不可用 */
       }
@@ -488,6 +628,7 @@ class SmartMixService {
 
   /** 取消 crossfade（外部调用） */
   cancelCrossfade(): void {
+    this.crossfadePreparationGeneration += 1;
     this.isCrossfading = false;
     this.clearPending();
   }

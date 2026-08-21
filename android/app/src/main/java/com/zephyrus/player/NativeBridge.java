@@ -13,6 +13,8 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 
+import androidx.browser.customtabs.CustomTabsIntent;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -30,6 +32,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
 /**
  * WebView 与原生 Android 之间的桥接接口。
@@ -1373,5 +1376,88 @@ public class NativeBridge {
         } catch (Exception e) {
             Log.e("NativeBridge", "openExternal error", e);
         }
+    }
+
+    /**
+     * 在与当前 Activity 关联的 Custom Tab 中完成 Spotify OAuth。
+     * 相比 NEW_TASK 外部浏览器，Custom Tab 能稳定把自定义 scheme 回调交还给 MainActivity。
+     */
+    @JavascriptInterface
+    public void openSpotifyAuth(String url) {
+        if (url == null || url.isEmpty()) return;
+        activity.runOnUiThread(() -> {
+            try {
+                CustomTabsIntent customTabsIntent = new CustomTabsIntent.Builder()
+                        .setShowTitle(false)
+                        .setUrlBarHidingEnabled(true)
+                        .build();
+                customTabsIntent.launchUrl(activity, Uri.parse(url));
+            } catch (Exception customTabError) {
+                Log.w("SpotifyAuth", "Custom Tab unavailable, falling back to browser", customTabError);
+                openExternal(url);
+            }
+        });
+    }
+
+    /**
+     * Spotify Web API 原生网络通道。WebView 的 capacitor:// Origin 在部分设备上会被
+     * CORS 拦截，因此移动端仅对 Spotify 官方 API 域名提供异步 Bearer 请求。
+     */
+    @JavascriptInterface
+    public void spotifyApiRequest(String requestId, String url, String method, String accessToken, String body) {
+        new Thread(() -> {
+            JSONObject result = new JSONObject();
+            HttpURLConnection connection = null;
+            try {
+                URL target = new URL(url);
+                if (!"https".equalsIgnoreCase(target.getProtocol())
+                        || !"api.spotify.com".equalsIgnoreCase(target.getHost())) {
+                    throw new SecurityException("Unsupported Spotify API host");
+                }
+
+                connection = (HttpURLConnection) target.openConnection();
+                connection.setRequestMethod(method == null || method.isEmpty() ? "GET" : method);
+                connection.setConnectTimeout(12000);
+                connection.setReadTimeout(15000);
+                connection.setRequestProperty("Authorization", "Bearer " + accessToken);
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("Content-Type", "application/json");
+
+                if (body != null && !body.isEmpty()
+                        && !"GET".equalsIgnoreCase(connection.getRequestMethod())) {
+                    connection.setDoOutput(true);
+                    try (OutputStream output = connection.getOutputStream()) {
+                        output.write(body.getBytes(StandardCharsets.UTF_8));
+                    }
+                }
+
+                int status = connection.getResponseCode();
+                InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+                String responseBody = "";
+                if (stream != null) {
+                    try (InputStream input = stream; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                        byte[] buffer = new byte[8192];
+                        int read;
+                        while ((read = input.read(buffer)) >= 0) output.write(buffer, 0, read);
+                        responseBody = output.toString(StandardCharsets.UTF_8.name());
+                    }
+                }
+                result.put("status", status);
+                result.put("body", responseBody);
+            } catch (Exception error) {
+                Log.e("SpotifyApi", "Native request failed", error);
+                try {
+                    result.put("status", 0);
+                    result.put("error", error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
+                } catch (Exception ignored) {
+                }
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+
+            String js = "window.__spotifyNativeResponse && window.__spotifyNativeResponse("
+                    + JSONObject.quote(requestId) + "," + JSONObject.quote(result.toString()) + ");";
+            activity.evaluateJavascript(js);
+        }, "SpotifyApiRequest").start();
     }
 }

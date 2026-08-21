@@ -13,9 +13,14 @@
           ...styleVars,
           '--neon-color': neonColor,
           '--neon-bright': neonBright,
-          '--neon-dim': neonDim
+          '--neon-dim': neonDim,
+          ...lyricsSwipeStyle
         }"
         @click="handleTapToggle"
+        @pointerdown.capture="onLyricsSwipePointerDown"
+        @pointermove.capture="onLyricsSwipePointerMove"
+        @pointerup.capture="onLyricsSwipePointerUp"
+        @pointercancel.capture="onLyricsSwipePointerCancel"
         @touchstart="onSwipeCloseTouchStart"
         @touchend="onSwipeCloseTouchEnd"
       >
@@ -23,7 +28,11 @@
         <div class="aged-overlay"></div>
         <div class="ambient-glow" :style="{ opacity: beatGlowOpacity }"></div>
 
-        <div class="lyrics-layer" v-show="!showFullLyrics">
+        <div
+          class="lyrics-layer"
+          v-show="!showFullLyrics || lyricsSwipePreview"
+          :style="lyricsUnderlayStyle"
+        >
           <div
             class="neon-lyrics"
             :class="{ 'force-nowrap': isCustom && styleCfg.forceNoWrap === true }"
@@ -62,25 +71,32 @@
         </transition>
 
         <!-- 半透明遮罩 + 滚动歌词（点击歌词时显示） -->
-        <transition name="fade">
-          <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
-        </transition>
-        <transition name="fade">
+        <div
+          v-show="showFullLyrics || lyricsSwipePreview"
+          class="lyrics-mask"
+          :style="lyricsBackdropStyle"
+          @click="closeLyricsAnimated"
+        ></div>
+        <div
+          v-show="showFullLyrics || lyricsSwipePreview"
+          class="scrolling-lyrics-overlay"
+          :style="lyricsOverlayStyle"
+        >
           <mobile-scrolling-lyrics
-            v-if="showFullLyrics"
-            class="scrolling-lyrics-overlay"
+            class="scrolling-lyrics-content"
             :back-closes="showFullLyrics"
-            @close="showFullLyrics = false"
+            :active="showFullLyrics || lyricsSwipePreview"
+            @close="closeLyricsAnimated"
             @interact="showControls"
             @generatePoster="handleGeneratePoster"
           />
-        </transition>
+        </div>
 
         <!-- 底部控件（3秒自动隐藏） -->
         <mobile-controls-area
           :visible="controlsVisible"
           :is-fullscreen="showFullLyrics"
-          @close="showFullLyrics = false"
+          @close="closeLyricsAnimated"
           @showPlaylist="openPlaylist"
           @show-settings="showPlayerSettings = true"
           @interact="showControls"
@@ -103,6 +119,7 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
@@ -111,6 +128,7 @@ import { useTapToggle } from '@/composables/useTapToggle';
 import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { getStrokes, loadDictionary } from '@/lib/hanziStrokes';
+import { audioService } from '@/services/audioService';
 import { drumDetector } from '@/services/drumDetector';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
@@ -131,11 +149,32 @@ const styleEngine = useStyleEngineStore();
 const { primaryColor } = useCoverColor();
 const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
   onDoubleClick: () => {
-    showFullLyrics.value = true;
+    openLyricsAnimated();
   }
 });
 
 const showFullLyrics = ref(false);
+const {
+  style: lyricsSwipeStyle,
+  overlayStyle: lyricsOverlayStyle,
+  underlayStyle: lyricsUnderlayStyle,
+  backdropStyle: lyricsBackdropStyle,
+  previewing: lyricsSwipePreview,
+  onPointerDown: onLyricsSwipePointerDown,
+  onPointerMove: onLyricsSwipePointerMove,
+  onPointerUp: onLyricsSwipePointerUp,
+  onPointerCancel: onLyricsSwipePointerCancel,
+  animateOpen: openLyricsAnimated,
+  animateClose: closeLyricsAnimated
+} = useLyricSwipeGesture({
+  isOpen: () => showFullLyrics.value,
+  onOpen: () => {
+    showFullLyrics.value = true;
+  },
+  onClose: () => {
+    showFullLyrics.value = false;
+  }
+});
 const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({
   shouldClose: () => !showFullLyrics.value,
   onClose: () => close()
@@ -281,7 +320,7 @@ function handleSeek(e: MouseEvent) {
   const rect = target.getBoundingClientRect();
   const seekTime = ((e.clientX - rect.left) / rect.width) * duration.value;
   if (sound.value) {
-    sound.value.seek(seekTime);
+    audioService.seek(seekTime);
     nowTime.value = seekTime;
   }
 }
@@ -534,5 +573,10 @@ function formatTime(s: number): string {
   bottom: 0;
   z-index: 40;
   color: #fff;
+}
+
+.scrolling-lyrics-content {
+  width: 100%;
+  height: 100%;
 }
 </style>

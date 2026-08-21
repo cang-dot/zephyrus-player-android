@@ -11,6 +11,64 @@ import { getValidAccessToken } from './spotifyAuth';
 
 const API_BASE = 'https://api.spotify.com/v1';
 
+type NativeSpotifyResult = { status: number; body?: string; error?: string };
+const nativeRequests = new Map<
+  string,
+  { resolve: (response: Response) => void; reject: (error: Error) => void; timer: number }
+>();
+
+if (typeof window !== 'undefined') {
+  window.__spotifyNativeResponse = (requestId, payload) => {
+    const pending = nativeRequests.get(requestId);
+    if (!pending) return;
+    nativeRequests.delete(requestId);
+    window.clearTimeout(pending.timer);
+    try {
+      const result = JSON.parse(payload) as NativeSpotifyResult;
+      if (!result.status) throw new Error(result.error || 'Spotify 原生网络请求失败');
+      pending.resolve(
+        new Response(result.status === 204 ? null : result.body || '', {
+          status: result.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      );
+    } catch (error) {
+      pending.reject(error instanceof Error ? error : new Error('Spotify 原生响应解析失败'));
+    }
+  };
+}
+
+function spotifyNativeFetch(
+  url: string,
+  token: string,
+  options: RequestInit
+): Promise<Response> {
+  const bridge = window.AndroidNative;
+  if (!bridge?.spotifyApiRequest) return fetch(url, options);
+
+  return new Promise((resolve, reject) => {
+    const requestId = `spotify-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const timer = window.setTimeout(() => {
+      nativeRequests.delete(requestId);
+      reject(new Error('Spotify API 请求超时'));
+    }, 20000);
+    nativeRequests.set(requestId, { resolve, reject, timer });
+    try {
+      bridge.spotifyApiRequest(
+        requestId,
+        url,
+        String(options.method || 'GET'),
+        token,
+        typeof options.body === 'string' ? options.body : ''
+      );
+    } catch (error) {
+      nativeRequests.delete(requestId);
+      window.clearTimeout(timer);
+      reject(error instanceof Error ? error : new Error('无法启动 Spotify 原生请求'));
+    }
+  });
+}
+
 // ==================== 请求封装 ====================
 
 async function spotifyFetch(path: string, options: RequestInit = {}): Promise<Response> {
@@ -20,14 +78,15 @@ async function spotifyFetch(path: string, options: RequestInit = {}): Promise<Re
   }
 
   const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
-  const response = await fetch(url, {
+  const requestOptions: RequestInit = {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       ...options.headers
     }
-  });
+  };
+  const response = await spotifyNativeFetch(url, token, requestOptions);
 
   if (response.status === 401) {
     throw new Error('Spotify 授权已过期，请重新登录');
@@ -36,6 +95,11 @@ async function spotifyFetch(path: string, options: RequestInit = {}): Promise<Re
   if (response.status === 429) {
     const retryAfter = response.headers.get('Retry-After');
     throw new Error(`Spotify API 速率限制，请 ${retryAfter || '几秒'} 后重试`);
+  }
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Spotify API 请求失败 (${response.status})${detail ? `：${detail}` : ''}`);
   }
 
   return response;

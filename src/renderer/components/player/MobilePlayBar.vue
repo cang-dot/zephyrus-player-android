@@ -5,6 +5,9 @@
       setAnimationClass('animate__fadeInUp'),
       'play-bar-mini',
       playerStore.musicFull ? 'player-active' : '',
+      playerTransition.state.value === 'opening' || playerTransition.state.value === 'closing'
+        ? 'player-transitioning'
+        : '',
       miniUsesMenuAnchor ? 'is-menu-show' : 'is-menu-hide',
       idleCollapsed && !playerStore.musicFull ? 'idle-collapsed' : '',
       playlistSurfaceMounted && !playerStore.musicFull ? 'playlist-mounted' : '',
@@ -158,7 +161,11 @@ const playerSurfaceRendered = computed(
 );
 
 let playerOpenFrame = 0;
+let playerOpenGeneration = 0;
 const openMusicFull = async (initialVelocity = 0) => {
+  const generation = ++playerOpenGeneration;
+  if (playerOpenFrame) cancelAnimationFrame(playerOpenFrame);
+  playerOpenFrame = 0;
   idleCollapsed.value = false;
   transitionStartedWithMenu.value = shouldShowMobileMenu.value;
   captureMiniIdentityLayout();
@@ -167,10 +174,10 @@ const openMusicFull = async (initialVelocity = 0) => {
   playerStore.setMusicFull(true);
   await nextTick();
   playerOpenFrame = requestAnimationFrame(() => {
-    playerOpenFrame = requestAnimationFrame(() => {
-      playerOpenFrame = 0;
-      if (playerStore.musicFull) playerTransition.animateTo(1, initialVelocity);
-    });
+    playerOpenFrame = 0;
+    if (generation === playerOpenGeneration && playerStore.musicFull) {
+      playerTransition.animateTo(1, initialVelocity);
+    }
   });
   settingsStore.showArtistDrawer = false;
 };
@@ -179,6 +186,9 @@ const openMusicFull = async (initialVelocity = 0) => {
 const setMusicFull = () => {
   idleCollapsed.value = false;
   if (playerStore.musicFull) {
+    playerOpenGeneration += 1;
+    if (playerOpenFrame) cancelAnimationFrame(playerOpenFrame);
+    playerOpenFrame = 0;
     playerTransition.close(0, () => playerStore.setMusicFull(false));
     return;
   }
@@ -239,7 +249,10 @@ const miniSwipeStyle = computed(() => ({
   opacity: String(1 - miniSwipeProgress.value * 0.12),
   pointerEvents: playerTransition.progress.value > 0.08 ? ('none' as const) : undefined,
   '--mini-swipe-rotation': `${miniSwipeOffset.value * 0.018}deg`,
-  '--mini-swipe-content-shift': `${miniSwipeOffset.value * 0.05}px`
+  '--mini-swipe-content-shift': `${miniSwipeOffset.value * 0.05}px`,
+  '--mini-swipe-stretch': String(1 + miniSwipeProgress.value * 0.08),
+  '--mini-swipe-glow-x': `${miniSwipeOffset.value * 0.7}px`,
+  '--mini-swipe-glow-opacity': String(miniSwipeProgress.value * 0.32)
 }));
 const miniSongInfoStyle = computed(() => {
   const progress = playerTransition.progress.value;
@@ -509,7 +522,9 @@ const onMiniPointerCancel = (event: PointerEvent) => {
 };
 
 onBeforeUnmount(() => {
+  playerOpenGeneration += 1;
   if (playerOpenFrame) cancelAnimationFrame(playerOpenFrame);
+  playerTransition.cancelAllAnimations(true);
   if (miniSwipeTimer) clearTimeout(miniSwipeTimer);
   if (miniClickTimer) clearTimeout(miniClickTimer);
   if (miniLongPressTimer) clearTimeout(miniLongPressTimer);
@@ -568,7 +583,11 @@ watch(
     border-color 0.22s ease,
     background-color 0.3s ease,
     box-shadow 0.32s ease;
-  will-change: transform, opacity;
+  will-change: auto;
+
+  &.player-transitioning {
+    will-change: transform, opacity;
+  }
 
   &.is-menu-show {
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 60px);
@@ -840,6 +859,8 @@ watch(
   // 迷你模式样式
   .mobile-mini-controls {
     @apply flex items-center justify-between pr-4 mx-3 h-12 rounded-full shadow-lg;
+    position: relative;
+    isolation: isolate;
     --mini-swipe-duration: 0ms;
     --mini-swipe-opacity-duration: 0ms;
     --mini-swipe-ease: cubic-bezier(0.22, 0.84, 0.24, 1.08);
@@ -849,6 +870,19 @@ watch(
     -webkit-backdrop-filter: var(--m-glass-filter, blur(30px) saturate(175%));
     touch-action: none;
     user-select: none;
+    &::after {
+      position: absolute;
+      z-index: -1;
+      inset: -8px 10%;
+      border-radius: inherit;
+      background: color-mix(in srgb, var(--accent-color, #fff) 48%, transparent);
+      content: '';
+      opacity: var(--mini-swipe-glow-opacity, 0);
+      filter: blur(16px);
+      pointer-events: none;
+      transform: translate3d(var(--mini-swipe-glow-x, 0px), 0, 0) scaleX(var(--mini-swipe-stretch, 1));
+      transition: opacity 180ms ease, transform 80ms linear;
+    }
     /* 内部元素形变过渡 — 与外层同步 */
     transition:
       transform var(--mini-swipe-duration) var(--mini-swipe-ease),

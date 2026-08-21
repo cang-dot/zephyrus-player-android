@@ -91,8 +91,8 @@ export const MOBILE_SETTING_SEARCH_DEFINITIONS: readonly MobileSettingSearchDefi
   },
   {
     tabId: 'playback',
-    title: '智能混音引擎',
-    desc: '切歌时自动平滑过渡，避免硬切中断'
+    title: '智能过渡',
+    desc: '在歌曲尾部衔接下一首，减少切歌停顿'
   },
   {
     tabId: 'keepAlive',

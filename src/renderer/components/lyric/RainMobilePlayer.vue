@@ -9,8 +9,12 @@
           'player-style-custom-font': customFontActive,
           'player-style-custom-background': customBackgroundActive
         }"
-        :style="styleVars"
+        :style="{ ...styleVars, ...lyricsSwipeStyle }"
         @click="handleTapToggle"
+        @pointerdown.capture="onLyricsSwipePointerDown"
+        @pointermove.capture="onLyricsSwipePointerMove"
+        @pointerup.capture="onLyricsSwipePointerUp"
+        @pointercancel.capture="onLyricsSwipePointerCancel"
         @touchstart="onSwipeCloseTouchStart"
         @touchend="onSwipeCloseTouchEnd"
       >
@@ -34,7 +38,11 @@
         </div>
 
         <!-- 中央：歌词区域 -->
-        <div class="lyrics-center" v-show="!showFullLyrics">
+        <div
+          class="lyrics-center"
+          v-show="!showFullLyrics || lyricsSwipePreview"
+          :style="lyricsUnderlayStyle"
+        >
           <!-- ===== 竖屏：3D 封面 + 歌词叠加 ===== -->
           <div v-if="!isLandscape" class="portrait-cover-stage">
             <!-- 3D 封面 -->
@@ -125,19 +133,26 @@
         </div>
 
         <!-- 半透明遮罩 + 滚动歌词 -->
-        <transition name="fade">
-          <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
-        </transition>
-        <transition name="fade">
+        <div
+          v-show="showFullLyrics || lyricsSwipePreview"
+          class="lyrics-mask"
+          :style="lyricsBackdropStyle"
+          @click="closeLyricsAnimated"
+        ></div>
+        <div
+          v-show="showFullLyrics || lyricsSwipePreview"
+          class="scrolling-lyrics-overlay"
+          :style="lyricsOverlayStyle"
+        >
           <mobile-scrolling-lyrics
-            v-if="showFullLyrics"
-            class="scrolling-lyrics-overlay"
+            class="scrolling-lyrics-content"
             :back-closes="showFullLyrics"
-            @close="showFullLyrics = false"
+            :active="showFullLyrics || lyricsSwipePreview"
+            @close="closeLyricsAnimated"
             @interact="showControls"
             @generatePoster="handleGeneratePoster"
           />
-        </transition>
+        </div>
 
         <!-- 顶部控件 -->
         <transition name="ctrl-fade">
@@ -156,7 +171,7 @@
         <mobile-controls-area
           :visible="controlsVisible"
           :is-fullscreen="showFullLyrics"
-          @close="showFullLyrics = false"
+          @close="closeLyricsAnimated"
           @showPlaylist="openPlaylist"
           @show-settings="showPlayerSettings = true"
           @interact="showControls"
@@ -188,6 +203,7 @@ import RainCanvas from '@/components/lyric/RainCanvas.vue';
 import SplitLyrics from '@/components/lyric/SplitLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
@@ -209,11 +225,32 @@ const playerStore = usePlayerStore();
 
 const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
   onDoubleClick: () => {
-    showFullLyrics.value = true;
+    openLyricsAnimated();
   }
 });
 
 const showFullLyrics = ref(false);
+const {
+  style: lyricsSwipeStyle,
+  overlayStyle: lyricsOverlayStyle,
+  underlayStyle: lyricsUnderlayStyle,
+  backdropStyle: lyricsBackdropStyle,
+  previewing: lyricsSwipePreview,
+  onPointerDown: onLyricsSwipePointerDown,
+  onPointerMove: onLyricsSwipePointerMove,
+  onPointerUp: onLyricsSwipePointerUp,
+  onPointerCancel: onLyricsSwipePointerCancel,
+  animateOpen: openLyricsAnimated,
+  animateClose: closeLyricsAnimated
+} = useLyricSwipeGesture({
+  isOpen: () => showFullLyrics.value,
+  onOpen: () => {
+    showFullLyrics.value = true;
+  },
+  onClose: () => {
+    showFullLyrics.value = false;
+  }
+});
 const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({
   shouldClose: () => !showFullLyrics.value && !isLandscape.value,
   onClose: () => close()

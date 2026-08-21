@@ -13,6 +13,8 @@ const {
   normalizeKugouUserInfo,
   extractQQOAuthCode,
   parseWechatQrPoll,
+  createWechatLoginPayload,
+  createQQLoginFromCookie,
   decodeQqLyricField,
   decodeKugouKrc
 } = require('../server-platform-login.js');
@@ -81,6 +83,39 @@ function verifyWechatPollParsing() {
   return { waiting: waiting.status, scanned: scanned.status, confirmed: confirmed.status };
 }
 
+function verifyWechatLoginPayload() {
+  const payload = createWechatLoginPayload('wechat-code');
+  const request = payload['music.login.LoginServer.Login'];
+  if (
+    payload.comm?.tmeLoginType !== 1 ||
+    request?.module !== 'music.login.LoginServer' ||
+    request?.method !== 'Login' ||
+    request?.param?.code !== 'wechat-code' ||
+    request?.param?.strAppid !== 'wx48db31d50e334801' ||
+    Object.hasOwn(payload, 'req')
+  ) {
+    throw new Error(`WeChat login payload failed: ${JSON.stringify(payload)}`);
+  }
+  return { requestKey: 'music.login.LoginServer.Login', loginType: payload.comm.tmeLoginType };
+}
+
+function verifyWechatCredentialNormalization() {
+  const result = createQQLoginFromCookie('', {
+    str_musicid: '123456',
+    musickey: 'W_X_test-key',
+    nick: '微信用户'
+  });
+  if (
+    result?.userInfo?.userId !== '123456' ||
+    result?.userInfo?.nickname !== '微信用户' ||
+    !result.cookie.includes('uin=123456') ||
+    !result.cookie.includes('qm_keyst=W_X_test-key')
+  ) {
+    throw new Error(`WeChat credential normalization failed: ${JSON.stringify(result)}`);
+  }
+  return { userId: result.userInfo.userId, cookieFields: result.cookie.split(';').length };
+}
+
 function verifyQqLyricDecoding() {
   const plaintext = '[0,1000](0,400)synthetic (400,600)lyrics';
   const encrypted = encryptQrc(plaintext);
@@ -132,21 +167,32 @@ async function readResponse(path, options = {}) {
   return { status: response.status, body: await response.json() };
 }
 
-async function verifyPlatform(platform) {
-  const created = await readJson(`/platform/${platform}/qr/create?noCache=${Date.now()}`);
+async function verifyPlatform(platform, provider) {
+  const providerQuery = provider ? `&provider=${encodeURIComponent(provider)}` : '';
+  const created = await readJson(
+    `/platform/${platform}/qr/create?noCache=${Date.now()}${providerQuery}`
+  );
   if (!created.key || !created.qrUrl) {
     throw new Error(`${platform} create response is incomplete`);
   }
+  if (provider && created.provider !== provider) {
+    throw new Error(
+      `${platform} returned provider ${created.provider || 'missing'}, expected ${provider}`
+    );
+  }
+  if (provider === 'wechat' && !created.qrUrl.startsWith('data:image/')) {
+    throw new Error('WeChat QR endpoint did not return image data');
+  }
 
   const polled = await readJson(
-    `/platform/${platform}/qr/poll?key=${encodeURIComponent(created.key)}&noCache=${Date.now()}`
+    `/platform/${platform}/qr/poll?key=${encodeURIComponent(created.key)}&noCache=${Date.now()}${providerQuery}`
   );
   if (!['waiting', 'scanned', 'expired'].includes(polled.status)) {
     throw new Error(`${platform} returned unexpected initial status: ${polled.status}`);
   }
 
   let sharedSession = undefined;
-  if (platform === 'qq') {
+  if (platform === 'qq' && provider !== 'wechat') {
     const modulePath = resolve('server-platform-login.js');
     const verification = spawnSync(
       process.execPath,
@@ -162,11 +208,29 @@ async function verifyPlatform(platform) {
       throw new Error(`QQ shared session verification failed: ${verification.stderr.trim()}`);
     }
     sharedSession = true;
+  } else if (provider === 'wechat') {
+    const modulePath = resolve('server-platform-login.js');
+    const verification = spawnSync(
+      process.execPath,
+      [
+        '-e',
+        "const gateway = require(process.argv[1]); const key = process.argv[2]; const session = gateway.readQqSession(key); if (session?.provider !== 'wechat' || !session?.uuid) process.exit(1); gateway.deleteQqSession(key);",
+        modulePath,
+        created.key
+      ],
+      { encoding: 'utf8', timeout: 10000 }
+    );
+    if (verification.status !== 0) {
+      throw new Error(`WeChat shared session verification failed: ${verification.stderr.trim()}`);
+    }
+    sharedSession = true;
   }
 
   return {
     platform,
+    ...(provider ? { provider } : {}),
     keyLength: created.key.length,
+    qrBytes: Math.floor((created.qrUrl.split(',')[1]?.length || 0) * 0.75),
     status: polled.status,
     ...(sharedSession ? { sharedSession } : {})
   };
@@ -308,9 +372,12 @@ try {
   const qqCallback = verifyQqCallbackParsing();
   const qqOAuthCode = verifyQqOAuthCodeParsing();
   const wechatPoll = verifyWechatPollParsing();
+  const wechatLoginPayload = verifyWechatLoginPayload();
+  const wechatCredential = verifyWechatCredentialNormalization();
   const qqLyricDecode = verifyQqLyricDecoding();
   const kugouLyricDecode = verifyKugouLyricDecoding();
   const qq = await verifyPlatform('qq');
+  const wechat = await verifyPlatform('qq', 'wechat');
   const kugou = await verifyPlatform('kugou');
   const normalization = verifyKugouNormalization();
   const invalidKugouStatus = await verifyInvalidKugouAccount();
@@ -325,6 +392,9 @@ try {
         qqCallback,
         qqOAuthCode,
         wechatPoll,
+        wechatLoginPayload,
+        wechatCredential,
+        wechat,
         qqLyricDecode,
         kugouLyricDecode,
         kugou,

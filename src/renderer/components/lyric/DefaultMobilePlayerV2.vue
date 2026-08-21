@@ -11,8 +11,12 @@
         'custom-background': customBackgroundActive,
         'player-transitioning': playerTransitionBusy
       }"
-      :style="surfaceStyle"
+      :style="{ ...surfaceStyle, ...lyricsSwipeStyle }"
       @click="handleTapToggle"
+      @pointerdown.capture="onLyricsSwipePointerDown"
+      @pointermove.capture="onLyricsSwipePointerMove"
+      @pointerup.capture="onLyricsSwipePointerUp"
+      @pointercancel.capture="onLyricsSwipePointerCancel"
       @touchstart="onTouchStart"
       @touchend="onTouchEnd"
     >
@@ -21,7 +25,11 @@
       </div>
 
       <main class="player-content">
-        <div v-if="!lyricsExpanded" class="artwork-zone">
+        <div
+          v-if="!lyricsExpanded || lyricsSwipePreview"
+          class="artwork-zone"
+          :style="lyricsUnderlayStyle"
+        >
           <default-player-artwork
             :source="coverUrl"
             :title="playMusic?.name || 'Zephyrus'"
@@ -34,12 +42,14 @@
         <div
           v-if="!config.hideLyrics"
           class="lyrics-zone"
-          :class="{ expanded: lyricsExpanded }"
+          :class="{ expanded: lyricsExpanded || lyricsSwipePreview }"
+          :style="lyricsSwipePreview ? lyricsOverlayStyle : undefined"
           @dblclick.stop="toggleLyricsExpanded"
         >
           <mobile-scrolling-lyrics
             v-if="lrcArray.length"
             class="default-scrolling-lyrics"
+            :active="true"
             :back-closes="lyricsExpanded"
             @close="handleLyricsSurfaceClose"
             @interact="playerTransition.showControls()"
@@ -60,6 +70,7 @@ import { useWindowSize } from '@vueuse/core';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { useSwipeClose } from '@/composables/useSwipeClose';
@@ -95,6 +106,23 @@ const { styleVars, customBackgroundActive, background, backgroundColor } =
 const surfaceRef = ref<HTMLElement | null>(null);
 const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
 const lyricsExpanded = ref(false);
+const {
+  style: lyricsSwipeStyle,
+  overlayStyle: lyricsOverlayStyle,
+  underlayStyle: lyricsUnderlayStyle,
+  backdropStyle: lyricsBackdropStyle,
+  previewing: lyricsSwipePreview,
+  onPointerDown: onLyricsSwipePointerDown,
+  onPointerMove: onLyricsSwipePointerMove,
+  onPointerUp: onLyricsSwipePointerUp,
+  onPointerCancel: onLyricsSwipePointerCancel,
+  animateOpen: openLyricsAnimated,
+  animateClose: closeLyricsAnimated
+} = useLyricSwipeGesture({
+  isOpen: () => lyricsExpanded.value,
+  onOpen: () => commitLyricsExpanded(true),
+  onClose: () => commitLyricsExpanded(false)
+});
 const isLandscape = computed(() => width.value > height.value);
 const isPlaying = computed(() => playerStore.isPlay);
 const playerTransitionBusy = computed(
@@ -164,10 +192,15 @@ function closePlayer() {
   });
 }
 
-function setLyricsExpanded(value: boolean) {
+function commitLyricsExpanded(value: boolean) {
   lyricsExpanded.value = value;
   playerStore.setFullLyricsVisible(value);
   playerTransition.showControls();
+}
+
+function setLyricsExpanded(value: boolean) {
+  if (value) openLyricsAnimated();
+  else closeLyricsAnimated();
 }
 
 function toggleLyricsExpanded() {
@@ -260,6 +293,7 @@ onBeforeUnmount(() => {
   grid-template-rows: minmax(168px, 58%) minmax(100px, 42%);
   min-height: 0;
   overflow: hidden;
+  transition: grid-template-rows 380ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .artwork-zone {
@@ -267,11 +301,17 @@ onBeforeUnmount(() => {
   min-height: 0;
   padding: 8px 20px 12px;
   place-items: center;
+  transition:
+    opacity 260ms ease,
+    transform 380ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .lyrics-zone {
   min-height: 0;
   overflow: hidden;
+  transition:
+    transform 380ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 260ms ease;
 }
 
 .lyrics-zone.expanded {
@@ -296,6 +336,12 @@ onBeforeUnmount(() => {
 
 .lyrics-expanded .player-content {
   grid-template-rows: minmax(0, 1fr);
+}
+
+.lyrics-expanded .artwork-zone {
+  opacity: 0;
+  transform: translate3d(0, -18px, 0) scale(0.98);
+  pointer-events: none;
 }
 
 .shared-controls-spacer {
@@ -347,6 +393,12 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .player-content,
+  .artwork-zone,
+  .lyrics-zone {
+    transition: opacity 160ms ease;
+  }
+
   .loading-state i {
     transition: none;
     animation: none;

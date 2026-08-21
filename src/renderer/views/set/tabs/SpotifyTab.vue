@@ -11,18 +11,22 @@
           <p class="spotify-desc">连接 Spotify 账号，搜索曲库、浏览歌单、播放音乐</p>
         </div>
       </div>
-      <button class="spotify-login-btn" :disabled="spotifyStore.authLoading" @click="handleLogin">
-        <span v-if="spotifyStore.authLoading" class="loading-spinner" />
-        <i v-else class="ri-spotify-fill" />
-        <span>{{ spotifyStore.authLoading ? '等待授权...' : '使用 Spotify 登录' }}</span>
-      </button>
-      <p v-if="spotifyStore.authError" class="spotify-error">
-        <i class="ri-error-warning-line"></i>
-        {{ spotifyStore.authError }}
-      </p>
+      <div class="spotify-unavailable">
+        <i class="ri-lock-line" />
+        <p>作者是个人开发者，暂时无法向所有用户开放 Spotify 认证登录。</p>
+        <small>如果这个项目对你有帮助，可以去爱发电赞助作者一下嘛……</small>
+        <button class="spotify-sponsor-btn" type="button" @click="openSponsor">
+          <i class="ri-heart-3-line" />
+          <span>前往爱发电</span>
+        </button>
+      </div>
       <p class="spotify-hint">
         <i class="ri-information-line"></i>
         需要 Spotify Premium 订阅才能播放完整歌曲
+      </p>
+      <p class="spotify-hint spotify-region-hint">
+        <i class="ri-global-line"></i>
+        如授权页无法打开或回调失败，请使用 Spotify 支持地区的网络环境；完成授权后应用会自动返回并验证登录。
       </p>
     </div>
 
@@ -126,9 +130,10 @@ onMounted(() => {
   }
 });
 
-function handleLogin() {
-  spotifyStore.login();
-  message.info('正在跳转到 Spotify 授权页面...');
+const SPONSOR_URL = 'https://ifdian.net/a/cangdot-zephyrus';
+
+function openSponsor() {
+  window.open(SPONSOR_URL, '_blank', 'noopener,noreferrer');
 }
 
 function handleLogout() {
@@ -188,6 +193,37 @@ function openPlaylist(_playlist: SpotifyPlaylist) {
   font-size: 13px;
   color: var(--m-text-secondary, #999);
   margin: 4px 0 0;
+}
+
+.spotify-unavailable {
+  width: 100%;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--cover-border, #999) 55%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--cover-surface-alt, #999) 72%, #777 28%);
+  color: var(--cover-text-muted, var(--d-text-muted));
+  text-align: center;
+  filter: grayscale(0.75);
+
+  > i { font-size: 24px; opacity: 0.7; }
+  p { margin: 8px 0 4px; font-size: 13px; line-height: 1.55; }
+  small { display: block; font-size: 11px; line-height: 1.5; }
+}
+
+.spotify-sponsor-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  margin-top: 12px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #999;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
 }
 
 .spotify-login-btn {

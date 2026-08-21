@@ -199,6 +199,8 @@
       </n-switch>
     </setting-item>
 
+    <metaphor-settings-section />
+
     <cookie-settings-modal
       v-model:show="showTokenModal"
       :initial-value="currentToken"
@@ -215,6 +217,7 @@ import { getUserDetail } from '@/api/login';
 import { clearUnlockKey, getUnlockKey, saveUnlockKey, verifyUnlockKey } from '@/api/unlockKey';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 import CookieSettingsModal from '@/components/settings/CookieSettingsModal.vue';
+import MetaphorSettingsSection from '@/features/lyric-metaphor/MetaphorSettingsSection.vue';
 import { useSettingsStore } from '@/store/modules/settings';
 import { useUserStore } from '@/store/modules/user';
 import { isElectron, isMobile } from '@/utils';

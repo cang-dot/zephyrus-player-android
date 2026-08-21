@@ -25,7 +25,7 @@ import { isElectron } from '@/utils';
 import { applyBandSplitCrossfade, type BandSplitChain,createBandSplitChain } from '@/utils/audio/bandSplitter';
 import { calculateBeatAlignedTransition } from '@/utils/audio/beatAlign';
 import { applyEqualPowerCrossfade } from '@/utils/audio/crossfade';
-import { AudioScheduler } from '@/utils/audio/scheduler';
+import { AudioScheduler, type AudioSchedulerScope } from '@/utils/audio/scheduler';
 
 export interface CrossfadeResult {
   level: 1 | 2 | 3;
@@ -65,6 +65,7 @@ export function useSmartAudio() {
   // ==================== 内部状态 ====================
   const ctx = computed<AudioContext | null>(() => audioService.getAudioContext());
   const scheduler = shallowRef<AudioScheduler | null>(null);
+  const transitionScope = shallowRef<AudioSchedulerScope | null>(null);
   const bpmWorker = shallowRef<Worker | null>(null);
   const initialized = ref(false);
   const workerInitFailed = ref(false);
@@ -91,7 +92,7 @@ export function useSmartAudio() {
     if (!scheduler.value) {
       scheduler.value = new AudioScheduler(audioCtx);
       scheduler.value.start();
-    } else if (scheduler.value['ctx' as keyof AudioScheduler] !== audioCtx) {
+    } else if (scheduler.value.getContext() !== audioCtx) {
       // 上下文切换时重建调度器
       try { scheduler.value.stop(); } catch { /* 已停止 */ }
       scheduler.value = new AudioScheduler(audioCtx);
@@ -165,7 +166,9 @@ export function useSmartAudio() {
         );
         if (!result) return null;
         const uint8 = result as Uint8Array;
-        arrayBuffer = uint8.buffer.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength);
+        const copy = new Uint8Array(uint8.byteLength);
+        copy.set(uint8);
+        arrayBuffer = copy.buffer;
       } else if (!url.startsWith('local://')) {
         const response = await fetch(url);
         if (!response.ok) return null;
@@ -187,6 +190,8 @@ export function useSmartAudio() {
    * 执行智能过渡：在 audioService 提供的真实 gain 节点上应用三级策略
    */
   function crossfadeTo(opts: CrossfadeOptions): CrossfadeResult {
+    transitionScope.value?.cancel();
+    transitionScope.value = null;
     const audioCtx = ctx.value || (Howler.ctx as AudioContext);
     if (!audioCtx || !ensureInit() || !scheduler.value) {
       // 引擎未就绪，回退到最简等功率（仍按用户音量缩放）
@@ -198,6 +203,7 @@ export function useSmartAudio() {
     }
 
     mixEngine.setTransitioning(true);
+    transitionScope.value = scheduler.value.createScope();
 
     const now = audioCtx.currentTime;
     const level = opts.level;
@@ -293,12 +299,13 @@ export function useSmartAudio() {
     // 的 completeCrossfadeCleanup（同时间点的 setTimeout）争抢 audioService.crossfadeGain
     // 的连接权，可能在新 EQ 链建立后仍残留一条直连，造成双声道输出。
     // 新歌曲的输出路径由 completeCrossfadeCleanup → setupEQ 重建（source → 新 gainNode → destination）。
-    scheduler.value?.scheduleAt(now + duration + 0.2, () => {
+    transitionScope.value?.scheduleAt(now + duration + 0.2, () => {
       disconnectChain(chainOut);
       try { outVol.disconnect(); } catch { /* 已断开 */ }
       disconnectChain(chainIn);
       try { inVol.disconnect(); } catch { /* 已断开 */ }
       mixEngine.setTransitioning(false);
+      transitionScope.value = null;
     }, 'cleanup-band-split');
 
     return {
@@ -324,12 +331,25 @@ export function useSmartAudio() {
   function scheduleTransitionEnd(duration: number) {
     const audioCtx = ctx.value || (Howler.ctx as AudioContext);
     if (!audioCtx || !scheduler.value) {
-      setTimeout(() => mixEngine.setTransitioning(false), duration * 1000 + 200);
+      const scope = transitionScope.value;
+      setTimeout(() => {
+        if (scope === transitionScope.value) {
+          mixEngine.setTransitioning(false);
+          transitionScope.value = null;
+        }
+      }, duration * 1000 + 200);
       return;
     }
-    scheduler.value.scheduleAt(audioCtx.currentTime + duration + 0.15, () => {
+    transitionScope.value?.scheduleAt(audioCtx.currentTime + duration + 0.15, () => {
       mixEngine.setTransitioning(false);
+      transitionScope.value = null;
     }, 'transition-end');
+  }
+
+  function cancelTransition() {
+    transitionScope.value?.cancel();
+    transitionScope.value = null;
+    mixEngine.setTransitioning(false);
   }
 
   // ==================== 频谱数据 ====================
@@ -352,8 +372,13 @@ export function useSmartAudio() {
   init();
 
   function dispose() {
+    transitionScope.value?.cancel();
+    transitionScope.value = null;
     try { scheduler.value?.stop(); } catch { /* 已停止 */ }
+    scheduler.value = null;
+    initialized.value = false;
     bpmWorker.value?.terminate();
+    bpmWorker.value = null;
   }
 
   return {
@@ -365,6 +390,7 @@ export function useSmartAudio() {
     crossfadeTo,
     preloadAndAnalyzeBpm,
     scheduleTransitionEnd,
+    cancelTransition,
     dispose,
     // 频谱 & BPM
     getBandEnergies,

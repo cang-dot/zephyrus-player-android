@@ -1,0 +1,28 @@
+{
+  "name": "zephyrus-component-showcase",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "render:frames": "node scripts/render-frames.mjs",
+    "render": "node scripts/render.mjs",
+    "contact-sheet": "node scripts/contact-sheet.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "gsap": "^3.15.0",
+    "naive-ui": "^2.42.0",
+    "pinia": "^3.0.4",
+    "unplugin-vue-components": "^28.0.0",
+    "vite": "^6.4.1",
+    "vue": "^3.5.25",
+    "vue-i18n": "^11.1.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0",
+    "sharp": "^0.35.3",
+    "typescript": "^5.9.3"
+  }
+}

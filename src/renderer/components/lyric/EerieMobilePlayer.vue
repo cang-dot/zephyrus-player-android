@@ -14,9 +14,14 @@
           '--accent-color': accentColor,
           '--accent-dark': accentDark,
           '--bg-color': bgColor,
-          '--player-style-resolved-font': fontFamily
+          '--player-style-resolved-font': fontFamily,
+          ...lyricsSwipeStyle
         }"
         @click="handleTapToggle"
+        @pointerdown.capture="onLyricsSwipePointerDown"
+        @pointermove.capture="onLyricsSwipePointerMove"
+        @pointerup.capture="onLyricsSwipePointerUp"
+        @pointercancel.capture="onLyricsSwipePointerCancel"
         @touchstart="onSwipeCloseTouchStart"
         @touchend="onSwipeCloseTouchEnd"
       >
@@ -32,7 +37,7 @@
         </transition-group>
 
         <ttml-word-effect-layer
-          v-if="!showFullLyrics && !wordPlayback.interludeState.value.active"
+          v-if="lyricsUnderlayVisible && !wordPlayback.interludeState.value.active"
           :auxiliary-tokens="wordPlayback.auxiliaryTokens.value"
           :main-token="wordPlayback.currentMainToken.value"
           :show-drop="showWordDrop"
@@ -45,11 +50,12 @@
         <div
           class="lyrics-layer"
           v-show="
-            !showFullLyrics &&
+            (!showFullLyrics || lyricsSwipePreview) &&
             !wordPlayback.interludeState.value.active &&
             !showWordDrop &&
             !showStaggered
           "
+          :style="lyricsUnderlayStyle"
         >
           <template
             v-if="!isIntro && isInClimax && effects.keyword && climaxDisplayKeywords.length > 0"
@@ -108,19 +114,26 @@
         />
 
         <!-- 半透明遮罩 + 滚动歌词（点击歌词时显示） -->
-        <transition name="fade">
-          <div v-if="showFullLyrics" class="lyrics-mask" @click="showFullLyrics = false"></div>
-        </transition>
-        <transition name="fade">
+        <div
+          v-show="showFullLyrics || lyricsSwipePreview"
+          class="lyrics-mask"
+          :style="lyricsBackdropStyle"
+          @click="closeLyricsAnimated"
+        ></div>
+        <div
+          v-show="showFullLyrics || lyricsSwipePreview"
+          class="scrolling-lyrics-overlay"
+          :style="lyricsOverlayStyle"
+        >
           <mobile-scrolling-lyrics
-            v-if="showFullLyrics"
-            class="scrolling-lyrics-overlay"
+            class="scrolling-lyrics-content"
             :back-closes="showFullLyrics"
-            @close="showFullLyrics = false"
+            :active="showFullLyrics || lyricsSwipePreview"
+            @close="closeLyricsAnimated"
             @interact="showControls"
             @generatePoster="handleGeneratePoster"
           />
-        </transition>
+        </div>
 
         <!-- 顶部控件（tap 弹出） -->
         <transition name="ctrl-fade">
@@ -137,7 +150,7 @@
         <mobile-controls-area
           :visible="controlsVisible"
           :is-fullscreen="showFullLyrics"
-          @close="showFullLyrics = false"
+          @close="closeLyricsAnimated"
           @showPlaylist="openPlaylist"
           @show-settings="showPlayerSettings = true"
           @interact="showControls"
@@ -164,6 +177,7 @@ import StaggeredClimaxLyrics from '@/components/lyric/StaggeredClimaxLyrics.vue'
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
@@ -174,6 +188,7 @@ import { nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drawCracks } from '@/lib/crackRenderer';
 import { startVHSAnimation } from '@/lib/vhsEffect';
+import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
@@ -303,11 +318,32 @@ const styleEngine = useStyleEngineStore();
 const { primaryColor } = useCoverColor();
 const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
   onDoubleClick: () => {
-    showFullLyrics.value = true;
+    openLyricsAnimated();
   }
 });
 
 const showFullLyrics = ref(false);
+const {
+  style: lyricsSwipeStyle,
+  overlayStyle: lyricsOverlayStyle,
+  underlayStyle: lyricsUnderlayStyle,
+  backdropStyle: lyricsBackdropStyle,
+  previewing: lyricsSwipePreview,
+  onPointerDown: onLyricsSwipePointerDown,
+  onPointerMove: onLyricsSwipePointerMove,
+  onPointerUp: onLyricsSwipePointerUp,
+  onPointerCancel: onLyricsSwipePointerCancel,
+  animateOpen: openLyricsAnimated,
+  animateClose: closeLyricsAnimated
+} = useLyricSwipeGesture({
+  isOpen: () => showFullLyrics.value,
+  onOpen: () => {
+    openLyricsAnimated();
+  },
+  onClose: () => {
+    showFullLyrics.value = false;
+  }
+});
 const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({
   shouldClose: () => !showFullLyrics.value,
   onClose: () => close()
@@ -326,6 +362,7 @@ const {
   customFontActive
 } = usePlayerStyleAppearance('eerie');
 const wordPlayback = useWordTimedPlayback();
+const lyricsUnderlayVisible = computed(() => !showFullLyrics.value || lyricsSwipePreview.value);
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
 const showPlayerSettings = computed({
@@ -346,14 +383,14 @@ const progressPercent = computed(() =>
 const isInClimax = computed(() => styleEngine.isInClimax);
 const showWordDrop = computed(
   () =>
-    !showFullLyrics.value &&
+    lyricsUnderlayVisible.value &&
     isInClimax.value &&
     effects.value.wordDrop &&
     wordPlayback.available.value
 );
 const showStaggered = computed(
   () =>
-    !showFullLyrics.value &&
+    lyricsUnderlayVisible.value &&
     !showWordDrop.value &&
     isInClimax.value &&
     effects.value.staggered &&
@@ -657,7 +694,7 @@ function handleSeek(e: MouseEvent) {
   const rect = target.getBoundingClientRect();
   const seekTime = ((e.clientX - rect.left) / rect.width) * duration.value;
   if (sound.value) {
-    sound.value.seek(seekTime);
+    audioService.seek(seekTime);
     nowTime.value = seekTime;
   }
 }
@@ -922,5 +959,10 @@ onBeforeUnmount(() => {
   bottom: 0;
   z-index: 40;
   color: #fff;
+}
+
+.scrolling-lyrics-content {
+  width: 100%;
+  height: 100%;
 }
 </style>

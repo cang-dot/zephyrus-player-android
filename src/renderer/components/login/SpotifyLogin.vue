@@ -1,10 +1,10 @@
 <template>
   <div class="spotify-login">
     <!-- 已登录状态 -->
-    <div v-if="spotifyStore.loggedIn && spotifyStore.user" class="spotify-logged-in">
+    <div v-if="spotifyStore.loggedIn" class="spotify-logged-in">
       <div class="spotify-user-card">
         <img
-          v-if="spotifyStore.user.images?.length"
+          v-if="spotifyStore.user?.images?.length"
           :src="spotifyStore.user.images[0].url"
           alt=""
           class="spotify-avatar"
@@ -13,8 +13,8 @@
           <i class="ri-user-3-line" />
         </div>
         <div class="spotify-user-info">
-          <strong>{{ spotifyStore.user.display_name || 'Spotify User' }}</strong>
-          <small>{{ spotifyStore.user.email || spotifyStore.user.id }}</small>
+          <strong>{{ spotifyStore.user?.display_name || 'Spotify User' }}</strong>
+          <small>{{ spotifyStore.user?.email || spotifyStore.user?.id || 'Spotify 已登录' }}</small>
           <span v-if="spotifyStore.isPremium" class="spotify-premium-badge">Premium</span>
           <span v-else class="spotify-free-badge">Free</span>
         </div>
@@ -39,21 +39,15 @@
         <platform-logo platform="spotify" :size="56" color="#1DB954" />
       </div>
       <p class="spotify-desc">{{ t('login.spotify.description') }}</p>
-
-      <div v-if="spotifyStore.authError" class="spotify-error">
-        <i class="ri-error-warning-line" />
-        <span>{{ spotifyStore.authError }}</span>
+      <div class="spotify-unavailable">
+        <i class="ri-lock-line" />
+        <p>作者是个人开发者，暂时无法向所有用户开放 Spotify 认证登录。</p>
+        <small>如果这个项目对你有帮助，可以去爱发电赞助作者一下嘛……</small>
+        <button type="button" class="spotify-sponsor-btn" @click="openSponsor">
+          <i class="ri-heart-3-line" />
+          <span>前往爱发电</span>
+        </button>
       </div>
-
-      <button
-        type="button"
-        class="spotify-login-btn"
-        :disabled="spotifyStore.authLoading"
-        @click="handleLogin"
-      >
-        <i class="ri-spotify-fill" />
-        <span>{{ t('login.spotify.loginWithSpotify') }}</span>
-      </button>
 
       <div class="spotify-features">
         <div class="spotify-feature">
@@ -104,8 +98,10 @@ const saveSpotifyAccount = () => {
   });
 };
 
-const handleLogin = () => {
-  spotifyStore.login();
+const SPONSOR_URL = 'https://ifdian.net/a/cangdot-zephyrus';
+
+const openSponsor = () => {
+  window.open(SPONSOR_URL, '_blank', 'noopener,noreferrer');
 };
 
 const handleContinue = () => {
@@ -115,9 +111,9 @@ const handleContinue = () => {
 
 // 监听登录成功（可能由 deep link 回调触发）
 const stopWatch = watch(
-  () => spotifyStore.loggedIn,
-  (loggedIn) => {
-    if (loggedIn && spotifyStore.user) {
+  () => [spotifyStore.loggedIn, spotifyStore.user] as const,
+  ([loggedIn, user]) => {
+    if (loggedIn && user) {
       // 等待 user 信息加载完成后再保存
       saveSpotifyAccount();
       emit('login-success');
@@ -313,6 +309,50 @@ onBeforeUnmount(() => {
   line-height: 1.6;
   color: var(--cover-text-muted, var(--d-text-muted));
   max-width: 280px;
+}
+
+.spotify-unavailable {
+  width: 100%;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--cover-border, #999) 55%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--cover-surface-alt, #999) 72%, #777 28%);
+  color: var(--cover-text-muted, var(--d-text-muted));
+  text-align: center;
+  filter: grayscale(0.75);
+
+  > i {
+    font-size: 24px;
+    opacity: 0.7;
+  }
+
+  p {
+    margin: 8px 0 4px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  small {
+    display: block;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+}
+
+.spotify-sponsor-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  margin-top: 12px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #999;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
 }
 
 .spotify-error {

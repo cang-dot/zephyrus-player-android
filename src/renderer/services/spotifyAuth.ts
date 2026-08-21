@@ -89,6 +89,8 @@ function base64URLEncode(bytes: Uint8Array): string {
 
 /** 暂存 PKCE code_verifier，等回调时使用 */
 let pendingVerifier: string | null = null;
+let callbackInFlight: Promise<boolean> | null = null;
+let lastCallbackUrl: string | null = null;
 
 /**
  * 启动 Spotify 授权流程
@@ -98,8 +100,8 @@ export async function startSpotifyAuth(): Promise<void> {
   const verifier = generateCodeVerifier();
   const challenge = await generateCodeChallenge(verifier);
 
-  // 暂存 verifier 到 sessionStorage（防止页面刷新丢失）
-  sessionStorage.setItem('spotify-code-verifier', verifier);
+  // OAuth 期间 Android 可能回收 WebView；必须使用可跨页面生命周期恢复的 localStorage。
+  localStorage.setItem('spotify-code-verifier', verifier);
   pendingVerifier = verifier;
 
   const params = new URLSearchParams({
@@ -116,7 +118,9 @@ export async function startSpotifyAuth(): Promise<void> {
 
   // 在移动端通过 Android Native 打开外部浏览器
   // 在桌面端/Electron 用 window.open
-  if (typeof (window as any).AndroidNative !== 'undefined' && (window as any).AndroidNative.openExternal) {
+  if (typeof (window as any).AndroidNative?.openSpotifyAuth === 'function') {
+    (window as any).AndroidNative.openSpotifyAuth(authUrl);
+  } else if (typeof (window as any).AndroidNative?.openExternal === 'function') {
     (window as any).AndroidNative.openExternal(authUrl);
   } else if (window.api?.openExternal) {
     void window.api.openExternal(authUrl);
@@ -130,40 +134,49 @@ export async function startSpotifyAuth(): Promise<void> {
  * 从回调 URL 中提取 code，用 code + verifier 换取 token
  */
 export async function handleSpotifyCallback(callbackUrl: string): Promise<boolean> {
+  if (callbackInFlight) return callbackInFlight;
+  if (callbackUrl === lastCallbackUrl && isSpotifyLoggedIn()) return true;
+
+  callbackInFlight = handleSpotifyCallbackInternal(callbackUrl).finally(() => {
+    callbackInFlight = null;
+  });
+  return callbackInFlight;
+}
+
+async function handleSpotifyCallbackInternal(callbackUrl: string): Promise<boolean> {
   try {
     const url = new URL(callbackUrl);
     const code = url.searchParams.get('code');
     const error = url.searchParams.get('error');
 
     if (error) {
-      console.error('[Spotify Auth] 授权失败:', error);
-      return false;
+      const description = url.searchParams.get('error_description');
+      throw new Error(description ? `Spotify 授权失败：${description}` : `Spotify 授权失败：${error}`);
     }
 
     if (!code) {
       console.error('[Spotify Auth] 回调中没有 code 参数');
-      return false;
+      throw new Error('Spotify 回调缺少授权 code');
     }
 
     // 从 sessionStorage 恢复 verifier
-    const verifier = pendingVerifier || sessionStorage.getItem('spotify-code-verifier');
+    const verifier = pendingVerifier || localStorage.getItem('spotify-code-verifier');
     if (!verifier) {
       console.error('[Spotify Auth] 找不到 code_verifier');
-      return false;
+      throw new Error('Spotify 登录会话已失效，请重新点击登录');
     }
-
-    // 清理暂存
-    sessionStorage.removeItem('spotify-code-verifier');
-    pendingVerifier = null;
 
     // 用 code 换 token
     const tokens = await exchangeCodeForToken(code, verifier);
     saveTokens(tokens);
+    localStorage.removeItem('spotify-code-verifier');
+    pendingVerifier = null;
+    lastCallbackUrl = callbackUrl;
     console.log('[Spotify Auth] 授权成功，token 已保存');
     return true;
   } catch (error) {
     console.error('[Spotify Auth] 处理回调失败:', error);
-    return false;
+    throw error instanceof Error ? error : new Error('Spotify 回调处理失败');
   }
 }
 
@@ -262,7 +275,7 @@ export function isSpotifyLoggedIn(): boolean {
 /** 登出 */
 export function spotifyLogout(): void {
   clearTokens();
-  sessionStorage.removeItem('spotify-code-verifier');
+  localStorage.removeItem('spotify-code-verifier');
   pendingVerifier = null;
 }
 

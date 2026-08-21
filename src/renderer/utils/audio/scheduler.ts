@@ -10,6 +10,8 @@
  *   - 调度歌曲结束前 N 秒触发预加载
  */
 
+import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
+
 export interface ScheduledEvent {
   id: number;
   time: number;        // AudioContext.currentTime 时间点
@@ -17,15 +19,28 @@ export interface ScheduledEvent {
   label?: string;      // 调试标签
 }
 
+export interface AudioSchedulerScope {
+  readonly id: number;
+  scheduleAt(when: number, callback: () => void, label?: string): number;
+  cancel(): void;
+}
+
 class AudioScheduler {
   private ctx: AudioContext;
   private events: Map<number, ScheduledEvent> = new Map();
   private nextId = 0;
+  private nextScopeId = 0;
+  private scopes = new Map<number, Set<number>>();
+  private eventResources = new Map<number, () => void>();
   private rafId: number | null = null;
   private running = false;
 
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
+  }
+
+  getContext(): AudioContext {
+    return this.ctx;
   }
 
   /** 启动调度器 */
@@ -42,6 +57,7 @@ class AudioScheduler {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
+    this.cancelAll();
   }
 
   /**
@@ -54,6 +70,7 @@ class AudioScheduler {
   scheduleAt(when: number, callback: () => void, label?: string): number {
     const id = this.nextId++;
     this.events.set(id, { id, time: when, callback, label });
+    this.eventResources.set(id, acquirePlayerResource('audio-event'));
     if (this.running && this.rafId === null) {
       this.tick();
     }
@@ -63,11 +80,45 @@ class AudioScheduler {
   /** 取消已调度的事件 */
   cancel(id: number): void {
     this.events.delete(id);
+    this.eventResources.get(id)?.();
+    this.eventResources.delete(id);
+    for (const ids of this.scopes.values()) ids.delete(id);
   }
 
   /** 取消所有事件 */
   cancelAll(): void {
     this.events.clear();
+    for (const release of this.eventResources.values()) release();
+    this.eventResources.clear();
+    this.scopes.clear();
+  }
+
+  /** Create a transition-owned event scope that can be disposed atomically. */
+  createScope(): AudioSchedulerScope {
+    const id = this.nextScopeId++;
+    const eventIds = new Set<number>();
+    this.scopes.set(id, eventIds);
+    let cancelled = false;
+    return {
+      id,
+      scheduleAt: (when, callback, label) => {
+        if (cancelled) return -1;
+        const eventId = this.scheduleAt(when, callback, label);
+        eventIds.add(eventId);
+        return eventId;
+      },
+      cancel: () => {
+        if (cancelled) return;
+        cancelled = true;
+        for (const eventId of eventIds) {
+          this.events.delete(eventId);
+          this.eventResources.get(eventId)?.();
+          this.eventResources.delete(eventId);
+        }
+        eventIds.clear();
+        this.scopes.delete(id);
+      }
+    };
   }
 
   /** 获取待执行事件数量 */
@@ -100,6 +151,8 @@ class AudioScheduler {
 
     for (const id of triggered) {
       this.events.delete(id);
+      this.eventResources.get(id)?.();
+      this.eventResources.delete(id);
     }
 
     if (this.events.size > 0) {

@@ -5,8 +5,10 @@
       visible,
       'fullscreen-mode': isFullscreen,
       'shared-surface-content': sharedSurface,
-      'surface-interaction-active': playerSurfaceFeedback.active.value
+      'surface-interaction-active': playerSurfaceFeedback.active.value,
+      'song-transitioning': isSongTransitioning
     }"
+    :style="transitionStyles"
     @click.stop
     @touchstart.stop="emitInteract"
     @touchend.stop
@@ -21,7 +23,19 @@
         @pointerup="onInfoPointerUp"
         @pointercancel="onInfoPointerCancel"
       >
-        <img class="player-info-cover" :src="coverUrl" alt="" />
+        <div
+          class="player-info-cover-stack"
+          :class="{ 'is-cover-crossfading': isCoverCrossfading }"
+        >
+          <img class="player-info-cover player-info-cover-current" :src="currentCoverUrl" alt="" />
+          <img
+            v-if="isCoverCrossfading && transitionCoverUrl"
+            class="player-info-cover player-info-cover-next"
+            :src="transitionCoverUrl"
+            alt=""
+            aria-hidden="true"
+          />
+        </div>
         <div class="player-info-copy">
           <strong>{{ songTitle }}</strong>
           <span>{{ artistText }}</span>
@@ -92,7 +106,11 @@
         </div>
       </div>
       <div class="time-info">
-        <span class="current-time">{{ secondToMinute(nowTime) }}</span>
+        <span class="current-time">{{ secondToMinute(displayNowTime) }}</span>
+        <span v-if="isSongTransitioning" class="transition-status" aria-live="polite">
+          智能过渡中
+        </span>
+        <span v-else class="transition-status-placeholder" aria-hidden="true"></span>
         <span class="total-time">{{ secondToMinute(allTime) }}</span>
       </div>
     </div>
@@ -122,20 +140,39 @@
 import { computed, onBeforeUnmount, ref } from 'vue';
 
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
-import { allTime, artistList, nowTime, pause, play, playMusic, sound } from '@/hooks/MusicHook';
+import { allTime, artistList, nowTime, pause, play, playMusic } from '@/hooks/MusicHook';
 import { usePlayMode } from '@/hooks/usePlayMode';
+import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useTransitionStore } from '@/store/modules/transition';
 import { getImgUrl, secondToMinute } from '@/utils';
+import { parseRepresentativeCssColor } from '@/utils/playerInk';
 
 const transitionStore = useTransitionStore();
+const isSongTransitioning = computed(() => transitionStore.isCrossfadingUI);
+const isCoverCrossfading = computed(
+  () => isSongTransitioning.value && transitionStore.currentSongEnded
+);
+const transitionColor = (value: string, fallback: string) => {
+  const parsed = parseRepresentativeCssColor(value);
+  return parsed ? `rgb(${parsed.r}, ${parsed.g}, ${parsed.b})` : fallback;
+};
+const transitionStyles = computed(() => ({
+  '--song-current-accent': transitionStore.currentAccentColor || '#ffffff',
+  '--song-current-background': transitionColor(transitionStore.currentBackgroundColor, '#171717'),
+  '--song-next-accent': transitionStore.nextAccentColor || '#ffffff',
+  '--song-next-background': transitionColor(transitionStore.nextBackgroundColor, '#171717'),
+  '--song-transition-duration': `${Math.max(0.2, transitionStore.duration || 8)}s`
+}));
 
 // ==================== Crossfade 进度条动画 ====================
 
 /** 上一首进度填充样式：正常显示 nowTime/allTime */
+const displayNowTime = computed(() => dragPreviewTime.value ?? nowTime.value);
+
 const currentFillStyle = computed(() => {
-  return { width: `${(nowTime.value / Math.max(1, allTime.value)) * 100}%` };
+  return { width: `${(displayNowTime.value / Math.max(1, allTime.value)) * 100}%` };
 });
 
 /** 下一首进度填充样式：使用 nextAccentColor，宽度跟随 nextProgress */
@@ -143,7 +180,6 @@ const nextFillStyle = computed(() => {
   const color = transitionStore.nextAccentColor || '#ffffff';
   return {
     width: `${transitionStore.nextProgress}%`,
-    background: color,
     boxShadow: `0 0 8px ${color}80`
   };
 });
@@ -153,7 +189,7 @@ const thumbPosition = computed(() => {
   if (transitionStore.isCrossfadingUI) {
     return `${transitionStore.nextProgress}%`;
   }
-  return `${(nowTime.value / Math.max(1, allTime.value)) * 100}%`;
+  return `${(displayNowTime.value / Math.max(1, allTime.value)) * 100}%`;
 });
 
 defineProps<{
@@ -178,8 +214,14 @@ const playState = computed(() => playerStore.isPlay);
 const playIcon = computed(() => (playState.value ? 'ri-pause-fill' : 'ri-play-fill'));
 const songTitle = computed(() => playMusic.value?.name || 'Zephyrus');
 const artistText = computed(() => artistList.value.map((artist) => artist.name).join(' / '));
-const coverUrl = computed(() =>
-  getImgUrl(playMusic.value?.picUrl || '/images/default_cover.png', '100y100')
+const currentCoverUrl = computed(() =>
+  getImgUrl(
+    transitionStore.currentCoverUrl || playMusic.value?.picUrl || '/images/default_cover.png',
+    '100y100'
+  )
+);
+const transitionCoverUrl = computed(() =>
+  transitionStore.nextCoverUrl ? getImgUrl(transitionStore.nextCoverUrl, '100y100') : ''
 );
 const isFavorite = computed(() =>
   playerStore.favoriteList.some((id) => String(id) === String(playMusic.value?.id))
@@ -319,6 +361,8 @@ const onInfoPointerCancel = (event: PointerEvent) => {
 
 onBeforeUnmount(() => {
   if (infoSwipeTimer) window.clearTimeout(infoSwipeTimer);
+  document.removeEventListener('mousemove', handleMouseMove);
+  document.removeEventListener('mouseup', handleMouseUp);
 });
 
 function handleTogglePlayMode() {
@@ -351,37 +395,55 @@ function emitInteract() {
 
 // ==================== 进度条交互 ====================
 const isThumbDragging = ref(false);
+const dragPreviewTime = ref<number | null>(null);
+const skipNextProgressClick = ref(false);
+const dragProgressElement = ref<HTMLElement | null>(null);
 
-const seekToRatio = (clientX: number, target: HTMLElement) => {
-  const rect = target.closest('.apple-style-progress')?.getBoundingClientRect();
-  if (!rect) return;
+const getSeekTime = (clientX: number, target: HTMLElement): number | null => {
+  const rect = (
+    target.closest('.apple-style-progress') || dragProgressElement.value
+  )?.getBoundingClientRect();
+  if (!rect) return null;
   const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-  const time = ratio * allTime.value;
-  // 使用 sound.seek() 直接控制音频
-  if (sound.value) {
-    sound.value.seek(time);
-  }
+  return ratio * allTime.value;
+};
+
+const commitSeek = (time: number | null) => {
+  if (time === null) return;
+  audioService.seek(time);
   emitInteract();
 };
 
 const handleProgressBarClick = (e: MouseEvent) => {
-  seekToRatio(e.clientX, e.target as HTMLElement);
+  if (skipNextProgressClick.value) {
+    skipNextProgressClick.value = false;
+    return;
+  }
+  commitSeek(getSeekTime(e.clientX, e.target as HTMLElement));
 };
 
 const handleMouseDown = (e: MouseEvent) => {
+  if (e.button !== 0) return;
   isThumbDragging.value = true;
-  seekToRatio(e.clientX, e.target as HTMLElement);
+  skipNextProgressClick.value = true;
+  dragProgressElement.value = (e.currentTarget as HTMLElement).closest('.apple-style-progress');
+  dragPreviewTime.value = getSeekTime(e.clientX, e.target as HTMLElement);
+  emitInteract();
   document.addEventListener('mousemove', handleMouseMove);
   document.addEventListener('mouseup', handleMouseUp);
 };
 
 const handleMouseMove = (e: MouseEvent) => {
   if (!isThumbDragging.value) return;
-  seekToRatio(e.clientX, e.target as HTMLElement);
+  dragPreviewTime.value = getSeekTime(e.clientX, e.target as HTMLElement);
 };
 
 const handleMouseUp = () => {
+  if (!isThumbDragging.value) return;
+  commitSeek(dragPreviewTime.value);
   isThumbDragging.value = false;
+  dragPreviewTime.value = null;
+  dragProgressElement.value = null;
   document.removeEventListener('mousemove', handleMouseMove);
   document.removeEventListener('mouseup', handleMouseUp);
 };
@@ -389,18 +451,22 @@ const handleMouseUp = () => {
 // 触摸拖拽
 const handleThumbTouchStart = (e: TouchEvent) => {
   isThumbDragging.value = true;
+  dragProgressElement.value = (e.currentTarget as HTMLElement).parentElement?.parentElement || null;
   emitInteract();
   e.stopPropagation();
 };
 
 const handleThumbTouchMove = (e: TouchEvent) => {
   if (!isThumbDragging.value) return;
-  seekToRatio(e.touches[0].clientX, e.target as HTMLElement);
+  dragPreviewTime.value = getSeekTime(e.touches[0].clientX, e.target as HTMLElement);
   e.preventDefault();
 };
 
 const handleThumbTouchEnd = () => {
+  commitSeek(dragPreviewTime.value);
   isThumbDragging.value = false;
+  dragPreviewTime.value = null;
+  dragProgressElement.value = null;
   emitInteract();
 };
 </script>
@@ -476,12 +542,69 @@ const handleThumbTouchEnd = () => {
   will-change: transform;
 }
 
-.player-info-cover {
+.player-info-cover-stack {
+  position: relative;
   width: 44px;
   height: 44px;
   flex: 0 0 44px;
+  overflow: hidden;
   border-radius: 10px;
+  isolation: isolate;
+}
+
+.player-info-cover {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
   object-fit: cover;
+}
+
+.player-info-cover-current {
+  z-index: 0;
+}
+
+.player-info-cover-next {
+  z-index: 1;
+  opacity: 0;
+  will-change: opacity;
+}
+
+.player-info-cover-stack.is-cover-crossfading .player-info-cover-next {
+  animation: song-cover-crossfade 280ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes song-cover-crossfade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes song-progress-color-cycle {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes transition-status-shiny {
+  from {
+    background-position: 220% 0;
+  }
+
+  to {
+    background-position: -40% 0;
+  }
 }
 
 .player-info-copy {
@@ -547,11 +670,49 @@ const handleThumbTouchEnd = () => {
 }
 
 .time-info {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   justify-content: space-between;
+  align-items: center;
   font-size: 12px;
   opacity: 0.6;
   margin-top: 8px;
+}
+
+.total-time {
+  justify-self: end;
+}
+
+.transition-status,
+.transition-status-placeholder {
+  position: relative;
+  min-width: 76px;
+  height: 18px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.transition-status {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  white-space: nowrap;
+  color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.82);
+  background-image: linear-gradient(
+    110deg,
+    rgba(var(--player-ink-rgb, 255, 255, 255), 0.42) 0%,
+    rgba(var(--player-ink-rgb, 255, 255, 255), 0.78) 38%,
+    rgba(255, 255, 255, 0.98) 50%,
+    rgba(var(--player-ink-rgb, 255, 255, 255), 0.78) 62%,
+    rgba(var(--player-ink-rgb, 255, 255, 255), 0.42) 100%
+  );
+  background-size: 220% 100%;
+  background-position: 220% 0;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: transition-status-shiny 1.35s linear infinite;
 }
 
 .apple-style-progress {
@@ -599,6 +760,21 @@ const handleThumbTouchEnd = () => {
   transition: width 0.1s linear;
 }
 
+.song-transitioning .progress-fill,
+.song-transitioning .progress-fill-next {
+  background: linear-gradient(
+    90deg,
+    var(--song-current-accent, #ffffff),
+    var(--song-next-background, #171717),
+    var(--song-next-accent, #ffffff),
+    var(--song-current-background, #171717),
+    var(--song-current-accent, #ffffff)
+  );
+  background-size: 300% 100%;
+  will-change: background-position;
+  animation: song-progress-color-cycle 1.8s ease-in-out infinite;
+}
+
 .progress-thumb {
   position: absolute;
   top: 50%;
@@ -617,6 +793,21 @@ const handleThumbTouchEnd = () => {
 .apple-style-progress:hover .progress-thumb,
 .apple-style-progress:active .progress-thumb {
   transform: translate(-50%, -50%) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transition-status {
+    background-image: none;
+    background-position: 50% 0;
+    color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.82);
+    -webkit-text-fill-color: currentColor;
+  }
+
+  .transition-status,
+  .song-transitioning .progress-fill,
+  .song-transitioning .progress-fill-next {
+    animation: none;
+  }
 }
 
 .climax-track {

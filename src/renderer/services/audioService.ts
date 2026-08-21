@@ -3,6 +3,11 @@ import { Howl, Howler } from 'howler';
 import type { AudioOutputDevice } from '@/types/audio';
 import type { SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
+import {
+  type SeekPlaybackSnapshot,
+  shouldRestorePlayback,
+  shouldSuppressSeekPause
+} from '@/utils/seekPlaybackGuard';
 
 import { isAndroidNative } from './androidNative';
 import { climaxDetector } from './climaxDetector';
@@ -11,6 +16,13 @@ import { LocalAudioPlayer } from './localAudioPlayer';
 import { NativeAudioPlayer } from './nativeAudioPlayer';
 
 export type AudioHandle = Howl | LocalAudioPlayer | NativeAudioPlayer;
+
+export type CrossfadeOptions = {
+  /** 使用首尾直接衔接，不展示智能过渡 UI。 */
+  seamless?: boolean;
+};
+
+type ActiveSeekSnapshot = SeekPlaybackSnapshot & { sound: AudioHandle };
 
 class AudioService {
   private currentSound: AudioHandle | null = null;
@@ -57,6 +69,16 @@ class AudioService {
 
   private seekDebounceTimer: NodeJS.Timeout | null = null;
 
+  private seekRequestId = 0;
+
+  private activeSeek: ActiveSeekSnapshot | null = null;
+
+  private seekRestoreTimer: number | null = null;
+
+  private readonly soundIdentity = new WeakMap<object, string>();
+
+  private soundIdentitySequence = 0;
+
   // 添加操作锁防止并发操作
   private operationLock = false;
   private operationLockTimer: NodeJS.Timeout | null = null;
@@ -72,6 +94,7 @@ class AudioService {
   private playbackGeneration = 0;
   /** 移动端 crossfade 的 setInterval timer IDs */
   private mobileFadeTimers: number[] = [];
+  private crossfadeGeneration = 0;
 
   constructor() {
     if ('mediaSession' in navigator) {
@@ -92,11 +115,12 @@ class AudioService {
 
   private initMediaSession() {
     navigator.mediaSession.setActionHandler('play', () => {
+      this.cancelSeekRecovery();
       this.currentSound?.play();
     });
 
     navigator.mediaSession.setActionHandler('pause', () => {
-      this.currentSound?.pause();
+      this.pause();
     });
 
     navigator.mediaSession.setActionHandler('stop', () => {
@@ -133,6 +157,64 @@ class AudioService {
       // 这里需要通过回调通知外部
       this.emit('nexttrack');
     });
+  }
+
+  private getSoundIdentity(sound: AudioHandle): string {
+    const object = sound as object;
+    const known = this.soundIdentity.get(object);
+    if (known) return known;
+    const identity =
+      sound instanceof NativeAudioPlayer ? sound.token : `sound-${++this.soundIdentitySequence}`;
+    this.soundIdentity.set(object, identity);
+    return identity;
+  }
+
+  public cancelSeekRecovery(): void {
+    if (this.seekRestoreTimer !== null) {
+      window.clearTimeout(this.seekRestoreTimer);
+      this.seekRestoreTimer = null;
+    }
+    this.activeSeek = null;
+  }
+
+  private isTransientSeekPause(sound: AudioHandle): boolean {
+    const snapshot = this.activeSeek;
+    if (!snapshot || snapshot.sound !== sound) return false;
+    if (!shouldSuppressSeekPause(snapshot, this.getSoundIdentity(sound))) {
+      this.cancelSeekRecovery();
+      return false;
+    }
+    return true;
+  }
+
+  private scheduleSeekRecovery(snapshot: SeekPlaybackSnapshot): void {
+    if (!snapshot.wasPlaying) {
+      this.activeSeek = null;
+      return;
+    }
+    if (this.seekRestoreTimer !== null) window.clearTimeout(this.seekRestoreTimer);
+    this.seekRestoreTimer = window.setTimeout(() => {
+      this.seekRestoreTimer = null;
+      const active = this.activeSeek;
+      if (
+        !active ||
+        active.requestId !== snapshot.requestId ||
+        active.sound !== this.currentSound
+      ) {
+        return;
+      }
+      try {
+        if (shouldRestorePlayback(active, active.soundId, active.sound.playing())) {
+          active.sound.play();
+        }
+      } catch (error) {
+        console.warn('[AudioService] seek 后恢复播放失败:', error);
+        this.activeSeek = null;
+      }
+      if (this.activeSeek === active && active.sound.playing()) {
+        this.activeSeek = null;
+      }
+    }, 80);
   }
 
   private updateMediaSessionMetadata(track: SongResult) {
@@ -704,6 +786,12 @@ class AudioService {
 
   /** 取消正在进行的 crossfade */
   private cancelCrossfade(): void {
+    const generation = ++this.crossfadeGeneration;
+    void import('@/composables/useSmartAudio')
+      .then(({ getSmartAudio }) => {
+        if (generation === this.crossfadeGeneration) getSmartAudio()?.cancelTransition();
+      })
+      .catch(() => undefined);
     if (isAndroidNative()) NativeAudioPlayer.cancelCrossfade();
     // 清理移动端 fade 定时器
     this.mobileFadeTimers.forEach((t) => clearInterval(t));
@@ -780,8 +868,13 @@ class AudioService {
     nextSound: AudioHandle,
     nextTrack: SongResult,
     duration: number,
-    level: 1 | 2 | 3
+    level: 1 | 2 | 3,
+    options: CrossfadeOptions = {}
   ): Promise<boolean> {
+    const seamless = options.seamless === true;
+    // Web Audio / Media3 需要一个极短的有效窗口；移动端分支会绕过音量渐变。
+    if (seamless) duration = 0.05;
+
     if (this.currentSound instanceof NativeAudioPlayer && nextSound instanceof NativeAudioPlayer) {
       try {
         if (nextSound.state() !== 'loaded') await nextSound.load();
@@ -798,7 +891,8 @@ class AudioService {
         this.emit('crossfade-start', {
           track: nextTrack,
           duration: result.duration || duration,
-          level: result.level || level
+          level: result.level || level,
+          seamless
         });
         return true;
       } catch (error) {
@@ -814,7 +908,7 @@ class AudioService {
     // 移动端路径：gainNode 为 null（_setupEQHowlMobile 不创建 Web Audio 图），
     // 使用 Howler fade / 手动音量渐变代替 Web Audio API gain 节点
     if (!this.gainNode) {
-      return this.crossfadeToNextMobile(nextSound, nextTrack, duration);
+      return this.crossfadeToNextMobile(nextSound, nextTrack, duration, seamless);
     }
 
     const ctx = this.context;
@@ -937,7 +1031,12 @@ class AudioService {
     );
 
     // 9. 发出事件
-    this.emit('crossfade-start', { track: nextTrack, duration: actualDuration, level: usedLevel });
+    this.emit('crossfade-start', {
+      track: nextTrack,
+      duration: actualDuration,
+      level: usedLevel,
+      seamless
+    });
 
     return true;
   }
@@ -961,8 +1060,10 @@ class AudioService {
   private async crossfadeToNextMobile(
     nextSound: Howl | LocalAudioPlayer,
     nextTrack: SongResult,
-    duration: number
+    duration: number,
+    seamless = false
   ): Promise<boolean> {
+    const generation = ++this.crossfadeGeneration;
     if (!this.currentSound || this.currentSound instanceof NativeAudioPlayer) return false;
 
     // 1. 确保下一首已加载
@@ -987,8 +1088,31 @@ class AudioService {
     const currentSound = this.currentSound;
 
     // 2. 设置 crossfade 状态
+    if (generation !== this.crossfadeGeneration) return false;
     this.crossfadingSound = nextSound;
     this.setupSoundEvents(nextSound);
+
+    if (seamless) {
+      // 在歌曲尾部直接以目标音量启动下一首，不执行任何淡入淡出曲线。
+      try {
+        nextSound.volume(savedVolume);
+        nextSound.play();
+      } catch (e) {
+        console.error('[Mobile Seamless] 播放下一首失败:', e);
+        this.crossfadingSound = null;
+        return false;
+      }
+
+      this.crossfadeCleanupTimeout = window.setTimeout(
+        () => {
+          if (generation !== this.crossfadeGeneration) return;
+          this.completeCrossfadeCleanup(nextSound, nextTrack);
+        },
+        180
+      );
+      this.emit('crossfade-start', { track: nextTrack, duration: 0, level: 1, seamless: true });
+      return true;
+    }
 
     // 3. 下一首从音量 0 开始播放
     try {
@@ -1014,6 +1138,7 @@ class AudioService {
     // 5. 调度清理
     this.crossfadeCleanupTimeout = window.setTimeout(
       () => {
+        if (generation !== this.crossfadeGeneration) return;
         this.completeCrossfadeCleanup(nextSound, nextTrack);
       },
       duration * 1000 + 200
@@ -1050,6 +1175,7 @@ class AudioService {
           // Sound may have been unloaded while the timer was running.
         }
         window.clearInterval(timer);
+        this.mobileFadeTimers = this.mobileFadeTimers.filter((id) => id !== timer);
       } else {
         try {
           sound.volume(from + volStep * i);
@@ -1169,15 +1295,27 @@ class AudioService {
 
     sound.on('play', () => {
       if (this.currentSound === sound || this.crossfadingSound === sound) {
+        const seekRequestId =
+          this.activeSeek?.sound === sound ? this.activeSeek.requestId : undefined;
+        if (this.activeSeek?.sound === sound && this.activeSeek.wasPlaying) {
+          this.cancelSeekRecovery();
+        }
         this.updateMediaSessionState(true);
-        this.emit('play');
+        this.emit('play', {
+          soundId: this.getSoundIdentity(sound),
+          requestId: seekRequestId
+        });
       }
     });
 
     sound.on('pause', () => {
       if (this.currentSound === sound || this.crossfadingSound === sound) {
+        if (this.isTransientSeekPause(sound)) return;
         this.updateMediaSessionState(false);
-        this.emit('pause');
+        this.emit('pause', {
+          soundId: this.getSoundIdentity(sound),
+          requestId: this.activeSeek?.sound === sound ? this.activeSeek.requestId : undefined
+        });
       }
     });
 
@@ -1193,7 +1331,10 @@ class AudioService {
     sound.on('seek', () => {
       if (this.currentSound === sound || this.crossfadingSound === sound) {
         this.updateMediaSessionPositionState();
-        this.emit('seek');
+        this.emit('seek', {
+          soundId: this.getSoundIdentity(sound),
+          requestId: this.activeSeek?.sound === sound ? this.activeSeek.requestId : undefined
+        });
       }
     });
   }
@@ -1206,6 +1347,7 @@ class AudioService {
     seekTime: number = 0,
     existingSound?: AudioHandle
   ): Promise<AudioHandle> {
+    this.cancelSeekRecovery();
     // 如果没有提供新的 URL 和 track，且当前有音频实例，则继续播放当前音频
     if (this.currentSound && !url && !track) {
       if (this.seekLock && this.seekDebounceTimer) {
@@ -1391,14 +1533,14 @@ class AudioService {
               });
             } // close else (not LocalAudioPlayer)
 
-          const onLoaded = async () => {
-            try {
-              if (playbackGeneration !== this.playbackGeneration) {
-                if (newSound instanceof LocalAudioPlayer) newSound.unload();
-                reject(new Error('播放请求已取消'));
-                return;
-              }
-              if (isHotSwap) {
+            const onLoaded = async () => {
+              try {
+                if (playbackGeneration !== this.playbackGeneration) {
+                  if (newSound instanceof LocalAudioPlayer) newSound.unload();
+                  reject(new Error('播放请求已取消'));
+                  return;
+                }
+                if (isHotSwap) {
                   let targetPos = 0;
                   if (seekTime > 0) {
                     targetPos = seekTime;
@@ -1648,6 +1790,7 @@ class AudioService {
   }
 
   stop() {
+    this.cancelSeekRecovery();
     // 取消正在进行的 crossfade
     this.cancelCrossfade();
     try {
@@ -1680,28 +1823,45 @@ class AudioService {
     this.applyVolume(volume);
   }
 
-  private _lastSeekTime = 0;
-  private readonly _SEEK_DEBOUNCE_MS = 100;
-
   seek(time: number) {
-    const now = Date.now();
-    if (now - this._lastSeekTime < this._SEEK_DEBOUNCE_MS) {
-      return;
-    }
-    this._lastSeekTime = now;
+    const currentSound = this.currentSound;
+    if (!currentSound) return;
 
-    if (this.currentSound) {
-      try {
-        this.currentSound.seek(time);
-        this.updateMediaSessionPositionState();
-        this.emit('seek', time);
-      } catch (error) {
-        console.error('Seek操作失败:', error);
-      }
+    const now = Date.now();
+    this.cancelSeekRecovery();
+
+    const snapshot: ActiveSeekSnapshot = {
+      requestId: ++this.seekRequestId,
+      soundId: this.getSoundIdentity(currentSound),
+      sound: currentSound,
+      wasPlaying: currentSound.playing(),
+      startedAt: now
+    };
+    this.activeSeek = snapshot;
+
+    const duration = Number(currentSound.duration()) || 0;
+    const targetTime = duration > 0 ? Math.max(0, Math.min(time, duration)) : Math.max(0, time);
+    try {
+      this.emit('seek_start', targetTime, {
+        requestId: snapshot.requestId,
+        soundId: snapshot.soundId,
+        wasPlaying: snapshot.wasPlaying
+      });
+      currentSound.seek(targetTime);
+      this.updateMediaSessionPositionState();
+      this.emit('seek', targetTime, {
+        requestId: snapshot.requestId,
+        soundId: snapshot.soundId
+      });
+      this.scheduleSeekRecovery(snapshot);
+    } catch (error) {
+      this.cancelSeekRecovery();
+      console.error('Seek操作失败:', error);
     }
   }
 
   pause() {
+    this.cancelSeekRecovery();
     if (this.currentSound) {
       try {
         // 确保任何进行中的seek操作被取消

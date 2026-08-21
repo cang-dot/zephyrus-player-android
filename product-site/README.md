@@ -1,4 +1,4 @@
-# Zephyrus Player Android 产品官网
+# Zephyrus Player Android 产品官网（1.2.5）
 
 静态站点，目标部署路径为 `https://mucang.xyz/zephyrus/`。页面不依赖构建工具，入口是 `index.html`。
 

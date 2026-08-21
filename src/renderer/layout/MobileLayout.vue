@@ -262,6 +262,8 @@ const backgroundSuspended = computed(
 );
 let playerSourceReleaseFrame = 0;
 let playerSurfaceClassReleaseTimer: ReturnType<typeof setTimeout> | undefined;
+let lastPlayerSurfaceProgress = '';
+let lastPlayerSurfaceReveal = '';
 const capturePlayerTransitionOrigin = () => {
   if (playerSourceReleaseFrame) {
     cancelAnimationFrame(playerSourceReleaseFrame);
@@ -304,8 +306,16 @@ const syncPlayerSurfaceProgress = () => {
   const state = playerTransition.state.value;
   const reveal = Math.min(1, Math.max(0, (progress - 0.035) / 0.62));
   const surfaceActive = progress > 0 || state !== 'idle';
-  document.documentElement.style.setProperty('--player-open-progress', String(progress));
-  document.documentElement.style.setProperty('--player-surface-reveal', String(reveal));
+  const progressValue = String(progress);
+  const revealValue = String(reveal);
+  if (progressValue !== lastPlayerSurfaceProgress) {
+    document.documentElement.style.setProperty('--player-open-progress', progressValue);
+    lastPlayerSurfaceProgress = progressValue;
+  }
+  if (revealValue !== lastPlayerSurfaceReveal) {
+    document.documentElement.style.setProperty('--player-surface-reveal', revealValue);
+    lastPlayerSurfaceReveal = revealValue;
+  }
   if (surfaceActive) {
     if (playerSurfaceClassReleaseTimer) clearTimeout(playerSurfaceClassReleaseTimer);
     playerSurfaceClassReleaseTimer = undefined;

@@ -6,6 +6,7 @@ import useIndexedDB from '@/hooks/IndexDBHook';
 import { type AudioHandle, audioService } from '@/services/audioService';
 import { smartMixService } from '@/services/smartMixService';
 import type { usePlayerStore } from '@/store';
+import { useTransitionStore } from '@/store/modules/transition';
 import type { Artist, ILyricText, SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
 import { getTextColors } from '@/utils/linearColor';
@@ -564,41 +565,54 @@ const setupAudioListeners = () => {
   // ===== Smart Mix crossfade 事件：UI 桥接 + 进度 interval 恢复 =====
 
   // crossfade 开始：通知 transition store 更新 UI
-  audioService.on('crossfade-start', (payload: { track: SongResult; duration: number }) => {
-    // 获取下一首主体色
-    const nextColor =
-      payload.track.backgroundColor || (payload.track as any).primaryColor || '#ffffff';
+  audioService.on(
+    'crossfade-start',
+    (payload: { track: SongResult; duration: number; seamless?: boolean }) => {
+      // 无缝切歌只更新播放状态，不展示智能过渡中的视觉反馈。
+      if (payload.seamless) return;
+      const currentTrack = getPlayerStore().playMusic as SongResult | undefined;
+      const currentArtists = currentTrack?.ar || currentTrack?.song?.artists || [];
+      const nextArtists = payload.track.ar || payload.track.song?.artists || [];
+      const currentPrimary =
+        currentTrack?.primaryColor || currentTrack?.backgroundColor || '#ffffff';
+      const nextPrimary = payload.track.primaryColor || payload.track.backgroundColor || '#ffffff';
 
-    // 获取上一首主体色
-    const currentColor =
-      getPlayerStore().playMusic?.backgroundColor ||
-      (getPlayerStore().playMusic as any)?.primaryColor ||
-      '#ffffff';
-
-    import('@/store/modules/transition').then(({ useTransitionStore }) => {
-      useTransitionStore().begin(
-        payload.track,
-        payload.duration,
-        0, // currentProgress (unused in new animation)
-        0, // nextDuration (unused in new animation)
-        nextColor,
-        currentColor
-      );
-    });
-  });
+      // 同步写入过渡快照，避免动态 import 让首帧先显示旧状态。
+      useTransitionStore().begin({
+        duration: payload.duration,
+        current: {
+          title: currentTrack?.name || '',
+          artist: currentArtists.map((artist) => artist.name).join(' / '),
+          primaryColor: currentPrimary,
+          backgroundColor: currentTrack?.backgroundColor || '',
+          coverUrl: currentTrack?.picUrl || ''
+        },
+        next: {
+          trackId: String(payload.track.id),
+          title: payload.track.name || '',
+          artist: nextArtists.map((artist) => artist.name).join(' / '),
+          primaryColor: nextPrimary,
+          backgroundColor: payload.track.backgroundColor || '',
+          coverUrl: payload.track.picUrl || ''
+        },
+        nextProgress: 0
+      });
+    }
+  );
 
   // crossfade 完成：重启进度 interval
   // transitionStore.end() 由 smartMixService.completeTransition 的 finally 块调用，
   // 确保在 playerCore.playMusic 更新后才结束 UI 过渡，避免 displaySrc 闪回旧封面
   audioService.on('crossfade-complete', () => {
+    // Trigger the short cover crossfade only after the audio transition has
+    // reached its end. During the transition the current cover remains stable.
+    useTransitionStore().setCurrentSongEnded();
     startProgressInterval();
   });
 
   // crossfade 取消：结束 UI 过渡 + 尝试重启 interval
   audioService.on('crossfade-cancelled', () => {
-    import('@/store/modules/transition').then(({ useTransitionStore }) => {
-      useTransitionStore().end();
-    });
+    useTransitionStore().end();
     const currentSound = audioService.getCurrentSound();
     if (currentSound && currentSound.playing()) {
       startProgressInterval();
@@ -614,6 +628,7 @@ const setupAudioListeners = () => {
 export const play = () => {
   const currentSound = audioService.getCurrentSound();
   if (currentSound) {
+    audioService.cancelSeekRecovery();
     currentSound.play();
     // 在播放时也进行状态检测，防止URL已过期导致无声
     getPlayerStore().checkPlaybackState(getPlayerStore().playMusic);
@@ -785,7 +800,8 @@ export const setAudioTime = (index: number) => {
   const currentSound = sound.value;
   if (!currentSound) return;
 
-  currentSound.seek(lrcTimeArray.value[index]);
+  audioService.seek(lrcTimeArray.value[index]);
+  audioService.cancelSeekRecovery();
   currentSound.play();
 };
 

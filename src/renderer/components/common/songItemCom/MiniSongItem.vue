@@ -51,10 +51,18 @@
               <span
                 class="cursor-pointer hover:text-[var(--accent-color)]"
                 @click.stop="onArtistClick(artist.id)"
-                >{{ artist.name }}</span
-              >
+                >{{ artist.name }}</span>
               <span v-if="index < artists.length - 1"> / </span>
             </template>
+          </n-ellipsis>
+        </div>
+        <div
+          v-if="item.al?.name || (item as any).album?.name"
+          class="song-item-content-album cursor-pointer hover:text-[var(--accent-color)]"
+          @click.stop="onAlbumNameClick"
+        >
+          <n-ellipsis class="text-ellipsis" line-clamp="1">
+            {{ item.al?.name || (item as any).album?.name }}
           </n-ellipsis>
         </div>
       </div>
@@ -80,7 +88,7 @@ import { getImgUrl } from '@/utils';
 
 import BaseSongItem from './BaseSongItem.vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     item: SongResult;
     favorite?: boolean;
@@ -111,6 +119,10 @@ const onToggleSelect = () => {
 };
 const onImageLoad = (event: Event) => baseItem.value?.imageLoad(event);
 const onArtistClick = (id: number) => baseItem.value?.handleArtistClick(id);
+const onAlbumNameClick = () => {
+  const albumId = props.item.al?.id ?? (props.item as any).album?.id ?? -1;
+  baseItem.value?.handleAlbumClick(albumId);
+};
 const onMenuClick = (event: MouseEvent) => baseItem.value?.openItemMenu(event);
 </script>
 
@@ -137,6 +149,13 @@ const onMenuClick = (event: MouseEvent) => baseItem.value?.openItemMenu(event);
     &-name {
       color: var(--d-text-secondary);
       font-size: var(--d-text-xs);
+    }
+
+    &-album {
+      overflow: hidden;
+      color: var(--d-text-tertiary, var(--d-text-secondary));
+      font-size: 11px;
+      line-height: 1.2;
     }
   }
 

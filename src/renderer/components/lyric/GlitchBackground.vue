@@ -10,9 +10,10 @@
  * 根据能量级别调整故障强度
  */
 import { Mesh, Program, Renderer, Triangle } from 'ogl';
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { shouldSkipMobilePlayerFrame } from '@/utils/mobilePlayerPerformance';
+import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 
 interface Props {
   baseColor?: string;
@@ -21,6 +22,7 @@ interface Props {
   crtIntensity?: number;
   speed?: number;
   showScanlines?: boolean;
+  active?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -29,7 +31,8 @@ const props = withDefaults(defineProps<Props>(), {
   intensity: 0.5,
   crtIntensity: 0,
   speed: 1.0,
-  showScanlines: true
+  showScanlines: true,
+  active: true
 });
 
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -153,6 +156,8 @@ let animateId = 0;
 let startTime = 0;
 let resizeHandler: (() => void) | null = null;
 let lastRenderAt = 0;
+let pageVisible = true;
+let releaseCanvasLoop: (() => void) | null = null;
 const baseColor = new Float32Array([0.1, 0.1, 0.2]);
 const accentColor = new Float32Array([0.9, 0.2, 0.3]);
 
@@ -173,9 +178,41 @@ function writeRgb(target: Float32Array, value: string): void {
   target[2] = next[2];
 }
 
+function stopAnimation() {
+  if (animateId) cancelAnimationFrame(animateId);
+  animateId = 0;
+  releaseCanvasLoop?.();
+  releaseCanvasLoop = null;
+}
+
+function startAnimation() {
+  if (animateId || !pageVisible || !props.active || !program || !renderer || !mesh) return;
+  releaseCanvasLoop = acquirePlayerResource('canvas-loop');
+  const update = (t: number) => {
+    if (!props.active || !pageVisible) {
+      animateId = 0;
+      releaseCanvasLoop?.();
+      releaseCanvasLoop = null;
+      return;
+    }
+    animateId = requestAnimationFrame(update);
+    if (!program || !renderer || !mesh) return;
+    if (shouldSkipMobilePlayerFrame(lastRenderAt, t)) return;
+    lastRenderAt = t;
+    const elapsed = (t - startTime) * 0.001;
+    program.uniforms.iTime.value = elapsed * props.speed;
+    program.uniforms.uIntensity.value = props.intensity;
+    program.uniforms.uCrtIntensity.value = props.crtIntensity;
+    program.uniforms.uShowScanlines.value = props.showScanlines ? 1.0 : 0.0;
+    renderer.render({ scene: mesh });
+  };
+  animateId = requestAnimationFrame(update);
+}
+
 onMounted(() => {
   const ctn = containerRef.value;
   if (!ctn) return;
+  pageVisible = !document.hidden;
 
   try {
     writeRgb(baseColor, props.baseColor);
@@ -211,20 +248,6 @@ onMounted(() => {
 
     startTime = performance.now();
 
-    const update = (t: number) => {
-      animateId = requestAnimationFrame(update);
-      if (!program || !renderer || !mesh) return;
-      if (shouldSkipMobilePlayerFrame(lastRenderAt, t)) return;
-      lastRenderAt = t;
-      const elapsed = (t - startTime) * 0.001;
-      program.uniforms.iTime.value = elapsed * props.speed;
-      program.uniforms.uIntensity.value = props.intensity;
-      program.uniforms.uCrtIntensity.value = props.crtIntensity;
-      program.uniforms.uShowScanlines.value = props.showScanlines ? 1.0 : 0.0;
-      renderer.render({ scene: mesh });
-    };
-    animateId = requestAnimationFrame(update);
-
     resizeHandler = () => {
       if (!ctn || !renderer || !program) return;
       const width = ctn.offsetWidth;
@@ -235,6 +258,8 @@ onMounted(() => {
     };
     window.addEventListener('resize', resizeHandler);
     resizeHandler();
+    document.addEventListener('visibilitychange', handlePageVisibility);
+    startAnimation();
   } catch (e) {
     console.warn('[GlitchBackground] WebGL init failed, falling back to CSS:', e);
     renderer = null;
@@ -243,8 +268,23 @@ onMounted(() => {
   }
 });
 
+function handlePageVisibility() {
+  pageVisible = !document.hidden;
+  if (pageVisible) startAnimation();
+  else stopAnimation();
+}
+
+watch(
+  () => props.active,
+  (active) => {
+    if (active) startAnimation();
+    else stopAnimation();
+  }
+);
+
 onBeforeUnmount(() => {
-  cancelAnimationFrame(animateId);
+  stopAnimation();
+  document.removeEventListener('visibilitychange', handlePageVisibility);
   if (resizeHandler) window.removeEventListener('resize', resizeHandler);
   try {
     if (containerRef.value && renderer?.gl?.canvas?.parentNode === containerRef.value) {

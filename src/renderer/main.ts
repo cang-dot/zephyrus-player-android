@@ -23,6 +23,14 @@ Object.keys(directives).forEach((key: string) => {
 app.use(pinia);
 app.use(router);
 app.use(i18n as any);
+
+// 注册原生回调入口并在挂载前就绪，避免冷启动深链早于 Vue 组件注册。
+import { useSpotifyStore } from '@/store/modules/spotify';
+const spotifyStore = useSpotifyStore();
+(window as any).__handleSpotifyCallback = (url: string) => {
+  spotifyStore.handleCallback(url).catch(console.error);
+};
+
 app.mount('#app');
 
 // 宣传片截图用的开发模式 mock（仅 dev:web，/?__promo=1 激活）
@@ -34,11 +42,5 @@ if (import.meta.env.DEV) {
 import { setupDeepLinkHandler } from '@/utils/deepLink';
 setupDeepLinkHandler();
 
-// 注册 Spotify OAuth 回调处理器（供原生 Android 调用）
-import { useSpotifyStore } from '@/store/modules/spotify';
-const spotifyStore = useSpotifyStore();
-(window as any).__handleSpotifyCallback = (url: string) => {
-  spotifyStore.handleCallback(url).catch(console.error);
-};
 // 初始化 Spotify 登录状态
 spotifyStore.init();

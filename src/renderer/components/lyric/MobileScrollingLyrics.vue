@@ -11,12 +11,10 @@
         'android-lite': androidNative
       }
     ]"
-    @click.capture="handleCaptureClick"
     @pointerdown.capture="handlePointerDown"
     @pointermove.capture="handlePointerMove"
     @pointerup.capture="handlePointerEnd"
     @pointercancel.capture="handlePointerCancel"
-    @touchend.capture="handleTouchEndCapture"
   >
     <Transition name="lyrics-loading">
       <div
@@ -28,12 +26,31 @@
       </div>
     </Transition>
 
+    <div v-if="renderAmllPlayer && props.backCloses" class="lyrics-dismiss-zones">
+      <button
+        v-if="lyricAlignment !== 'left'"
+        type="button"
+        class="lyrics-dismiss-zone lyrics-dismiss-zone-left"
+        aria-label="返回大字歌词"
+        tabindex="-1"
+        @click.stop="handleDismissZoneClick"
+      ></button>
+      <button
+        v-if="lyricAlignment !== 'right'"
+        type="button"
+        class="lyrics-dismiss-zone lyrics-dismiss-zone-right"
+        aria-label="返回大字歌词"
+        tabindex="-1"
+        @click.stop="handleDismissZoneClick"
+      ></button>
+    </div>
+
     <lyric-player
       v-if="renderAmllPlayer"
       ref="playerRef"
       class="amll-player"
       :lyric-lines="amllLines"
-      :current-time="currentTimeMs"
+      :current-time="amllDisabled ? 0 : currentTimeMs"
       :disabled="amllDisabled"
       :playing="isPlaying && !amllDisabled"
       align-anchor="center"
@@ -44,7 +61,6 @@
       :word-fade-width="1"
       :optimize-options="optimizeOptions"
       @line-click="handleLineClick"
-      @line-contextmenu="handleLineContextMenu"
     />
 
     <div v-else-if="hasSourceLyrics" class="lyric-transition-placeholder" aria-hidden="true">
@@ -75,14 +91,14 @@ import '@applemusic-like-lyrics/core/style.css';
 
 import type { LyricLine, LyricLineMouseEvent } from '@applemusic-like-lyrics/core';
 import { LyricPlayer, type LyricPlayerRef } from '@applemusic-like-lyrics/vue';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, isRef, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
-import { sound } from '@/hooks/MusicHook';
 import { isAndroidNative } from '@/services/androidNative';
+import { audioService } from '@/services/audioService';
 import { registerMobileBackLayer } from '@/services/mobileBackStack';
 import { usePlayerStore } from '@/store/modules/player';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig, normalizeLyricAlignment } from '@/types/lyric';
@@ -93,11 +109,13 @@ import {
   providerLyricsToAmll,
   ttmlLyricsToAmll
 } from '@/utils/amllLyricAdapter';
+import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 
 let scrollingLyricsInstanceId = 0;
 
-const props = withDefaults(defineProps<{ backCloses?: boolean }>(), {
-  backCloses: false
+const props = withDefaults(defineProps<{ backCloses?: boolean; active?: boolean }>(), {
+  backCloses: false,
+  active: true
 });
 const emit = defineEmits<{ close: []; interact: []; generatePoster: [lyrics: SelectedLyric[]] }>();
 const { t } = useI18n();
@@ -113,6 +131,7 @@ const reduceMotion = ref(false);
 const isIntersecting = ref(true);
 const pageVisible = ref(!document.hidden);
 const hasMountedPlayer = ref(false);
+let releaseLyricPlayerResource: (() => void) | null = null;
 const showPreparingOverlay = ref(false);
 const isPointerScrolling = ref(false);
 const selectMode = ref(false);
@@ -121,6 +140,7 @@ const toastMsg = ref('');
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 let motionQuery: MediaQueryList | null = null;
 let visibilityObserver: IntersectionObserver | null = null;
+let releaseVisibilityObserver: (() => void) | null = null;
 let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 let pointerId: number | null = null;
 let pointerStartX = 0;
@@ -129,6 +149,7 @@ let longPressTarget: HTMLElement | null = null;
 let longPressSourceIndex: number | null = null;
 let longPressTriggered = false;
 let suppressLineClickUntil = 0;
+let suppressedLineSourceIndex: number | null = null;
 let mountTimer: ReturnType<typeof setTimeout> | null = null;
 let mountIdleCallback = 0;
 let unregisterBackLayer: (() => void) | null = null;
@@ -148,7 +169,7 @@ const transitionSettled = computed(
     (playerTransition.state.value === 'idle' && playerStore.musicFull)
 );
 const amllDisabled = computed(
-  () => !transitionSettled.value || !isIntersecting.value || !pageVisible.value
+  () => !props.active || !transitionSettled.value || !isIntersecting.value || !pageVisible.value
 );
 const springEnabled = computed(() => !reduceMotion.value);
 const blurEnabled = computed(
@@ -175,7 +196,7 @@ const transitionLyricText = computed(
   () =>
     playback.currentDisplayLine.value?.text ||
     playback.displayLines.value[0]?.text ||
-    playback.lyric.value?.lines[0]?.words.map((word) => word.word).join('') ||
+    playback.lyric.value?.lines[0]?.words.map((word) => word.text).join('') ||
     ''
 );
 const selectableIndices = computed(() =>
@@ -204,61 +225,64 @@ function loadConfig() {
 
 type AmllLineHandle = {
   getElement?: () => HTMLElement;
-  getLine?: () => { __zephyrusSourceIndex?: number };
+  getLine?: () => LyricLine & { __zephyrusSourceIndex?: number };
 };
-
-function getAmllLineHandle(line: LyricLineMouseEvent['line']): AmllLineHandle {
-  return line as unknown as AmllLineHandle;
-}
-
-function sourceIndexForEvent(event: LyricLineMouseEvent): number {
-  return getAmllLineHandle(event.line).getLine?.().__zephyrusSourceIndex ?? event.lineIndex;
-}
-
-function elementForEvent(event: LyricLineMouseEvent): HTMLElement | null {
-  return getAmllLineHandle(event.line).getElement?.() ?? null;
-}
 
 function seekToLine(index: number) {
   const line = amllLines.value[index];
-  if (!line || !sound.value) return;
-  sound.value.seek(line.startTime / 1000);
-  sound.value.play();
-  playerRef.value?.lyricPlayer?.resetScroll();
+  if (!line || !audioService.getCurrentSound()) return;
+  audioService.seek(line.startTime / 1000);
+  audioService.cancelSeekRecovery();
+  audioService.getCurrentSound()?.play();
+  resolvedAmllPlayer()?.resetScroll?.();
   emit('interact');
+}
+
+type AmllPlayerRuntime = {
+  currentLyricGroups?: Array<{ mainLine?: AmllLineHandle }>;
+  resetScroll?: () => void;
+};
+
+function resolvedAmllPlayer(): AmllPlayerRuntime | null {
+  const exposed = playerRef.value?.lyricPlayer as unknown;
+  const player = isRef(exposed) ? exposed.value : exposed;
+  return player && typeof player === 'object' ? (player as AmllPlayerRuntime) : null;
+}
+
+function sourceIndexForEvent(event: LyricLineMouseEvent): number | null {
+  const line = event.line as unknown as AmllLineHandle;
+  const sourceIndex = sourceIndexForHandle(line);
+  return sourceIndex ?? (event.lineIndex >= 0 ? event.lineIndex : null);
+}
+
+function elementForEvent(event: LyricLineMouseEvent): HTMLElement | null {
+  return (event.line as unknown as AmllLineHandle).getElement?.() ?? null;
 }
 
 function handleLineClick(event: LyricLineMouseEvent) {
   event.stopPropagation();
-  if (performance.now() < suppressLineClickUntil) return;
   const sourceIndex = sourceIndexForEvent(event);
-  if (selectMode.value) {
-    toggleSelection(sourceIndex, elementForEvent(event));
-    return;
-  }
-  seekToLine(sourceIndex);
-}
-
-function handleLineElementClick(lineElement: HTMLElement) {
-  const sourceIndex = sourceIndexForElement(lineElement);
   if (sourceIndex === null) return;
-  if (selectMode.value) {
-    toggleSelection(sourceIndex, mainLineElementFor(lineElement));
-    return;
+
+  if (performance.now() < suppressLineClickUntil) {
+    // Swallow only the synthetic click generated by the long-press release.
+    // A later click on another row must remain active in selection mode.
+    if (sourceIndex === suppressedLineSourceIndex) {
+      suppressLineClickUntil = 0;
+      suppressedLineSourceIndex = null;
+      return;
+    }
+    suppressLineClickUntil = 0;
+    suppressedLineSourceIndex = null;
   }
-  seekToLine(sourceIndex);
+
+  const element = elementForEvent(event);
+  if (selectMode.value) toggleSelection(sourceIndex, element ? mainLineElementFor(element) : null);
+  else seekToLine(sourceIndex);
 }
 
-function handleLineContextMenu(event: LyricLineMouseEvent) {
-  event.preventDefault();
+function handleDismissZoneClick(event: MouseEvent) {
   event.stopPropagation();
-  if (navigator.vibrate) navigator.vibrate(30);
-  const sourceIndex = sourceIndexForEvent(event);
-  if (!selectMode.value) enterSelectMode(sourceIndex, elementForEvent(event));
-  else toggleSelection(sourceIndex, elementForEvent(event));
-}
-
-function handleSurfaceClick() {
   if (selectMode.value) exitSelectMode();
   else emit('close');
 }
@@ -270,14 +294,6 @@ function lyricHitTarget(target: EventTarget | null): HTMLElement | null {
   return line;
 }
 
-const lyricTextSelector = '.FmKaba_lyricMainLine, .FmKaba_lyricSubLine';
-
-function isLyricTextTarget(target: EventTarget | null, line: HTMLElement): boolean {
-  if (!(target instanceof Element) || target === line) return false;
-  const textContainer = target.closest<HTMLElement>(lyricTextSelector);
-  return Boolean(textContainer && line.contains(textContainer));
-}
-
 function mainLineElementFor(lineElement: HTMLElement): HTMLElement {
   if (!lineElement.classList.contains('FmKaba_lyricBgLine')) return lineElement;
   return (
@@ -285,33 +301,6 @@ function mainLineElementFor(lineElement: HTMLElement): HTMLElement {
       .closest<HTMLElement>('.FmKaba_lyricLineWrapper')
       ?.querySelector<HTMLElement>('.FmKaba_lyricLine:not(.FmKaba_lyricBgLine)') || lineElement
   );
-}
-
-function handleCaptureClick(event: MouseEvent) {
-  if (performance.now() < suppressLineClickUntil) {
-    event.preventDefault();
-    event.stopPropagation();
-    return;
-  }
-  const line = lyricHitTarget(event.target);
-  if (line) {
-    // AMLL rows fill the available width. Only text descendants seek; row
-    // padding is the explicit return target for the expanded lyric surface.
-    event.preventDefault();
-    event.stopPropagation();
-    if (isLyricTextTarget(event.target, line)) handleLineElementClick(line);
-    else if (!selectMode.value) emit('close');
-    return;
-  }
-  const target = event.target instanceof Element ? event.target : null;
-  if (target?.closest('.amll-player')) {
-    // Keep player-surface clicks from reaching the outer player toggle when
-    // AMLL is between DOM rebuilds. The next stable click is handled by AMLL.
-    event.stopPropagation();
-    return;
-  }
-  event.stopPropagation();
-  handleSurfaceClick();
 }
 
 function clearLongPress() {
@@ -330,8 +319,7 @@ function handlePointerDown(event: PointerEvent) {
   pointerStartY = event.clientY;
   longPressTriggered = false;
   const targetLine = lyricHitTarget(event.target);
-  // Blank row padding is a return target, never a long-press selection target.
-  if (!targetLine || !isLyricTextTarget(event.target, targetLine)) {
+  if (!targetLine) {
     clearLongPress();
     return;
   }
@@ -352,8 +340,9 @@ function handlePointerDown(event: PointerEvent) {
     if (sourceIndex === null) return;
     longPressTriggered = true;
     suppressLineClickUntil = performance.now() + 700;
+    suppressedLineSourceIndex = sourceIndex;
     if (navigator.vibrate) navigator.vibrate(30);
-    const currentElement = elementForSourceIndex(sourceIndex);
+    const currentElement = elementForSourceIndex(sourceIndex) || longPressTarget;
     if (!selectMode.value) enterSelectMode(sourceIndex, currentElement);
     else toggleSelection(sourceIndex, currentElement);
   }, 520);
@@ -400,13 +389,6 @@ function releasePointerCapture(id: number) {
   }
 }
 
-function handleTouchEndCapture(event: TouchEvent) {
-  if (!longPressTriggered) return;
-  event.preventDefault();
-  event.stopPropagation();
-  longPressTriggered = false;
-}
-
 function enterSelectMode(initialIndex: number, element?: HTMLElement | null) {
   const line = amllLines.value[initialIndex];
   if (!line || line.isBG || !lyricLineText(line)) return;
@@ -444,9 +426,7 @@ function updateSelectionSurface() {
 }
 
 function currentAmllLineHandles(): AmllLineHandle[] {
-  const player = playerRef.value?.lyricPlayer as unknown as {
-    currentLyricGroups?: Array<{ mainLine?: AmllLineHandle }>;
-  } | null;
+  const player = resolvedAmllPlayer();
   return (player?.currentLyricGroups || [])
     .map((group) => group.mainLine)
     .filter((line): line is AmllLineHandle => Boolean(line));
@@ -456,24 +436,44 @@ function sourceIndexForElement(element: HTMLElement): number | null {
   const mainElement = mainLineElementFor(element);
   for (const line of currentAmllLineHandles()) {
     if (line.getElement?.() !== mainElement) continue;
-    const index = line.getLine?.().__zephyrusSourceIndex;
-    return index === undefined ? null : index;
+    return sourceIndexForHandle(line);
   }
   return null;
 }
 
+function sourceIndexForHandle(line: AmllLineHandle): number | null {
+  const renderedLine = line.getLine?.();
+  if (!renderedLine) return null;
+  if (renderedLine.__zephyrusSourceIndex !== undefined) {
+    return renderedLine.__zephyrusSourceIndex;
+  }
+
+  // AMLL normally keeps the adapter's source index through structuredClone.
+  // Older builds did not, so use the immutable timing/text tuple as a fallback
+  // instead of making click and long-press depend on object identity.
+  const renderedText = lyricLineText(renderedLine);
+  const index = amllLines.value.findIndex(
+    (candidate) =>
+      candidate.startTime === renderedLine.startTime &&
+      candidate.endTime === renderedLine.endTime &&
+      candidate.isBG === renderedLine.isBG &&
+      lyricLineText(candidate) === renderedText
+  );
+  return index >= 0 ? index : null;
+}
+
 function elementForSourceIndex(sourceIndex: number): HTMLElement | null {
   for (const line of currentAmllLineHandles()) {
-    if (line.getLine?.().__zephyrusSourceIndex === sourceIndex) return line.getElement?.() ?? null;
+    if (sourceIndexForHandle(line) === sourceIndex) return line.getElement?.() ?? null;
   }
   return null;
 }
 
 function syncSelectionDecorations() {
   for (const line of currentAmllLineHandles()) {
-    const index = line.getLine?.().__zephyrusSourceIndex;
+    const index = sourceIndexForHandle(line);
     const element = line.getElement?.();
-    if (index === undefined || !element) continue;
+    if (index === null || !element) continue;
     if (selectMode.value && selectedSet.value.has(index)) element.dataset.lyricSelected = 'true';
     else delete element.dataset.lyricSelected;
   }
@@ -572,6 +572,7 @@ function mountPlayerWhenIdle() {
       return;
     }
     hasMountedPlayer.value = true;
+    releaseLyricPlayerResource = acquirePlayerResource('lyric-player');
     showPreparingOverlay.value = false;
   });
 }
@@ -621,12 +622,17 @@ onMounted(() => {
     },
     { threshold: 0.01 }
   );
+  releaseVisibilityObserver = acquirePlayerResource('observer');
   if (rootRef.value) visibilityObserver.observe(rootRef.value);
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('music-full-config-updated', handleConfigUpdate);
 });
 
 onBeforeUnmount(() => {
+  releaseLyricPlayerResource?.();
+  releaseLyricPlayerResource = null;
+  releaseVisibilityObserver?.();
+  releaseVisibilityObserver = null;
   unregisterBackLayer?.();
   unregisterBackLayer = null;
   cancelDeferredMount();
@@ -670,6 +676,38 @@ onBeforeUnmount(() => {
   animation: lyrics-loading-spin 720ms linear infinite;
 }
 
+.lyrics-dismiss-zones {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.lyrics-dismiss-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 33.333%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+  pointer-events: auto;
+  touch-action: pan-y;
+}
+
+.lyrics-dismiss-zone-left {
+  left: 0;
+}
+
+.lyrics-dismiss-zone-right {
+  right: 0;
+}
+
+.align-center .lyrics-dismiss-zone {
+  width: 25%;
+}
+
 .lyrics-loading-enter-active,
 .lyrics-loading-leave-active {
   transition: opacity 160ms ease;
@@ -693,8 +731,11 @@ onBeforeUnmount(() => {
 }
 
 .amll-player {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
+  pointer-events: none;
   --amll-lp-color: var(
     --player-style-custom-main-color,
     var(--text-color-active, var(--player-ink, #fff))
@@ -717,7 +758,8 @@ onBeforeUnmount(() => {
 }
 
 :deep(.FmKaba_lyricLineWrapper) {
-  /* Keep the entire row tappable, including translation and empty padding. */
+  /* AMLL owns full-row click and long-press handling. Only the configured
+   * side zones sit above it and return to the large-lyric view. */
   pointer-events: auto;
 }
 

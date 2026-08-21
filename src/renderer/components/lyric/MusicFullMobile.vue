@@ -11,9 +11,13 @@
     <div
       id="mobile-drawer-target"
       class="player-style-surface"
-      :style="styleVars"
+      :style="{ ...styleVars, ...lyricsSwipeStyle }"
       ref="drawerTargetRef"
       @click="handleTapToggle"
+      @pointerdown.capture="onLyricsSwipePointerDown"
+      @pointermove.capture="onLyricsSwipePointerMove"
+      @pointerup.capture="onLyricsSwipePointerUp"
+      @pointercancel.capture="onLyricsSwipePointerCancel"
       @touchstart="onDrawerTouchStart"
       @touchend="onDrawerTouchEnd"
       :class="[
@@ -64,97 +68,114 @@
       <mobile-player-settings v-model:visible="showPlayerSettings" />
 
       <!-- 全屏歌词页面 - 竖屏模式下（与其他样式共用的滚动歌词组件） -->
-      <transition name="fade">
-        <div v-if="showFullLyrics && !isLandscape" class="fullscreen-lyrics" :class="config.theme">
-          <div class="fullscreen-header">
-            <button
-              type="button"
-              class="fullscreen-back no-toggle"
-              aria-label="返回播放器"
-              @click.stop="closeFullLyrics"
-            >
-              <i class="ri-arrow-down-s-line"></i>
-            </button>
-            <div class="song-title" v-html="playMusic.name"></div>
-            <div class="artist-name">
-              <span v-for="(item, index) in artistList" :key="index">
-                {{ item.name }}{{ index < artistList.length - 1 ? ' / ' : '' }}
-              </span>
-            </div>
+      <Transition name="lyrics-surface">
+        <div
+          v-if="(showFullLyrics || lyricsSwipePreview) && !isLandscape"
+          class="fullscreen-lyrics"
+          :class="[
+            config.theme,
+            config.lyricSwipeDirection === 'right'
+              ? 'lyrics-surface-from-left'
+              : 'lyrics-surface-from-right'
+          ]"
+          :style="lyricsOverlayStyle"
+        >
+        <div class="fullscreen-header">
+          <button
+            type="button"
+            class="fullscreen-back no-toggle"
+            aria-label="返回播放器"
+            @click.stop="closeFullLyrics"
+          >
+            <i class="ri-arrow-down-s-line"></i>
+          </button>
+          <div class="song-title" v-html="playMusic.name"></div>
+          <div class="artist-name">
+            <span v-for="(item, index) in artistList" :key="index">
+              {{ item.name }}{{ index < artistList.length - 1 ? ' / ' : '' }}
+            </span>
           </div>
-
-          <mobile-scrolling-lyrics
-            class="fullscreen-lyrics-body"
-            :back-closes="showFullLyrics"
-            @close="closeFullLyrics"
-          />
         </div>
-      </transition>
+
+        <mobile-scrolling-lyrics
+          class="fullscreen-lyrics-body"
+          :back-closes="showFullLyrics"
+          :active="showFullLyrics || lyricsSwipePreview"
+          @close="closeFullLyrics"
+        />
+        </div>
+      </Transition>
 
       <!-- 主要内容区域 - 竖屏模式下的普通布局 -->
-      <transition name="fade">
-        <div v-if="!showFullLyrics && !isLandscape" class="ios-layout-container">
-          <!-- 封面区域 -->
-          <div
-            class="cover-container"
-            :class="{
-              'record-style': config.mobileCoverStyle === 'record',
-              'square-style': config.mobileCoverStyle === 'square',
-              'full-style': config.mobileCoverStyle === 'full',
-              paused: !play
-            }"
-            @click="cycleCoverStyle"
-          >
-            <div class="img-wrapper">
-              <img
-                v-if="coverImageUrl"
-                :key="coverImageUrl"
-                :src="coverImageUrl"
-                alt=""
-                decoding="async"
-                class="cover-image"
-                :class="{ 'full-blend': config.mobileCoverStyle === 'full' }"
-                @load="handleCoverLoad"
-                @error="handleCoverError"
-              />
-              <div v-else class="cover-placeholder" aria-hidden="true">
-                <i class="ri-music-2-fill"></i>
-              </div>
-            </div>
-          </div>
-
-          <div class="px-2 flex-1 flex flex-col justify-around w-[85%]">
-            <!-- 歌曲信息 -->
-            <div class="song-info">
-              <div class="song-title-container">
-                <h1 class="song-title" v-html="playMusic.name"></h1>
-              </div>
-              <p class="song-artist">
-                <span
-                  v-for="(item, index) in artistList"
-                  :key="index"
-                  class="artist-name"
-                  @click="handleArtistClick(item.id)"
-                >
-                  {{ item.name }}
-                  {{ index < artistList.length - 1 ? ' / ' : '' }}
-                </span>
-              </p>
-              <div class="favorite-icon" @click="toggleFavorite">
-                <i class="ri-heart-3-fill" :class="{ favorite: isFavorite }"></i>
-              </div>
-            </div>
-
-            <!-- 歌词区域：与其他样式共用的滚动歌词组件 -->
-            <div class="lyrics-container" v-if="!config.hideLyrics" @click="showFullLyricScreen">
-              <mobile-scrolling-lyrics v-if="lrcArray.length > 0" class="embedded-lyrics" />
-              <div v-else class="no-lyrics">
-                {{ t('player.lrc.noLrc') }}
-              </div>
+      <div
+        v-show="!showFullLyrics || lyricsSwipePreview"
+        class="ios-layout-container"
+        :style="lyricsUnderlayStyle"
+      >
+        <!-- 封面区域 -->
+        <div
+          class="cover-container"
+          :class="{
+            'record-style': config.mobileCoverStyle === 'record',
+            'square-style': config.mobileCoverStyle === 'square',
+            'full-style': config.mobileCoverStyle === 'full',
+            paused: !play
+          }"
+          @click="cycleCoverStyle"
+        >
+          <div class="img-wrapper">
+            <img
+              v-if="coverImageUrl"
+              :key="coverImageUrl"
+              :src="coverImageUrl"
+              alt=""
+              decoding="async"
+              class="cover-image"
+              :class="{ 'full-blend': config.mobileCoverStyle === 'full' }"
+              @load="handleCoverLoad"
+              @error="handleCoverError"
+            />
+            <div v-else class="cover-placeholder" aria-hidden="true">
+              <i class="ri-music-2-fill"></i>
             </div>
           </div>
         </div>
-      </transition>
+
+        <div class="px-2 flex-1 flex flex-col justify-around w-[85%]">
+          <!-- 歌曲信息 -->
+          <div class="song-info">
+            <div class="song-title-container">
+              <h1 class="song-title" v-html="playMusic.name"></h1>
+            </div>
+            <p class="song-artist">
+              <span
+                v-for="(item, index) in artistList"
+                :key="index"
+                class="artist-name"
+                @click="handleArtistClick(item.id)"
+              >
+                {{ item.name }}
+                {{ index < artistList.length - 1 ? ' / ' : '' }}
+              </span>
+            </p>
+            <div class="favorite-icon" @click="toggleFavorite">
+              <i class="ri-heart-3-fill" :class="{ favorite: isFavorite }"></i>
+            </div>
+          </div>
+
+          <!-- 歌词区域：与其他样式共用的滚动歌词组件 -->
+          <div class="lyrics-container" v-if="!config.hideLyrics" @click="showFullLyricScreen">
+            <mobile-scrolling-lyrics
+              v-if="lrcArray.length > 0 && !showFullLyrics && !lyricsSwipePreview"
+              class="embedded-lyrics"
+              :active="!showFullLyrics && !lyricsSwipePreview"
+            />
+            <div v-else class="no-lyrics">
+              {{ t('player.lrc.noLrc') }}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- 横屏模式布局 -->
       <div v-if="isLandscape" class="landscape-layout">
@@ -254,7 +275,7 @@
           </div>
 
           <!-- 歌词滚动区域（与其他样式共用的滚动歌词组件） -->
-          <mobile-scrolling-lyrics class="landscape-lyrics-body" />
+          <mobile-scrolling-lyrics class="landscape-lyrics-body" :active="isLandscape" />
 
           <!-- 右下角控制按钮 -->
           <div class="landscape-main-controls">
@@ -352,6 +373,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
+import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { useSwipeClose } from '@/composables/useSwipeClose';
@@ -367,6 +389,7 @@ import {
 } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
 import { usePlayMode } from '@/hooks/usePlayMode';
+import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useTransitionStore } from '@/store/modules/transition';
@@ -533,6 +556,22 @@ const toggleFavorite = () => {
 
 // 歌词全屏控制（滚动与触摸交互由通用滚动歌词组件自行管理）
 const showFullLyrics = ref(false);
+const {
+  style: lyricsSwipeStyle,
+  overlayStyle: lyricsOverlayStyle,
+  underlayStyle: lyricsUnderlayStyle,
+  previewing: lyricsSwipePreview,
+  onPointerDown: onLyricsSwipePointerDown,
+  onPointerMove: onLyricsSwipePointerMove,
+  onPointerUp: onLyricsSwipePointerUp,
+  onPointerCancel: onLyricsSwipePointerCancel,
+  animateOpen: openLyricsAnimated,
+  animateClose: closeLyricsAnimated
+} = useLyricSwipeGesture({
+  isOpen: () => showFullLyrics.value,
+  onOpen: () => commitShowFullLyrics(),
+  onClose: () => commitCloseFullLyrics()
+});
 
 // 下滑关闭手势
 const drawerTargetRef = ref<HTMLElement | null>(null);
@@ -546,16 +585,18 @@ const { width, height } = useWindowSize();
 const isLandscape = computed(() => width.value > height.value);
 
 // 显示全屏歌词
-const showFullLyricScreen = () => {
+const commitShowFullLyrics = () => {
   showFullLyrics.value = true;
   playerStore.setFullLyricsVisible(true);
 };
 
-// 关闭全屏歌词
-const closeFullLyrics = () => {
+const commitCloseFullLyrics = () => {
   showFullLyrics.value = false;
   playerStore.setFullLyricsVisible(false);
 };
+
+const showFullLyricScreen = () => openLyricsAnimated();
+const closeFullLyrics = () => closeLyricsAnimated();
 
 watch(
   () => playerStore.fullLyricsVisible,
@@ -601,7 +642,7 @@ const handleProgressBarClick = (e: MouseEvent) => {
   const percentage = offsetX / rect.width;
   const newTime = Math.max(0, Math.min(percentage * allTime.value, allTime.value));
 
-  sound.value.seek(newTime);
+  audioService.seek(newTime);
   nowTime.value = newTime;
 };
 
@@ -659,7 +700,7 @@ const handleMouseUp = (e: MouseEvent) => {
   e.preventDefault();
 
   // 释放时跳转到指定位置
-  sound.value.seek(nowTime.value);
+  audioService.seek(nowTime.value);
 
   isMouseDragging.value = false;
 
@@ -708,7 +749,7 @@ const handleThumbTouchEnd = (e: TouchEvent) => {
   e.stopPropagation(); // 阻止事件冒泡
 
   // 拖动结束时执行seek操作
-  sound.value.seek(nowTime.value);
+  audioService.seek(nowTime.value);
   isThumbDragging.value = false;
 };
 
@@ -1584,6 +1625,44 @@ watch(isVisible, (newVal) => {
     .now-text {
       @apply text-2xl;
     }
+  }
+}
+
+.lyrics-surface-enter-active,
+.lyrics-surface-leave-active {
+  transition:
+    opacity 320ms ease,
+    transform 380ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: opacity, transform;
+}
+
+.lyrics-surface-enter-from {
+  opacity: 0;
+}
+
+.lyrics-surface-leave-to {
+  opacity: 0;
+}
+
+.lyrics-surface-from-left.lyrics-surface-enter-from,
+.lyrics-surface-from-left.lyrics-surface-leave-to {
+  transform: translate3d(-100%, 0, 0);
+}
+
+.lyrics-surface-from-right.lyrics-surface-enter-from,
+.lyrics-surface-from-right.lyrics-surface-leave-to {
+  transform: translate3d(100%, 0, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrics-surface-enter-active,
+  .lyrics-surface-leave-active {
+    transition: opacity 160ms ease;
+  }
+
+  .lyrics-surface-enter-from,
+  .lyrics-surface-leave-to {
+    transform: none;
   }
 }
 

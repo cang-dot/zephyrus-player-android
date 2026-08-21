@@ -50,7 +50,7 @@
         <div class="shrink-0 ml-4 flex items-center gap-2">
           <s-btn
             v-if="feature.id === 'lyric-metaphor' && isFeatureEnabled(feature.id)"
-            @click="showAIConfig = true"
+            @click="focusAISettings"
           >
             <i class="ri-settings-3-line"></i>
           </s-btn>
@@ -62,6 +62,10 @@
           />
         </div>
       </div>
+    </div>
+
+    <div class="mt-4">
+      <metaphor-settings-section />
     </div>
 
     <!-- 导入 -->
@@ -76,9 +80,6 @@
       </div>
     </div>
   </setting-section>
-
-  <!-- AI 配置弹窗 -->
-  <metaphor-config-modal v-model="showAIConfig" />
 </template>
 
 <style scoped>
@@ -133,12 +134,12 @@
 </style>
 
 <script setup lang="ts">
-import { inject, ref } from 'vue';
+import { inject, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import type { FeatureType } from '@/features/index';
 import { getAllFeatures, isFeatureEnabled, setFeatureEnabled } from '@/features/index';
-import MetaphorConfigModal from '@/features/lyric-metaphor/MetaphorConfigModal.vue';
+import MetaphorSettingsSection from '@/features/lyric-metaphor/MetaphorSettingsSection.vue';
 
 import { SETTINGS_MESSAGE_KEY } from '../keys';
 import SBtn from '../SBtn.vue';
@@ -153,9 +154,17 @@ const tabs = [
 ];
 
 const activeTab = ref('features');
-const showAIConfig = ref(false);
 
 const featureList = getAllFeatures();
+
+function focusAISettings() {
+  activeTab.value = 'features';
+  void nextTick(() =>
+    document
+      .getElementById('lyric-metaphor-ai')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  );
+}
 
 function typeLabel(type: FeatureType): string {
   const map: Record<FeatureType, string> = {

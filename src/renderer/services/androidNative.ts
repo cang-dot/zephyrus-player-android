@@ -72,6 +72,13 @@ type NativeBridge = {
   nativeAudioCancelCrossfade: () => void;
   nativeAudioGetPlaybackState: (token: string) => string;
   nativeAudioGetAnalysis: () => string;
+  spotifyApiRequest?: (
+    requestId: string,
+    url: string,
+    method: string,
+    accessToken: string,
+    body: string
+  ) => void;
 };
 
 declare global {
@@ -79,6 +86,7 @@ declare global {
     AndroidNative?: NativeBridge;
     __nativeAudioEvent?: (payload: string | Record<string, unknown>) => void;
     __metadataWriteResult?: ((json: string) => void) | null;
+    __spotifyNativeResponse?: (requestId: string, payload: string) => void;
   }
 }
 

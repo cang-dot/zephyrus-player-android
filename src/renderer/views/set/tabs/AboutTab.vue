@@ -50,6 +50,17 @@
       </s-btn>
     </setting-item>
 
+    <setting-item
+      title="赞助作者"
+      description="作者是个人开发者，Spotify 等服务的公开认证能力有限。如果应用对你有帮助，欢迎在爱发电支持一下。"
+      clickable
+      @click="openSponsor"
+    >
+      <s-btn variant="primary" @click.stop="openSponsor">
+        <i class="ri-heart-3-line mr-1"></i>前往爱发电
+      </s-btn>
+    </setting-item>
+
     <!-- 用户协议 / 开源协议 / 应用介绍 -->
     <setting-item
       title="用户协议"
@@ -297,6 +308,10 @@ const openWebsite = () => {
   window.open('https://mucang.xyz/zephyrus/');
 };
 
+const openSponsor = () => {
+  window.open('https://ifdian.net/a/cangdot-zephyrus', '_blank', 'noopener,noreferrer');
+};
+
 const openDocs = () => {
   window.open('https://mucang.xyz/zephyrus/docs/');
 };
@@ -323,7 +338,7 @@ async function submitFeedbackAction() {
       type: feedbackType.value,
       content: feedbackContent.value.trim(),
       contact: feedbackContact.value.trim() || undefined,
-      appVersion: config.version || '1.2.0',
+      appVersion: config.version || '1.2.5',
       device: navigator.userAgent || 'unknown',
       osVersion: navigator.platform || 'unknown'
     });

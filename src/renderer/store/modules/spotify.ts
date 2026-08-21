@@ -8,6 +8,8 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
+import { usePlatformAccountsStore } from './platformAccounts';
+
 import {
   getCurrentUser,
   getPlaylistTracks,
@@ -41,6 +43,20 @@ export const useSpotifyStore = defineStore(
     const authLoading = ref(false);
     const authError = ref<string | null>(null);
 
+    function syncSpotifyAccount(profile: SpotifyUser) {
+      const accountStore = usePlatformAccountsStore();
+      accountStore.addOrUpdateAccount({
+        platform: 'spotify',
+        userId: profile.id,
+        nickname: profile.display_name || profile.id,
+        avatarUrl: profile.images?.[0]?.url || '',
+        vip: profile.product === 'premium',
+        vipLabel: profile.product === 'premium' ? 'Premium' : 'Free',
+        cookie: '',
+        loginMethod: 'oauth'
+      });
+    }
+
     // ==================== Actions ====================
 
     /** 初始化：检查登录状态，如果已登录则获取用户信息 */
@@ -52,20 +68,43 @@ export const useSpotifyStore = defineStore(
     }
 
     /** 获取当前登录用户信息 */
-    async function fetchUserInfo() {
-      try {
-        const token = await getValidAccessToken();
-        if (!token) {
-          loggedIn.value = false;
-          return;
+    async function fetchUserInfo(resetOnFailure = true): Promise<boolean> {
+      let lastError: unknown;
+      // 回调从浏览器返回时，网络和 WebView 恢复可能有一个短暂窗口。
+      // 保留 token 并重试，避免“已授权但没有账号”的半登录状态。
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const token = await getValidAccessToken();
+          if (!token) {
+            if (resetOnFailure) loggedIn.value = false;
+            return false;
+          }
+          const profile = await getCurrentUser();
+          user.value = profile;
+          loggedIn.value = true;
+          syncSpotifyAccount(profile);
+          authError.value = null;
+          return true;
+        } catch (error) {
+          lastError = error;
+          if (attempt < 2) {
+            await new Promise((resolve) => window.setTimeout(resolve, 350 * (attempt + 1)));
+          }
         }
-        user.value = await getCurrentUser();
-        loggedIn.value = true;
-      } catch (error) {
-        console.error('[Spotify] 获取用户信息失败:', error);
+      }
+
+      console.error('[Spotify] 获取用户信息失败:', lastError);
+      const detail = lastError instanceof Error ? lastError.message : '';
+      authError.value = detail.includes('(403)') || detail.includes('may not be registered')
+        ? 'Spotify 拒绝了账号资料请求（403）：当前账号还没有加入该应用的 Users and Access 白名单。请在 Spotify Developer Dashboard → Settings → Users Management 添加此 Spotify 账号后重新授权。'
+        : detail
+          ? `Spotify 账号资料读取失败：${detail}`
+          : 'Spotify 账号资料读取失败';
+      if (resetOnFailure) {
         loggedIn.value = false;
         user.value = null;
       }
+      return false;
     }
 
     /** 启动 Spotify 登录流程 */
@@ -87,10 +126,7 @@ export const useSpotifyStore = defineStore(
       try {
         const success = await handleSpotifyCallback(callbackUrl);
         if (success) {
-          loggedIn.value = true;
-          await fetchUserInfo();
-        } else {
-          authError.value = '授权失败';
+          await fetchUserInfo(false);
         }
       } catch (error) {
         authError.value = error instanceof Error ? error.message : '回调处理失败';

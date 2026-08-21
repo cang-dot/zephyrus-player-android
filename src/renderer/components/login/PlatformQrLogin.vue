@@ -211,6 +211,9 @@ const pollOnce = async () => {
 };
 
 const normalizeQrUrl = async (sourceUrl: string) => {
+  if (/^https:\/\/open\.weixin\.qq\.com\/connect\/qrcode\//i.test(sourceUrl)) {
+    return sourceUrl;
+  }
   if (sourceUrl.startsWith('http') && !sourceUrl.match(/\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)) {
     return QRCode.toDataURL(sourceUrl, {
       width: 280,

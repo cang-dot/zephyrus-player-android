@@ -109,6 +109,9 @@ async function createQrViaServer(
     if (json.code !== 200 || !json.data) {
       throw new Error(json.msg || `${platform} 二维码创建失败`);
     }
+    if (platform === 'qq' && provider === 'wechat' && json.data.provider !== 'wechat') {
+      throw new Error('QQ 音乐登录网关版本过旧，未返回微信登录二维码');
+    }
     return {
       platform,
       provider: normalizePlatformQrProvider(platform, json.data.provider, provider),
@@ -144,6 +147,14 @@ async function pollQrViaServer(
       };
     }
     const data = json.data;
+    if (platform === 'qq' && provider === 'wechat' && data.provider !== 'wechat') {
+      return {
+        platform,
+        provider,
+        code: 'error',
+        message: 'QQ 音乐登录网关返回了错误的登录方式，请刷新后重试'
+      };
+    }
     return {
       platform,
       provider: normalizePlatformQrProvider(platform, data.provider, provider),

@@ -65,10 +65,10 @@
           <div
             ref="settingsTabViewportRef"
             class="settings-tab-viewport"
-            @pointerdown="onTabPointerDown"
-            @pointermove="onTabPointerMove"
-            @pointerup="onTabPointerUp"
-            @pointercancel="onTabPointerCancel"
+            @pointerdown.capture="onTabPointerDown"
+            @pointermove.capture="onTabPointerMove"
+            @pointerup.capture="onTabPointerUp"
+            @pointercancel.capture="onTabPointerCancel"
           >
             <div
               class="settings-tab-page overflow-y-auto px-5 pb-6"
@@ -77,7 +77,10 @@
               :style="getSettingsTabPageStyle('control')"
             >
               <!-- 播放器样式 2×2 网格 -->
-              <section class="control-settings-section">
+              <section
+                class="control-settings-section"
+                :class="{ expanded: isControlSectionExpanded('playerStyle') }"
+              >
                 <button
                   type="button"
                   class="control-section-header"
@@ -101,40 +104,43 @@
                   :inert="!isControlSectionExpanded('playerStyle')"
                 >
                   <div id="control-section-player-style" class="control-section-body">
-                <div class="grid grid-cols-2 gap-3">
-                  <button
-                    v-for="style in playerStyles"
-                    :key="style.key"
-                    @click="setPlayerStyle(style.key)"
-                    class="style-card relative flex flex-col items-center gap-2 rounded-2xl p-4 transition-all duration-300"
-                    :class="
-                      currentPlayerStyle === style.key
-                        ? 'style-card-active'
-                        : 'bg-white/5 hover:bg-white/10'
-                    "
-                  >
-                    <i :class="style.icon" class="text-2xl" :style="{ color: style.color }" />
-                    <span
-                      class="text-xs font-medium"
-                      :class="currentPlayerStyle === style.key ? 'text-white' : 'text-white/60'"
-                    >
-                      {{ style.label }}
-                    </span>
-                  </button>
-                </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <button
+                        v-for="style in playerStyles"
+                        :key="style.key"
+                        @click="setPlayerStyle(style.key)"
+                        class="style-card relative flex flex-col items-center gap-2 rounded-2xl p-4 transition-all duration-300"
+                        :class="
+                          currentPlayerStyle === style.key
+                            ? 'style-card-active'
+                            : 'bg-white/5 hover:bg-white/10'
+                        "
+                      >
+                        <i :class="style.icon" class="text-2xl" :style="{ color: style.color }" />
+                        <span
+                          class="text-xs font-medium"
+                          :class="currentPlayerStyle === style.key ? 'text-white' : 'text-white/60'"
+                        >
+                          {{ style.label }}
+                        </span>
+                      </button>
+                    </div>
 
-                  <player-style-customization-panel
-                    :key="currentPlayerStyle"
-                    v-model="styleConfig"
-                    :style-key="currentPlayerStyle"
-                    @reset="resetCurrentStyleConfig"
-                  />
+                    <player-style-customization-panel
+                      :key="currentPlayerStyle"
+                      v-model="styleConfig"
+                      :style-key="currentPlayerStyle"
+                      @reset="resetCurrentStyleConfig"
+                    />
                   </div>
                 </div>
               </section>
 
               <!-- 手动标记高潮段落 -->
-              <section class="control-settings-section">
+              <section
+                class="control-settings-section"
+                :class="{ expanded: isControlSectionExpanded('climax') }"
+              >
                 <button
                   type="button"
                   class="control-section-header"
@@ -159,176 +165,180 @@
                   :inert="!isControlSectionExpanded('climax')"
                 >
                   <div id="control-section-climax" class="control-section-body">
-
-                <!-- 当前播放时间显示 -->
-                <div class="flex items-center justify-between mb-2 px-1">
-                  <span class="text-xs text-white/50">在时间轴上拖动以标记高潮段落</span>
-                  <span class="text-xs font-mono text-white/60"
-                    >{{ formatTime(currentPlayTime) }} / {{ formatTime(songDuration) }}</span
-                  >
-                </div>
-
-                <!-- 时间轴 -->
-                <div class="climax-timeline-wrapper">
-                  <!-- 时间刻度 -->
-                  <div class="climax-time-scale">
-                    <span
-                      v-for="mark in climaxTimeMarks"
-                      :key="mark"
-                      class="climax-time-mark"
-                      :style="{ left: (mark / songDuration) * 100 + '%' }"
-                      >{{ formatTime(mark) }}</span
-                    >
-                  </div>
-
-                  <!-- 时间轴主体 -->
-                  <div
-                    class="climax-timeline"
-                    ref="climaxTimelineRef"
-                    @touchstart.passive="onTimelineTouchStart"
-                    @touchmove.passive="onTimelineTouchMove"
-                    @touchend="onTimelineTouchEnd"
-                  >
-                    <!-- 已有段落 -->
-                    <div
-                      v-for="(seg, i) in manualClimaxSegments"
-                      :key="'seg-' + i"
-                      class="climax-region"
-                      :class="{
-                        'climax-region-active':
-                          currentPlayTime >= seg.start && currentPlayTime <= seg.end
-                      }"
-                      :style="getClimaxRegionStyle(seg)"
-                    >
-                      <!-- 左侧拖拽手柄 -->
-                      <div
-                        class="climax-handle left"
-                        @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'start')"
-                        @touchmove.stop.prevent="onEdgeTouchMove"
-                        @touchend.stop="onEdgeTouchEnd"
-                      ></div>
-                      <!-- 中间内容 -->
-                      <div class="climax-region-content">
-                        <span class="climax-region-label"
-                          >{{ formatTime(seg.start) }} - {{ formatTime(seg.end) }}</span
-                        >
-                        <button
-                          type="button"
-                          class="climax-region-remove"
-                          aria-label="删除高潮段落"
-                          @click.stop="removeClimaxSegment(i)"
-                        >
-                          <i class="ri-close-line"></i>
-                        </button>
-                      </div>
-                      <!-- 右侧拖拽手柄 -->
-                      <div
-                        class="climax-handle right"
-                        @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'end')"
-                        @touchmove.stop.prevent="onEdgeTouchMove"
-                        @touchend.stop="onEdgeTouchEnd"
-                      ></div>
+                    <!-- 当前播放时间显示 -->
+                    <div class="flex items-center justify-between mb-2 px-1">
+                      <span class="text-xs text-white/50">在时间轴上拖动以标记高潮段落</span>
+                      <span class="text-xs font-mono text-white/60"
+                        >{{ formatTime(currentPlayTime) }} / {{ formatTime(songDuration) }}</span
+                      >
                     </div>
 
-                    <!-- 拖拽预览选区 -->
-                    <div
-                      v-if="isClimaxDragging"
-                      class="climax-preview"
-                      :style="getClimaxPreviewStyle()"
-                    ></div>
+                    <!-- 时间轴 -->
+                    <div class="climax-timeline-wrapper">
+                      <!-- 时间刻度 -->
+                      <div class="climax-time-scale">
+                        <span
+                          v-for="mark in climaxTimeMarks"
+                          :key="mark"
+                          class="climax-time-mark"
+                          :style="{ left: (mark / songDuration) * 100 + '%' }"
+                          >{{ formatTime(mark) }}</span
+                        >
+                      </div>
 
-                    <!-- 当前播放位置 -->
-                    <div
-                      class="climax-playhead"
-                      :style="{ left: (currentPlayTime / songDuration) * 100 + '%' }"
-                    ></div>
-                  </div>
-                </div>
+                      <!-- 时间轴主体 -->
+                      <div
+                        class="climax-timeline"
+                        ref="climaxTimelineRef"
+                        @touchstart.passive="onTimelineTouchStart"
+                        @touchmove.passive="onTimelineTouchMove"
+                        @touchend="onTimelineTouchEnd"
+                      >
+                        <!-- 已有段落 -->
+                        <div
+                          v-for="(seg, i) in manualClimaxSegments"
+                          :key="'seg-' + i"
+                          class="climax-region"
+                          :class="{
+                            'climax-region-active':
+                              currentPlayTime >= seg.start && currentPlayTime <= seg.end
+                          }"
+                          :style="getClimaxRegionStyle(seg)"
+                        >
+                          <!-- 左侧拖拽手柄 -->
+                          <div
+                            class="climax-handle left"
+                            @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'start')"
+                            @touchmove.stop.prevent="onEdgeTouchMove"
+                            @touchend.stop="onEdgeTouchEnd"
+                          ></div>
+                          <!-- 中间内容 -->
+                          <div class="climax-region-content">
+                            <span class="climax-region-label"
+                              >{{ formatTime(seg.start) }} - {{ formatTime(seg.end) }}</span
+                            >
+                            <button
+                              type="button"
+                              class="climax-region-remove"
+                              aria-label="删除高潮段落"
+                              @click.stop="removeClimaxSegment(i)"
+                            >
+                              <i class="ri-close-line"></i>
+                            </button>
+                          </div>
+                          <!-- 右侧拖拽手柄 -->
+                          <div
+                            class="climax-handle right"
+                            @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'end')"
+                            @touchmove.stop.prevent="onEdgeTouchMove"
+                            @touchend.stop="onEdgeTouchEnd"
+                          ></div>
+                        </div>
 
-                <!-- 操作按钮 -->
-                <div class="flex gap-2 mt-3">
-                  <button
-                    v-if="manualClimaxSegments.length > 0"
-                    @click="clearAllClimaxSegments"
-                    class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
-                  >
-                    <i class="ri-eraser-line mr-1"></i>清空全部
-                  </button>
-                  <button
-                    @click="seekToPlayhead"
-                    class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
-                  >
-                    <i class="ri-music-2-line mr-1"></i>跳到播放位置
-                  </button>
-                  <button
-                    @click="queryCloudClimax"
-                    :disabled="cloudClimaxLoading"
-                    class="flex-1 py-2 rounded-xl text-sm bg-[var(--accent-color)]/20 text-[var(--accent-color)] active:scale-95 transition-transform disabled:opacity-50"
-                  >
-                    <i v-if="cloudClimaxLoading" class="ri-loader-4-line animate-spin mr-1"></i>
-                    <i v-else class="ri-cloud-line mr-1"></i>
-                    {{ cloudClimaxLoading ? '查询中...' : '查询云端' }}
-                  </button>
-                  <button
-                    @click="uploadManualClimax"
-                    :disabled="
-                      manualClimaxSegments.length === 0 || uploadingClimax || isLocalSong(playMusic)
-                    "
-                    class="flex-1 py-2 rounded-xl text-sm bg-emerald-400/15 text-emerald-300 active:scale-95 transition-transform disabled:opacity-40"
-                  >
-                    <i v-if="uploadingClimax" class="ri-loader-4-line animate-spin mr-1"></i>
-                    <i v-else class="ri-upload-cloud-2-line mr-1"></i>
-                    {{ uploadingClimax ? '上传中...' : '上传服务器' }}
-                  </button>
-                </div>
+                        <!-- 拖拽预览选区 -->
+                        <div
+                          v-if="isClimaxDragging"
+                          class="climax-preview"
+                          :style="getClimaxPreviewStyle()"
+                        ></div>
 
-                <!-- 云端查询结果 -->
-                <div v-if="cloudClimaxResults.length > 0" class="mt-3 space-y-2">
-                  <div class="text-xs text-white/50 px-1">
-                    找到 {{ cloudClimaxResults.length }} 条云端高潮数据，点击覆盖到本地
-                  </div>
-                  <div
-                    v-for="(result, i) in cloudClimaxResults"
-                    :key="'cloud-' + i"
-                    @click="applyCloudClimax(result)"
-                    class="flex items-center gap-3 p-3 rounded-xl bg-white/5 active:bg-white/10 transition-colors"
-                  >
-                    <i class="ri-cloud-line text-white/40 text-lg flex-shrink-0"></i>
-                    <div class="flex-1 min-w-0">
-                      <div class="text-sm text-white/80 truncate">{{ result.songName }}</div>
-                      <div class="text-xs text-white/40 truncate">
-                        {{ result.artist || '未知艺术家' }} · {{ result.segments.length }}段 ·
-                        贡献者:
-                        {{ result.contributor || '云端' }}
+                        <!-- 当前播放位置 -->
+                        <div
+                          class="climax-playhead"
+                          :style="{ left: (currentPlayTime / songDuration) * 100 + '%' }"
+                        ></div>
                       </div>
                     </div>
-                    <i class="ri-download-2-line text-[var(--accent-color)] flex-shrink-0"></i>
-                  </div>
-                </div>
 
-                <!-- 云端查询无结果 -->
-                <div
-                  v-if="cloudClimaxSearched && cloudClimaxResults.length === 0"
-                  class="mt-3 flex flex-col items-center justify-center py-3 text-white/30"
-                >
-                  <i class="ri-cloud-off-line text-3xl mb-1"></i>
-                  <p class="text-xs">未找到同名歌曲的云端高潮数据</p>
-                </div>
+                    <!-- 操作按钮 -->
+                    <div class="flex gap-2 mt-3">
+                      <button
+                        v-if="manualClimaxSegments.length > 0"
+                        @click="clearAllClimaxSegments"
+                        class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
+                      >
+                        <i class="ri-eraser-line mr-1"></i>清空全部
+                      </button>
+                      <button
+                        @click="seekToPlayhead"
+                        class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
+                      >
+                        <i class="ri-music-2-line mr-1"></i>跳到播放位置
+                      </button>
+                      <button
+                        @click="queryCloudClimax"
+                        :disabled="cloudClimaxLoading"
+                        class="flex-1 py-2 rounded-xl text-sm bg-[var(--accent-color)]/20 text-[var(--accent-color)] active:scale-95 transition-transform disabled:opacity-50"
+                      >
+                        <i v-if="cloudClimaxLoading" class="ri-loader-4-line animate-spin mr-1"></i>
+                        <i v-else class="ri-cloud-line mr-1"></i>
+                        {{ cloudClimaxLoading ? '查询中...' : '查询云端' }}
+                      </button>
+                      <button
+                        @click="uploadManualClimax"
+                        :disabled="
+                          manualClimaxSegments.length === 0 ||
+                          uploadingClimax ||
+                          isLocalSong(playMusic)
+                        "
+                        class="flex-1 py-2 rounded-xl text-sm bg-emerald-400/15 text-emerald-300 active:scale-95 transition-transform disabled:opacity-40"
+                      >
+                        <i v-if="uploadingClimax" class="ri-loader-4-line animate-spin mr-1"></i>
+                        <i v-else class="ri-upload-cloud-2-line mr-1"></i>
+                        {{ uploadingClimax ? '上传中...' : '上传服务器' }}
+                      </button>
+                    </div>
 
-                <!-- 空状态提示 -->
-                <div
-                  v-if="manualClimaxSegments.length === 0 && !cloudClimaxSearched"
-                  class="flex flex-col items-center justify-center py-3 text-white/30"
-                >
-                  <i class="ri-fire-line text-3xl mb-1"></i>
-                  <p class="text-xs">在时间轴上左右拖动来创建高潮段落</p>
-                </div>
+                    <!-- 云端查询结果 -->
+                    <div v-if="cloudClimaxResults.length > 0" class="mt-3 space-y-2">
+                      <div class="text-xs text-white/50 px-1">
+                        找到 {{ cloudClimaxResults.length }} 条云端高潮数据，点击覆盖到本地
+                      </div>
+                      <div
+                        v-for="(result, i) in cloudClimaxResults"
+                        :key="'cloud-' + i"
+                        @click="applyCloudClimax(result)"
+                        class="flex items-center gap-3 p-3 rounded-xl bg-white/5 active:bg-white/10 transition-colors"
+                      >
+                        <i class="ri-cloud-line text-white/40 text-lg flex-shrink-0"></i>
+                        <div class="flex-1 min-w-0">
+                          <div class="text-sm text-white/80 truncate">{{ result.songName }}</div>
+                          <div class="text-xs text-white/40 truncate">
+                            {{ result.artist || '未知艺术家' }} · {{ result.segments.length }}段 ·
+                            贡献者:
+                            {{ result.contributor || '云端' }}
+                          </div>
+                        </div>
+                        <i class="ri-download-2-line text-[var(--accent-color)] flex-shrink-0"></i>
+                      </div>
+                    </div>
+
+                    <!-- 云端查询无结果 -->
+                    <div
+                      v-if="cloudClimaxSearched && cloudClimaxResults.length === 0"
+                      class="mt-3 flex flex-col items-center justify-center py-3 text-white/30"
+                    >
+                      <i class="ri-cloud-off-line text-3xl mb-1"></i>
+                      <p class="text-xs">未找到同名歌曲的云端高潮数据</p>
+                    </div>
+
+                    <!-- 空状态提示 -->
+                    <div
+                      v-if="manualClimaxSegments.length === 0 && !cloudClimaxSearched"
+                      class="flex flex-col items-center justify-center py-3 text-white/30"
+                    >
+                      <i class="ri-fire-line text-3xl mb-1"></i>
+                      <p class="text-xs">在时间轴上左右拖动来创建高潮段落</p>
+                    </div>
                   </div>
                 </div>
               </section>
 
               <!-- 歌词设置 -->
-              <section class="control-settings-section">
+              <section
+                class="control-settings-section"
+                :class="{ expanded: isControlSectionExpanded('lyrics') }"
+              >
                 <button
                   type="button"
                   class="control-section-header"
@@ -352,135 +362,172 @@
                   :inert="!isControlSectionExpanded('lyrics')"
                 >
                   <div id="control-section-lyrics" class="control-section-body">
+                    <!-- 显示翻译 -->
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                      <div>
+                        <div class="text-sm text-white/80">
+                          {{ tr('settings.lyricSettings.showTranslation', '显示翻译') }}
+                        </div>
+                        <div class="text-xs text-white/40 mt-1">
+                          {{
+                            tr(
+                              'settings.lyricSettings.showTranslationDescription',
+                              '在歌词下方显示翻译文本'
+                            )
+                          }}
+                        </div>
+                      </div>
+                      <button
+                        class="share-toggle-switch"
+                        :class="{ on: lyricConfig.showTranslation }"
+                        @click="toggleShowTranslation"
+                      >
+                        <span class="share-toggle-knob"></span>
+                      </button>
+                    </div>
 
-                <!-- 显示翻译 -->
-                <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
-                  <div>
-                    <div class="text-sm text-white/80">
-                      {{ tr('settings.lyricSettings.showTranslation', '显示翻译') }}
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                      <div class="min-w-0 pr-3">
+                        <div class="text-sm text-white/80">
+                          {{
+                            tr(
+                              'settings.lyricSettings.alwaysShowPlayerControls',
+                              '始终显示播放控件'
+                            )
+                          }}
+                        </div>
+                        <div class="text-xs text-white/40 mt-1">
+                          {{
+                            tr(
+                              'settings.lyricSettings.alwaysShowPlayerControlsDescription',
+                              '顶部和底部控件保持常驻'
+                            )
+                          }}
+                        </div>
+                      </div>
+                      <button
+                        class="share-toggle-switch"
+                        :class="{ on: lyricConfig.alwaysShowPlayerControls }"
+                        @click="
+                          lyricConfig.alwaysShowPlayerControls =
+                            !lyricConfig.alwaysShowPlayerControls
+                        "
+                      >
+                        <span class="share-toggle-knob"></span>
+                      </button>
                     </div>
-                    <div class="text-xs text-white/40 mt-1">
-                      {{
-                        tr(
-                          'settings.lyricSettings.showTranslationDescription',
-                          '在歌词下方显示翻译文本'
-                        )
-                      }}
-                    </div>
-                  </div>
-                  <button
-                    class="share-toggle-switch"
-                    :class="{ on: lyricConfig.showTranslation }"
-                    @click="toggleShowTranslation"
-                  >
-                    <span class="share-toggle-knob"></span>
-                  </button>
-                </div>
 
-                <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
-                  <div class="min-w-0 pr-3">
-                    <div class="text-sm text-white/80">
-                      {{ tr('settings.lyricSettings.alwaysShowPlayerControls', '始终显示播放控件') }}
+                    <!-- 歌词对齐 -->
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                      <div class="min-w-0 pr-3">
+                        <div class="text-sm text-white/80">
+                          {{ tr('settings.lyricSettings.alignment', '歌词对齐') }}
+                        </div>
+                        <div class="text-xs text-white/40 mt-1">
+                          {{
+                            tr(
+                              'settings.lyricSettings.alignmentDescription',
+                              '调整滚动歌词的水平对齐方式'
+                            )
+                          }}
+                        </div>
+                      </div>
+                      <div class="lyric-alignment-control" role="radiogroup">
+                        <button
+                          v-for="option in lyricAlignmentOptions"
+                          :key="option.value"
+                          type="button"
+                          :class="{ active: lyricConfig.lyricAlignment === option.value }"
+                          :aria-label="option.label"
+                          :aria-checked="lyricConfig.lyricAlignment === option.value"
+                          role="radio"
+                          @click="setLyricAlignment(option.value)"
+                        >
+                          <i :class="option.icon"></i>
+                        </button>
+                      </div>
                     </div>
-                    <div class="text-xs text-white/40 mt-1">
-                      {{ tr('settings.lyricSettings.alwaysShowPlayerControlsDescription', '顶部和底部控件保持常驻') }}
-                    </div>
-                  </div>
-                  <button
-                    class="share-toggle-switch"
-                    :class="{ on: lyricConfig.alwaysShowPlayerControls }"
-                    @click="lyricConfig.alwaysShowPlayerControls = !lyricConfig.alwaysShowPlayerControls"
-                  >
-                    <span class="share-toggle-knob"></span>
-                  </button>
-                </div>
 
-                <!-- 歌词对齐 -->
-                <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
-                  <div class="min-w-0 pr-3">
-                    <div class="text-sm text-white/80">
-                      {{ tr('settings.lyricSettings.alignment', '歌词对齐') }}
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                      <div class="min-w-0 pr-3">
+                        <div class="text-sm text-white/80">滚动歌词手势</div>
+                        <div class="text-xs text-white/40 mt-1">
+                          选择大字歌词进入方向，返回时使用相反方向
+                        </div>
+                      </div>
+                      <div class="lyric-swipe-control" role="radiogroup">
+                        <button
+                          v-for="option in lyricSwipeOptions"
+                          :key="option.value"
+                          type="button"
+                          :class="{ active: lyricConfig.lyricSwipeDirection === option.value }"
+                          :aria-checked="lyricConfig.lyricSwipeDirection === option.value"
+                          role="radio"
+                          @click="setLyricSwipeDirection(option.value)"
+                        >
+                          {{ option.label }}
+                        </button>
+                      </div>
                     </div>
-                    <div class="text-xs text-white/40 mt-1">
-                      {{
-                        tr(
-                          'settings.lyricSettings.alignmentDescription',
-                          '调整滚动歌词的水平对齐方式'
-                        )
-                      }}
+
+                    <!-- 显示罗马音 -->
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                      <div>
+                        <div class="text-sm text-white/80">
+                          {{ tr('settings.lyricSettings.showRomanization', '显示罗马音') }}
+                        </div>
+                        <div class="text-xs text-white/40 mt-1">
+                          {{
+                            tr(
+                              'settings.lyricSettings.showRomanizationDescription',
+                              '在歌词下方显示罗马音文本'
+                            )
+                          }}
+                        </div>
+                      </div>
+                      <button
+                        class="share-toggle-switch"
+                        :class="{ on: lyricConfig.showRomanization }"
+                        @click="toggleShowRomanization"
+                      >
+                        <span class="share-toggle-knob"></span>
+                      </button>
                     </div>
-                  </div>
-                  <div class="lyric-alignment-control" role="radiogroup">
-                    <button
-                      v-for="option in lyricAlignmentOptions"
-                      :key="option.value"
-                      type="button"
-                      :class="{ active: lyricConfig.lyricAlignment === option.value }"
-                      :aria-label="option.label"
-                      :aria-checked="lyricConfig.lyricAlignment === option.value"
-                      role="radio"
-                      @click="setLyricAlignment(option.value)"
+
+                    <div
+                      v-if="androidNativeAvailable"
+                      class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2"
                     >
-                      <i :class="option.icon"></i>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- 显示罗马音 -->
-                <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
-                  <div>
-                    <div class="text-sm text-white/80">
-                      {{ tr('settings.lyricSettings.showRomanization', '显示罗马音') }}
+                      <div class="min-w-0 pr-3">
+                        <div class="text-sm text-white/80">
+                          {{ tr('settings.lyricSettings.statusBarLyrics', '状态栏歌词') }}
+                        </div>
+                        <div class="text-xs text-white/40 mt-1">
+                          {{
+                            tr(
+                              'settings.lyricSettings.statusBarLyricsDescription',
+                              '通过顶部悬浮窗在其他应用上方显示当前歌词'
+                            )
+                          }}
+                        </div>
+                      </div>
+                      <button
+                        class="share-toggle-switch"
+                        :class="{ on: lyricConfig.statusBarLyricsEnabled }"
+                        @click="toggleStatusBarLyrics"
+                      >
+                        <span class="share-toggle-knob"></span>
+                      </button>
                     </div>
-                    <div class="text-xs text-white/40 mt-1">
-                      {{
-                        tr(
-                          'settings.lyricSettings.showRomanizationDescription',
-                          '在歌词下方显示罗马音文本'
-                        )
-                      }}
-                    </div>
-                  </div>
-                  <button
-                    class="share-toggle-switch"
-                    :class="{ on: lyricConfig.showRomanization }"
-                    @click="toggleShowRomanization"
-                  >
-                    <span class="share-toggle-knob"></span>
-                  </button>
-                </div>
-
-                <div
-                  v-if="androidNativeAvailable"
-                  class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2"
-                >
-                  <div class="min-w-0 pr-3">
-                    <div class="text-sm text-white/80">
-                      {{ tr('settings.lyricSettings.statusBarLyrics', '状态栏歌词') }}
-                    </div>
-                    <div class="text-xs text-white/40 mt-1">
-                      {{
-                        tr(
-                          'settings.lyricSettings.statusBarLyricsDescription',
-                          '通过顶部悬浮窗在其他应用上方显示当前歌词'
-                        )
-                      }}
-                    </div>
-                  </div>
-                  <button
-                    class="share-toggle-switch"
-                    :class="{ on: lyricConfig.statusBarLyricsEnabled }"
-                    @click="toggleStatusBarLyrics"
-                  >
-                    <span class="share-toggle-knob"></span>
-                  </button>
-                </div>
                   </div>
                 </div>
               </section>
 
               <!-- 播放速度 -->
-              <section class="control-settings-section">
+              <section
+                class="control-settings-section"
+                :class="{ expanded: isControlSectionExpanded('speed') }"
+              >
                 <button
                   type="button"
                   class="control-section-header"
@@ -505,27 +552,30 @@
                   :inert="!isControlSectionExpanded('speed')"
                 >
                   <div id="control-section-speed" class="control-section-body">
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    v-for="option in speedOptions"
-                    :key="option"
-                    @click="setSpeed(option)"
-                    class="px-4 py-2 rounded-full text-sm font-medium transition-colors"
-                    :class="
-                      playbackRate === option
-                        ? 'bg-[var(--accent-color)] text-white'
-                        : 'bg-white/10 text-white/70 hover:bg-white/15'
-                    "
-                  >
-                    {{ option }}x
-                  </button>
-                </div>
+                    <div class="flex flex-wrap gap-2">
+                      <button
+                        v-for="option in speedOptions"
+                        :key="option"
+                        @click="setSpeed(option)"
+                        class="px-4 py-2 rounded-full text-sm font-medium transition-colors"
+                        :class="
+                          playbackRate === option
+                            ? 'bg-[var(--accent-color)] text-white'
+                            : 'bg-white/10 text-white/70 hover:bg-white/15'
+                        "
+                      >
+                        {{ option }}x
+                      </button>
+                    </div>
                   </div>
                 </div>
               </section>
 
               <!-- 歌词解析 -->
-              <section class="control-settings-section">
+              <section
+                class="control-settings-section"
+                :class="{ expanded: isControlSectionExpanded('analysis') }"
+              >
                 <button
                   type="button"
                   class="control-section-header"
@@ -549,75 +599,146 @@
                   :inert="!isControlSectionExpanded('analysis')"
                 >
                   <div id="control-section-analysis" class="control-section-body">
-                  <div class="control-section-actions">
-                  <button
-                    v-if="!metaphorLoading && !metaphorResult"
-                    @click="analyzeLyrics"
-                    class="px-3 py-1 rounded-full text-sm font-medium bg-[var(--accent-color)] text-white"
-                  >
-                    开始分析
-                  </button>
-                  <button
-                    v-if="metaphorResult || metaphorLoading"
-                    @click="analyzeLyrics"
-                    :disabled="metaphorLoading"
-                    class="px-3 py-1 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15 disabled:opacity-50"
-                  >
-                    {{ metaphorLoading ? '分析中...' : '重新分析' }}
-                  </button>
-                  </div>
+                    <div class="control-section-actions">
+                      <div
+                        ref="metaphorModelMenuRef"
+                        class="metaphor-model-picker"
+                        :class="{ expanded: metaphorModelMenuOpen }"
+                        @pointerdown.stop
+                        @pointerup.stop
+                        @click.stop
+                      >
+                        <button
+                          type="button"
+                          class="metaphor-model-trigger"
+                          :aria-expanded="metaphorModelMenuOpen"
+                          @click="metaphorModelMenuOpen = !metaphorModelMenuOpen"
+                        >
+                          <span>{{ selectedMetaphorModelLabel }}</span>
+                          <i
+                            class="ri-arrow-down-s-line"
+                            :class="{ open: metaphorModelMenuOpen }"
+                          ></i>
+                        </button>
+                        <div
+                          class="metaphor-model-menu"
+                          :class="{ visible: metaphorModelMenuOpen }"
+                        >
+                          <button
+                            v-for="option in metaphorModelOptions"
+                            :key="option.value"
+                            type="button"
+                            class="metaphor-model-option"
+                            :class="{
+                              active: option.value === metaphorModelSelection,
+                              settings: option.value === '__open_metaphor_settings__'
+                            }"
+                            :tabindex="metaphorModelMenuOpen ? 0 : -1"
+                            @click="onMetaphorModelChange(option.value)"
+                          >
+                            <span>{{ option.label }}</span>
+                            <i
+                              v-if="option.value === metaphorModelSelection"
+                              class="ri-check-line"
+                            ></i>
+                            <i
+                              v-else-if="option.value === '__open_metaphor_settings__'"
+                              class="ri-settings-3-line"
+                            ></i>
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        v-if="!metaphorLoading && !metaphorResult"
+                        @click="analyzeLyrics"
+                        class="metaphor-analyze-button primary"
+                      >
+                        开始分析
+                      </button>
+                      <button
+                        v-if="metaphorResult || metaphorLoading"
+                        @click="analyzeLyrics"
+                        :disabled="metaphorLoading"
+                        class="metaphor-analyze-button"
+                      >
+                        {{ metaphorLoading ? '分析中...' : '重新分析' }}
+                      </button>
+                    </div>
 
-                <!-- 加载中 -->
-                <div
-                  v-if="metaphorLoading"
-                  class="flex flex-col items-center justify-center py-8 text-white/50"
-                >
-                  <i class="ri-loader-4-line animate-spin text-3xl mb-3"></i>
-                  <p class="text-sm">正在分析歌词...</p>
-                  <p class="text-xs opacity-60 mt-1">AI 分析可能需要 10-30 秒</p>
-                </div>
+                    <!-- 加载中 -->
+                    <div v-if="metaphorLoading" class="metaphor-output-scroll py-5 text-white/70">
+                      <div v-if="metaphorResult" class="metaphor-stream-text">
+                        <div class="metaphor-stream-status">
+                          <span>{{ metaphorLoadingText }}</span>
+                          <span>已运行 {{ metaphorElapsedSeconds }} 秒</span>
+                        </div>
+                        <div class="metaphor-result" v-html="sanitizedMetaphorResult"></div>
+                        <span class="typing-caret" aria-hidden="true"></span>
+                      </div>
+                      <div
+                        v-else
+                        class="flex flex-col items-center justify-center py-3 text-white/50"
+                      >
+                        <i class="ri-loader-4-line animate-spin text-3xl mb-3"></i>
+                        <p class="metaphor-loading-label">{{ metaphorLoadingText }}</p>
+                        <p class="metaphor-loading-time">已运行 {{ metaphorElapsedSeconds }} 秒</p>
+                      </div>
+                    </div>
 
-                <!-- 错误 -->
-                <div
-                  v-else-if="metaphorError"
-                  class="flex flex-col items-center justify-center py-8 text-white/50 text-center"
-                >
-                  <i class="ri-error-warning-line text-3xl mb-3 text-red-400"></i>
-                  <p class="text-sm max-w-xs">{{ metaphorError }}</p>
-                  <button
-                    @click="analyzeLyrics"
-                    class="mt-3 px-3 py-1 rounded-full text-sm bg-white/10 text-white/70 hover:bg-white/15"
-                  >
-                    重试
-                  </button>
-                </div>
+                    <!-- 错误 -->
+                    <div
+                      v-else-if="metaphorError"
+                      class="flex flex-col items-center justify-center py-8 text-white/50 text-center"
+                    >
+                      <i class="ri-error-warning-line text-3xl mb-3 text-red-400"></i>
+                      <p class="text-sm max-w-xs">{{ metaphorError }}</p>
+                      <button
+                        @click="analyzeLyrics"
+                        class="mt-3 px-3 py-1 rounded-full text-sm bg-white/10 text-white/70 hover:bg-white/15"
+                      >
+                        重试
+                      </button>
+                    </div>
 
-                <!-- 结果 -->
-                <div
-                  v-else-if="metaphorResult"
-                  class="metaphor-result prose prose-invert max-w-none text-sm leading-relaxed text-white/80"
-                  v-html="sanitizedMetaphorResult"
-                ></div>
+                    <!-- 结果 -->
+                    <div
+                      v-else-if="metaphorResult"
+                      class="metaphor-output-scroll"
+                    >
+                      <div class="metaphor-result" v-html="sanitizedMetaphorResult"></div>
+                      <div class="metaphor-result-actions">
+                        <button type="button" class="metaphor-copy-button" @click="copyMetaphorPlainText">
+                          <i :class="metaphorCopied ? 'ri-check-line' : 'ri-file-copy-line'"></i>
+                          {{ metaphorCopied ? '已复制' : '复制纯文本' }}
+                        </button>
+                      </div>
+                    </div>
 
-                <!-- 空状态 -->
-                <div v-else class="flex flex-col items-center justify-center py-6 text-white/40">
-                  <i class="ri-quill-pen-line text-4xl mb-2"></i>
-                  <p class="text-sm">分析当前歌词的隐喻和修辞手法</p>
-                </div>
+                    <!-- 空状态 -->
+                    <div
+                      v-else
+                      class="flex flex-col items-center justify-center py-6 text-white/40"
+                    >
+                      <i class="ri-quill-pen-line text-4xl mb-2"></i>
+                      <p class="text-sm">分析当前歌词的隐喻和修辞手法</p>
+                    </div>
 
-                <!-- 缓存标记 -->
-                <div
-                  v-if="metaphorCached"
-                  class="flex items-center justify-center mt-3 text-xs text-white/30"
-                >
-                  <i class="ri-database-2-line mr-1"></i> 缓存结果
-                </div>
+                    <!-- 缓存标记 -->
+                    <div
+                      v-if="metaphorCached"
+                      class="flex items-center justify-center mt-3 text-xs text-white/30"
+                    >
+                      <i class="ri-database-2-line mr-1"></i> 缓存结果
+                    </div>
                   </div>
                 </div>
               </section>
 
               <!-- 分享功能 -->
-              <section class="control-settings-section">
+              <section
+                class="control-settings-section"
+                :class="{ expanded: isControlSectionExpanded('sharing') }"
+              >
                 <button
                   type="button"
                   class="control-section-header"
@@ -641,56 +762,58 @@
                   :inert="!isControlSectionExpanded('sharing')"
                 >
                   <div id="control-section-sharing" class="control-section-body">
+                    <!-- 截图自动添加二维码 -->
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                      <div>
+                        <div class="text-sm text-white/80">截图自动添加二维码</div>
+                        <div class="text-xs text-white/40 mt-1">截图后自动叠加歌曲深链二维码</div>
+                      </div>
+                      <button
+                        class="share-toggle-switch"
+                        :class="{ on: lyricConfig.shareScreenshotQRCode }"
+                        @click="toggleShareScreenshotQRCode"
+                      >
+                        <span class="share-toggle-knob"></span>
+                      </button>
+                    </div>
 
-                <!-- 截图自动添加二维码 -->
-                <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
-                  <div>
-                    <div class="text-sm text-white/80">截图自动添加二维码</div>
-                    <div class="text-xs text-white/40 mt-1">截图后自动叠加歌曲深链二维码</div>
-                  </div>
-                  <button
-                    class="share-toggle-switch"
-                    :class="{ on: lyricConfig.shareScreenshotQRCode }"
-                    @click="toggleShareScreenshotQRCode"
-                  >
-                    <span class="share-toggle-knob"></span>
-                  </button>
-                </div>
+                    <!-- 默认海报布局 -->
+                    <div class="p-3 rounded-2xl bg-white/5 mb-2">
+                      <div class="text-sm text-white/80 mb-2">默认海报布局</div>
+                      <div class="flex gap-2">
+                        <button
+                          v-for="layout in posterLayouts"
+                          :key="layout.key"
+                          @click="setShareDefaultLayout(layout.key)"
+                          class="px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                          :class="
+                            lyricConfig.shareDefaultPosterLayout === layout.key
+                              ? 'bg-[var(--accent-color)] text-white'
+                              : 'bg-white/10 text-white/60'
+                          "
+                        >
+                          <i :class="layout.icon" class="mr-1"></i>
+                          {{ layout.label }}
+                        </button>
+                      </div>
+                    </div>
 
-                <!-- 默认海报布局 -->
-                <div class="p-3 rounded-2xl bg-white/5 mb-2">
-                  <div class="text-sm text-white/80 mb-2">默认海报布局</div>
-                  <div class="flex gap-2">
-                    <button
-                      v-for="layout in posterLayouts"
-                      :key="layout.key"
-                      @click="setShareDefaultLayout(layout.key)"
-                      class="px-3 py-2 rounded-xl text-xs font-medium transition-colors"
-                      :class="
-                        lyricConfig.shareDefaultPosterLayout === layout.key
-                          ? 'bg-[var(--accent-color)] text-white'
-                          : 'bg-white/10 text-white/60'
-                      "
-                    >
-                      <i :class="layout.icon" class="mr-1"></i>
-                      {{ layout.label }}
-                    </button>
-                  </div>
-                </div>
-
-                <!-- 长按歌词提示 -->
-                <div class="p-3 rounded-2xl bg-white/5">
-                  <div class="flex items-center gap-2 text-xs text-white/50">
-                    <i class="ri-information-line"></i>
-                    <span>在歌词页面长按歌词可进入多选模式，生成精美海报</span>
-                  </div>
-                </div>
+                    <!-- 长按歌词提示 -->
+                    <div class="p-3 rounded-2xl bg-white/5">
+                      <div class="flex items-center gap-2 text-xs text-white/50">
+                        <i class="ri-information-line"></i>
+                        <span>在歌词页面长按歌词可进入多选模式，生成精美海报</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </section>
 
               <!-- 定时关闭 -->
-              <section class="control-settings-section">
+              <section
+                class="control-settings-section"
+                :class="{ expanded: isControlSectionExpanded('sleepTimer') }"
+              >
                 <button
                   type="button"
                   class="control-section-header"
@@ -717,108 +840,107 @@
                   :inert="!isControlSectionExpanded('sleepTimer')"
                 >
                   <div id="control-section-sleep-timer" class="control-section-body">
-
-                <!-- 已激活状态 -->
-                <div v-if="hasTimerActive" class="space-y-3">
-                  <div
-                    class="p-4 rounded-2xl bg-[var(--accent-color)]/15 border border-[var(--accent-color)]/30"
-                  >
-                    <div class="flex items-center justify-between">
-                      <div class="flex items-center gap-3">
-                        <i class="ri-timer-line text-[var(--accent-color-light)] text-xl"></i>
-                        <span class="text-[var(--accent-color-light)]">
-                          {{ timerDisplayText }}
-                        </span>
-                      </div>
-                      <button
-                        @click="cancelTimer"
-                        class="px-3 py-1 rounded-full text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                      >
-                        {{ t('player.sleepTimer.cancel') }}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 未激活状态 - 设置选项 -->
-                <div v-else class="space-y-4">
-                  <!-- 按时间 -->
-                  <div>
-                    <p class="text-xs text-white/50 mb-2">
-                      {{ t('player.sleepTimer.timeMode') }}
-                    </p>
-                    <div class="flex flex-wrap gap-2">
-                      <button
-                        v-for="minutes in [15, 30, 60, 90]"
-                        :key="minutes"
-                        @click="setTimeTimer(minutes)"
-                        class="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
-                      >
-                        {{ minutes }}{{ t('player.sleepTimer.minutes') }}
-                      </button>
-                    </div>
-                    <!-- 自定义时间 -->
-                    <div class="flex items-center gap-2 mt-3">
+                    <!-- 已激活状态 -->
+                    <div v-if="hasTimerActive" class="space-y-3">
                       <div
-                        class="flex items-center flex-1 bg-white/10 rounded-full overflow-hidden"
+                        class="p-4 rounded-2xl bg-[var(--accent-color)]/15 border border-[var(--accent-color)]/30"
                       >
-                        <button
-                          @click="decreaseMinutes"
-                          class="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20"
-                        >
-                          <i class="ri-subtract-line text-lg"></i>
-                        </button>
-                        <input
-                          v-model="customMinutes"
-                          type="text"
-                          inputmode="numeric"
-                          pattern="[0-9]*"
-                          placeholder="分钟"
-                          class="flex-1 px-2 py-2 text-sm text-center bg-transparent text-white/80 border-0 outline-none placeholder-white/40"
-                          @input="handleMinutesInput"
-                        />
-                        <button
-                          @click="increaseMinutes"
-                          class="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20"
-                        >
-                          <i class="ri-add-line text-lg"></i>
-                        </button>
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-3">
+                            <i class="ri-timer-line text-[var(--accent-color-light)] text-xl"></i>
+                            <span class="text-[var(--accent-color-light)]">
+                              {{ timerDisplayText }}
+                            </span>
+                          </div>
+                          <button
+                            @click="cancelTimer"
+                            class="px-3 py-1 rounded-full text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                          >
+                            {{ t('player.sleepTimer.cancel') }}
+                          </button>
+                        </div>
                       </div>
+                    </div>
+
+                    <!-- 未激活状态 - 设置选项 -->
+                    <div v-else class="space-y-4">
+                      <!-- 按时间 -->
+                      <div>
+                        <p class="text-xs text-white/50 mb-2">
+                          {{ t('player.sleepTimer.timeMode') }}
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                          <button
+                            v-for="minutes in [15, 30, 60, 90]"
+                            :key="minutes"
+                            @click="setTimeTimer(minutes)"
+                            class="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
+                          >
+                            {{ minutes }}{{ t('player.sleepTimer.minutes') }}
+                          </button>
+                        </div>
+                        <!-- 自定义时间 -->
+                        <div class="flex items-center gap-2 mt-3">
+                          <div
+                            class="flex items-center flex-1 bg-white/10 rounded-full overflow-hidden"
+                          >
+                            <button
+                              @click="decreaseMinutes"
+                              class="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20"
+                            >
+                              <i class="ri-subtract-line text-lg"></i>
+                            </button>
+                            <input
+                              v-model="customMinutes"
+                              type="text"
+                              inputmode="numeric"
+                              pattern="[0-9]*"
+                              placeholder="分钟"
+                              class="flex-1 px-2 py-2 text-sm text-center bg-transparent text-white/80 border-0 outline-none placeholder-white/40"
+                              @input="handleMinutesInput"
+                            />
+                            <button
+                              @click="increaseMinutes"
+                              class="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20"
+                            >
+                              <i class="ri-add-line text-lg"></i>
+                            </button>
+                          </div>
+                          <button
+                            @click="setCustomTimeTimer"
+                            :disabled="!customMinutes || Number(customMinutes) < 1"
+                            class="px-4 py-2 rounded-full text-sm font-medium bg-[var(--accent-color)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {{ t('player.sleepTimer.set') }}
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- 按歌曲数 -->
+                      <div>
+                        <p class="text-xs text-white/50 mb-2">
+                          {{ t('player.sleepTimer.songsMode') }}
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                          <button
+                            v-for="songs in [1, 3, 5, 10]"
+                            :key="songs"
+                            @click="setSongsTimer(songs)"
+                            class="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
+                          >
+                            {{ songs }}{{ t('player.sleepTimer.songs') }}
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- 播放列表结束 -->
                       <button
-                        @click="setCustomTimeTimer"
-                        :disabled="!customMinutes || Number(customMinutes) < 1"
-                        class="px-4 py-2 rounded-full text-sm font-medium bg-[var(--accent-color)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        @click="setPlaylistEndTimer"
+                        class="w-full py-3 rounded-2xl text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
                       >
-                        {{ t('player.sleepTimer.set') }}
+                        {{ t('player.sleepTimer.playlistEnd') }}
                       </button>
                     </div>
-                  </div>
-
-                  <!-- 按歌曲数 -->
-                  <div>
-                    <p class="text-xs text-white/50 mb-2">
-                      {{ t('player.sleepTimer.songsMode') }}
-                    </p>
-                    <div class="flex flex-wrap gap-2">
-                      <button
-                        v-for="songs in [1, 3, 5, 10]"
-                        :key="songs"
-                        @click="setSongsTimer(songs)"
-                        class="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
-                      >
-                        {{ songs }}{{ t('player.sleepTimer.songs') }}
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- 播放列表结束 -->
-                  <button
-                    @click="setPlaylistEndTimer"
-                    class="w-full py-3 rounded-2xl text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
-                  >
-                    {{ t('player.sleepTimer.playlistEnd') }}
-                  </button>
-                </div>
                   </div>
                 </div>
               </section>
@@ -840,12 +962,22 @@
                     <div class="truncate text-base font-semibold text-white">
                       {{ currentSong.name }}
                     </div>
-                    <div class="mt-1 truncate text-sm text-white/50">
+                    <button
+                      v-if="currentArtistText"
+                      type="button"
+                      class="settings-song-link mt-1 truncate text-left text-sm text-white/50"
+                      @click.stop="openCurrentArtist"
+                    >
                       {{ currentArtistText || '未知艺术家' }}
-                    </div>
-                    <div v-if="currentAlbum?.name" class="mt-1 truncate text-xs text-white/35">
+                    </button>
+                    <button
+                      v-if="currentAlbum?.name"
+                      type="button"
+                      class="settings-song-link mt-1 truncate text-left text-xs text-white/35"
+                      @click.stop="openCurrentAlbum"
+                    >
                       {{ currentAlbum.name }}
-                    </div>
+                    </button>
                   </div>
                 </div>
 
@@ -934,7 +1066,12 @@ import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import SongMetadataEditor from '@/components/common/SongMetadataEditor.vue';
 import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
 import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
-import { useMetaphor } from '@/features/lyric-metaphor/useMetaphor';
+import { listGatewayModels, type GatewayModel } from '@/features/ai/gateway';
+import {
+  getMetaphorConfig,
+  saveMetaphorConfig,
+  useMetaphor
+} from '@/features/lyric-metaphor/useMetaphor';
 import { lrcArray, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
 import { isLocalSong } from '@/hooks/useLocalMusic';
@@ -944,6 +1081,7 @@ import {
   refreshStatusBarLyric,
   requestStatusBarLyricPermission
 } from '@/services/androidNative';
+import { audioService } from '@/services/audioService';
 import { deleteClimaxCache, getLocalClimax, saveLocalClimax } from '@/services/cacheService';
 import { activeAudioFormat } from '@/services/nativeAudioPlayer';
 import { useClimaxStore } from '@/store/modules/climax';
@@ -952,10 +1090,11 @@ import { useLocalMusicStore } from '@/store/modules/localMusic';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useUserStore } from '@/store/modules/user';
-import type { LyricAlignment, LyricConfig } from '@/types/lyric';
+import type { LyricAlignment, LyricConfig, LyricSwipeDirection } from '@/types/lyric';
 import {
   DEFAULT_LYRIC_CONFIG,
   normalizeLyricAlignment,
+  normalizeLyricSwipeDirection,
   normalizeStatusBarLyricConfig
 } from '@/types/lyric';
 import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from '@/types/playerStyle';
@@ -974,6 +1113,67 @@ const { navigateToArtist } = useArtist();
 const message = window.$message;
 const androidNativeAvailable = isAndroidNative();
 const activeTab = ref<'song' | 'control'>('control');
+const metaphorModels = ref<GatewayModel[]>([]);
+const metaphorModelsLoading = ref(false);
+const metaphorModelMenuRef = ref<HTMLElement | null>(null);
+const metaphorModelMenuOpen = ref(false);
+const metaphorModelSelection = ref(getMetaphorConfig().model || 'opencode-v4f');
+const metaphorModelName = (id: string, fallback?: string) => {
+  if (id === 'opencode-v4f' || id === 'deepseek-v4-flash-0731') return 'DeepSeekV4Flash';
+  return fallback || id;
+};
+const metaphorModelOptions = computed(() => {
+  const options = metaphorModels.value.map((model) => ({
+    label: `${metaphorModelName(model.id, model.name)} · ${model.multiplier}x`,
+    value: model.id
+  }));
+  if (!options.some((option) => option.value === metaphorModelSelection.value)) {
+    options.unshift({
+      label: metaphorModelName(metaphorModelSelection.value),
+      value: metaphorModelSelection.value
+    });
+  }
+  return [...options, { label: '打开设置', value: '__open_metaphor_settings__' }];
+});
+const selectedMetaphorModelLabel = computed(
+  () =>
+    metaphorModelOptions.value.find((option) => option.value === metaphorModelSelection.value)
+      ?.label || metaphorModelName(metaphorModelSelection.value)
+);
+
+async function loadMetaphorModels() {
+  const config = getMetaphorConfig();
+  metaphorModelSelection.value = config.model || 'opencode-v4f';
+  if (!config.accessToken) return;
+  metaphorModelsLoading.value = true;
+  try {
+    metaphorModels.value = await listGatewayModels(config.accessToken);
+  } catch {
+    metaphorModels.value = [];
+  } finally {
+    metaphorModelsLoading.value = false;
+  }
+}
+
+function onMetaphorModelChange(value: string) {
+  metaphorModelMenuOpen.value = false;
+  if (value === '__open_metaphor_settings__') {
+    metaphorModelSelection.value = getMetaphorConfig().model || 'opencode-v4f';
+    close();
+    playerStore.setMusicFull(false);
+    void router.push({ path: '/set', query: { section: 'basic', focus: 'lyric-metaphor-ai' } });
+    return;
+  }
+  metaphorModelSelection.value = value;
+  const config = getMetaphorConfig();
+  saveMetaphorConfig({ ...config, provider: 'gateway', model: value });
+}
+
+function closeMetaphorModelMenu(event: PointerEvent) {
+  if (!metaphorModelMenuRef.value?.contains(event.target as Node)) {
+    metaphorModelMenuOpen.value = false;
+  }
+}
 
 type ControlSection =
   | 'playerStyle'
@@ -1024,7 +1224,7 @@ const getSettingsTabPageStyle = (tab: 'song' | 'control') => {
 const isSettingsTabSwipeTarget = (target: EventTarget | null) =>
   target instanceof Element &&
   !target.closest(
-    'button, input, textarea, select, a, [role="slider"], [role="switch"], [data-horizontal-scroll], .n-slider, .climax-timeline, .climax-handle'
+    'input, textarea, select, a, [role="slider"], [role="switch"], [data-horizontal-scroll], .n-slider, .climax-timeline, .climax-handle, .metaphor-model-picker'
   );
 
 const pushSettingsTabSample = (x: number) => {
@@ -1047,6 +1247,11 @@ const onTabPointerDown = (event: PointerEvent) => {
   settingsTabStartY = event.clientY;
   settingsTabAxis = 'none';
   settingsTabSamples = [{ x: event.clientX, time: performance.now() }];
+  try {
+    settingsTabViewportRef.value?.setPointerCapture(event.pointerId);
+  } catch {
+    // Older Android WebViews may not support pointer capture.
+  }
 };
 
 const onTabPointerMove = (event: PointerEvent) => {
@@ -1079,7 +1284,7 @@ const finishTabPointer = (event: PointerEvent, cancelled = false) => {
     !cancelled &&
     targetIndex >= 0 &&
     targetIndex <= 1 &&
-    (Math.abs(settingsTabDragOffset.value) >= width * 0.28 || Math.abs(velocity) >= 0.45);
+    (Math.abs(settingsTabDragOffset.value) >= width * 0.12 || Math.abs(velocity) >= 0.16);
 
   settingsTabDragging.value = false;
   if (shouldCommit) activeTab.value = targetIndex === 0 ? 'song' : 'control';
@@ -1146,6 +1351,8 @@ function playCurrentNext() {
 
 function openCurrentArtist() {
   if (!currentArtistId.value) return;
+  playerStore.setFullLyricsVisible(false);
+  playerStore.setMusicFull(false);
   navigateToArtist(Number(currentArtistId.value));
   close();
 }
@@ -1153,6 +1360,8 @@ function openCurrentArtist() {
 function openCurrentAlbum() {
   const album = currentAlbum.value;
   if (!album?.id || !album?.name) return;
+  playerStore.setFullLyricsVisible(false);
+  playerStore.setMusicFull(false);
   navigateToMusicList(router, {
     id: album.id,
     type: 'album',
@@ -1318,7 +1527,7 @@ function clearAllClimaxSegments() {
 
 function seekToPlayhead() {
   if (sound?.value) {
-    sound.value.seek(currentPlayTime.value);
+    audioService.seek(currentPlayTime.value);
   }
 }
 
@@ -1529,13 +1738,76 @@ const {
 const sanitizedMetaphorResult = computed(() => {
   if (!metaphorResult.value) return '';
   try {
-    const tokens = marked.lexer(metaphorResult.value);
+    const tokens = marked.lexer(metaphorResult.value, { breaks: true, gfm: true });
     const html = marked.parser(tokens);
     return DOMPurify.sanitize(html);
   } catch {
     return metaphorResult.value;
   }
 });
+
+const metaphorLoadingPhrases = [
+  '正在品鉴',
+  '正在解析',
+  '正在聆听',
+  '正在分析',
+  '正在思考',
+  '正在整理'
+];
+const metaphorElapsedSeconds = ref(0);
+const metaphorLoadingPhraseIndex = ref(0);
+const metaphorCopied = ref(false);
+let metaphorLoadingTimer: ReturnType<typeof setInterval> | null = null;
+const metaphorLoadingText = computed(
+  () => metaphorLoadingPhrases[metaphorLoadingPhraseIndex.value] || metaphorLoadingPhrases[0]
+);
+
+function stopMetaphorLoadingTimer() {
+  if (metaphorLoadingTimer) clearInterval(metaphorLoadingTimer);
+  metaphorLoadingTimer = null;
+}
+
+watch(
+  metaphorLoading,
+  (active) => {
+    stopMetaphorLoadingTimer();
+    metaphorElapsedSeconds.value = 0;
+    metaphorLoadingPhraseIndex.value = 0;
+    if (!active) return;
+    const startedAt = Date.now();
+    metaphorLoadingTimer = setInterval(() => {
+      metaphorElapsedSeconds.value = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+      metaphorLoadingPhraseIndex.value =
+        Math.floor(metaphorElapsedSeconds.value / 3) % metaphorLoadingPhrases.length;
+    }, 250);
+  },
+  { immediate: true }
+);
+
+const metaphorPlainText = computed(() => {
+  if (!metaphorResult.value) return '';
+  const html = marked.parse(metaphorResult.value, { breaks: true, gfm: true }) as string;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return (doc.body.textContent || '').replace(/\u00a0/g, ' ').trim();
+});
+
+async function copyMetaphorPlainText() {
+  if (!metaphorPlainText.value) return;
+  try {
+    await navigator.clipboard.writeText(metaphorPlainText.value);
+  } catch {
+    const textarea = document.createElement('textarea');
+    textarea.value = metaphorPlainText.value;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
+  }
+  metaphorCopied.value = true;
+  window.setTimeout(() => (metaphorCopied.value = false), 1600);
+}
 
 const analyzeLyrics = async () => {
   const lyrics =
@@ -1570,6 +1842,7 @@ function loadStoredLyricConfig(): LyricConfig {
       ...DEFAULT_LYRIC_CONFIG,
       ...parsed,
       lyricAlignment: normalizeLyricAlignment(parsed.lyricAlignment, parsed.centerLyrics),
+      lyricSwipeDirection: normalizeLyricSwipeDirection(parsed.lyricSwipeDirection),
       statusBarLyricConfig: normalizeStatusBarLyricConfig(
         parsed.statusBarLyricConfig,
         Boolean(parsed.statusBarLyricsEnabled)
@@ -1763,6 +2036,16 @@ function setLyricAlignment(alignment: LyricAlignment) {
   lyricConfig.value.centerLyrics = alignment === 'center';
 }
 
+const lyricSwipeOptions: Array<{ value: LyricSwipeDirection; label: string }> = [
+  { value: 'none', label: '关闭' },
+  { value: 'left', label: '左划' },
+  { value: 'right', label: '右划' }
+];
+
+function setLyricSwipeDirection(direction: LyricSwipeDirection) {
+  lyricConfig.value.lyricSwipeDirection = direction;
+}
+
 function toggleShowTranslation() {
   lyricConfig.value.showTranslation = !lyricConfig.value.showTranslation;
   localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
@@ -1827,7 +2110,10 @@ const emit = defineEmits<{
 watch(
   () => props.visible,
   (visible) => {
-    if (visible) collapseControlSections();
+    if (visible) {
+      collapseControlSections();
+      void loadMetaphorModels();
+    }
   },
   { immediate: true }
 );
@@ -1963,13 +2249,16 @@ watch(
 );
 
 onMounted(() => {
+  document.addEventListener('pointerdown', closeMetaphorModelMenu);
   if (hasTimerActive.value && sleepTimer.value.type === 'time') {
     startTimerUpdate();
   }
 });
 
 onUnmounted(() => {
+  document.removeEventListener('pointerdown', closeMetaphorModelMenu);
   stopTimerUpdate();
+  stopMetaphorLoadingTimer();
 });
 </script>
 
@@ -2023,6 +2312,8 @@ onUnmounted(() => {
   min-height: 0;
   flex: 1;
   overflow: hidden;
+  /* Vertical scrolling remains native; horizontal movement is owned by the
+     tab pager so Android WebView cannot steal the gesture before pointermove. */
   touch-action: pan-y;
 }
 
@@ -2031,6 +2322,7 @@ onUnmounted(() => {
   inset: 0;
   overscroll-behavior: contain;
   will-change: transform;
+  touch-action: pan-y;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2097,8 +2389,17 @@ onUnmounted(() => {
   margin-bottom: 10px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
+  border-radius: 24px;
   background: rgba(255, 255, 255, 0.035);
+  transition:
+    background-color 220ms ease,
+    border-color 220ms ease;
+
+  /* Keep the container radius stable. Only the content below the header
+     extends vertically, which prevents the giant-radius interpolation. */
+  &:not(.expanded) {
+    background: rgba(255, 255, 255, 0.055);
+  }
 }
 
 .control-section-header {
@@ -2107,7 +2408,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 54px;
+  min-height: 52px;
   padding: 0 14px;
   border: 0;
   color: rgba(255, 255, 255, 0.82);
@@ -2152,7 +2453,9 @@ onUnmounted(() => {
 .control-section-chevron {
   color: rgba(255, 255, 255, 0.5);
   font-size: 20px;
-  transition: transform 180ms ease, color 180ms ease;
+  transition:
+    transform 180ms ease,
+    color 180ms ease;
 }
 
 .control-section-chevron.expanded {
@@ -2167,30 +2470,164 @@ onUnmounted(() => {
   transform: translate3d(0, -5px, 0) scale(0.995);
   transform-origin: top center;
   transition:
-    grid-template-rows 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    grid-template-rows 360ms cubic-bezier(0.22, 0.8, 0.2, 1),
+    max-height 360ms cubic-bezier(0.22, 0.8, 0.2, 1),
     opacity 180ms ease-out,
-    transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+    transform 360ms cubic-bezier(0.22, 0.8, 0.2, 1);
   will-change: grid-template-rows, opacity, transform;
+  max-height: 0;
+  overflow: hidden;
 }
 
 .control-section-reveal.expanded {
   grid-template-rows: 1fr;
   opacity: 1;
   transform: translate3d(0, 0, 0) scale(1);
+  max-height: 5000px;
+  overflow: visible;
 }
 
 .control-section-body {
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   padding: 0 14px 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .control-section-actions {
   display: flex;
+  align-items: flex-start;
   justify-content: flex-end;
+  gap: 8px;
   min-height: 34px;
   padding-top: 10px;
+}
+
+.metaphor-model-picker {
+  position: relative;
+  z-index: 40;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: none;
+  backdrop-filter: blur(24px) saturate(1.25);
+  -webkit-backdrop-filter: blur(24px) saturate(1.25);
+  transition:
+    border-radius 300ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 300ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.metaphor-model-picker.expanded {
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
+}
+
+.metaphor-model-trigger {
+  display: flex;
+  width: 100%;
+  height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 14px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.88);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  text-align: left;
+}
+
+.metaphor-model-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metaphor-model-trigger i {
+  flex: 0 0 auto;
+  transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.metaphor-model-trigger i.open {
+  transform: rotate(180deg);
+}
+
+.metaphor-model-menu {
+  display: grid;
+  gap: 3px;
+  max-height: 0;
+  padding: 0 6px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translate3d(0, -4px, 0);
+  transition:
+    max-height 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    padding 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 180ms ease,
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.metaphor-model-menu.visible {
+  max-height: 270px;
+  padding: 0 6px 6px;
+  overflow-y: auto;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.metaphor-model-option {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  text-align: left;
+}
+
+.metaphor-model-option.active {
+  background: color-mix(in srgb, var(--accent-color) 30%, transparent);
+  color: #fff;
+}
+
+.metaphor-analyze-button {
+  flex: 0 0 auto;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 21px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.metaphor-analyze-button.primary {
+  border-color: transparent;
+  background: var(--accent-color);
+  color: #fff;
+}
+
+.metaphor-analyze-button:disabled { opacity: 0.48; }
+
+.metaphor-model-option.settings {
+  margin-top: 3px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 16px 16px;
+  color: var(--accent-color-light, #fff);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2202,6 +2639,11 @@ onUnmounted(() => {
   }
 
   .control-section-chevron {
+    transition-duration: 120ms;
+  }
+
+  .metaphor-model-picker,
+  .metaphor-model-menu {
     transition-duration: 120ms;
   }
 }
@@ -2232,6 +2674,165 @@ onUnmounted(() => {
   border: 0;
   text-align: left;
   transition: background-color 150ms ease;
+}
+
+.metaphor-stream-text {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.metaphor-output-scroll {
+  max-height: min(44vh, 560px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.metaphor-loading-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.metaphor-loading-time {
+  margin-top: 5px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.38);
+  font-variant-numeric: tabular-nums;
+}
+
+.metaphor-stream-status {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -4px 0 12px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgba(20, 18, 18, 0.82);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.metaphor-result {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  line-height: 1.78;
+  overflow-wrap: anywhere;
+}
+
+.metaphor-result :deep(h1) {
+  margin: 22px 0 12px;
+  color: rgba(255, 255, 255, 0.98);
+  font-size: 24px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.metaphor-result :deep(h2) {
+  margin: 20px 0 10px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.32;
+}
+
+.metaphor-result :deep(h3) {
+  margin: 17px 0 8px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 17px;
+  font-weight: 680;
+  line-height: 1.4;
+}
+
+.metaphor-result :deep(p) { margin: 0 0 13px; }
+.metaphor-result :deep(strong) { color: #fff; font-weight: 700; }
+.metaphor-result :deep(ul),
+.metaphor-result :deep(ol) { margin: 10px 0 14px; padding-left: 22px; }
+.metaphor-result :deep(ul) { list-style: disc; }
+.metaphor-result :deep(ol) { list-style: decimal; }
+.metaphor-result :deep(li) { margin: 5px 0; }
+.metaphor-result :deep(blockquote) {
+  margin: 14px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent-color-light, #fff);
+  border-radius: 0 10px 10px 0;
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(255, 255, 255, 0.62);
+}
+.metaphor-result :deep(code) {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 0.9em;
+}
+.metaphor-result :deep(hr) {
+  margin: 18px 0;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.metaphor-result-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 0 2px;
+}
+
+.metaphor-copy-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.typing-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  border-radius: 1px;
+  background: var(--accent-color-light, #fff);
+  animation: metaphor-caret-blink 720ms steps(1, end) infinite;
+}
+
+@keyframes metaphor-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.settings-song-link {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    opacity 140ms ease;
+
+  &:active {
+    opacity: 0.62;
+  }
+
+  &:hover {
+    color: var(--accent-color-light, #fff);
+  }
 }
 
 .current-audio-params {
@@ -2343,6 +2944,32 @@ onUnmounted(() => {
 }
 
 .lyric-alignment-control button.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.lyric-swipe-control {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.lyric-swipe-control button {
+  min-width: 42px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 12px;
+}
+
+.lyric-swipe-control button.active {
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
 }

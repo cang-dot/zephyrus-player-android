@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 
 import { chatCompletion, type ChatMessage } from '@/features/ai/client';
+import { gatewayChatCompletion } from '@/features/ai/gateway';
 import { getProvider } from '@/features/ai/providers';
 import { isFeatureEnabled } from '@/features/store';
 
@@ -12,6 +13,7 @@ const CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
 interface MetaphorConfig {
   provider: string;
   apiKey: string;
+  accessToken?: string;
   model: string;
   baseUrl: string;
 }
@@ -25,8 +27,10 @@ export function getMetaphorConfig(): MetaphorConfig {
   try {
     const raw = localStorage.getItem(STORAGE);
     if (raw) return JSON.parse(raw) as MetaphorConfig;
-  } catch {}
-  return { provider: 'pollinations', apiKey: '', model: 'openai', baseUrl: '' };
+  } catch {
+    // Ignore invalid legacy configuration and use the current defaults.
+  }
+  return { provider: 'gateway', apiKey: '', accessToken: '', model: 'opencode-v4f', baseUrl: '' };
 }
 
 export function saveMetaphorConfig(config: MetaphorConfig) {
@@ -56,14 +60,18 @@ function loadPersistentCache(): Map<string, CacheEntry> {
       }
       return map;
     }
-  } catch {}
+  } catch {
+    // Ignore invalid or expired cache entries.
+  }
   return new Map();
 }
 
 function savePersistentCache(map: Map<string, CacheEntry>) {
   try {
     const obj: Record<string, CacheEntry> = {};
-    map.forEach((entry, key) => { obj[key] = entry; });
+    map.forEach((entry, key) => {
+      obj[key] = entry;
+    });
     localStorage.setItem(CACHE_KEY, JSON.stringify(obj));
   } catch {
     if (map.size > 0) {
@@ -92,7 +100,7 @@ export function useMetaphor() {
     albumDesc?: string
   ): Promise<void> {
     if (!isFeatureEnabled('lyric-metaphor')) {
-      error.value = '歌词隐喻分析功能未启用，请在 设置 > 额外功能 中开启';
+      error.value = '歌词隐喻分析功能未启用，请在 设置 > 基础设置 > 歌词 AI 解析 中开启';
       return;
     }
 
@@ -139,13 +147,47 @@ ${lyrics}`;
     ];
 
     try {
-      const res = await chatCompletion({
-        providerId: provider ? config.provider : 'custom',
-        apiKey: config.apiKey || undefined,
-        model: config.model || provider?.defaultModel || 'openai',
-        baseUrl: config.baseUrl || provider?.baseUrl,
-        messages
-      });
+      let pendingText = '';
+      let typingFrame = 0;
+      const pumpTyping = () => {
+        if (!pendingText) {
+          typingFrame = 0;
+          return;
+        }
+        const count = Math.min(4, Math.max(1, Math.ceil(pendingText.length / 24)));
+        result.value += pendingText.slice(0, count);
+        pendingText = pendingText.slice(count);
+        typingFrame = requestAnimationFrame(pumpTyping);
+      };
+      const enqueueDelta = (delta: string) => {
+        pendingText += delta;
+        if (!typingFrame) typingFrame = requestAnimationFrame(pumpTyping);
+      };
+      const res =
+        config.provider === 'gateway'
+          ? await gatewayChatCompletion(
+              config.model || 'opencode-v4f',
+              messages,
+              config.accessToken || '',
+              undefined,
+              enqueueDelta
+            )
+          : await chatCompletion({
+              providerId: provider ? config.provider : 'custom',
+              apiKey: config.apiKey || undefined,
+              model: config.model || provider?.defaultModel || 'openai',
+              baseUrl: config.baseUrl || provider?.baseUrl,
+              messages
+            });
+      if (config.provider === 'gateway' && (pendingText || typingFrame)) {
+        await new Promise<void>((resolve) => {
+          const waitForTyping = () => {
+            if (!pendingText && !typingFrame) resolve();
+            else requestAnimationFrame(waitForTyping);
+          };
+          waitForTyping();
+        });
+      }
       result.value = res.content;
       const entry: CacheEntry = { data: res.content, time: Date.now() };
       cacheStore.set(cacheKey, entry);

@@ -13,7 +13,7 @@ titleTemplate: false
   <div class="docs-hero__content">
     <p class="docs-kicker">ZEPHYRUS PLAYER · ANDROID</p>
     <h1>让歌词成为<br>播放界面本身</h1>
-    <p class="docs-hero__lead">从安装、账号和音乐来源，到 TTML 逐字歌词、九种播放器舞台、状态栏悬浮歌词与故障排查。</p>
+    <p class="docs-hero__lead">从安装、账号和音乐来源，到 TTML 逐字歌词、八种播放器舞台、状态栏悬浮歌词与故障排查。</p>
     <div class="docs-actions">
       <a class="docs-action docs-action--primary" href="/zephyrus/docs/guide/installation">开始安装</a>
       <a class="docs-action" href="/zephyrus/docs/guide/getting-started">第一次使用</a>
@@ -31,7 +31,7 @@ titleTemplate: false
   <div class="docs-route-list">
     <a href="/zephyrus/docs/guide/installation"><strong>安装与更新</strong><span>下载、系统要求、应用内更新与 ADB 安装</span><i>01</i></a>
     <a href="/zephyrus/docs/features/lyric-sources"><strong>歌词没有逐字</strong><span>检查 TTML、YRC、QRC、LRC 的来源与回退顺序</span><i>02</i></a>
-    <a href="/zephyrus/docs/styles/overview"><strong>配置播放器</strong><span>九种样式、独立外观、字体与高潮效果</span><i>03</i></a>
+    <a href="/zephyrus/docs/styles/overview"><strong>配置播放器</strong><span>八种样式、独立外观、字体与高潮效果</span><i>03</i></a>
     <a href="/zephyrus/docs/features/status-bar-lyrics"><strong>开启状态栏歌词</strong><span>悬浮窗权限、位置、逐字显示与分层颜色</span><i>04</i></a>
     <a href="/zephyrus/docs/guide/faq"><strong>排查异常</strong><span>播放、登录、歌词、字体与耗电问题</span><i>05</i></a>
   </div>

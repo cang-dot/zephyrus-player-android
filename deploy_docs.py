@@ -3,10 +3,10 @@ import os
 import paramiko
 import stat as stat_mod
 
-SERVER = "43.250.173.177"
+SERVER = os.environ.get("ZEPHYRUS_SSH_HOST", "mucang.xyz")
 PORT = 22
 USER = "root"
-PASSWORD = "Du1xiang2yan3."
+PASSWORD = os.environ.get("ZEPHYRUS_SSH_PASSWORD")
 LOCAL_DIST = r"c:\Users\Administrator\Desktop\zephyrus-player-android\website\.vitepress\dist"
 REMOTE_BASE = "/var/www/zephyrus/docs"
 
@@ -35,6 +35,8 @@ def upload_dir(sftp, local, remote):
             print(f"  uploaded: {item}")
 
 def main():
+    if not PASSWORD:
+        raise SystemExit("Set ZEPHYRUS_SSH_PASSWORD before deploying docs")
     print(f"Connecting to {SERVER}:{PORT}...")
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

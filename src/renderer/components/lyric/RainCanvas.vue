@@ -18,6 +18,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { audioService } from '@/services/audioService';
 import type { LyricConfig } from '@/types/lyric';
 import { shouldSkipMobilePlayerFrame } from '@/utils/mobilePlayerPerformance';
+import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 
 interface Raindrop {
   x: number;
@@ -48,9 +49,10 @@ interface Puddle {
 
 interface Props {
   config: LyricConfig;
+  active?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), { active: true });
 
 // 默认值
 const rainIntensity = computed(() => props.config.rainIntensity ?? 50);
@@ -68,6 +70,8 @@ let raindrops: Raindrop[] = [];
 let groundRipples: GroundRipple[] = [];
 let puddles: Puddle[] = [];
 let lastRenderAt = 0;
+let pageVisible = !document.hidden;
+let releaseCanvasLoop: (() => void) | null = null;
 
 // 音频能量状态
 const audioEnergy = ref(0);
@@ -252,7 +256,12 @@ function drawPuddles() {
 
 // 绘制帧
 function draw() {
-  if (!ctx || !canvasRef.value) return;
+  if (!ctx || !canvasRef.value || !pageVisible || !props.active) {
+    animationId = null;
+    releaseCanvasLoop?.();
+    releaseCanvasLoop = null;
+    return;
+  }
 
   const now = performance.now();
   if (shouldSkipMobilePlayerFrame(lastRenderAt, now)) {
@@ -364,18 +373,52 @@ function draw() {
   animationId = requestAnimationFrame(draw);
 }
 
+function handlePageVisibility() {
+  pageVisible = !document.hidden;
+  if (pageVisible && props.active && animationId === null) startCanvasLoop();
+  if (!pageVisible && animationId !== null) {
+    cancelAnimationFrame(animationId);
+    animationId = null;
+    releaseCanvasLoop?.();
+    releaseCanvasLoop = null;
+  }
+}
+
+function startCanvasLoop() {
+  if (animationId !== null || !pageVisible || !props.active) return;
+  releaseCanvasLoop = acquirePlayerResource('canvas-loop');
+  animationId = requestAnimationFrame(draw);
+}
+
+watch(
+  () => props.active,
+  (active) => {
+    if (active && pageVisible && animationId === null) startCanvasLoop();
+    if (!active && animationId !== null) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
+      releaseCanvasLoop?.();
+      releaseCanvasLoop = null;
+    }
+  }
+);
+
 watch(rainIntensity, updateRaindropCount);
 
 onMounted(() => {
   initCanvas();
-  draw();
+  document.addEventListener('visibilitychange', handlePageVisibility);
+  if (pageVisible && props.active) startCanvasLoop();
 });
 
 onBeforeUnmount(() => {
   if (animationId) {
     cancelAnimationFrame(animationId);
   }
+  releaseCanvasLoop?.();
+  releaseCanvasLoop = null;
   window.removeEventListener('resize', resizeCanvas);
+  document.removeEventListener('visibilitychange', handlePageVisibility);
 });
 </script>
 

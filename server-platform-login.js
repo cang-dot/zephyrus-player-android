@@ -22,6 +22,7 @@ const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
 const { decryptQrc } = require('qrc-decoder');
+const { createAiGatewayRouter } = require('./server-ai-gateway');
 
 const router = express.Router();
 
@@ -252,12 +253,17 @@ function qqSessionFile(qrsig) {
 
 function normalizeQqSession(session) {
   if (!session || typeof session !== 'object') return null;
+  const provider = session.provider === 'wechat' ? 'wechat' : 'qq';
   const cookie = String(session.cookie || '').trim();
+  const uuid = String(session.uuid || '').trim();
+  const state = String(session.state || '').trim();
   const createdAt = Number(session.createdAt);
   const updatedAt = Number(session.updatedAt || createdAt);
-  if (!cookie || !Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) return null;
+  if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) return null;
+  if (provider === 'qq' && !cookie) return null;
+  if (provider === 'wechat' && !uuid) return null;
   if (Date.now() - createdAt > QQ_SESSION_TTL) return null;
-  return { cookie, createdAt, updatedAt };
+  return { provider, cookie, uuid, state, createdAt, updatedAt };
 }
 
 function readQqSession(qrsig) {
@@ -367,9 +373,12 @@ const QQ_PT_3RD_AID = '100497308';
 const QQ_REDIRECT = 'https://graph.qq.com/oauth2.0/login_jump';
 const QQ_MUSIC_REDIRECT =
   'https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/';
+const QQ_MUSIC_WECHAT_REDIRECT =
+  'https://y.qq.com/portal/wx_redirect.html?login_type=2&surl=https://y.qq.com/';
 const QQ_WECHAT_APP_ID = process.env.QQ_WECHAT_APP_ID || 'wx48db31d50e334801';
 const QQ_WECHAT_LOGIN_ENABLED = process.env.QQ_WECHAT_LOGIN_ENABLED !== 'false';
-const wechatQrSessions = new Map();
+const activeWechatPolls = new Set();
+const QQ_WECHAT_LOGIN_REQUEST_KEY = 'music.login.LoginServer.Login';
 const QQ_JS_VER = '20102616';
 const QQ_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -634,7 +643,7 @@ function extractQQOAuthCode(response) {
 function createQQLoginFromCookie(cookie, loginData = {}) {
   const values = cookieMap(cookie);
   const userId = normalizeQQUserId(
-    firstDeepValue(loginData, ['musicid', 'uin', 'user_id', 'userid']) ||
+    firstDeepValue(loginData, ['str_musicid', 'musicid', 'uin', 'user_id', 'userid']) ||
       values.uin ||
       values.p_uin ||
       values.ptui_loginuin
@@ -892,7 +901,13 @@ async function completeQQLogin(redirectUrl, sessionCookie) {
     setCookiesFromHeader(musicResponse.headers['set-cookie']).join('; ')
   );
   const musicKey = firstDeepValue(loginData, ['musickey', 'music_key', 'qm_keyst', 'qqmusic_key']);
-  const musicUin = firstDeepValue(loginData, ['musicid', 'uin', 'user_id', 'userid']);
+  const musicUin = firstDeepValue(loginData, [
+    'str_musicid',
+    'musicid',
+    'uin',
+    'user_id',
+    'userid'
+  ]);
   if (musicKey && !cookieMap(resultCookie).qm_keyst && !cookieMap(resultCookie).qqmusic_key) {
     resultCookie = mergeCookieParts(resultCookie, `qm_keyst=${musicKey}`);
   }
@@ -927,13 +942,17 @@ async function createWechatQrLogin() {
     throw new Error('微信扫码登录未配置，请设置 QQ_WECHAT_APP_ID');
   }
   const state = crypto.randomBytes(16).toString('hex');
-  const connectUrl =
-    'https://open.weixin.qq.com/connect/qrconnect' +
-    `?appid=${encodeURIComponent(QQ_WECHAT_APP_ID)}` +
-    `&redirect_uri=${encodeURIComponent(QQ_MUSIC_REDIRECT)}` +
-    '&response_type=code&scope=snsapi_login' +
-    `&state=${encodeURIComponent(state)}#wechat_redirect`;
-  const response = await axios.get(connectUrl, {
+  const connectUrl = new URL('https://open.weixin.qq.com/connect/qrconnect');
+  connectUrl.searchParams.set('appid', QQ_WECHAT_APP_ID);
+  connectUrl.searchParams.set('redirect_uri', QQ_MUSIC_WECHAT_REDIRECT);
+  connectUrl.searchParams.set('response_type', 'code');
+  connectUrl.searchParams.set('scope', 'snsapi_login');
+  connectUrl.searchParams.set('state', state);
+  connectUrl.searchParams.set(
+    'href',
+    'https://y.qq.com/mediastyle/music_v17/src/css/popup_wechat.css#wechat_redirect'
+  );
+  const response = await axios.get(connectUrl.toString(), {
     headers: { 'User-Agent': QQ_USER_AGENT, Referer: 'https://y.qq.com/' },
     timeout: 12000,
     validateStatus: () => true
@@ -942,34 +961,65 @@ async function createWechatQrLogin() {
     throw new Error(`微信二维码创建失败 (${response.status})`);
   }
   const html = String(response.data || '');
-  const uuid = html.match(/\/connect\/qrcode\/([\w-]+)/i)?.[1];
+  const uuid =
+    html.match(/\/connect\/qrcode\/([\w-]+)/i)?.[1] || html.match(/\buuid=([^"'&\s]+)/i)?.[1];
   if (!uuid) throw new Error('微信二维码创建失败：未获取到会话标识');
+
+  const qrResponse = await axios.get(
+    `https://open.weixin.qq.com/connect/qrcode/${encodeURIComponent(uuid)}`,
+    {
+      responseType: 'arraybuffer',
+      headers: {
+        'User-Agent': QQ_USER_AGENT,
+        Referer: 'https://open.weixin.qq.com/connect/qrconnect'
+      },
+      timeout: 12000,
+      validateStatus: () => true
+    }
+  );
+  if (qrResponse.status < 200 || qrResponse.status >= 300) {
+    throw new Error(`微信二维码图片获取失败 (${qrResponse.status})`);
+  }
+  const qrImage = Buffer.from(qrResponse.data || []);
+  const responseMime = String(qrResponse.headers['content-type'] || '')
+    .split(';')[0]
+    .trim();
+  const qrMime = responseMime.startsWith('image/') ? responseMime : 'image/jpeg';
+  if (qrImage.length < 64) throw new Error('微信二维码图片内容无效');
+
   const key = crypto.randomBytes(24).toString('hex');
-  wechatQrSessions.set(key, {
+  saveQqSession(key, {
+    provider: 'wechat',
     uuid,
     state,
-    cookie: setCookiesFromHeader(response.headers['set-cookie']).join('; '),
-    createdAt: Date.now(),
-    polling: false
+    cookie: mergeCookieParts(
+      setCookiesFromHeader(response.headers['set-cookie']).join('; '),
+      setCookiesFromHeader(qrResponse.headers['set-cookie']).join('; ')
+    ),
+    createdAt: Date.now()
   });
   return {
-    qrUrl: `https://open.weixin.qq.com/connect/qrcode/${encodeURIComponent(uuid)}`,
+    qrUrl: `data:${qrMime};base64,${qrImage.toString('base64')}`,
     key,
     expiredAt: Date.now() + QQ_SESSION_TTL
+  };
+}
+
+function createWechatLoginPayload(code) {
+  return {
+    comm: { g_tk: 5381, platform: 'yqq', ct: 24, cv: 0, tmeLoginType: 1 },
+    [QQ_WECHAT_LOGIN_REQUEST_KEY]: {
+      module: 'music.login.LoginServer',
+      method: 'Login',
+      param: { strAppid: QQ_WECHAT_APP_ID, code }
+    }
   };
 }
 
 async function completeWechatLogin(code, sessionCookie) {
   const musicResponse = await axios.post(
     'https://u.y.qq.com/cgi-bin/musicu.fcg',
-    JSON.stringify({
-      comm: { g_tk: 5381, platform: 'yqq', ct: 24, cv: 0 },
-      req: {
-        module: 'music.login.LoginServer',
-        method: 'Login',
-        param: { strAppid: QQ_WECHAT_APP_ID, code }
-      }
-    }),
+    JSON.stringify(createWechatLoginPayload(code)),
     {
       headers: {
         'Content-Type': 'application/json',
@@ -984,13 +1034,24 @@ async function completeWechatLogin(code, sessionCookie) {
   if (musicResponse.status < 200 || musicResponse.status >= 300) {
     throw new Error(`微信授权换取 QQ 音乐登录态失败 (${musicResponse.status})`);
   }
-  const loginData = musicResponse.data;
+  const responseData = musicResponse.data || {};
+  const loginEnvelope = responseData[QQ_WECHAT_LOGIN_REQUEST_KEY] || responseData.req || {};
+  if (Number(loginEnvelope.code || 0) !== 0) {
+    throw new Error(loginEnvelope.msg || `微信授权换取 QQ 音乐登录态失败 (${loginEnvelope.code})`);
+  }
+  const loginData = loginEnvelope.data || responseData;
   let resultCookie = mergeCookieParts(
     sessionCookie,
     setCookiesFromHeader(musicResponse.headers['set-cookie']).join('; ')
   );
   const musicKey = firstDeepValue(loginData, ['musickey', 'music_key', 'qm_keyst', 'qqmusic_key']);
-  const musicUin = firstDeepValue(loginData, ['musicid', 'uin', 'user_id', 'userid']);
+  const musicUin = firstDeepValue(loginData, [
+    'str_musicid',
+    'musicid',
+    'uin',
+    'user_id',
+    'userid'
+  ]);
   if (musicKey) resultCookie = mergeCookieParts(resultCookie, `qm_keyst=${musicKey}`);
   if (musicUin) resultCookie = mergeCookieParts(resultCookie, `uin=${normalizeQQUserId(musicUin)}`);
   const completed = createQQLoginFromCookie(resultCookie, loginData);
@@ -1014,36 +1075,51 @@ function parseWechatQrPoll(payload) {
 }
 
 async function pollWechatQrLogin(key) {
-  const session = wechatQrSessions.get(String(key || ''));
-  if (!session || Date.now() - session.createdAt > QQ_SESSION_TTL) {
-    wechatQrSessions.delete(String(key || ''));
+  const sessionKey = String(key || '');
+  const session = readQqSession(sessionKey);
+  if (!session || session.provider !== 'wechat') {
+    deleteQqSession(sessionKey);
     return { status: 'expired', message: '微信二维码已过期' };
   }
-  if (session.polling) return { status: 'waiting', message: '正在检查扫码状态' };
-  session.polling = true;
+  if (activeWechatPolls.has(sessionKey)) {
+    return { status: 'waiting', message: '正在检查扫码状态' };
+  }
+  activeWechatPolls.add(sessionKey);
   try {
-    const response = await axios.get('https://lp.open.weixin.qq.com/connect/l/qrconnect', {
-      params: { uuid: session.uuid, _: Date.now() },
-      headers: {
-        'User-Agent': QQ_USER_AGENT,
-        Referer: 'https://open.weixin.qq.com/',
-        Cookie: session.cookie
-      },
-      timeout: 12000,
-      validateStatus: () => true
-    });
+    let response;
+    try {
+      response = await axios.get('https://lp.open.weixin.qq.com/connect/l/qrconnect', {
+        params: { uuid: session.uuid, _: Date.now() },
+        headers: {
+          'User-Agent': QQ_USER_AGENT,
+          Referer: 'https://open.weixin.qq.com/',
+          Cookie: session.cookie
+        },
+        timeout: 12000,
+        validateStatus: () => true
+      });
+    } catch (error) {
+      if (error?.code === 'ECONNABORTED') {
+        return { status: 'waiting', message: '等待微信扫码' };
+      }
+      throw error;
+    }
     const parsed = parseWechatQrPoll(response.data);
     if (parsed.status === 'waiting') return { status: 'waiting', message: '等待微信扫码' };
-    if (parsed.status === 'scanned') return { status: 'scanned', message: '已扫码，请在微信中确认' };
+    if (parsed.status === 'scanned')
+      return { status: 'scanned', message: '已扫码，请在微信中确认' };
     if (parsed.status === 'expired') {
-      wechatQrSessions.delete(key);
+      deleteQqSession(sessionKey);
       return { status: 'expired', message: '微信二维码已失效，请刷新重试' };
     }
     if (parsed.status !== 'confirmed') {
-      return { status: 'error', message: `微信登录返回未知状态 (${parsed.errorCode || 'unknown'})` };
+      return {
+        status: 'error',
+        message: `微信登录返回未知状态 (${parsed.errorCode || 'unknown'})`
+      };
     }
     const completed = await completeWechatLogin(parsed.code, session.cookie);
-    wechatQrSessions.delete(key);
+    deleteQqSession(sessionKey);
     return {
       status: 'success',
       message: 'QQ 音乐微信登录成功',
@@ -1051,7 +1127,7 @@ async function pollWechatQrLogin(key) {
       userInfo: completed.userInfo
     };
   } finally {
-    if (wechatQrSessions.has(key)) session.polling = false;
+    activeWechatPolls.delete(sessionKey);
   }
 }
 
@@ -1192,7 +1268,10 @@ router.get('/qq/qr/poll', async (req, res) => {
     }
     if (code === 65 || code === 68) {
       deleteQqSession(qrsig);
-      return res.json({ code: 200, data: { provider, status: 'expired', message: '二维码已过期' } });
+      return res.json({
+        code: 200,
+        data: { provider, status: 'expired', message: '二维码已过期' }
+      });
     }
 
     // 0 = 登录成功
@@ -2736,6 +2815,7 @@ function createPlatformGatewayApp() {
   const app = express();
   app.disable('x-powered-by');
   app.use('/platform', router);
+  app.use('/v1', createAiGatewayRouter());
   app.use((_req, res) => {
     res.status(404).json({ code: 404, msg: 'Gateway route not found' });
   });
@@ -2751,8 +2831,10 @@ module.exports.normalizeKugouUserInfo = normalizeKugouUserInfo;
 module.exports.readQqSession = readQqSession;
 module.exports.deleteQqSession = deleteQqSession;
 module.exports.mergeCookieParts = mergeCookieParts;
+module.exports.createQQLoginFromCookie = createQQLoginFromCookie;
 module.exports.extractQQOAuthCode = extractQQOAuthCode;
 module.exports.parseWechatQrPoll = parseWechatQrPoll;
+module.exports.createWechatLoginPayload = createWechatLoginPayload;
 module.exports.decodeQqLyricField = decodeQqLyricField;
 module.exports.decodeKugouKrc = decodeKugouKrc;
 module.exports.enforceQqLyricRateLimit = enforceQqLyricRateLimit;

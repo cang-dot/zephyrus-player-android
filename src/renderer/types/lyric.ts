@@ -1,6 +1,7 @@
 import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from './playerStyle';
 
 export type LyricAlignment = 'left' | 'center' | 'right';
+export type LyricSwipeDirection = 'none' | 'left' | 'right';
 
 export function normalizeLyricAlignment(
   value: unknown,
@@ -11,6 +12,10 @@ export function normalizeLyricAlignment(
     : legacyCenterLyrics
       ? 'center'
       : 'left';
+}
+
+export function normalizeLyricSwipeDirection(value: unknown): LyricSwipeDirection {
+  return value === 'none' || value === 'left' || value === 'right' ? value : 'left';
 }
 
 export type StatusBarLyricColorSource = {
@@ -163,6 +168,7 @@ export interface LyricConfig {
   hideCover: boolean;
   centerLyrics: boolean;
   lyricAlignment: LyricAlignment;
+  lyricSwipeDirection: LyricSwipeDirection;
   fontSize: number;
   letterSpacing: number;
   fontWeight: number;
@@ -236,6 +242,7 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   hideCover: false,
   centerLyrics: false,
   lyricAlignment: 'left',
+  lyricSwipeDirection: 'left',
   fontSize: 22,
   letterSpacing: 0,
   fontWeight: 500,

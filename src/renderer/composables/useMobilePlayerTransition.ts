@@ -1,4 +1,5 @@
 import { readonly, ref } from 'vue';
+import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 
 export type MobilePlayerTransitionState = 'idle' | 'dragging' | 'opening' | 'open' | 'closing';
 export type MobilePlayerSurfaceMode = 'controls' | 'playlist' | 'settings';
@@ -21,6 +22,33 @@ const identitySourceRect = ref<MobilePlayerSurfaceRect | null>(null);
 let frame = 0;
 let sheetFrame = 0;
 let controlsHideTimer: ReturnType<typeof setTimeout> | undefined;
+let controlsHideTimerRelease: (() => void) | null = null;
+let animationGeneration = 0;
+let frameResourceRelease: (() => void) | null = null;
+let sheetResourceRelease: (() => void) | null = null;
+
+const cancelFrame = (id: number) => {
+  if (id) cancelAnimationFrame(id);
+};
+
+/** Invalidate all pending callbacks; this module is a shared singleton. */
+const cancelAllAnimations = (resetTransientState = false) => {
+  animationGeneration += 1;
+  cancelFrame(frame);
+  cancelFrame(sheetFrame);
+  frame = 0;
+  sheetFrame = 0;
+  frameResourceRelease?.();
+  frameResourceRelease = null;
+  sheetResourceRelease?.();
+  sheetResourceRelease = null;
+  clearControlsHideTimer();
+  if (resetTransientState) {
+    sourceRect.value = null;
+    identitySourceRect.value = null;
+    releaseVelocity.value = 0;
+  }
+};
 
 const controlsArePinned = () => {
   try {
@@ -33,6 +61,8 @@ const controlsArePinned = () => {
 const clearControlsHideTimer = () => {
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
   controlsHideTimer = undefined;
+  controlsHideTimerRelease?.();
+  controlsHideTimerRelease = null;
 };
 
 const hideControls = () => {
@@ -52,6 +82,7 @@ const resetControlsHideTimer = () => {
     return;
   }
   if (!controlsVisible.value || surfaceMode.value !== 'controls') return;
+  controlsHideTimerRelease = acquirePlayerResource('timer');
   controlsHideTimer = setTimeout(hideControls, 3000);
 };
 
@@ -72,12 +103,17 @@ const toggleControls = () => {
 };
 
 const animateSheet = (target: 0 | 1, complete?: () => void) => {
-  if (sheetFrame) cancelAnimationFrame(sheetFrame);
+  cancelFrame(sheetFrame);
+  sheetFrame = 0;
+  sheetResourceRelease?.();
+  sheetResourceRelease = acquirePlayerResource('raf');
+  const generation = ++animationGeneration;
   let value = sheetProgress.value;
   let speed = 0;
   let previous = performance.now();
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const tick = (now: number) => {
+    if (generation !== animationGeneration) return;
     const dt = Math.min(0.032, Math.max(0.001, (now - previous) / 1000));
     previous = now;
     if (reducedMotion) {
@@ -90,7 +126,9 @@ const animateSheet = (target: 0 | 1, complete?: () => void) => {
     if (Math.abs(value - target) < 0.002 && (reducedMotion || Math.abs(speed) < 0.02)) {
       sheetProgress.value = target;
       sheetFrame = 0;
-      complete?.();
+      sheetResourceRelease?.();
+      sheetResourceRelease = null;
+      if (generation === animationGeneration) complete?.();
       return;
     }
     sheetFrame = requestAnimationFrame(tick);
@@ -99,7 +137,10 @@ const animateSheet = (target: 0 | 1, complete?: () => void) => {
 };
 
 const setSheetProgress = (value: number) => {
-  if (sheetFrame) cancelAnimationFrame(sheetFrame);
+  cancelFrame(sheetFrame);
+  animationGeneration += 1;
+  sheetResourceRelease?.();
+  sheetResourceRelease = null;
   sheetFrame = 0;
   sheetProgress.value = Math.min(1, Math.max(0, value));
 };
@@ -134,8 +175,7 @@ const setSurfaceMode = (mode: MobilePlayerSurfaceMode) => {
 };
 
 const cancel = () => {
-  if (frame) cancelAnimationFrame(frame);
-  frame = 0;
+  cancelAllAnimations();
 };
 
 const setDragging = (value: number, velocity = 0) => {
@@ -147,24 +187,30 @@ const setDragging = (value: number, velocity = 0) => {
 };
 
 const finishClose = (complete?: () => void) => {
+  const generation = animationGeneration;
   complete?.();
   // Give the restored source surface one presentation frame to take over
   // before releasing the teleported full-player surface.
   frame = requestAnimationFrame(() => {
+    if (generation !== animationGeneration) return;
     frame = 0;
     if (state.value !== 'closing' || progress.value !== 0) return;
     state.value = 'idle';
     controlsVisible.value = false;
+    sourceRect.value = null;
+    identitySourceRect.value = null;
   });
 };
 
 const animateTo = (target: 0 | 1, velocity = 0, complete?: () => void) => {
-  cancel();
+  cancelAllAnimations();
+  const generation = animationGeneration;
+  frameResourceRelease = acquirePlayerResource('raf');
   state.value = target === 1 ? 'opening' : 'closing';
   releaseVelocity.value = velocity;
   if (target === 1) showControls(false);
   else {
-    if (sheetFrame) cancelAnimationFrame(sheetFrame);
+    cancelFrame(sheetFrame);
     sheetFrame = 0;
     sheetProgress.value = 0;
     surfaceMode.value = 'controls';
@@ -174,11 +220,14 @@ const animateTo = (target: 0 | 1, velocity = 0, complete?: () => void) => {
     const start = progress.value;
     const startedAt = performance.now();
     const tick = (now: number) => {
+      if (generation !== animationGeneration) return;
       const t = Math.min(1, (now - startedAt) / 160);
       progress.value = start + (target - start) * (1 - Math.pow(1 - t, 3));
       if (t < 1) frame = requestAnimationFrame(tick);
       else {
         frame = 0;
+        frameResourceRelease?.();
+        frameResourceRelease = null;
         if (target === 1) {
           state.value = 'open';
           resetControlsHideTimer();
@@ -195,6 +244,7 @@ const animateTo = (target: 0 | 1, velocity = 0, complete?: () => void) => {
   let speed = velocity;
   let previous = performance.now();
   const tick = (now: number) => {
+    if (generation !== animationGeneration) return;
     const dt = Math.min(0.032, Math.max(0.001, (now - previous) / 1000));
     previous = now;
     speed += (-420 * (value - target) - 38 * speed) * dt;
@@ -203,6 +253,8 @@ const animateTo = (target: 0 | 1, velocity = 0, complete?: () => void) => {
     if (Math.abs(value - target) < 0.002 && Math.abs(speed) < 0.02) {
       progress.value = target;
       frame = 0;
+      frameResourceRelease?.();
+      frameResourceRelease = null;
       if (target === 1) {
         state.value = 'open';
         resetControlsHideTimer();
@@ -218,7 +270,7 @@ const animateTo = (target: 0 | 1, velocity = 0, complete?: () => void) => {
 };
 
 const markOpen = () => {
-  cancel();
+  cancelAllAnimations();
   progress.value = 1;
   state.value = 'open';
   showControls();
@@ -247,6 +299,7 @@ export function useMobilePlayerTransition() {
     setSheetProgress,
     setSourceRect,
     setIdentitySourceRect,
-    animateSheet
+    animateSheet,
+    cancelAllAnimations
   };
 }

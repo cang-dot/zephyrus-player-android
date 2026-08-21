@@ -49,6 +49,7 @@ export default defineConfig({
         items: [
           { text: '歌词源与优先级', link: '/features/lyric-sources' },
           { text: '滚动歌词', link: '/features/scrolling-lyrics' },
+          { text: 'AI 歌词分析', link: '/features/ai-lyric-analysis' },
           { text: '状态栏歌词', link: '/features/status-bar-lyrics' },
           { text: '高潮与逐字效果', link: '/features/climax-detection' },
           { text: '自定义效果', link: '/features/custom-effects' },
@@ -66,7 +67,7 @@ export default defineConfig({
           { text: '诡谲', link: '/styles/eerie' },
           { text: '狂热', link: '/styles/frenzy' },
           { text: '陈旧', link: '/styles/neon' },
-                    { text: '雨夜', link: '/styles/rain' },
+          { text: '雨夜', link: '/styles/rain' },
           { text: '星盘', link: '/styles/star-chart' },
           { text: '烟雾', link: '/styles/smoke' }
         ]

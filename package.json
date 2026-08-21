@@ -1,6 +1,6 @@
 {
   "name": "ZephyrusPlayer",
-  "version": "1.2.0",
+  "version": "1.2.5",
   "description": "Zephyrus Player",
   "author": "Zephyrus <WEISTUDIOWEI@126.com>",
   "license": "AGPL-3.0-only",
@@ -19,6 +19,7 @@
     "dev:web": "vite dev",
     "dev:gateway": "node server-platform-login.js",
     "test:gateway": "node scripts/test-platform-gateway.mjs",
+    "test:ai-gateway": "node scripts/test-ai-gateway.mjs",
     "test:lyrics": "vitest run --config vitest.config.ts tests/lyrics",
     "build:plugins": "node scripts/build-plugins.mjs --in-place",
     "build": "electron-vite build",

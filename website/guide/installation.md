@@ -7,7 +7,7 @@ Zephyrus Player 当前只发布 Android APK。推荐从 GitHub Release 下载正
 - [GitHub Releases](https://github.com/cang-dot/zephyrus-player-android/releases)
 - [服务器最新版本直链](https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk)
 
-当前正式版本为 `v1.2.0`。下载文件名应类似 `zephyrus-player-v1.2.0.apk`。
+当前正式版本为 `v1.2.5`。下载文件名应类似 `zephyrus-player-v1.2.5.apk`。
 
 ## 系统要求
 
@@ -45,7 +45,7 @@ Zephyrus Player 当前只发布 Android APK。推荐从 GitHub Release 下载正
 开发者可以连接已授权设备后执行：
 
 ```bash
-adb install -r zephyrus-player-v1.2.0.apk
+adb install -r zephyrus-player-v1.2.5.apk
 ```
 
 出现 `INSTALL_FAILED_VERSION_DOWNGRADE` 时，说明设备上的版本号更高。不要直接清除数据，先确认是否安装了测试版。
