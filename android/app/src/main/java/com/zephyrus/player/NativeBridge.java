@@ -1,11 +1,13 @@
 package com.zephyrus.player;
 
 import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.Settings;
 import android.util.Base64;
@@ -1163,53 +1165,38 @@ public class NativeBridge {
             if (fileName == null || fileName.isEmpty()) return;
             File cacheDir = activity.getCacheDir();
             File apkFile = new File(cacheDir, fileName);
-            if (!apkFile.exists()) {
+            Uri apkUri = getPublishedApkUri();
+            if (apkUri == null && !apkFile.exists()) {
                 Log.e("NativeBridge", "installApkFromCache: 安装包不存在 " + apkFile.getAbsolutePath());
                 return;
             }
-            Uri apkUri = androidx.core.content.FileProvider.getUriForFile(
-                    activity, activity.getPackageName() + ".fileprovider", apkFile);
+            if (apkUri == null) {
+                apkUri = androidx.core.content.FileProvider.getUriForFile(
+                        activity, activity.getPackageName() + ".fileprovider", apkFile);
+            }
 
-            Intent baseIntent = new Intent(Intent.ACTION_VIEW);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    && !activity.getPackageManager().canRequestPackageInstalls()) {
+                Intent permissionIntent = new Intent(
+                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + activity.getPackageName()));
+                permissionIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(permissionIntent);
+                return;
+            }
+
+            Intent baseIntent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
             baseIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
             baseIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                     | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-            // 各厂商系统包安装器（显式定位 + 显式授权，解决“选择器点了不跳转”）
-            String[][] installers = {
-                    {"com.google.android.packageinstaller", "com.google.android.packageinstaller.PackageInstallerActivity"},
-                    {"com.android.packageinstaller", "com.android.packageinstaller.PackageInstallerActivity"},
-                    {"com.coloros.packageinstaller", "com.coloros.packageinstaller.PackageInstallerActivity"},
-                    {"com.oplus.packageinstaller", "com.oplus.packageinstaller.PackageInstallerActivity"},
-                    {"com.oneplus.packageinstaller", "com.oneplus.packageinstaller.PackageInstallerActivity"},
-                    {"com.huawei.appmarket", "com.huawei.appmarket.install.ui.InstallActivity"},
-                    {"com.miui.packageinstaller", "com.miui.packageinstaller.ui.InstallAppActivity"}
-            };
-
-            for (String[] installer : installers) {
-                try {
-                    Intent explicit = new Intent(baseIntent);
-                    explicit.setClassName(installer[0], installer[1]);
-                    if (explicit.resolveActivity(activity.getPackageManager()) != null) {
-                        activity.grantUriPermission(installer[0], apkUri,
-                                Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                        activity.startActivity(explicit);
-                        return;
-                    }
-                } catch (Exception ignored) {
-                    // 尝试下一个安装器
-                }
+                    | Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            baseIntent.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
+            if (baseIntent.resolveActivity(activity.getPackageManager()) == null) {
+                Log.e("NativeBridge", "installApkFromCache: 未找到系统安装器");
+                return;
             }
-
-            // 兜底：系统选择器
-            try {
-                Intent chooser = Intent.createChooser(baseIntent, "选择安装方式");
-                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                activity.startActivity(chooser);
-            } catch (Exception e) {
-                Log.e("NativeBridge", "installApkFromCache chooser error", e);
-            }
+            activity.startActivity(baseIntent);
         } catch (Exception e) {
             Log.e("NativeBridge", "installApkFromCache error", e);
         }
@@ -1223,6 +1210,52 @@ public class NativeBridge {
     private volatile String apkDownloadErrorMessage = "";
     private volatile long apkDownloadBytes = 0;
     private volatile long apkDownloadExpected = 0;
+    private volatile String apkDownloadUri = "";
+
+    private Uri getPublishedApkUri() {
+        if (apkDownloadUri == null || apkDownloadUri.isEmpty()) {
+            apkDownloadUri = activity.getSharedPreferences("zephyrus_prefs", android.content.Context.MODE_PRIVATE)
+                    .getString("apk_download_uri", "");
+        }
+        if (apkDownloadUri == null || apkDownloadUri.isEmpty()) return null;
+        try {
+            Uri uri = Uri.parse(apkDownloadUri);
+            Cursor cursor = activity.getContentResolver().query(uri, null, null, null, null);
+            if (cursor != null) {
+                boolean exists = cursor.getCount() > 0;
+                cursor.close();
+                return exists ? uri : null;
+            }
+        } catch (Exception e) {
+            Log.w("NativeBridge", "published APK URI unavailable", e);
+        }
+        return null;
+    }
+
+    /** 发布到公共 Downloads，供系统安装器和文件管理器使用。 */
+    private void publishApkToDownloads(File source) throws Exception {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return;
+        ContentResolver resolver = activity.getContentResolver();
+        ContentValues values = new ContentValues();
+        values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, "zephyrus-player-update.apk");
+        values.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/vnd.android.package-archive");
+        values.put(android.provider.MediaStore.Downloads.RELATIVE_PATH,
+                Environment.DIRECTORY_DOWNLOADS + "/Zephyrus");
+        values.put(android.provider.MediaStore.Downloads.IS_PENDING, 1);
+        Uri uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (uri == null) throw new Exception("无法创建公共下载文件");
+        try (OutputStream output = resolver.openOutputStream(uri);
+             InputStream input = new java.io.FileInputStream(source)) {
+            if (output == null) throw new Exception("无法写入公共下载文件");
+            copyStream(input, output);
+        }
+        ContentValues ready = new ContentValues();
+        ready.put(android.provider.MediaStore.Downloads.IS_PENDING, 0);
+        resolver.update(uri, ready, null, null);
+        apkDownloadUri = uri.toString();
+        activity.getSharedPreferences("zephyrus_prefs", android.content.Context.MODE_PRIVATE)
+                .edit().putString("apk_download_uri", apkDownloadUri).apply();
+    }
 
     /**
      * 在原生线程中下载 APK 到缓存目录（不经过 JS 桥接层，避免内存溢出）
@@ -1234,6 +1267,7 @@ public class NativeBridge {
         apkDownloadErrorMessage = "";
         apkDownloadBytes = 0;
         apkDownloadExpected = (long) expectedSize;
+        apkDownloadUri = "";
         if (url == null || url.isEmpty()) {
             apkDownloadError = true;
             apkDownloadErrorMessage = "下载地址为空";
@@ -1280,7 +1314,8 @@ public class NativeBridge {
                     throw new RuntimeException("下载不完整");
                 }
                 if (target.exists()) target.delete();
-                temp.renameTo(target);
+                if (!temp.renameTo(target)) throw new RuntimeException("保存安装包失败");
+                publishApkToDownloads(target);
                 apkDownloadDone = true;
             } catch (Exception e) {
                 Log.e("NativeBridge", "startApkDownload error", e);
