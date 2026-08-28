@@ -26,6 +26,11 @@
         <div
           class="player-info-cover-stack"
           :class="{ 'is-cover-crossfading': isCoverCrossfading }"
+          @pointerdown.stop="coverGesture.onPointerDown"
+          @pointermove.stop="coverGesture.onPointerMove"
+          @pointerup.stop="coverGesture.onPointerUp"
+          @pointercancel.stop="coverGesture.onPointerCancel"
+          @contextmenu.stop="coverGesture.onContextMenu"
         >
           <img class="player-info-cover player-info-cover-current" :src="currentCoverUrl" alt="" />
           <img
@@ -110,6 +115,9 @@
         <span v-if="isSongTransitioning" class="transition-status" aria-live="polite">
           智能过渡中
         </span>
+        <span v-else-if="listenTips.length > 0" class="listen-together-status" aria-live="polite">{{
+          listenTips[listenTipIndex % listenTips.length]
+        }}</span>
         <span v-else class="transition-status-placeholder" aria-hidden="true"></span>
         <span class="total-time">{{ secondToMinute(allTime) }}</span>
       </div>
@@ -134,23 +142,93 @@
       </div>
     </div>
   </div>
+  <cover-preview-modal
+    v-model:visible="coverGesture.visible.value"
+    :src="previewCoverUrl"
+    :title="songTitle"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
+import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
+import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import { allTime, artistList, nowTime, pause, play, playMusic } from '@/hooks/MusicHook';
 import { usePlayMode } from '@/hooks/usePlayMode';
 import { audioService } from '@/services/audioService';
+import { useListenTogetherStore } from '@/store/modules/listenTogether';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useTransitionStore } from '@/store/modules/transition';
 import { getImgUrl, secondToMinute } from '@/utils';
 import { parseRepresentativeCssColor } from '@/utils/playerInk';
 
+const { t } = useI18n();
+
 const transitionStore = useTransitionStore();
+const listenTogetherStore = useListenTogetherStore();
 const isSongTransitioning = computed(() => transitionStore.isCrossfadingUI);
+
+// ==================== 一起听轮播提示 ====================
+
+/** 每秒刷新一次，驱动“一起听了 XX:XX”计时文本 */
+const listenedTick = ref(0);
+let tipRotateTimer: ReturnType<typeof setInterval> | null = null;
+let tickTimer: ReturnType<typeof setInterval> | null = null;
+const listenTipIndex = ref(0);
+
+const otherMemberName = computed(() => {
+  const others = (listenTogetherStore.members || []).filter(
+    (m) => m.id !== listenTogetherStore.peerId && m.online
+  );
+  return others[0]?.name || listenTogetherStore.hostName || '';
+});
+
+const listenedDurationText = computed(() => {
+  void listenedTick.value; // 依赖 tick 触发重算
+  const started = listenTogetherStore.sessionStartedAt || 0;
+  if (!started) return '';
+  const totalSec = Math.max(0, Math.floor((Date.now() - started) / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const mm = m < 10 ? `0${m}` : `${m}`;
+  const ss = s < 10 ? `0${s}` : `${s}`;
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+});
+
+const listenTips = computed<string[]>(() => {
+  if (listenTogetherStore.status !== 'active') return [];
+  const name = otherMemberName.value;
+  const tips: string[] = [];
+  if (name) {
+    tips.push(t('listenTogether.tip.listening', { name }));
+  }
+  const dur = listenedDurationText.value;
+  if (dur) {
+    tips.push(t('listenTogether.tip.duration', { time: dur }));
+  }
+  return tips;
+});
+
+onMounted(() => {
+  // 4s 轮播切换提示文案
+  tipRotateTimer = setInterval(() => {
+    listenTipIndex.value += 1;
+  }, 4_000);
+  // 1s 刷新“一起听了”计时
+  tickTimer = setInterval(() => {
+    listenedTick.value += 1;
+  }, 1_000);
+});
+
+onBeforeUnmount(() => {
+  if (tipRotateTimer) clearInterval(tipRotateTimer);
+  if (tickTimer) clearInterval(tickTimer);
+});
 const isCoverCrossfading = computed(
   () => isSongTransitioning.value && transitionStore.currentSongEnded
 );
@@ -220,6 +298,10 @@ const currentCoverUrl = computed(() =>
     '100y100'
   )
 );
+const previewCoverUrl = computed(
+  () => transitionStore.currentCoverUrl || playMusic.value?.picUrl || '/images/default_cover.png'
+);
+const coverGesture = useCoverPreviewGesture(previewCoverUrl);
 const transitionCoverUrl = computed(() =>
   transitionStore.nextCoverUrl ? getImgUrl(transitionStore.nextCoverUrl, '100y100') : ''
 );
@@ -684,6 +766,7 @@ const handleThumbTouchEnd = () => {
 }
 
 .transition-status,
+.listen-together-status,
 .transition-status-placeholder {
   position: relative;
   min-width: 76px;
@@ -692,7 +775,8 @@ const handleThumbTouchEnd = () => {
   text-align: center;
 }
 
-.transition-status {
+.transition-status,
+.listen-together-status {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0;
@@ -796,7 +880,8 @@ const handleThumbTouchEnd = () => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .transition-status {
+  .transition-status,
+  .listen-together-status {
     background-image: none;
     background-position: 50% 0;
     color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.82);
@@ -804,6 +889,7 @@ const handleThumbTouchEnd = () => {
   }
 
   .transition-status,
+  .listen-together-status,
   .song-transitioning .progress-fill,
   .song-transitioning .progress-fill-next {
     animation: none;

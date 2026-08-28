@@ -47,7 +47,9 @@ export async function verifyUnlockKey(token: string): Promise<UnlockKeyStatus> {
 
 /**
  * 通过口令在服务器代理获取 VIP 歌曲 URL
- * GET /api/unlock/song/url?id=xxx&level=xxx&token=口令
+ * GET /api/unlock/song/url?id=xxx&level=xxx
+ * 口令优先通过请求头 x-unlock-token 传递，避免口令落入服务器/代理的访问日志；
+ * 查询参数中的 token 仅为向后兼容旧版服务端保留，服务端应改读 x-unlock-token 请求头
  * 服务器端拼接 cookie → 请求网易云 → 返回 { url, br, size, ... }
  */
 export async function getUnlockSongUrl(
@@ -59,11 +61,14 @@ export async function getUnlockSongUrl(
     const params = new URLSearchParams({
       id: String(id),
       level,
-      token
+      token // 向后兼容：旧版服务端仅从查询参数读取口令，新版服务端应改读 x-unlock-token 请求头
     });
     const res = await fetch(`${API_BASE}/unlock/song/url?${params}`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        'x-unlock-token': token
+      }
     });
     const data = await res.json();
     if (!res.ok) {
@@ -83,7 +88,9 @@ export async function getUnlockSongUrl(
 
 /**
  * 通过口令在服务器代理搜索 VIP 歌曲
- * GET /api/unlock/search?keywords=xxx&limit=30&token=口令
+ * GET /api/unlock/search?keywords=xxx&limit=30
+ * 口令优先通过请求头 x-unlock-token 传递，避免口令落入服务器/代理的访问日志；
+ * 查询参数中的 token 仅为向后兼容旧版服务端保留，服务端应改读 x-unlock-token 请求头
  * 服务器端拼接 cookie → 请求网易云搜索 → 返回带 VIP 标记的结果
  */
 export async function getUnlockSearchResults(
@@ -97,11 +104,14 @@ export async function getUnlockSearchResults(
       keywords,
       limit: String(limit),
       offset: String(offset),
-      token
+      token // 向后兼容：旧版服务端仅从查询参数读取口令，新版服务端应改读 x-unlock-token 请求头
     });
     const res = await fetch(`${API_BASE}/unlock/search?${params}`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        'x-unlock-token': token
+      }
     });
     const data = await res.json();
     if (!res.ok) {

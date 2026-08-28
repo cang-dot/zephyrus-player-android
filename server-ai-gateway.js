@@ -167,17 +167,35 @@ function createAiGatewayRouter(options = {}) {
   ).trim();
   const stateFile =
     process.env.AI_GATEWAY_STATE_FILE || path.join('/tmp', 'zephyrus-ai-credits.json');
+  // 会话签名密钥：持久化在状态文件的保留键中，启动时不存在则生成并随状态一起保存。
+  // 不再使用客户端已知的共享 accessToken 作为 HMAC 密钥，防止持 token 者伪造会话。
+  const SESSION_SECRET_KEY = '__sessionSecret';
+  let sessionSecret = '';
 
   function loadCredits() {
     try {
       const data = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-      Object.entries(data).forEach(([key, value]) => credits.set(key, value));
-    } catch {}
+      if (typeof data?.[SESSION_SECRET_KEY] === 'string' && data[SESSION_SECRET_KEY]) {
+        sessionSecret = data[SESSION_SECRET_KEY];
+      }
+      Object.entries(data).forEach(([key, value]) => {
+        if (key === SESSION_SECRET_KEY) return; // 保留键：会话签名密钥，不属于积分数据
+        credits.set(key, value);
+      });
+    } catch {
+      // 状态文件缺失或损坏时按首次启动处理，下方会生成新密钥
+    }
+    if (!sessionSecret) {
+      // 首次启动（或状态文件缺失/损坏）时生成新密钥并立即随状态持久化
+      sessionSecret = crypto.randomBytes(32).toString('hex');
+      saveCredits();
+    }
   }
   function saveCredits() {
     try {
       fs.mkdirSync(path.dirname(stateFile), { recursive: true });
       const data = Object.fromEntries(credits.entries());
+      data[SESSION_SECRET_KEY] = sessionSecret; // 密钥随状态一起保存
       const temp = `${stateFile}.${process.pid}.tmp`;
       fs.writeFileSync(temp, JSON.stringify(data));
       fs.renameSync(temp, stateFile);
@@ -234,7 +252,8 @@ function createAiGatewayRouter(options = {}) {
     if (!token) return null;
     let session = sessions.get(token);
     if (!session || session.expiresAt <= Date.now()) {
-      session = decodeSessionToken(token, accessToken);
+      // 使用持久化的 sessionSecret 验签（不再以共享 accessToken 作密钥）
+      session = decodeSessionToken(token, sessionSecret);
       if (session) sessions.set(token, session);
     }
     if (!session || session.expiresAt <= Date.now()) {
@@ -249,6 +268,18 @@ function createAiGatewayRouter(options = {}) {
       return res.status(401).json({
         error: { code: 'session_expired', message: 'AI 会话已过期，请重新验证网易云账号' }
       });
+    // 若请求携带网易云 cookie（body.cookie 或 X-Netease-Cookie 头），
+    // 则对 cookie 计算 hash 并与 token 签发时绑定的 cookieHash 比对，不一致返回 401，
+    // 防止被盗 token 搭配他人 cookie 使用。
+    // 若请求根本不携带 cookie（如 /chat/completions 只发 model/messages，
+    // 客户端从未在后续请求中回传 cookie），则没有可比对来源，
+    // 只做 secret 签名校验即可——token 本身已无法伪造。
+    const cookie = String(req.body?.cookie || req.get('X-Netease-Cookie') || '').trim();
+    if (cookie && found.session.cookieHash && hash(cookie) !== found.session.cookieHash) {
+      return res
+        .status(401)
+        .json({ error: { code: 'cookie_mismatch', message: '网易云 Cookie 与会话不匹配' } });
+    }
     req.aiSession = found;
     next();
   }
@@ -357,8 +388,9 @@ function createAiGatewayRouter(options = {}) {
       const userId = response.userId;
       const expiresAt = Date.now() + 7 * DAY;
       const cookieHash = hash(cookie);
-      // Sign the session so every PM2 worker can validate it independently.
-      const token = createSessionToken(userId, cookieHash, expiresAt, accessToken);
+      // 使用状态文件中的持久化 sessionSecret 签名（不再以共享 accessToken 作密钥），
+      // 所有 worker 读取同一份状态文件即可独立验签。
+      const token = createSessionToken(userId, cookieHash, expiresAt, sessionSecret);
       sessions.set(token, {
         userId,
         cookieHash,
@@ -373,7 +405,7 @@ function createAiGatewayRouter(options = {}) {
         expiresAt,
         user: { id: userId, nickname: profile?.nickname || '' }
       });
-    } catch (error) {
+    } catch {
       res
         .status(502)
         .json({ error: { code: 'netease_unavailable', message: '网易云账号验证服务不可用' } });
@@ -413,6 +445,16 @@ function createAiGatewayRouter(options = {}) {
     state.used = Math.round((Number(state.used || 0) + model.multiplier) * 10) / 10;
     credits.set(key, state);
     saveCredits();
+    // 积分回滚：上游失败时返还本次预扣的 model.multiplier 并持久化
+    const creditsRefund = () => {
+      const current = credits.get(key) || state;
+      current.used = Math.max(
+        0,
+        Math.round((Number(current.used || 0) - model.multiplier) * 10) / 10
+      );
+      credits.set(key, current);
+      saveCredits();
+    };
     session.concurrency += 1;
     const controller = new AbortController();
     // `close` also fires after the request body has been fully received. Using
@@ -444,6 +486,7 @@ function createAiGatewayRouter(options = {}) {
           text += chunk.toString().slice(0, 500);
         });
         await new Promise((resolve) => upstream.data.on('end', resolve));
+        creditsRefund(); // 上游失败：返还预扣积分后再返回错误响应
         return res
           .status(upstream.status)
           .json({ error: { code: 'upstream_error', message: text || '上游请求失败' } });
@@ -462,6 +505,7 @@ function createAiGatewayRouter(options = {}) {
       upstream.data.pipe(res);
       return;
     } catch (error) {
+      creditsRefund(); // 上游调用异常：返还预扣积分后再返回错误响应
       console.error('[ai-gateway] upstream unavailable', {
         model: model.id,
         provider: model.provider,

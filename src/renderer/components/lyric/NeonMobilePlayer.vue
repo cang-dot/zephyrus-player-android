@@ -170,9 +170,11 @@ const {
   isOpen: () => showFullLyrics.value,
   onOpen: () => {
     showFullLyrics.value = true;
+    playerStore.setFullLyricsVisible(true);
   },
   onClose: () => {
     showFullLyrics.value = false;
+    playerStore.setFullLyricsVisible(false);
   }
 });
 const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({

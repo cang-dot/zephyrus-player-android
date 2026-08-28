@@ -14,6 +14,9 @@ let lastHandledUrl = '';
 // SharedSongCard 组件引用
 let sharedSongCardRef: { showSongCard: (songId: number) => void } | null = null;
 
+// ListenTogetherInviteModal 组件引用
+let listenTogetherInviteRef: { showInvite: (roomCode: string) => void } | null = null;
+
 // 待处理的 URL 队列：如果组件尚未就绪，先缓存，就绪后重放
 let pendingUrl: string | null = null;
 
@@ -33,11 +36,39 @@ function parseDeepLink(url: string): number | null {
 }
 
 /**
+ * 解析一起听 deep link，提取房间识别码
+ */
+function parseListenDeepLink(url: string): string | null {
+  try {
+    const match = url.match(/^zephyrus:\/\/listen\/([A-Za-z0-9]{3,16})$/);
+    if (match) {
+      return match[1].toUpperCase();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 统一处理函数：解析 URL 并弹出歌曲卡片
  * 无论来源是 Intent deep link 还是剪贴板，都走同一条路径
  */
 async function processShareUrl(url: string): Promise<void> {
   console.info('[ShareLink] 收到分享链接:', url);
+
+  // 一起听邀请链接：弹确认卡片
+  const roomCode = parseListenDeepLink(url);
+  if (roomCode !== null) {
+    console.info('[ShareLink] 解析到一起听房间码:', roomCode);
+    if (listenTogetherInviteRef) {
+      listenTogetherInviteRef.showInvite(roomCode);
+    } else {
+      pendingUrl = url;
+      console.warn('[ShareLink] ListenTogetherInvite 尚未就绪，缓存 URL 待重放');
+    }
+    return;
+  }
 
   // 防止重复处理（卡片正在显示同一首歌时跳过）
   if (url === lastHandledUrl) {
@@ -66,7 +97,7 @@ async function processShareUrl(url: string): Promise<void> {
 /**
  * 兜底：直接播放（仅在卡片组件完全不可用时使用）
  */
-async function playSongById(songId: number): Promise<void> {
+export async function playSongById(songId: number): Promise<void> {
   const { usePlayerStore } = await import('@/store/modules/player');
   const playerStore = usePlayerStore();
 
@@ -119,7 +150,7 @@ export function setSharedSongCardRef(ref: { showSongCard: (songId: number) => vo
   sharedSongCardRef = ref;
 
   // 组件就绪后，重放缓存的 URL
-  if (ref && pendingUrl) {
+  if ((ref || listenTogetherInviteRef) && pendingUrl) {
     const url = pendingUrl;
     pendingUrl = null;
     console.info('[ShareLink] 组件就绪，重放缓存的 URL:', url);
@@ -127,6 +158,15 @@ export function setSharedSongCardRef(ref: { showSongCard: (songId: number) => vo
     lastHandledUrl = '';
     processShareUrl(url).catch(console.error);
   }
+}
+
+/**
+ * 注册一起听邀请弹窗组件引用
+ */
+export function setListenTogetherInviteRef(
+  ref: { showInvite: (roomCode: string) => void } | null
+): void {
+  listenTogetherInviteRef = ref;
 }
 
 /**

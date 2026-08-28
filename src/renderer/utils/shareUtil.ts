@@ -24,7 +24,7 @@ export async function saveCanvasToGallery(canvas: HTMLCanvasElement): Promise<bo
     if (isNative()) {
       // 尝试使用 Capacitor Filesystem + Gallery
       try {
-        const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
         const base64 = canvas.toDataURL('image/png').split(',')[1];
         const fileName = `zephyrus_poster_${Date.now()}.png`;
 
@@ -122,7 +122,7 @@ export async function shareCanvasImage(canvas: HTMLCanvasElement): Promise<boole
 /**
  * 下载 Blob 为文件（Web 降级方案）
  */
-function downloadBlob(blob: Blob): boolean {
+export function downloadBlob(blob: Blob): boolean {
   try {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

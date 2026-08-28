@@ -85,6 +85,15 @@
       </setting-item>
     </setting-section>
 
+    <setting-section title="一起听">
+      <setting-item
+        title="一起听"
+        description="与好友或 AI 共享实时播放进度，进度/切歌/暂停自动同步"
+      >
+        <listen-together-settings />
+      </setting-item>
+    </setting-section>
+
     <music-source-settings
       v-if="isElectron"
       v-model:show="showMusicSourcesModal"
@@ -98,6 +107,7 @@ import { computed, inject, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import AudioDeviceSettings from '@/components/settings/AudioDeviceSettings.vue';
+import ListenTogetherSettings from '@/components/settings/ListenTogetherSettings.vue';
 import MusicSourceSettings from '@/components/settings/MusicSourceSettings.vue';
 import SmartMixSettings from '@/components/settings/SmartMixSettings.vue';
 import { readStatusBarLyricConfig } from '@/services/androidNative';

@@ -27,12 +27,14 @@ export const getMusicUrl = async (id: number, isDownloaded: boolean = false) => 
   try {
     if (userStore.user && isDownloaded && userStore.user.vipType !== 0) {
       const url = '/song/download/url/v1';
+      // 注意：token 与 os=pc 之间必须有 "; " 分隔符，否则 os=pc 会被拼进 MUSIC_U 值导致凭据失效
+      const token = localStorage.getItem('token') || '';
       const res = await request.get(url, {
         params: {
           id,
           level: settingStore.setData.musicQuality || 'higher',
-          encodeType: settingStore.setData.musicQuality == 'lossless' ? 'aac' : 'flac',
-          cookie: `${localStorage.getItem('token')} os=pc;`
+          encodeType: settingStore.setData.musicQuality == 'lossless' ? 'flac' : 'aac',
+          cookie: `${token}; os=pc;`
         }
       });
 
@@ -48,7 +50,7 @@ export const getMusicUrl = async (id: number, isDownloaded: boolean = false) => 
     params: {
       id,
       level: settingStore.setData.musicQuality || 'higher',
-      encodeType: settingStore.setData.musicQuality == 'lossless' ? 'aac' : 'flac'
+      encodeType: settingStore.setData.musicQuality == 'lossless' ? 'flac' : 'aac'
     }
   });
 

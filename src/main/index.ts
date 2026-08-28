@@ -1,4 +1,4 @@
-import { electronApp, optimizer } from '@electron-toolkit/utils';
+import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { app, ipcMain, nativeImage, session } from 'electron';
 import { join } from 'path';
 
@@ -23,8 +23,10 @@ import { createMainWindow, initializeWindowManager, setAppQuitting } from './mod
 import { initWindowSizeManager } from './modules/window-size';
 import { startMusicApi } from './server';
 
-// 忽略自签名证书验证（开发环境）
-app.commandLine.appendSwitch('ignore-certificate-errors');
+// 忽略自签名证书验证（仅开发环境启用，生产环境必须保持证书校验）
+if (is.dev) {
+  app.commandLine.appendSwitch('ignore-certificate-errors');
+}
 // 启用 MediaSessionService 以支持 SMTC，禁用 MediaRouter 避免冲突
 app.commandLine.appendSwitch('enable-features', 'MediaSessionService');
 app.commandLine.appendSwitch('disable-features', 'MediaRouterMediaSink');
@@ -148,17 +150,17 @@ if (!isSingleInstance) {
     // 初始化窗口大小管理器
     initWindowSizeManager();
 
-    // 设置媒体设备权限 - 允许枚举音频输出设备
+    // 设置媒体设备权限 - 仅放行媒体相关权限（如音频采集/枚举音频输出设备），其余一律拒绝
     session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-      if (permission === ('media' as any) || permission === ('audioCapture' as any)) {
+      if (permission === ('media' as any)) {
         callback(true);
         return;
       }
-      callback(true);
+      callback(false);
     });
 
-    session.defaultSession.setPermissionCheckHandler(() => {
-      return true;
+    session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
+      return permission === ('media' as any);
     });
 
     // 重新初始化配置管理以获取完整的配置存储

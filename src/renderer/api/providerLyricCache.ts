@@ -23,7 +23,16 @@ function openDatabase(): Promise<IDBDatabase> {
       }
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error('逐字歌词缓存不可用'));
+    request.onerror = () => {
+      // 打开失败时重置单例缓存，避免 rejected promise 被永久缓存导致缓存功能整会话失效，下次调用可重新尝试打开
+      dbPromise = null;
+      reject(request.error || new Error('逐字歌词缓存不可用'));
+    };
+    request.onblocked = () => {
+      // 版本升级被其他连接阻塞时同样重置并拒绝，避免调用方永久挂起，下次调用可重新尝试打开
+      dbPromise = null;
+      reject(new Error('逐字歌词缓存被阻塞'));
+    };
   });
   return dbPromise;
 }

@@ -49,6 +49,7 @@
           :auxiliary-tokens="wordPlayback.auxiliaryTokens.value"
           :main-token="wordPlayback.currentMainToken.value"
           :show-drop="showWordDrop"
+          :climax-shake="styleEngine.isInClimax && wordPlayback.climaxWordShake.value"
           :center-auxiliary="isCustom && styleCfg.auxiliaryCenterDisplay === true"
         />
 
@@ -231,10 +232,12 @@ const {
 } = useLyricSwipeGesture({
   isOpen: () => showFullLyrics.value,
   onOpen: () => {
-    openLyricsAnimated();
+    showFullLyrics.value = true;
+    playerStore.setFullLyricsVisible(true);
   },
   onClose: () => {
     showFullLyrics.value = false;
+    playerStore.setFullLyricsVisible(false);
   }
 });
 const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({
@@ -256,6 +259,13 @@ const {
 } = usePlayerStyleAppearance('frenzy');
 const wordPlayback = useWordTimedPlayback();
 const lyricsUnderlayVisible = computed(() => !showFullLyrics.value || lyricsSwipePreview.value);
+
+watch(
+  () => playerStore.fullLyricsVisible,
+  (visible) => {
+    if (!visible && showFullLyrics.value) closeLyricsAnimated();
+  }
+);
 
 onMounted(() => {
   styleEngine.syncFromPlayerStore();

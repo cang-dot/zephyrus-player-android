@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face { font-family: 'NotoSC'; src: url('file:///C:/Windows/Fonts/NotoSansSC-VF.ttf'); font-weight: 100 900; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #333; font-family: 'NotoSC', 'Microsoft YaHei', sans-serif; }
+  .frame { width: 1920px; height: 1080px; position: relative; overflow: hidden; background: #FAF8F3; margin: 20px 0; }
+  .token-tag {
+    position: absolute; left: 110px; bottom: 88px;
+    font-size: 24px; letter-spacing: 0.28em; color: #B48B52; font-weight: 700;
+  }
+  .token-tag::before { content: ''; display: inline-block; width: 34px; height: 3px; background: #B48B52; margin-right: 18px; vertical-align: middle; border-radius: 2px; }
+
+  /* ===== F1 开场帧：MD3 形状 morph 落定态 ===== */
+  .f1 .glow-ring { position: absolute; left: 1160px; top: 540px; width: 560px; height: 560px; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, rgba(180,139,82,0.10) 0%, rgba(180,139,82,0) 68%); }
+  .f1 .play-btn {
+    position: absolute; left: 1160px; top: 540px; transform: translate(-50%, -50%);
+    width: 300px; height: 300px; border-radius: 50%;
+    background: #EAD9C0; /* primaryContainer */
+    box-shadow: 0 30px 60px rgba(180,139,82,0.28), inset 0 2px 0 rgba(255,255,255,0.75), inset 0 -3px 8px rgba(180,139,82,0.18);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .f1 .play-tri { width: 0; height: 0; border-left: 74px solid #8A6537; border-top: 46px solid transparent; border-bottom: 46px solid transparent; margin-left: 16px; }
+  .f1 .ring { position: absolute; left: 1160px; top: 540px; transform: translate(-50%,-50%); border-radius: 50%; border: 2px solid rgba(180,139,82,0.35); }
+  .f1 h1 {
+    position: absolute; left: 110px; top: 330px; font-size: 128px; font-weight: 900;
+    color: #1B1812; letter-spacing: -0.03em; line-height: 1.16;
+  }
+  .f1 .sub { position: absolute; left: 112px; top: 640px; font-size: 34px; color: #6E675C; font-weight: 500; letter-spacing: 0.02em; }
+  .f1 .dots { position: absolute; left: 112px; top: 730px; display: flex; gap: 18px; }
+  .f1 .dots span { width: 46px; height: 46px; border-radius: 50%; }
+
+  /* ===== F2 取色帧：palette-ripple 换肤后的元素组 ===== */
+  .f2 .head { position: absolute; left: 110px; top: 250px; font-size: 108px; font-weight: 900; color: #1B1812; letter-spacing: -0.03em; line-height: 1.2; }
+  .f2 .head em { font-style: normal; color: #A6762F; }
+  .f2 .stage { position: absolute; right: 120px; top: 150px; width: 640px; }
+  .f2 .pill-row { height: 96px; border-radius: 999px; background: #EAD9C0; margin-bottom: 28px; display: flex; align-items: center; padding: 0 36px; box-shadow: 0 14px 30px rgba(180,139,82,0.16), inset 0 2px 0 rgba(255,255,255,0.7); }
+  .f2 .pill-row .avatar { width: 60px; height: 60px; border-radius: 50%; background: #B48B52; margin-right: 26px; }
+  .f2 .pill-row .lines { flex: 1; }
+  .f2 .pill-row .l1 { height: 20px; width: 62%; border-radius: 10px; background: rgba(107,78,38,0.55); margin-bottom: 12px; }
+  .f2 .pill-row .l2 { height: 14px; width: 38%; border-radius: 7px; background: rgba(107,78,38,0.28); }
+  .f2 .card { height: 150px; border-radius: 32px; background: #F1E6D4; margin-bottom: 28px; padding: 34px 36px; box-shadow: inset 0 2px 0 rgba(255,255,255,0.7); }
+  .f2 .card .l1 { height: 22px; width: 45%; border-radius: 11px; background: rgba(107,78,38,0.5); margin-bottom: 16px; }
+  .f2 .card .l2 { height: 15px; width: 72%; border-radius: 8px; background: rgba(107,78,38,0.24); }
+  .f2 .fabrow { display: flex; gap: 26px; align-items: center; }
+  .f2 .fab { width: 108px; height: 108px; border-radius: 36px; background: #B48B52; box-shadow: 0 18px 36px rgba(180,139,82,0.4), inset 0 2px 0 rgba(255,255,255,0.45); display: flex; align-items: center; justify-content: center; }
+  .f2 .fab::after { content: ''; width: 44px; height: 4px; background: #FFF7EC; border-radius: 2px; box-shadow: 0 -14px 0 #FFF7EC, 0 14px 0 #FFF7EC; }
+  .f2 .chip { height: 64px; padding: 0 34px; border-radius: 999px; background: #EFE3CE; display: flex; align-items: center; font-size: 26px; color: #8A6537; font-weight: 700; }
+  .f2 .ripple { position: absolute; right: 420px; top: 480px; width: 90px; height: 90px; border-radius: 50%; background: #A6762F; box-shadow: 0 0 0 46px rgba(166,118,47,0.14), 0 0 0 110px rgba(166,118,47,0.06); }
+  .f2 .swatches { position: absolute; left: 112px; top: 700px; display: flex; gap: 22px; align-items: center; }
+  .f2 .sw { width: 74px; height: 74px; border-radius: 50%; box-shadow: inset 0 2px 0 rgba(255,255,255,0.5); }
+  .f2 .sw.active { outline: 5px solid #1B1812; outline-offset: 5px; }
+  .f2 .swlabel { font-size: 22px; color: #8B8272; margin-left: 10px; letter-spacing: 0.06em; }
+  .f2 .coverseed { position: absolute; right: 130px; top: 700px; display: flex; align-items: center; gap: 24px; font-size: 24px; color: #6E675C; }
+  .f2 .coverseed .art { width: 96px; height: 96px; border-radius: 24px; background: linear-gradient(135deg, #C9A02E, #8A6537); }
+</style>
+</head>
+<body>
+
+<div class="frame f1">
+  <div class="glow-ring"></div>
+  <div class="ring" style="width:460px;height:460px;"></div>
+  <div class="ring" style="width:640px;height:640px;border-color:rgba(180,139,82,0.16);"></div>
+  <div class="play-btn"><div class="play-tri"></div></div>
+  <h1>一个圆，<br>开始播放。</h1>
+  <div class="sub">Zephyrus Player · 为 Android 而生的音乐播放器</div>
+  <div class="dots">
+    <span style="background:#B48B52"></span><span style="background:#7C93B8"></span><span style="background:#8FA98E"></span><span style="background:#C79A93"></span>
+  </div>
+  <div class="token-tag">MD3 · SHAPE</div>
+</div>
+
+<div class="frame f2">
+  <div class="head">页面颜色，<br>来自<em>正在播放</em>的歌。</div>
+  <div class="stage">
+    <div class="pill-row"><div class="avatar"></div><div class="lines"><div class="l1"></div><div class="l2"></div></div></div>
+    <div class="card"><div class="l1"></div><div class="l2"></div></div>
+    <div class="fabrow"><div class="fab"></div><div class="chip">西风电台</div><div class="chip">私人 FM</div></div>
+  </div>
+  <div class="ripple"></div>
+  <div class="swatches">
+    <div class="sw active" style="background:#B48B52"></div>
+    <div class="sw" style="background:#7C93B8"></div>
+    <div class="sw" style="background:#8FA98E"></div>
+    <div class="sw" style="background:#C79A93"></div>
+    <div class="swlabel">取自专辑封面 · Material You</div>
+  </div>
+  <div class="coverseed"><div class="art"></div><div>专辑主色 → 全局主题</div></div>
+  <div class="token-tag">MD3 · DYNAMIC COLOR</div>
+</div>
+
+</body>
+</html>

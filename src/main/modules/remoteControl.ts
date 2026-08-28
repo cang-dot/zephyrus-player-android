@@ -1,4 +1,5 @@
 import cors from 'cors';
+import crypto from 'crypto';
 import { ipcMain } from 'electron';
 import express from 'express';
 import fs from 'fs';
@@ -12,13 +13,15 @@ export interface RemoteControlConfig {
   enabled: boolean;
   port: number;
   allowedIps: string[];
+  token: string;
 }
 
 // 默认配置
 export const defaultRemoteControlConfig: RemoteControlConfig = {
   enabled: false,
   port: 31888,
-  allowedIps: []
+  allowedIps: [],
+  token: ''
 };
 
 let app: express.Application | null = null;
@@ -105,13 +108,32 @@ function startServer(config: RemoteControlConfig) {
     return;
   }
 
+  // 服务启动时若 token 为空则生成 8 位随机 token 并写回配置，
+  // 供手机端通过 ?token= 查询参数或请求头完成鉴权
+  if (!config.token) {
+    config.token = crypto.randomBytes(4).toString('hex');
+    const store = getStore() as any;
+    store.set('remoteControl', config);
+  }
+
   app = express();
 
-  // 跨域配置
-  app.use(cors());
+  // 跨域配置：反射同源（不返回 CORS 头），禁止外部网站跨站调用
+  app.use(cors({ origin: false }));
   app.use(express.json());
 
-  // IP 过滤中间件
+  // Token 鉴权中间件：/api/* 请求必须携带与配置一致的 x-remote-token 请求头
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      const token = (req.headers['x-remote-token'] as string) || '';
+      if (!config.token || token !== config.token) {
+        return res.status(401).json({ error: '无效的访问令牌' });
+      }
+    }
+    next();
+  });
+
+  // IP 过滤中间件（与 Token 鉴权叠加生效：Token 通过后还需通过 IP 白名单）
   app.use((req, res, next) => {
     const clientIp = req.ip || req.socket.remoteAddress || '';
     const cleanIp = clientIp.replace(/^::ffff:/, '');
@@ -125,15 +147,13 @@ function startServer(config: RemoteControlConfig) {
   // 路由配置
   setupRoutes(app);
 
-  // 启动服务器
+  // 启动服务器（显式绑定 0.0.0.0 以支持局域网内手机访问，安全性由 Token 鉴权与 IP 白名单保护）
   try {
-    server = app.listen(config.port, () => {
-    });
+    server = app.listen(config.port, '0.0.0.0', () => {});
     server.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
         console.error(`远程控制服务端口 ${config.port} 被占用，尝试切换到端口 ${config.port + 1}`);
-        server = app.listen(config.port + 1, () => {
-        });
+        server = app.listen(config.port + 1, '0.0.0.0', () => {});
       } else {
         console.error('远程控制服务异常:', err);
       }

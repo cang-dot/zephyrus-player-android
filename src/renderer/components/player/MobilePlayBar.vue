@@ -46,6 +46,9 @@
           lazy
           preview-disabled
           @click.stop="setMusicFull"
+          @pointerdown.stop="startCoverLongPress"
+          @pointerup.stop="cancelCoverLongPress"
+          @pointercancel.stop="cancelCoverLongPress"
         />
         <div ref="miniSongTextRef" class="mini-song-text">
           <span class="mini-song-title">{{ playMusic.name }}</span>
@@ -78,6 +81,12 @@
       v-model="playerSurfaceVisible"
       :background="background"
     />
+
+    <cover-preview-modal
+      v-model:visible="coverPreviewVisible"
+      :src="previewCoverUrl"
+      :title="playMusic?.name || ''"
+    />
   </div>
 </template>
 
@@ -86,6 +95,7 @@ import type { CSSProperties, Ref } from 'vue';
 import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
+import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
@@ -118,8 +128,28 @@ const miniUsesMenuAnchor = computed(
     shouldShowMobileMenu.value ||
     (transitionStartedWithMenu.value && playerTransition.state.value !== 'idle')
 );
-let miniLongPressTimer: ReturnType<typeof setTimeout> | undefined;
+const coverPreviewVisible = ref(false);
+let coverLongPressTimer: ReturnType<typeof setTimeout> | undefined;
+const previewCoverUrl = computed(() =>
+  playMusic.value?.picUrl ? getImgUrl(playMusic.value.picUrl, '1000y1000') : ''
+);
+
+function startCoverLongPress() {
+  cancelCoverLongPress();
+  coverLongPressTimer = setTimeout(() => {
+    if (previewCoverUrl.value) {
+      miniLongPressTriggered = true;
+      coverPreviewVisible.value = true;
+    }
+  }, 500);
+}
+
+function cancelCoverLongPress() {
+  if (coverLongPressTimer) clearTimeout(coverLongPressTimer);
+  coverLongPressTimer = undefined;
+}
 let miniLongPressTriggered = false;
+let miniLongPressTimer: ReturnType<typeof setTimeout> | undefined;
 let miniPointerStartedCollapsed = false;
 
 // 是否播放
@@ -880,8 +910,11 @@ watch(
       opacity: var(--mini-swipe-glow-opacity, 0);
       filter: blur(16px);
       pointer-events: none;
-      transform: translate3d(var(--mini-swipe-glow-x, 0px), 0, 0) scaleX(var(--mini-swipe-stretch, 1));
-      transition: opacity 180ms ease, transform 80ms linear;
+      transform: translate3d(var(--mini-swipe-glow-x, 0px), 0, 0)
+        scaleX(var(--mini-swipe-stretch, 1));
+      transition:
+        opacity 180ms ease,
+        transform 80ms linear;
     }
     /* 内部元素形变过渡 — 与外层同步 */
     transition:
@@ -904,15 +937,15 @@ watch(
         --mini-swipe-duration: 180ms;
         --mini-swipe-opacity-duration: 180ms;
         --mini-swipe-ease: ease-out;
+      }
     }
-  }
 
-  // 仅展示迷你栏的路由不把纵向触摸交给收起手势，允许页面继续处理下滑。
-  &.play-bar-mini.is-menu-hide:not(.player-active) .mobile-mini-controls {
-    touch-action: pan-y;
-  }
+    // 仅展示迷你栏的路由不把纵向触摸交给收起手势，允许页面继续处理下滑。
+    &.play-bar-mini.is-menu-hide:not(.player-active) .mobile-mini-controls {
+      touch-action: pan-y;
+    }
 
-  .mini-song-info {
+    .mini-song-info {
       @apply flex items-center flex-1 min-w-0 cursor-pointer;
       transition: flex 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 

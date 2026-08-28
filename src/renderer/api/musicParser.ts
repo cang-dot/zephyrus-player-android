@@ -146,8 +146,6 @@ export class CacheManager {
       }
     });
     keysToDelete.forEach((key) => failedCacheMap.delete(key));
-    if (keysToDelete.length > 0) {
-    }
   }
 
   /**
@@ -311,7 +309,12 @@ class CustomApiStrategy implements MusicSourceStrategy {
 
     try {
       const result = await RetryHelper.withRetry(async () => {
-        return await parseFromCustomApi(id, data, quality);
+        const parsed = await parseFromCustomApi(id, data, quality);
+        // parseFromCustomApi 失败时返回 null，null 会绕过 withRetry 的重试逻辑，这里转为异常以触发重试
+        if (!parsed) {
+          throw new Error('解析失败');
+        }
+        return parsed;
       });
 
       const adaptedResult = adaptParseResult(result);
@@ -349,7 +352,12 @@ class GDMusicStrategy implements MusicSourceStrategy {
 
     try {
       const result = await RetryHelper.withRetry(async () => {
-        return await getGDMusicAudio(id, data);
+        const audio = await getGDMusicAudio(id, data);
+        // getGDMusicAudio 内部已捕获异常并返回 null，null 会绕过 withRetry 的重试逻辑，这里转为异常以触发重试
+        if (!audio) {
+          throw new Error('解析失败');
+        }
+        return audio;
       });
 
       const adaptedResult = adaptParseResult(result);
@@ -481,10 +489,7 @@ class CrossPlatformStrategy implements MusicSourceStrategy {
         return adapted;
       }
     } catch (unblockError) {
-      console.warn(
-        `[CrossPlatformStrategy] unblockMusic [${platform}] 异常:`,
-        unblockError
-      );
+      console.warn(`[CrossPlatformStrategy] unblockMusic [${platform}] 异常:`, unblockError);
     }
     return null;
   }
@@ -495,7 +500,7 @@ class CrossPlatformStrategy implements MusicSourceStrategy {
   private static normalizeStr(s: string): string {
     return (s || '')
       .toLowerCase()
-      .replace(/[\s\-_/\(\)\[\]【】（）.,，。、！？!?;；:：'"`~·]+/g, '')
+      .replace(/[\s\-_/()[\]【】（）.,，。、！？!?;；:：'"`~·]+/g, '')
       .trim();
   }
 
@@ -559,9 +564,7 @@ class CrossPlatformStrategy implements MusicSourceStrategy {
       return null;
     }
 
-    const searchQuery = artistNames.length > 0
-      ? `${songName} ${artistNames.join(' ')}`
-      : songName;
+    const searchQuery = artistNames.length > 0 ? `${songName} ${artistNames.join(' ')}` : songName;
 
     try {
       // 搜索 joox 音源，取前 10 条结果做精确匹配
@@ -581,10 +584,10 @@ class CrossPlatformStrategy implements MusicSourceStrategy {
         .sort((a, b) => b.score - a.score);
 
       if (scored.length === 0) {
-        console.warn(
-          `[CrossPlatformStrategy] GD 搜索到 ${items.length} 条结果，但无精确匹配`,
-          { targetName: songName, targetArtists: artistNames }
-        );
+        console.warn(`[CrossPlatformStrategy] GD 搜索到 ${items.length} 条结果，但无精确匹配`, {
+          targetName: songName,
+          targetArtists: artistNames
+        });
         return null;
       }
 
@@ -619,7 +622,9 @@ class CrossPlatformStrategy implements MusicSourceStrategy {
 
     // 跨平台歌曲的失败缓存使用 platformId 作为 key 的一部分
     const failCacheKey = Number(
-      String(platformId).split('').reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) | 0, 0)
+      String(platformId)
+        .split('')
+        .reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) | 0, 0)
     );
     if (CacheManager.isInFailedCache(failCacheKey, this.name)) {
       return null;
@@ -826,7 +831,6 @@ export class MusicParser {
         console.warn('没有可用的解析策略，使用后备方案');
         return await requestMusic.get<any>('/music', { params: { id } });
       }
-
 
       // 按优先级依次尝试解析策略
       for (const strategy of availableStrategies) {

@@ -67,6 +67,12 @@
       <!-- 播放设置弹窗 -->
       <mobile-player-settings v-model:visible="showPlayerSettings" />
 
+      <cover-preview-modal
+        v-model:visible="coverPreviewVisible"
+        :src="previewCoverUrl"
+        :title="playMusic.name"
+      />
+
       <!-- 全屏歌词页面 - 竖屏模式下（与其他样式共用的滚动歌词组件） -->
       <Transition name="lyrics-surface">
         <div
@@ -80,29 +86,29 @@
           ]"
           :style="lyricsOverlayStyle"
         >
-        <div class="fullscreen-header">
-          <button
-            type="button"
-            class="fullscreen-back no-toggle"
-            aria-label="返回播放器"
-            @click.stop="closeFullLyrics"
-          >
-            <i class="ri-arrow-down-s-line"></i>
-          </button>
-          <div class="song-title" v-html="playMusic.name"></div>
-          <div class="artist-name">
-            <span v-for="(item, index) in artistList" :key="index">
-              {{ item.name }}{{ index < artistList.length - 1 ? ' / ' : '' }}
-            </span>
+          <div class="fullscreen-header">
+            <button
+              type="button"
+              class="fullscreen-back no-toggle"
+              aria-label="返回播放器"
+              @click.stop="closeFullLyrics"
+            >
+              <i class="ri-arrow-down-s-line"></i>
+            </button>
+            <div class="song-title" v-html="playMusic.name"></div>
+            <div class="artist-name">
+              <span v-for="(item, index) in artistList" :key="index">
+                {{ item.name }}{{ index < artistList.length - 1 ? ' / ' : '' }}
+              </span>
+            </div>
           </div>
-        </div>
 
-        <mobile-scrolling-lyrics
-          class="fullscreen-lyrics-body"
-          :back-closes="showFullLyrics"
-          :active="showFullLyrics || lyricsSwipePreview"
-          @close="closeFullLyrics"
-        />
+          <mobile-scrolling-lyrics
+            class="fullscreen-lyrics-body"
+            :back-closes="showFullLyrics"
+            :active="showFullLyrics || lyricsSwipePreview"
+            @close="closeFullLyrics"
+          />
         </div>
       </Transition>
 
@@ -122,6 +128,10 @@
             paused: !play
           }"
           @click="cycleCoverStyle"
+          @pointerdown="startCoverLongPress"
+          @pointerup="cancelCoverLongPress"
+          @pointercancel="cancelCoverLongPress"
+          @contextmenu.prevent="openCoverPreview"
         >
           <div class="img-wrapper">
             <img
@@ -190,6 +200,10 @@
               paused: !play
             }"
             @click="cycleCoverStyle"
+            @pointerdown="startCoverLongPress"
+            @pointerup="cancelCoverLongPress"
+            @pointercancel="cancelCoverLongPress"
+            @contextmenu.prevent="openCoverPreview"
           >
             <div class="img-wrapper">
               <img
@@ -276,18 +290,57 @@
 
           <!-- 歌词滚动区域（与其他样式共用的滚动歌词组件） -->
           <mobile-scrolling-lyrics class="landscape-lyrics-body" :active="isLandscape" />
+        </div>
 
-          <!-- 右下角控制按钮 -->
-          <div class="landscape-main-controls">
-            <div class="main-button prev" @click="prevSong">
-              <i class="ri-skip-back-fill"></i>
+        <!-- 横屏底栏：左侧歌曲信息，右侧完整控制 -->
+        <div
+          v-show="controlsVisible"
+          class="landscape-control-bar no-toggle"
+          :class="{ 'is-visible': controlsVisible }"
+          @click.stop
+        >
+          <div class="bar-song-info">
+            <img
+              v-if="coverImageUrl"
+              :src="coverImageUrl"
+              alt=""
+              decoding="async"
+              @pointerdown.stop="startCoverLongPress"
+              @pointerup.stop="cancelCoverLongPress"
+              @pointercancel.stop="cancelCoverLongPress"
+              @contextmenu.prevent="openCoverPreview"
+            />
+            <div class="song-meta">
+              <span class="name" v-html="playMusic.name"></span>
+              <span class="artist">{{ artistList.map((item) => item.name).join(' / ') }}</span>
             </div>
-            <div class="main-button play-pause" @click="togglePlay">
-              <i :class="playIcon"></i>
+          </div>
+
+          <div class="bar-controls">
+            <button type="button" aria-label="收藏" @click="toggleFavorite">
+              <i class="ri-heart-3-fill" :class="{ favorite: isFavorite }"></i>
+            </button>
+            <button type="button" :aria-label="playModeText" @click="togglePlayMode">
+              <i :class="[playModeIcon, { 'intelligence-active': playMode === 3 }]"></i>
+            </button>
+            <div class="transport">
+              <button type="button" aria-label="上一首" @click="prevSong">
+                <i class="ri-skip-back-fill"></i>
+              </button>
+              <button type="button" class="primary" aria-label="播放暂停" @click="togglePlay">
+                <i :class="playIcon"></i>
+              </button>
+              <button type="button" aria-label="下一首" @click="nextSong">
+                <i class="ri-skip-forward-fill"></i>
+              </button>
             </div>
-            <div class="main-button next" @click="nextSong">
-              <i class="ri-skip-forward-fill"></i>
-            </div>
+            <button
+              type="button"
+              aria-label="播放列表"
+              @click="playerStore.setPlayListDrawerVisible(true)"
+            >
+              <i class="ri-list-unordered"></i>
+            </button>
           </div>
         </div>
       </div>
@@ -452,15 +505,36 @@ const playIcon = computed(() => (play.value ? 'ri-pause-fill' : 'ri-play-fill'))
 
 const coverRetryAttempt = ref(0);
 const coverLoadFailed = ref(false);
+const coverPreviewVisible = ref(false);
 let coverRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let coverLongPressTimer: ReturnType<typeof setTimeout> | null = null;
 const coverSource = computed(() => normalizeArtworkUrl(resolveArtworkSource(playMusic.value)));
 const coverImageUrl = computed(() => {
   if (!coverSource.value || coverLoadFailed.value) return '';
   return appendArtworkRetry(getImgUrl(coverSource.value, '500y500'), coverRetryAttempt.value);
 });
+const previewCoverUrl = computed(() =>
+  coverSource.value ? getImgUrl(coverSource.value, '1000y1000') : ''
+);
+
+function startCoverLongPress() {
+  cancelCoverLongPress();
+  coverLongPressTimer = setTimeout(openCoverPreview, 500);
+}
+
+function cancelCoverLongPress() {
+  if (coverLongPressTimer) clearTimeout(coverLongPressTimer);
+  coverLongPressTimer = null;
+}
+
+function openCoverPreview() {
+  cancelCoverLongPress();
+  if (previewCoverUrl.value) coverPreviewVisible.value = true;
+}
 
 watch(coverSource, () => {
   if (coverRetryTimer) clearTimeout(coverRetryTimer);
+  if (coverLongPressTimer) clearTimeout(coverLongPressTimer);
   coverRetryTimer = null;
   coverRetryAttempt.value = 0;
   coverLoadFailed.value = false;
@@ -1145,17 +1219,13 @@ watch(isVisible, (newVal) => {
 
       // 左侧区域
       .landscape-left-section {
-        @apply h-full flex flex-col items-center justify-center pt-6 pb-6 px-3 relative;
-        width: 35%;
-        min-width: 320px;
-        max-width: 480px;
+        @apply h-full flex flex-col items-center justify-start pt-5 px-2 relative;
+        width: min(32vw, 300px);
 
         // 封面
         .landscape-cover-container {
-          @apply flex-shrink-0 mx-auto mb-4 z-[9995];
-          width: 85%;
-          max-width: 260px;
-          min-width: 180px;
+          @apply flex-shrink-0 mx-auto mb-3 z-[9995];
+          width: min(24vw, 210px);
 
           &.record-style {
             @extend .record-style-common;
@@ -1184,7 +1254,7 @@ watch(isVisible, (newVal) => {
 
       // 右侧区域
       .landscape-lyrics-section {
-        @apply h-full flex-1 flex flex-col relative;
+        @apply h-full flex-1 flex flex-col relative min-h-0 overflow-hidden;
 
         // 歌曲信息
         .landscape-song-info {
@@ -1202,25 +1272,113 @@ watch(isVisible, (newVal) => {
 
         // 歌词滚动区域（通用滚动歌词组件，自带遮罩与内边距）
         .landscape-lyrics-body {
-          @apply h-full w-full;
+          @apply h-full w-full min-h-0;
+          box-sizing: border-box;
+          padding-bottom: var(--landscape-control-height, 64px);
+          pointer-events: auto;
+        }
+      }
+
+      // 控件栏覆盖整个横屏宽度；隐藏时 v-show 移除布局且不拦截歌词点击。
+      .landscape-control-bar {
+        --landscape-control-height: clamp(56px, 10vh, 64px);
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 10000;
+        display: grid;
+        grid-template-columns: minmax(180px, 42%) minmax(0, 1fr);
+        align-items: center;
+        gap: 14px;
+        height: var(--landscape-control-height);
+        padding: 7px calc(env(safe-area-inset-right, 0px) + 16px)
+          calc(7px + env(safe-area-inset-bottom, 0px)) 16px;
+        background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.12));
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        pointer-events: none;
+
+        &.is-visible {
+          pointer-events: auto;
         }
 
-        // 控制按钮
-        .landscape-main-controls {
-          @apply fixed bottom-6 right-6 flex items-center z-[10000];
+        .bar-song-info,
+        .bar-controls button {
+          display: flex;
+          align-items: center;
+          border: 0;
+          color: var(--text-color-active, #fff);
+        }
 
-          .main-button {
-            @apply mx-2;
-            width: 54px;
-            height: 54px;
-            background-color: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(8px);
+        .bar-song-info {
+          min-width: 0;
+          gap: 11px;
+
+          img {
+            width: 40px;
+            height: 40px;
+            flex-shrink: 0;
+            border-radius: 9px;
+            object-fit: cover;
+          }
+
+          .song-meta {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            gap: 3px;
+          }
+
+          .name,
+          .artist {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+          }
+
+          .name {
+            font-size: 14px;
+            font-weight: 700;
+          }
+          .artist {
+            font-size: 11px;
+            opacity: 0.72;
+          }
+        }
+
+        .bar-controls {
+          display: flex;
+          justify-content: flex-end;
+          align-items: center;
+          gap: 7px;
+          min-width: 0;
+
+          button {
+            width: 36px;
+            height: 36px;
+            justify-content: center;
+            font-size: 19px;
             border-radius: 50%;
+            background: rgba(255, 255, 255, 0.13);
+            cursor: pointer;
+          }
 
-            &.play-pause {
-              width: 70px;
-              height: 70px;
-              background-color: rgba(255, 255, 255, 0.25);
+          .favorite i.favorite {
+            color: var(--accent-color-light, #ff7068);
+          }
+
+          .transport {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+
+            .primary {
+              width: 46px;
+              height: 46px;
+              margin: 0 2px;
+              font-size: 25px;
+              background: rgba(255, 255, 255, 0.22);
             }
           }
         }

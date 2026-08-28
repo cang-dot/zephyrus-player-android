@@ -109,15 +109,17 @@ const message = useMessage();
 // 控制弹窗显示的属性
 const visible = defineModel('visible', { default: false });
 
-// 默认配置
+// 默认配置（token 由主进程生成并通过 get-remote-control-config 返回，保存时原样带回）
 const defaultConfig: {
   enabled: boolean;
   port: number;
   allowedIps: string[];
+  token: string;
 } = {
   enabled: false,
   port: 31888,
-  allowedIps: []
+  allowedIps: [],
+  token: ''
 };
 
 // 远程控制配置

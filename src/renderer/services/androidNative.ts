@@ -49,6 +49,7 @@ type NativeBridge = {
   updateStatusBarLyricState?: (stateJson: string) => void;
   setStatusBarLyricTimeline?: (timelineJson: string) => void;
   installStatusBarLyricFont?: (name: string, base64Data: string) => string;
+  saveBase64ImageToGallery?: (dataUrl: string, fileName: string) => boolean;
   writeAudioMetadata?: (uriStr: string, changesJson: string) => void;
   setBackgroundKeepAlive: (enabled: boolean) => void;
   installApkFromCache: (fileName: string) => void;
@@ -464,8 +465,7 @@ function pushStatusBarLyricTimeline() {
     .map((line) => ({
       text: (line?.text || '').trim(),
       startTime: line?.startTime ?? -1,
-      endTime:
-        line?.startTime != null && line?.duration ? line.startTime + line.duration : -1,
+      endTime: line?.startTime != null && line?.duration ? line.startTime + line.duration : -1,
       words: (line?.words || [])
         .filter((word) => word.text)
         .map((word) => ({ text: word.text, startTime: word.startTime, duration: word.duration }))

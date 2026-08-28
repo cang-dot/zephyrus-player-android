@@ -54,7 +54,14 @@
             :class="{ 'is-playing': isPlaying, 'is-climax': styleEngine.isInClimax }"
             :style="lyricsUnderlayStyle"
           >
-            <div class="chart-rotor" aria-hidden="true">
+            <div
+              class="chart-rotor"
+              aria-hidden="true"
+              @pointerdown="startCoverLongPress"
+              @pointerup="cancelCoverLongPress"
+              @pointercancel="cancelCoverLongPress"
+              @contextmenu.prevent="openCoverPreview"
+            >
               <canvas ref="chartCanvas" class="chart-canvas" />
               <div class="vinyl-rings" />
             </div>
@@ -82,7 +89,7 @@
             type="button"
             class="landscape-lyric no-toggle"
             aria-label="打开滚动歌词"
-                @click.stop="openLyricsAnimated"
+            @click.stop="openLyricsAnimated"
             :style="lyricsUnderlayStyle"
           >
             <span class="lyric-main">{{ currentLyricText }}</span>
@@ -126,6 +133,11 @@
   </teleport>
 
   <mobile-player-settings v-model:visible="showPlayerSettings" />
+  <cover-preview-modal
+    v-model:visible="coverPreviewVisible"
+    :src="previewCoverUrl"
+    :title="songTitle"
+  />
   <poster-share-modal v-model:visible="showPosterModal" :lyrics="selectedLyrics" />
 </template>
 
@@ -134,6 +146,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
+import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
@@ -181,10 +194,12 @@ const {
 } = useLyricSwipeGesture({
   isOpen: () => showFullLyrics.value,
   onOpen: () => {
-    openLyricsAnimated();
+    showFullLyrics.value = true;
+    playerStore.setFullLyricsVisible(true);
   },
   onClose: () => {
     showFullLyrics.value = false;
+    playerStore.setFullLyricsVisible(false);
   }
 });
 const chartFrame = ref<HTMLElement>();
@@ -237,6 +252,26 @@ const accentColorRgb = computed(() => primaryColorRgb.value || '160, 160, 160');
 const coverUrl = computed(
   () => playMusic.value?.picUrl || playMusic.value?.al?.picUrl || '/images/default_cover.png'
 );
+const coverPreviewVisible = ref(false);
+let coverLongPressTimer: ReturnType<typeof setTimeout> | null = null;
+const previewCoverUrl = computed(() => coverUrl.value);
+
+function startCoverLongPress() {
+  cancelCoverLongPress();
+  coverLongPressTimer = setTimeout(() => {
+    if (previewCoverUrl.value) coverPreviewVisible.value = true;
+  }, 500);
+}
+
+function cancelCoverLongPress() {
+  if (coverLongPressTimer) clearTimeout(coverLongPressTimer);
+  coverLongPressTimer = null;
+}
+
+function openCoverPreview() {
+  cancelCoverLongPress();
+  if (previewCoverUrl.value) coverPreviewVisible.value = true;
+}
 const currentLyricText = computed(() => {
   const lyric = lrcArray.value[nowIndex.value]?.text?.trim();
   return lyric || songTitle.value;
@@ -253,6 +288,8 @@ function close() {
 function openPlaylist() {
   playerStore.setPlayListDrawerVisible(true);
 }
+
+onBeforeUnmount(cancelCoverLongPress);
 
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {

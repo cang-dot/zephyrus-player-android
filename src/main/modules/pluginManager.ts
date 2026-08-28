@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { dialog, ipcMain, net } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -8,40 +9,53 @@ const GITHUB_RAW = 'https://raw.githubusercontent.com';
 const REGISTRY_PATH = '/cang-dot/zephyrus-player-plugins/main/index.json';
 const CACHE_TTL_MS = 3600_000;
 
+// 插件下载域名白名单（精确匹配）
+const ALLOWED_DOWNLOAD_HOSTS = new Set([
+  'github.com',
+  'raw.githubusercontent.com',
+  'objects.githubusercontent.com',
+  'api.github.com',
+  'gitee.com',
+  'cdn.jsdelivr.net',
+  'fastly.jsdelivr.net'
+]);
+// ghproxy 系代理域名（*.ghproxy.com）
+const GH_PROXY_SUFFIX = '.ghproxy.com';
+
 interface PluginStoreItem {
-  id: string
-  name: string
-  description: string
-  version: string
-  type: string
-  author: { name: string; url?: string }
-  icon?: string
-  screenshots?: string[]
-  downloadUrl: string
-  sourceRepo: string
-  homepage?: string
-  license?: string
-  minAppVersion?: string
-  tags?: string[]
-  downloads?: number
-  submittedAt?: string
-  approvedAt?: string
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  type: string;
+  author: { name: string; url?: string };
+  icon?: string;
+  screenshots?: string[];
+  downloadUrl: string;
+  sourceRepo: string;
+  homepage?: string;
+  license?: string;
+  minAppVersion?: string;
+  tags?: string[];
+  downloads?: number;
+  submittedAt?: string;
+  approvedAt?: string;
 }
 
 interface InstalledPlugin {
-  manifest: PluginStoreItem
-  enabled: boolean
-  installedAt: number
-  payload?: Record<string, string>
+  manifest: PluginStoreItem;
+  enabled: boolean;
+  installedAt: number;
+  payload?: Record<string, string>;
 }
 
 interface MirrorTestResult {
-  name: string
-  url: string
-  ok: boolean
-  latencyMs: number
-  speed: number
-  error?: string
+  name: string;
+  url: string;
+  ok: boolean;
+  latencyMs: number;
+  speed: number;
+  error?: string;
 }
 
 function getMirrorUrl(): string {
@@ -66,6 +80,63 @@ function getDownloadUrl(originalUrl: string): string {
   return `${base}?t=${Date.now()}`;
 }
 
+/**
+ * 提取字符串中的主机名（兼容带/不带协议的镜像地址）
+ */
+function extractHostname(mirror: string): string {
+  try {
+    return new URL(mirror).hostname;
+  } catch {
+    try {
+      return new URL(`https://${mirror}`).hostname;
+    } catch {
+      return '';
+    }
+  }
+}
+
+/**
+ * 判断主机名是否在下载域名白名单内
+ */
+function isAllowedDownloadHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (ALLOWED_DOWNLOAD_HOSTS.has(host)) return true;
+  // ghproxy 系代理域名
+  if (host.endsWith(GH_PROXY_SUFFIX)) return true;
+  // 用户配置的 GitHub 镜像主机
+  const mirror = getMirrorUrl();
+  if (mirror) {
+    const mirrorHost = extractHostname(mirror).toLowerCase();
+    if (mirrorHost && host === mirrorHost) return true;
+  }
+  return false;
+}
+
+/**
+ * 校验插件下载地址是否在域名白名单内，防止从任意域名下载并执行不可信脚本
+ */
+function assertAllowedDownloadUrl(rawUrl: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error('插件下载地址无效');
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error(`插件下载地址协议不受支持: ${parsed.protocol}`);
+  }
+  if (!isAllowedDownloadHost(parsed.hostname)) {
+    throw new Error(`插件下载域名不在白名单内: ${parsed.hostname}`);
+  }
+}
+
+/**
+ * 计算下载内容的 sha256 哈希（十六进制）
+ */
+function sha256Hex(content: string): string {
+  return crypto.createHash('sha256').update(content, 'utf8').digest('hex');
+}
+
 async function downloadWithProgress(
   url: string,
   pluginId: string,
@@ -74,6 +145,10 @@ async function downloadWithProgress(
   sender.send('plugin:install-progress', { pluginId, status: 'requesting' });
 
   const response = await net.fetch(url);
+  // 重定向后的最终地址同样必须在白名单内，防止通过跳转绕过域名校验
+  if (response.url && response.url !== url) {
+    assertAllowedDownloadUrl(response.url);
+  }
   if (!response.ok) throw new Error(`下载失败: HTTP ${response.status}`);
 
   sender.send('plugin:install-progress', { pluginId, status: 'downloading', percent: 50 });
@@ -130,9 +205,13 @@ export function initializePluginManager(): void {
     let payload: Record<string, string> | undefined;
 
     if (item.type === 'lxMusic' || item.type === 'translator') {
+      // 校验原始地址与最终请求地址的域名（防止渲染进程传入任意下载源）
+      assertAllowedDownloadUrl(item.downloadUrl);
       const url = getDownloadUrl(item.downloadUrl);
+      assertAllowedDownloadUrl(url);
       const content = await downloadWithProgress(url, item.id, sender);
-      payload = { script: content };
+      const contentHash = sha256Hex(content);
+      payload = { script: content, scriptHash: contentHash };
 
       if (item.type === 'lxMusic') {
         const scripts = (store.get('set.lxMusicScripts') as any[]) || [];
@@ -140,6 +219,7 @@ export function initializePluginManager(): void {
           id: `plugin_${item.id}_${Date.now()}`,
           name: item.name,
           script: content,
+          scriptHash: contentHash,
           info: { name: item.name, rawScript: content },
           sources: [],
           enabled: true,
@@ -152,10 +232,15 @@ export function initializePluginManager(): void {
     }
 
     if (item.type === 'customApi') {
+      // 校验原始地址与最终请求地址的域名（防止渲染进程传入任意下载源）
+      assertAllowedDownloadUrl(item.downloadUrl);
       const url = getDownloadUrl(item.downloadUrl);
+      assertAllowedDownloadUrl(url);
       const content = await downloadWithProgress(url, item.id, sender);
-      payload = { config: content };
+      const contentHash = sha256Hex(content);
+      payload = { config: content, scriptHash: contentHash };
       store.set('set.customApiPlugin', content);
+      store.set('set.customApiPluginHash', contentHash);
       store.set('set.customApiPluginName', item.name);
     }
 
@@ -313,7 +398,7 @@ export function initializePluginManager(): void {
           ok: false,
           latencyMs: Date.now() - start,
           speed: 0,
-          error: e?.name === 'AbortError' ? '超时' : (e?.message || '连接失败')
+          error: e?.name === 'AbortError' ? '超时' : e?.message || '连接失败'
         });
       }
     }

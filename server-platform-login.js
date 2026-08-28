@@ -23,16 +23,36 @@ const path = require('path');
 const zlib = require('zlib');
 const { decryptQrc } = require('qrc-decoder');
 const { createAiGatewayRouter } = require('./server-ai-gateway');
+const {
+  createListenTogetherRouter,
+  createListenTogetherMcpRouter
+} = require('./server-listen-together');
 
 const router = express.Router();
 
+// CORS 白名单：从环境变量 ALLOWED_ORIGINS 读取逗号分隔的来源列表
+// （如 https://music.example.com,https://mucang.xyz）。仅白名单内的 Origin
+// 才反射 CORS 头；白名单外不设置任何 CORS 头（浏览器会拦截跨域响应），
+// 预检请求直接 403；无 Origin 头（同源/服务端调用）放行。
+const ALLOWED_ORIGINS = String(process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+
 function platformCors(req, res, next) {
   const origin = req.headers.origin;
-  res.setHeader('Access-Control-Allow-Origin', origin || '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Platform-Cookie, Cache-Control');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Vary', 'Origin');
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  const allowed = Boolean(origin) && ALLOWED_ORIGINS.includes(origin);
+  if (allowed) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Platform-Cookie, Cache-Control');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Vary', 'Origin');
+  }
+  if (req.method === 'OPTIONS') {
+    // 白名单外的跨域预检直接拒绝；无 Origin 的 OPTIONS（防御性场景）放行
+    if (origin && !allowed) return res.sendStatus(403);
+    return res.sendStatus(204);
+  }
   next();
 }
 
@@ -395,11 +415,48 @@ const qqLyricCache = new Map();
 const qqLyricRateWindows = new Map();
 
 function requestClientIp(req) {
-  const forwarded = String(req.headers['x-forwarded-for'] || '')
-    .split(',')[0]
-    .trim();
-  return forwarded || req.socket?.remoteAddress || 'unknown';
+  // trust proxy 启用时，Express 的 req.ip 已按可信代理链解析出真实客户端 IP，直接使用
+  if (req.app?.get('trust proxy') && req.ip) return req.ip;
+  // 未启用信任时，X-Forwarded-For 首段由客户端可控（可伪造），
+  // 改取末段（由可信 nginx 追加的真实 IP）
+  const segments = String(req.headers['x-forwarded-for'] || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return segments[segments.length - 1] || req.socket?.remoteAddress || 'unknown';
 }
+
+// 轻量按 IP 限流（参考 server-ai-gateway.js 的 rateLimit 写法）：
+// 记录窗口内的命中时间，key 使用 req.ip（配合 trust proxy 取真实客户端 IP）。
+function createRateLimit({
+  windowMs = 60 * 1000,
+  max = 30,
+  message = '请求过于频繁，请稍后重试'
+} = {}) {
+  const hits = new Map();
+  return function rateLimit(req, res, next) {
+    const now = Date.now();
+    const key = req.ip || 'unknown';
+    const list = (hits.get(key) || []).filter((time) => now - time < windowMs);
+    if (list.length >= max) {
+      res.setHeader('Retry-After', String(Math.ceil(windowMs / 1000)));
+      return res.status(429).json({ code: 429, msg: message });
+    }
+    list.push(now);
+    hits.set(key, list);
+    // 防止公开接口被大量伪造来源撑爆内存：超过阈值时清理窗口外的旧记录
+    if (hits.size > 5000) {
+      for (const [ip, times] of hits) {
+        const alive = times.filter((time) => now - time < windowMs);
+        if (alive.length) hits.set(ip, alive);
+        else hits.delete(ip);
+      }
+    }
+    next();
+  };
+}
+// QR 创建/轮询接口无鉴权，且 poll 成功会返回完整登录 cookie，按 IP 限流每分钟 30 次
+const qrRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 30 });
 
 function enforceQqLyricRateLimit(req, res) {
   const now = Date.now();
@@ -1132,7 +1189,7 @@ async function pollWechatQrLogin(key) {
 }
 
 // GET /platform/qq/qr/create
-router.get('/qq/qr/create', async (req, res) => {
+router.get('/qq/qr/create', qrRateLimit, async (req, res) => {
   try {
     const provider = req.query.provider === 'wechat' ? 'wechat' : 'qq';
     if (provider === 'wechat') {
@@ -1189,7 +1246,7 @@ router.get('/qq/qr/create', async (req, res) => {
 });
 
 // GET /platform/qq/qr/poll?key=xxx
-router.get('/qq/qr/poll', async (req, res) => {
+router.get('/qq/qr/poll', qrRateLimit, async (req, res) => {
   try {
     const provider = req.query.provider === 'wechat' ? 'wechat' : 'qq';
     if (provider === 'wechat') {
@@ -1756,7 +1813,7 @@ function buildKugouDefaultParams() {
 }
 
 // GET /platform/kugou/qr/create
-router.get('/kugou/qr/create', async (req, res) => {
+router.get('/kugou/qr/create', qrRateLimit, async (req, res) => {
   try {
     const defaultParams = buildKugouDefaultParams();
     const params = {
@@ -1805,7 +1862,7 @@ router.get('/kugou/qr/create', async (req, res) => {
 });
 
 // GET /platform/kugou/qr/poll?key=xxx
-router.get('/kugou/qr/poll', async (req, res) => {
+router.get('/kugou/qr/poll', qrRateLimit, async (req, res) => {
   try {
     const key = req.query.key;
     if (!key) {
@@ -2814,7 +2871,16 @@ module.exports = router;
 function createPlatformGatewayApp() {
   const app = express();
   app.disable('x-powered-by');
+  // 信任反向代理，使 req.ip 解析为真实客户端 IP（rate limit 等依赖）。
+  // 默认信任 1 层反代（与 relay/mucang_nginx.conf 的单层反代一致），
+  // 可用环境变量 TRUST_PROXY 调整层数（设为 0 表示不信任，直接用 socket 地址）。
+  app.set('trust proxy', process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : 1);
   app.use('/platform', router);
+  app.use('/platform/listen', createListenTogetherRouter());
+  // MCP endpoint is exposed twice: /platform/mcp works behind the existing
+  // `VITE_MUSIC_GATEWAY` reverse-proxy prefix; /mcp works for direct access.
+  app.use('/platform/mcp', createListenTogetherMcpRouter());
+  app.use('/mcp', createListenTogetherMcpRouter());
   app.use('/v1', createAiGatewayRouter());
   app.use((_req, res) => {
     res.status(404).json({ code: 404, msg: 'Gateway route not found' });

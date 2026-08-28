@@ -33,6 +33,14 @@
                 <data android:scheme="zephyrus" android:host="song" />
             </intent-filter>
 
+            <!-- Deep link: zephyrus://listen/{roomCode} 一起听邀请 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="zephyrus" android:host="listen" />
+            </intent-filter>
+
         </activity>
 
         <!-- Spotify OAuth 回调独立接收器，避免浏览器任务切换时吞掉自定义 Scheme。 -->

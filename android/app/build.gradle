@@ -51,7 +51,9 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
+            // 开启 R8 代码收缩与资源收缩，减小体积并移除未使用代码；keep 规则见 proguard-rules.pro
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             if (releaseSigningReady) {
                 signingConfig signingConfigs.release

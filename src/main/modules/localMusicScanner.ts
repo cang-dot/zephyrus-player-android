@@ -7,6 +7,8 @@ import * as mm from 'music-metadata';
 import * as os from 'os';
 import * as path from 'path';
 
+import { registerAuthorizedDir } from './fileManager';
+
 /** 支持的音频文件格式 */
 const SUPPORTED_AUDIO_FORMATS = ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac'] as const;
 const METADATA_PARSE_CONCURRENCY = Math.min(8, Math.max(2, os.cpus().length));
@@ -328,6 +330,8 @@ export function initializeLocalMusicScanner(): void {
   // 扫描指定文件夹中的音乐文件
   ipcMain.handle('scan-local-music', async (_, folderPath: string) => {
     try {
+      // 登记音乐库目录，加入文件访问路径白名单
+      registerAuthorizedDir(folderPath);
       const files = await scanMusicFiles(folderPath);
       return { files, count: files.length };
     } catch (error: any) {
@@ -339,6 +343,8 @@ export function initializeLocalMusicScanner(): void {
   // 扫描指定文件夹中的音乐文件（包含修改时间）
   ipcMain.handle('scan-local-music-with-stats', async (_, folderPath: string) => {
     try {
+      // 登记音乐库目录，加入文件访问路径白名单
+      registerAuthorizedDir(folderPath);
       const files = await scanMusicFilesWithStats(folderPath);
       return { files, count: files.length };
     } catch (error: any) {
@@ -360,6 +366,8 @@ export function initializeLocalMusicScanner(): void {
 
   // 扫描目录下的歌词文件（.lrc, .ttml, .txt）
   ipcMain.handle('scan-lyric-files', async (_, folderPath: string) => {
+    // 登记歌词扫描目录，加入文件访问路径白名单
+    registerAuthorizedDir(folderPath);
     const LYRIC_EXTENSIONS = ['.lrc', '.ttml', '.txt'];
     const lyricFiles: string[] = [];
 

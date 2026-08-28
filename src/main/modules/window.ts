@@ -316,8 +316,7 @@ export function createMainWindow(icon: Electron.NativeImage): BrowserWindow {
   options.webPreferences = {
     preload: join(__dirname, '../preload/index.js'),
     sandbox: false,
-    contextIsolation: true,
-    webSecurity: false
+    contextIsolation: true
   };
 
   // 创建窗口

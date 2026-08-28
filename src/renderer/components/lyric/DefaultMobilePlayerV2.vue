@@ -30,13 +30,23 @@
           class="artwork-zone"
           :style="lyricsUnderlayStyle"
         >
-          <default-player-artwork
-            :source="coverUrl"
-            :title="playMusic?.name || 'Zephyrus'"
-            mode="full"
-            :playing="isPlaying"
-            :style="artworkTransitionStyle"
-          />
+          <div
+            class="artwork-preview-trigger"
+            @click.capture="handleArtworkClick"
+            @pointerdown="coverGesture.onPointerDown"
+            @pointermove="coverGesture.onPointerMove"
+            @pointerup="coverGesture.onPointerUp"
+            @pointercancel="coverGesture.onPointerCancel"
+            @contextmenu="coverGesture.onContextMenu"
+          >
+            <default-player-artwork
+              :source="coverUrl"
+              :title="playMusic?.name || 'Zephyrus'"
+              mode="full"
+              :playing="isPlaying"
+              :style="artworkTransitionStyle"
+            />
+          </div>
         </div>
 
         <div
@@ -63,6 +73,12 @@
       <div class="shared-controls-spacer" aria-hidden="true"></div>
     </section>
   </Teleport>
+
+  <cover-preview-modal
+    v-model:visible="coverGesture.visible.value"
+    :src="coverUrl"
+    :title="playMusic?.name || ''"
+  />
 </template>
 
 <script setup lang="ts">
@@ -70,6 +86,8 @@ import { useWindowSize } from '@vueuse/core';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
+import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
@@ -99,6 +117,11 @@ const { t } = useI18n();
 const playerStore = usePlayerStore();
 const playerTransition = useMobilePlayerTransition();
 const { handleTapToggle } = useTapToggle();
+const coverGesture = useCoverPreviewGesture(computed(() => coverUrl.value));
+
+function handleArtworkClick(event: MouseEvent) {
+  coverGesture.consumeSuppressedClick(event);
+}
 const { width, height } = useWindowSize();
 const { styleVars, customBackgroundActive, background, backgroundColor } =
   usePlayerStyleAppearance('default');

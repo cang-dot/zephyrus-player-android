@@ -15,6 +15,31 @@
       </div>
     </div>
 
+    <div
+      class="adaptive-eq-row flex items-center gap-3 mb-4 rounded-lg bg-white/60 dark:bg-black/20 p-3"
+    >
+      <div class="min-w-0 flex-1">
+        <div class="font-medium text-gray-800 dark:text-gray-200">AI 动态均衡器</div>
+        <div class="text-xs text-gray-500 dark:text-gray-400">
+          根据实时频段自动平滑调整，限制在安全增益范围内
+        </div>
+      </div>
+      <n-switch v-model:value="isAdaptiveEnabled" @update:value="toggleAdaptiveEQ" />
+    </div>
+    <div v-if="isAdaptiveEnabled" class="adaptive-eq-intensity flex items-center gap-3 mb-4">
+      <span class="text-xs text-gray-500 dark:text-gray-400">强度</span>
+      <n-slider
+        v-model:value="adaptiveIntensity"
+        :min="0"
+        :max="1"
+        :step="0.05"
+        @update:value="updateAdaptiveIntensity"
+      />
+      <span class="w-10 text-right text-xs text-gray-500 dark:text-gray-400"
+        >{{ Math.round(adaptiveIntensity * 100) }}%</span
+      >
+    </div>
+
     <div class="eq-presets mb-2 relative h-10">
       <n-scrollbar x-scrollable>
         <n-space :size="6" :wrap="false">
@@ -71,6 +96,7 @@
 import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { adaptiveEqService } from '@/services/adaptiveEqService';
 import { audioService } from '@/services/audioService';
 import { isElectron } from '@/utils';
 
@@ -80,6 +106,8 @@ const frequencies = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 const eqValues = ref<{ [key: string]: number }>({});
 const isEnabled = ref(audioService.isEQEnabled());
 const currentPreset = ref(audioService.getCurrentPreset() || 'flat');
+const isAdaptiveEnabled = ref(audioService.isAdaptiveEQEnabled());
+const adaptiveIntensity = ref(audioService.getAdaptiveEQIntensity());
 
 // 预设配置
 const presets = {
@@ -218,6 +246,16 @@ const toggleEQ = (enabled: boolean) => {
   audioService.setEQEnabled(enabled);
 };
 
+const toggleAdaptiveEQ = (enabled: boolean) => {
+  isAdaptiveEnabled.value = enabled;
+  adaptiveEqService.setEnabled(enabled);
+};
+
+const updateAdaptiveIntensity = (value: number) => {
+  adaptiveIntensity.value = value;
+  adaptiveEqService.setIntensity(value);
+};
+
 const applyPreset = (presetName: string) => {
   currentPreset.value = presetName;
   audioService.setCurrentPreset(presetName);
@@ -239,6 +277,7 @@ onMounted(() => {
   if (savedPreset && presets[savedPreset as keyof typeof presets]) {
     currentPreset.value = savedPreset;
   }
+  if (isAdaptiveEnabled.value) adaptiveEqService.start();
 });
 
 const updateEQ = (frequency: string, gain: number) => {

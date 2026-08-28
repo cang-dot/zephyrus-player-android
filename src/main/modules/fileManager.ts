@@ -36,6 +36,89 @@ const audioCacheStore = new Store({
 // 保存已发送通知的文件，避免重复通知
 const sentNotifications = new Map();
 
+// 用户授权的可访问目录（本地音乐库扫描目录、用户通过对话框选择的目录等）
+const userAuthorizedDirs = new Set<string>();
+
+// 是否已从配置存储加载过授权目录
+let authorizedDirsLoaded = false;
+
+/**
+ * 从配置存储加载已授权目录（应用重启后保持本地音乐库等功能可用）
+ */
+function ensureAuthorizedDirsLoaded(): void {
+  if (authorizedDirsLoaded) return;
+  authorizedDirsLoaded = true;
+  try {
+    const store = getStore() as any;
+    const saved = store.get('authorizedDirs') as string[] | undefined;
+    if (Array.isArray(saved)) {
+      for (const dir of saved) {
+        if (dir && typeof dir === 'string') userAuthorizedDirs.add(dir);
+      }
+    }
+  } catch {
+    // 配置存储未初始化时忽略，后续注册时会重新写入
+  }
+}
+
+/**
+ * 注册用户授权的可访问目录（供路径白名单使用）
+ * 本地音乐扫描等模块在用户指定目录时调用，并持久化到配置存储
+ */
+export function registerAuthorizedDir(dir: string): void {
+  if (dir && typeof dir === 'string') {
+    const normalized = path.normalize(dir);
+    if (userAuthorizedDirs.has(normalized)) return;
+    userAuthorizedDirs.add(normalized);
+    try {
+      const store = getStore() as any;
+      store.set('authorizedDirs', Array.from(userAuthorizedDirs));
+    } catch {
+      // 配置存储未初始化时仅保留在内存中
+    }
+  }
+}
+
+/**
+ * 获取允许访问的基目录列表：下载音乐目录、缓存目录、音频缓存目录及用户授权目录
+ */
+function getAllowedBaseDirs(): string[] {
+  // 确保已从配置存储加载持久化的授权目录
+  ensureAuthorizedDirsLoaded();
+  const store = getStore();
+  return [
+    // 下载音乐目录
+    (store.get('set.downloadPath') as string) || app.getPath('downloads'),
+    // 磁盘缓存目录
+    (store.get('set.diskCacheDir') as string) || path.join(app.getPath('userData'), 'cache'),
+    // 音频缓存临时目录
+    path.join(app.getPath('userData'), 'AudioCache'),
+    // 用户授权目录（本地音乐库等）
+    ...userAuthorizedDirs
+  ];
+}
+
+/**
+ * 判断路径是否位于允许访问的基目录内（防止渲染进程读写任意文件路径）
+ * 使用 path.relative 判断相对路径是否在基目录内且不以 .. 开头
+ */
+function isPathAllowed(p: string): boolean {
+  try {
+    if (!p || typeof p !== 'string') return false;
+    const normalized = path.normalize(p);
+    for (const base of getAllowedBaseDirs()) {
+      const rel = path.relative(path.normalize(base), normalized);
+      // rel === '' 表示路径即基目录本身；不以 .. 开头且非绝对路径表示位于基目录内
+      if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 初始化文件管理相关的IPC监听
  */
@@ -54,6 +137,13 @@ export function initializeFileManager() {
 
       // 还原为系统路径格式
       filePath = path.normalize(filePath);
+
+      // 路径必须在白名单目录内（下载音乐/缓存/音乐库等），防止读取任意文件
+      if (!isPathAllowed(filePath)) {
+        console.error('Path not allowed:', filePath);
+        callback({ error: -6 }); // net::ERR_FILE_NOT_FOUND
+        return;
+      }
 
       // 检查文件是否存在
       if (!fs.existsSync(filePath)) {
@@ -102,6 +192,10 @@ export function initializeFileManager() {
       properties: ['openDirectory'],
       title: '选择目录'
     });
+    // 用户通过系统对话框选择的目录加入路径白名单（如本地音乐库目录）
+    if (!result.canceled && result.filePaths.length > 0) {
+      registerAuthorizedDir(result.filePaths[0]);
+    }
     return result;
   });
 
@@ -120,6 +214,8 @@ export function initializeFileManager() {
       if (result.canceled || result.filePaths.length === 0) {
         return null;
       }
+      // 用户通过系统对话框选择的文件所在目录加入路径白名单（如本地歌词文件目录）
+      registerAuthorizedDir(path.dirname(result.filePaths[0]));
       return result.filePaths[0];
     }
   );
@@ -127,6 +223,10 @@ export function initializeFileManager() {
   // 读取文件内容（文本）
   ipcMain.handle('read-file', async (_, filePath: string) => {
     try {
+      // 路径必须在白名单目录内，防止读取任意文件
+      if (!isPathAllowed(filePath)) {
+        throw new Error('路径不在允许访问的目录内');
+      }
       const content = fs.readFileSync(filePath, 'utf-8');
       return content;
     } catch (error) {
@@ -138,6 +238,10 @@ export function initializeFileManager() {
   // 读取文件内容（二进制，用于本地音乐播放）
   ipcMain.handle('read-file-binary', async (_, filePath: string) => {
     try {
+      // 路径必须在白名单目录内，防止读取任意文件
+      if (!isPathAllowed(filePath)) {
+        throw new Error('路径不在允许访问的目录内');
+      }
       const buffer = fs.readFileSync(filePath);
       return buffer;
     } catch (error) {
@@ -152,6 +256,12 @@ export function initializeFileManager() {
       // 验证文件路径
       if (!filePath) {
         console.error('无效的文件路径: 路径为空');
+        return;
+      }
+
+      // 路径必须在白名单目录内，防止打开任意路径
+      if (!isPathAllowed(filePath)) {
+        console.error('打开路径失败: 路径不在允许访问的目录内:', filePath);
         return;
       }
 
@@ -199,6 +309,10 @@ export function initializeFileManager() {
   // 删除已下载的音乐
   ipcMain.handle('delete-downloaded-music', async (_, filePath: string) => {
     try {
+      // 路径必须在白名单目录内（下载音乐目录），防止删除任意文件
+      if (!isPathAllowed(filePath)) {
+        throw new Error('路径不在允许访问的目录内');
+      }
       if (fs.existsSync(filePath)) {
         // 先删除文件
         try {
@@ -556,8 +670,11 @@ async function downloadMusic(
 
     tempFilePath = path.join(tempDir, `${Date.now()}_${sanitizedFilename}.tmp`);
 
-    // 先获取文件大小
-    const headResponse = await axios.head(url);
+    // 先获取文件大小（设置超时与重定向次数，避免请求无限挂起）
+    const headResponse = await axios.head(url, {
+      timeout: 10000, // 10秒超时
+      maxRedirects: 5
+    });
     const totalSize = parseInt(String(headResponse.headers['content-length'] || '0'), 10);
 
     // 开始下载到临时文件

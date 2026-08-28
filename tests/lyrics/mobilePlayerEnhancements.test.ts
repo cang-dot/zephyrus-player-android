@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import { shouldShakeTtmlFinalWord } from '@/composables/useWordTimedPlayback';
+import {
+  MOBILE_AMLL_OPTIMIZE_OPTIONS,
+  providerLyricsToAmll,
+  ttmlLyricsToAmll
+} from '@/utils/amllLyricAdapter';
+import { appendArtworkRetry, normalizeArtworkUrl, resolveArtworkSource } from '@/utils/artwork';
+import { normalizePlatformQrProvider, normalizePlatformQrStatus } from '@/utils/platformQr';
 import {
   choosePlayerInkTone,
   contrastRatio,
@@ -13,13 +21,6 @@ import {
   readPlaylistCardMru,
   touchPlaylistCardMru
 } from '@/utils/playlistCardMru';
-import { appendArtworkRetry, normalizeArtworkUrl, resolveArtworkSource } from '@/utils/artwork';
-import {
-  MOBILE_AMLL_OPTIMIZE_OPTIONS,
-  providerLyricsToAmll,
-  ttmlLyricsToAmll
-} from '@/utils/amllLyricAdapter';
-import { normalizePlatformQrProvider, normalizePlatformQrStatus } from '@/utils/platformQr';
 
 describe('mobile player enhancements', () => {
   it('chooses the higher contrast ink and keeps the previous tone near the threshold', () => {
@@ -163,5 +164,26 @@ describe('mobile player enhancements', () => {
     expect(normalizePlatformQrProvider('kugou', 'wechat')).toBe('kugou');
     expect(normalizePlatformQrStatus('scanned')).toBe('scanned');
     expect(normalizePlatformQrStatus('cancelled')).toBe('error');
+  });
+
+  it('shakes only a climax TTML line final word with an unusually long duration', () => {
+    const words = [
+      { text: '前', begin: 1, end: 1.4 },
+      { text: '中', begin: 1.4, end: 1.9 },
+      { text: '拖', begin: 1.9, end: 5.2 }
+    ];
+    expect(shouldShakeTtmlFinalWord(words, words[2], true)).toBe(true);
+    expect(shouldShakeTtmlFinalWord(words, words[1], true)).toBe(false);
+    expect(shouldShakeTtmlFinalWord(words, words[2], false)).toBe(false);
+    expect(
+      shouldShakeTtmlFinalWord(
+        [
+          { text: '前', begin: 1, end: 2 },
+          { text: '尾', begin: 2, end: 4 }
+        ],
+        { begin: 2, end: 4 },
+        true
+      )
+    ).toBe(false);
   });
 });

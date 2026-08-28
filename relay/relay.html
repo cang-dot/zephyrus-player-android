@@ -459,6 +459,12 @@
       return params.get('song') || params.get('id');
     }
 
+    // ========== Listen-Together mode ==========
+    function getListenCode() {
+      var params = new URLSearchParams(location.search);
+      return (params.get('listen') || '').toUpperCase();
+    }
+
     // ========== WeChat detection ==========
     function isWeChat() {
       return navigator.userAgent.toLowerCase().indexOf('micromessenger') !== -1;
@@ -564,6 +570,11 @@
 
     // ========== Main ==========
     async function main() {
+      var listenCode = getListenCode();
+      if (listenCode) {
+        await mainListen(listenCode);
+        return;
+      }
       var songId = getSongId();
       if (!songId) {
         document.getElementById('loadingScreen').style.display = 'none';
@@ -637,6 +648,55 @@
       var ok = await writeToClipboard(DEEP_LINK);
       this.textContent = ok ? '已复制' : '复制失败';
     });
+
+    // ========== Listen-Together 落地页 ==========
+    async function mainListen(code) {
+      DEEP_LINK = 'zephyrus://listen/' + code;
+
+      var cover = document.getElementById('posterCover');
+      if (cover) cover.src = LOGO_URL;
+      var poster = document.getElementById('posterCard');
+      if (poster) poster.style.display = 'block';
+      var titleEl = document.getElementById('posterTitle');
+      if (titleEl) titleEl.textContent = '一起听房间 ' + code;
+      var artistEl = document.getElementById('posterArtist');
+      if (artistEl) artistEl.textContent = '打开 Zephyrus App 加入同步收听';
+
+      var audioBox = document.getElementById('audioPlayer');
+      if (audioBox) audioBox.style.display = 'none';
+
+      document.getElementById('loadingScreen').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'flex';
+
+      if (isWeChat()) {
+        document.getElementById('wechatGuide').style.display = 'flex';
+        document.getElementById('actionSection').style.display = 'none';
+        await writeToClipboard(DEEP_LINK);
+      } else {
+        document.getElementById('wechatGuide').style.display = 'none';
+        document.getElementById('actionSection').style.display = 'block';
+
+        var clipOk = await writeToClipboard(DEEP_LINK);
+        var statusEl = document.getElementById('statusMsg');
+        if (clipOk) {
+          statusEl.textContent = '邀请链接已写入剪贴板，正在跳转';
+          statusEl.className = 'status-msg success';
+        } else {
+          statusEl.textContent = '请点击下方按钮打开应用';
+        }
+
+        setTimeout(function () { openApp(); }, 1000);
+
+        setTimeout(function () {
+          var hint = document.getElementById('hint');
+          if (hint) {
+            hint.textContent =
+              '如果未自动跳转，请点击上方按钮打开应用。' +
+              '打开应用后会弹出加入确认卡片。';
+          }
+        }, 3000);
+      }
+    }
 
     main();
   </script>

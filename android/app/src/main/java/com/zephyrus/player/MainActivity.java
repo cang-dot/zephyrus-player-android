@@ -216,7 +216,10 @@ public class MainActivity extends BridgeActivity {
         WebView webView = bridge.getWebView();
         if (webView != null) {
             // 统一调用 __handleClipboardShare：Intent 和剪贴板都走卡片流程
-            final String js = "window.__handleClipboardShare && window.__handleClipboardShare('" + url + "');";
+            // url 来自外部 Intent（任意应用可发送，属不可信输入），必须经 JSONObject.quote
+            // 转义为合法 JS 字符串字面量，防止拼接式 JS 注入（写法参照 dispatchSpotifyCallback）
+            final String js = "window.__handleClipboardShare && window.__handleClipboardShare("
+                    + JSONObject.quote(url) + ");";
             // 延迟执行，确保前端 JS 已就绪
             webView.postDelayed(() -> evaluateJavascript(js), 500);
             // 兜底：1.5秒后再试一次（冷启动时 JS 可能尚未注册）
@@ -282,7 +285,9 @@ public class MainActivity extends BridgeActivity {
             // 传递给前端处理：弹出歌曲卡片
             WebView webView = bridge.getWebView();
             if (webView != null) {
-                final String js = "window.__handleClipboardShare && window.__handleClipboardShare('" + content + "');";
+                // content 来自系统剪贴板（不可信输入），同样必须经 JSONObject.quote 转义
+                final String js = "window.__handleClipboardShare && window.__handleClipboardShare("
+                        + JSONObject.quote(content) + ");";
                 // 延迟执行，确保前端 JS 已就绪
                 webView.postDelayed(() -> evaluateJavascript(js), 500);
                 // 兜底：1.5秒后再试一次

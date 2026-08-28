@@ -10,6 +10,7 @@
           <traffic-warning-drawer v-if="!isElectron"></traffic-warning-drawer>
           <disclaimer-modal></disclaimer-modal>
           <shared-song-card ref="sharedSongCardRef"></shared-song-card>
+          <listen-together-invite-modal ref="listenTogetherInviteRef" />
           <mobile-update-modal v-if="!isElectron" />
           <onboarding-overlay v-if="!isElectron" ref="onboardingRef" />
           <splash-screen v-if="startupSplashVisible" @finish="startupSplashVisible = false" />
@@ -27,7 +28,9 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import DisclaimerModal from '@/components/common/DisclaimerModal.vue';
+import ListenTogetherInviteModal from '@/components/common/ListenTogetherInviteModal.vue';
 import MobileUpdateModal from '@/components/common/MobileUpdateModal.vue';
+import OnboardingOverlay from '@/components/common/OnboardingOverlay.vue';
 import SharedSongCard from '@/components/common/SharedSongCard.vue';
 import SplashScreen from '@/components/splash/SplashScreen.vue';
 import TrafficWarningDrawer from '@/components/TrafficWarningDrawer.vue';
@@ -45,12 +48,12 @@ import { initAudioListeners, initMusicHook } from './hooks/MusicHook';
 import { initCoverColor, refreshCoverTokens, useCoverColor } from './hooks/useCoverColor';
 import { initNativeBridge, injectSafeAreaInsets, isAndroidNative } from './services/androidNative';
 import { audioService } from './services/audioService';
+import { listenTogetherService } from './services/listenTogetherService';
 import { initLxMusicRunner } from './services/LxMusicSourceRunner';
 import { useStyleEngineStore } from './store/modules/styleEngine';
 import { isMobile } from './utils';
 import { useAppShortcuts } from './utils/appShortcuts';
-import { setSharedSongCardRef } from './utils/deepLink';
-import OnboardingOverlay from '@/components/common/OnboardingOverlay.vue';
+import { setListenTogetherInviteRef, setSharedSongCardRef } from './utils/deepLink';
 
 const { locale } = useI18n();
 const settingsStore = useSettingsStore();
@@ -81,6 +84,9 @@ watch(
 
 // SharedSongCard 组件引用
 const sharedSongCardRef = ref();
+
+// ListenTogetherInviteModal 组件引用
+const listenTogetherInviteRef = ref();
 
 // naive-ui 主题覆盖：组件强调色跟随封面取色
 const themeOverrides = computed(() => {
@@ -296,6 +302,14 @@ onMounted(async () => {
   watchEffect(() => {
     setSharedSongCardRef(sharedSongCardRef.value || null);
   });
+
+  // 注册一起听邀请弹窗到 deepLink 模块
+  watchEffect(() => {
+    setListenTogetherInviteRef(listenTogetherInviteRef.value || null);
+  });
+
+  // 初始化一起听同步服务（幂等）：注册 seek/暂停/切歌插桩
+  listenTogetherService.init();
 
   // 修复 vueuc FocusTrap 哨兵元素的 aria-hidden 警告
   focusTrapObserver = new MutationObserver(() => {

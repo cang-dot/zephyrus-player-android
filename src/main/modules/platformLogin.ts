@@ -78,6 +78,20 @@ interface QqQrSession {
 
 const qqQrSessions = new Map<string, QqQrSession>();
 
+// 定时清扫过期的 QQ 扫码会话（60 秒一次，删除创建超过 10 分钟的条目），
+// 避免会话条目仅在被再次轮询时才被删除而无限增长。
+// 使用 unref() 避免定时器阻止应用退出。
+const QQ_SESSION_CLEANUP_INTERVAL_MS = 60 * 1000;
+const QQ_SESSION_MAX_AGE_MS = 10 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, session] of qqQrSessions.entries()) {
+    if (now - session.createdAt > QQ_SESSION_MAX_AGE_MS) {
+      qqQrSessions.delete(key);
+    }
+  }
+}, QQ_SESSION_CLEANUP_INTERVAL_MS).unref();
+
 export function parsePtuiCallback(payload: string): {
   code: number;
   redirectUrl: string;
@@ -498,8 +512,7 @@ async function fetchQqUserInfo(cookie: string): Promise<{
       if (nickname) {
         return {
           nickname,
-          avatarUrl:
-            firstDeepValue(data, ['avatarUrl', 'avatar_url', 'headpic', 'head_pic']) || '',
+          avatarUrl: firstDeepValue(data, ['avatarUrl', 'avatar_url', 'headpic', 'head_pic']) || '',
           vip: Boolean(firstDeepValue(data, ['vip', 'is_vip']))
         };
       }
@@ -953,46 +966,57 @@ async function pollKugouQrStatus(key: string): Promise<QrPollResult> {
  */
 export function initializePlatformLogin(): void {
   // 创建二维码
-  ipcMain.handle('platform-qr-create', async (_event, platform: LoginPlatform, provider: QqLoginProvider = 'qq') => {
-    try {
-      if (platform === 'qq') {
-        if (provider !== 'qq') return { error: '微信扫码登录请使用统一登录网关' };
-        return await createQQQrCode();
+  ipcMain.handle(
+    'platform-qr-create',
+    async (_event, platform: LoginPlatform, provider: QqLoginProvider = 'qq') => {
+      try {
+        if (platform === 'qq') {
+          if (provider !== 'qq') return { error: '微信扫码登录请使用统一登录网关' };
+          return await createQQQrCode();
+        }
+        if (platform === 'kugou') {
+          return await createKugouQrCode();
+        }
+        return { error: `不支持的平台: ${platform}` };
+      } catch (error: any) {
+        console.error(`[platformLogin] 创建二维码失败:`, error);
+        return { error: error.message || '创建二维码失败' };
       }
-      if (platform === 'kugou') {
-        return await createKugouQrCode();
-      }
-      return { error: `不支持的平台: ${platform}` };
-    } catch (error: any) {
-      console.error(`[platformLogin] 创建二维码失败:`, error);
-      return { error: error.message || '创建二维码失败' };
     }
-  });
+  );
 
   // 轮询扫码状态
-  ipcMain.handle('platform-qr-poll', async (_event, platform: LoginPlatform, key: string, provider: QqLoginProvider = 'qq') => {
-    try {
-      if (platform === 'qq') {
-        if (provider !== 'qq') {
-          return { platform, provider, code: QrStatus.Error, message: '微信扫码登录请使用统一登录网关' };
+  ipcMain.handle(
+    'platform-qr-poll',
+    async (_event, platform: LoginPlatform, key: string, provider: QqLoginProvider = 'qq') => {
+      try {
+        if (platform === 'qq') {
+          if (provider !== 'qq') {
+            return {
+              platform,
+              provider,
+              code: QrStatus.Error,
+              message: '微信扫码登录请使用统一登录网关'
+            };
+          }
+          return await pollQQQrStatus(key);
         }
-        return await pollQQQrStatus(key);
+        if (platform === 'kugou') {
+          return await pollKugouQrStatus(key);
+        }
+        return {
+          platform,
+          code: QrStatus.Error,
+          message: `不支持的平台: ${platform}`
+        };
+      } catch (error: any) {
+        console.error(`[platformLogin] 轮询状态失败:`, error);
+        return {
+          platform,
+          code: QrStatus.Error,
+          message: error.message || '轮询状态失败'
+        };
       }
-      if (platform === 'kugou') {
-        return await pollKugouQrStatus(key);
-      }
-      return {
-        platform,
-        code: QrStatus.Error,
-        message: `不支持的平台: ${platform}`
-      };
-    } catch (error: any) {
-      console.error(`[platformLogin] 轮询状态失败:`, error);
-      return {
-        platform,
-        code: QrStatus.Error,
-        message: error.message || '轮询状态失败'
-      };
     }
-  });
+  );
 }

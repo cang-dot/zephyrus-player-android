@@ -520,9 +520,24 @@ const setupAudioListeners = () => {
     } else if (getPlayerStore().isFmPlaying) {
       // 私人FM模式：自动获取下一首
       try {
-        const { getPersonalFM } = await import('@/api/home');
-        const res = await getPersonalFM();
-        const songs = res.data?.data;
+        let songs: any[] | null = null;
+        try {
+          const { recommendPersonalFmSeeds } = await import('@/features/ai/personalFm');
+          const seeds = await recommendPersonalFmSeeds({
+            favoriteIds: getPlayerStore().favoriteList,
+            current: getPlayerStore().currentSong
+          });
+          songs = seeds;
+        } catch (error) {
+          console.warn('[AI Personal FM] fallback to official FM:', error);
+        }
+
+        if (!songs?.length) {
+          const { getPersonalFM } = await import('@/api/home');
+          const res = await getPersonalFM();
+          songs = res.data?.data;
+        }
+
         if (Array.isArray(songs) && songs.length > 0) {
           const song = songs[0];
           const fmSong = {

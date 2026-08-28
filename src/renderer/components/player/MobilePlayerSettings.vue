@@ -701,13 +701,14 @@
                     </div>
 
                     <!-- 结果 -->
-                    <div
-                      v-else-if="metaphorResult"
-                      class="metaphor-output-scroll"
-                    >
+                    <div v-else-if="metaphorResult" class="metaphor-output-scroll">
                       <div class="metaphor-result" v-html="sanitizedMetaphorResult"></div>
                       <div class="metaphor-result-actions">
-                        <button type="button" class="metaphor-copy-button" @click="copyMetaphorPlainText">
+                        <button
+                          type="button"
+                          class="metaphor-copy-button"
+                          @click="copyMetaphorPlainText"
+                        >
                           <i :class="metaphorCopied ? 'ri-check-line' : 'ri-file-copy-line'"></i>
                           {{ metaphorCopied ? '已复制' : '复制纯文本' }}
                         </button>
@@ -805,6 +806,44 @@
                         <span>在歌词页面长按歌词可进入多选模式，生成精美海报</span>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- 一起听 -->
+              <section
+                class="control-settings-section"
+                :class="{ expanded: isControlSectionExpanded('listenTogether') }"
+              >
+                <button
+                  type="button"
+                  class="control-section-header"
+                  :aria-expanded="isControlSectionExpanded('listenTogether')"
+                  aria-controls="control-section-listen-together"
+                  @click="toggleControlSection('listenTogether')"
+                >
+                  <span class="control-section-title">
+                    <i class="ri-headphone-line mr-1"></i>
+                    一起听
+                  </span>
+                  <span
+                    v-if="listenTogetherStore.status === 'active'"
+                    class="control-section-summary accent"
+                    >{{ listenTogetherStore.roomCode }}</span
+                  >
+                  <i
+                    class="ri-arrow-down-s-line control-section-chevron"
+                    :class="{ expanded: isControlSectionExpanded('listenTogether') }"
+                  ></i>
+                </button>
+                <div
+                  class="control-section-reveal"
+                  :class="{ expanded: isControlSectionExpanded('listenTogether') }"
+                  :aria-hidden="!isControlSectionExpanded('listenTogether')"
+                  :inert="!isControlSectionExpanded('listenTogether')"
+                >
+                  <div id="control-section-listen-together" class="control-section-body">
+                    <listen-together-settings />
                   </div>
                 </div>
               </section>
@@ -1065,8 +1104,9 @@ import InlinePlaylistPicker from '@/components/common/InlinePlaylistPicker.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import SongMetadataEditor from '@/components/common/SongMetadataEditor.vue';
 import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
+import ListenTogetherSettings from '@/components/settings/ListenTogetherSettings.vue';
 import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
-import { listGatewayModels, type GatewayModel } from '@/features/ai/gateway';
+import { type GatewayModel, listGatewayModels } from '@/features/ai/gateway';
 import {
   getMetaphorConfig,
   saveMetaphorConfig,
@@ -1086,6 +1126,7 @@ import { deleteClimaxCache, getLocalClimax, saveLocalClimax } from '@/services/c
 import { activeAudioFormat } from '@/services/nativeAudioPlayer';
 import { useClimaxStore } from '@/store/modules/climax';
 import { useCommunityDataStore } from '@/store/modules/communityData';
+import { useListenTogetherStore } from '@/store/modules/listenTogether';
 import { useLocalMusicStore } from '@/store/modules/localMusic';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
@@ -1109,6 +1150,7 @@ const styleEngine = useStyleEngineStore();
 const climaxStore = useClimaxStore();
 const communityDataStore = useCommunityDataStore();
 const userStore = useUserStore();
+const listenTogetherStore = useListenTogetherStore();
 const { navigateToArtist } = useArtist();
 const message = window.$message;
 const androidNativeAvailable = isAndroidNative();
@@ -1182,6 +1224,7 @@ type ControlSection =
   | 'speed'
   | 'analysis'
   | 'sharing'
+  | 'listenTogether'
   | 'sleepTimer';
 
 const expandedControlSections = ref<Set<ControlSection>>(new Set());
@@ -2621,7 +2664,9 @@ onUnmounted(() => {
   color: #fff;
 }
 
-.metaphor-analyze-button:disabled { opacity: 0.48; }
+.metaphor-analyze-button:disabled {
+  opacity: 0.48;
+}
 
 .metaphor-model-option.settings {
   margin-top: 3px;
@@ -2753,13 +2798,27 @@ onUnmounted(() => {
   line-height: 1.4;
 }
 
-.metaphor-result :deep(p) { margin: 0 0 13px; }
-.metaphor-result :deep(strong) { color: #fff; font-weight: 700; }
+.metaphor-result :deep(p) {
+  margin: 0 0 13px;
+}
+.metaphor-result :deep(strong) {
+  color: #fff;
+  font-weight: 700;
+}
 .metaphor-result :deep(ul),
-.metaphor-result :deep(ol) { margin: 10px 0 14px; padding-left: 22px; }
-.metaphor-result :deep(ul) { list-style: disc; }
-.metaphor-result :deep(ol) { list-style: decimal; }
-.metaphor-result :deep(li) { margin: 5px 0; }
+.metaphor-result :deep(ol) {
+  margin: 10px 0 14px;
+  padding-left: 22px;
+}
+.metaphor-result :deep(ul) {
+  list-style: disc;
+}
+.metaphor-result :deep(ol) {
+  list-style: decimal;
+}
+.metaphor-result :deep(li) {
+  margin: 5px 0;
+}
 .metaphor-result :deep(blockquote) {
   margin: 14px 0;
   padding: 8px 12px;

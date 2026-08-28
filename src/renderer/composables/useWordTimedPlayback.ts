@@ -43,6 +43,31 @@ export interface WordAuxiliaryLine {
   agent?: string;
 }
 
+export function shouldShakeTtmlFinalWord(
+  words: TtmlWord[],
+  currentWord: Pick<TtmlWord, 'begin' | 'end'> | null,
+  inClimax = true
+): boolean {
+  if (!inClimax || !currentWord) return false;
+  const timedWords = words.filter((word) => word.text.trim());
+  const currentIndex = timedWords.findIndex(
+    (word) => word.begin === currentWord.begin && word.end === currentWord.end
+  );
+  if (currentIndex <= 0 || currentIndex !== timedWords.length - 1) return false;
+
+  const duration = currentWord.end - currentWord.begin;
+  const previousDurations = timedWords
+    .slice(0, currentIndex)
+    .map((word) => word.end - word.begin)
+    .sort((a, b) => a - b);
+  const middle = Math.floor(previousDurations.length / 2);
+  const baseline =
+    previousDurations.length % 2 === 0
+      ? (previousDurations[middle - 1] + previousDurations[middle]) / 2
+      : previousDurations[middle];
+  return duration >= 3 && duration >= baseline * 2.5;
+}
+
 function currentTtmlWord(words: TtmlWord[], time: number): TtmlWord | null {
   let candidate: TtmlWord | null = null;
   for (const word of words) {
@@ -209,6 +234,13 @@ export function useWordTimedPlayback() {
     return playMusic.value?.lyric?.format || (providerHasWordTiming.value ? 'yrc' : 'none');
   });
   const available = computed(() => Boolean(currentMainToken.value));
+  const climaxWordShake = computed(() => {
+    if (!usingTtml.value) return false;
+    const line = currentLine.value;
+    const word = currentMainToken.value;
+    if (!line || !word) return false;
+    return shouldShakeTtmlFinalWord(line.words, word, true);
+  });
   const stableAnimationKey = computed(
     () => currentMainToken.value?.key || `${source.value}-unavailable`
   );
@@ -254,6 +286,7 @@ export function useWordTimedPlayback() {
     usingTtml,
     currentLine,
     currentMainToken,
+    climaxWordShake,
     auxiliaryTokens,
     auxiliaryLines,
     stableAnimationKey,

@@ -1163,8 +1163,8 @@ public class NativeBridge {
     public void installApkFromCache(String fileName) {
         try {
             if (fileName == null || fileName.isEmpty()) return;
-            File cacheDir = activity.getCacheDir();
-            File apkFile = new File(cacheDir, fileName);
+            // 仅通过 cache/share/ 子目录共享（与 res/xml/file_paths.xml 的 cache-path 约定一致）
+            File apkFile = new File(new File(activity.getCacheDir(), "share"), fileName);
             Uri apkUri = getPublishedApkUri();
             if (apkUri == null && !apkFile.exists()) {
                 Log.e("NativeBridge", "installApkFromCache: 安装包不存在 " + apkFile.getAbsolutePath());
@@ -1199,6 +1199,68 @@ public class NativeBridge {
             activity.startActivity(baseIntent);
         } catch (Exception e) {
             Log.e("NativeBridge", "installApkFromCache error", e);
+        }
+    }
+
+    /** Saves a base64 image into the public Pictures/Zephyrus album. */
+    @JavascriptInterface
+    public boolean saveBase64ImageToGallery(String dataUrl, String fileName) {
+        if (dataUrl == null || dataUrl.isEmpty()) return false;
+        try {
+            int comma = dataUrl.indexOf(',');
+            String encoded = comma >= 0 ? dataUrl.substring(comma + 1) : dataUrl;
+            byte[] bytes = Base64.decode(encoded, Base64.DEFAULT);
+            if (bytes.length == 0 || bytes.length > 32 * 1024 * 1024) return false;
+
+            String safeName = new File(fileName == null ? "zephyrus-cover.jpg" : fileName)
+                    .getName().replaceAll("[^A-Za-z0-9._-]", "_");
+            if (!safeName.toLowerCase().endsWith(".jpg")
+                    && !safeName.toLowerCase().endsWith(".jpeg")
+                    && !safeName.toLowerCase().endsWith(".png")) {
+                safeName += ".jpg";
+            }
+            ContentResolver resolver = activity.getContentResolver();
+            ContentValues values = new ContentValues();
+            values.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, safeName);
+            values.put(android.provider.MediaStore.Images.Media.MIME_TYPE,
+                    safeName.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg");
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH,
+                        Environment.DIRECTORY_PICTURES + "/Zephyrus");
+                values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 1);
+                Uri uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) return false;
+                try {
+                    try (OutputStream output = resolver.openOutputStream(uri)) {
+                        if (output == null) throw new Exception("无法打开相册文件");
+                        output.write(bytes);
+                    }
+                    ContentValues ready = new ContentValues();
+                    ready.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0);
+                    resolver.update(uri, ready, null, null);
+                    return true;
+                } catch (Exception error) {
+                    resolver.delete(uri, null, null);
+                    throw error;
+                }
+            }
+
+            File directory = new File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                    "Zephyrus");
+            if (!directory.exists() && !directory.mkdirs()) return false;
+            File outputFile = new File(directory, safeName);
+            try (OutputStream output = new FileOutputStream(outputFile)) {
+                output.write(bytes);
+            }
+            android.media.MediaScannerConnection.scanFile(
+                    activity, new String[]{outputFile.getAbsolutePath()},
+                    new String[]{values.getAsString(android.provider.MediaStore.Images.Media.MIME_TYPE)}, null);
+            return true;
+        } catch (Exception error) {
+            Log.e("NativeBridge", "saveBase64ImageToGallery error", error);
+            return false;
         }
     }
 
@@ -1275,8 +1337,13 @@ public class NativeBridge {
         }
 
         new Thread(() -> {
-            File target = new File(activity.getCacheDir(), APK_DOWNLOAD_FILE);
-            File temp = new File(activity.getCacheDir(), APK_DOWNLOAD_FILE + ".tmp");
+            // APK 统一写入 cache/share/ 子目录（与 res/xml/file_paths.xml 的 cache-path 约定一致）
+            File shareDir = new File(activity.getCacheDir(), "share");
+            if (!shareDir.exists()) {
+                shareDir.mkdirs();
+            }
+            File target = new File(shareDir, APK_DOWNLOAD_FILE);
+            File temp = new File(shareDir, APK_DOWNLOAD_FILE + ".tmp");
             HttpURLConnection connection = null;
             InputStream input = null;
             FileOutputStream output = null;

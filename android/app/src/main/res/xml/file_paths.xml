@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider 路径映射（最小集合）：
+  仅映射 cache/share/ 子目录，当前唯一用途是应用内更新 APK 的安装
+  （NativeBridge.installApkFromCache），写入侧 NativeBridge.startApkDownload
+  与本约定保持一致。不映射外部存储与缓存根目录，避免过度暴露应用私有文件。
+-->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="my_images" path="." />
-    <cache-path name="my_cache_images" path="." />
+    <cache-path name="shared" path="share/" />
 </paths>

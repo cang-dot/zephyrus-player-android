@@ -33,6 +33,7 @@
           :auxiliary-tokens="wordPlayback.auxiliaryTokens.value"
           :main-token="wordPlayback.currentMainToken.value"
           :show-drop="showWordDrop"
+          :climax-shake="styleEngine.isInClimax && wordPlayback.climaxWordShake.value"
           :center-auxiliary="isCustom && styleCfg.auxiliaryCenterDisplay === true"
         />
 
@@ -226,10 +227,12 @@ const {
 } = useLyricSwipeGesture({
   isOpen: () => showFullLyrics.value,
   onOpen: () => {
-    openLyricsAnimated();
+    showFullLyrics.value = true;
+    playerStore.setFullLyricsVisible(true);
   },
   onClose: () => {
     showFullLyrics.value = false;
+    playerStore.setFullLyricsVisible(false);
   }
 });
 const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({

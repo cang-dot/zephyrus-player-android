@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  网络安全配置：
+  - cleartextTrafficPermitted="true"：部分音乐源仍使用 http 直链，暂需放行明文流量；
+    后续应改为 <domain-config> 仅对已知音乐域名放行，逐步收敛明文流量范围。
+  - trust-anchors 仅保留系统 CA。已移除 <certificates src="user" />：
+    信任用户 CA 意味着攻击者只要在设备上安装一张抓包证书，即可解密本应用的全部 HTTPS 流量。
+-->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
-            <certificates src="user" />
         </trust-anchors>
     </base-config>
 </network-security-config>

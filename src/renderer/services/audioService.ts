@@ -38,6 +38,10 @@ class AudioService {
 
   private gainNode: GainNode | null = null;
 
+  private adaptiveEqGains = { low: 1, mid: 1, high: 1 };
+  private adaptiveEqEnabled = localStorage.getItem('adaptiveEqEnabled') === 'true';
+  private adaptiveEqIntensity = Number(localStorage.getItem('adaptiveEqIntensity') || 0.65);
+
   private bypass = false;
 
   private playbackRate = 1.0; // 添加播放速度属性
@@ -304,13 +308,42 @@ class AudioService {
     this.syncNativeEQ();
   }
 
+  public isAdaptiveEQEnabled(): boolean {
+    return this.adaptiveEqEnabled;
+  }
+
+  public setAdaptiveEQEnabled(enabled: boolean) {
+    this.adaptiveEqEnabled = enabled;
+    localStorage.setItem('adaptiveEqEnabled', JSON.stringify(enabled));
+    if (!enabled) this.setAdaptiveEQGains(1, 1, 1);
+  }
+
+  public getAdaptiveEQIntensity(): number {
+    return this.adaptiveEqIntensity;
+  }
+
+  public setAdaptiveEQIntensity(value: number) {
+    this.adaptiveEqIntensity = Math.max(0, Math.min(1, value));
+    localStorage.setItem('adaptiveEqIntensity', String(this.adaptiveEqIntensity));
+  }
+
+  public setAdaptiveEQGains(low: number, mid: number, high: number) {
+    this.adaptiveEqGains = {
+      low: Math.max(0.75, Math.min(1.25, low)),
+      mid: Math.max(0.75, Math.min(1.25, mid)),
+      high: Math.max(0.75, Math.min(1.25, high))
+    };
+    this.applyAdaptiveEQToFilters();
+    this.syncNativeEQ();
+  }
+
   public setEQFrequencyGain(frequency: string, gain: number) {
     const filterIndex = this.frequencies.findIndex((f) => f.toString() === frequency);
     if (filterIndex === -1) return;
-    if (this.filters[filterIndex]) {
+    if (this.filters[filterIndex])
       this.filters[filterIndex].gain.setValueAtTime(gain, this.context?.currentTime || 0);
-    }
     this.saveEQSettings(frequency, gain);
+    this.applyAdaptiveEQToFilters();
     this.syncNativeEQ();
   }
 
@@ -335,6 +368,23 @@ class AudioService {
   private loadEQSettings(): { [key: string]: number } {
     const savedSettings = localStorage.getItem('eqSettings');
     return savedSettings ? JSON.parse(savedSettings) : { ...this.defaultEQSettings };
+  }
+
+  private applyAdaptiveEQToFilters() {
+    if (!this.context || this.filters.length === 0) return;
+    const now = this.context.currentTime;
+    this.filters.forEach((filter, index) => {
+      const frequency = this.frequencies[index];
+      const band =
+        frequency <= 250
+          ? this.adaptiveEqGains.low
+          : frequency <= 2000
+            ? this.adaptiveEqGains.mid
+            : this.adaptiveEqGains.high;
+      const dynamicDb = this.adaptiveEqEnabled ? 20 * Math.log10(band) : 0;
+      const baseDb = this.loadEQSettings()[String(frequency)] || 0;
+      filter.gain.setTargetAtTime(baseDb + dynamicDb, now, 0.08);
+    });
   }
 
   private async disposeEQ(keepContext = false) {
@@ -464,6 +514,7 @@ class AudioService {
         filter.gain.value = this.loadEQSettings()[freq.toString()] || 0;
         return filter;
       });
+      this.applyAdaptiveEQToFilters();
 
       // 连接高潮检测器和鼓点检测器（连接到 gainNode，不受 applyBypassState 断连影响）
       climaxDetector.connect(this.context, this.gainNode);
@@ -514,6 +565,7 @@ class AudioService {
       filter.gain.value = this.loadEQSettings()[freq.toString()] || 0;
       return filter;
     });
+    this.applyAdaptiveEQToFilters();
 
     climaxDetector.connect(this.context, this.gainNode);
     drumDetector.connect(this.context, this.gainNode);
@@ -1103,13 +1155,10 @@ class AudioService {
         return false;
       }
 
-      this.crossfadeCleanupTimeout = window.setTimeout(
-        () => {
-          if (generation !== this.crossfadeGeneration) return;
-          this.completeCrossfadeCleanup(nextSound, nextTrack);
-        },
-        180
-      );
+      this.crossfadeCleanupTimeout = window.setTimeout(() => {
+        if (generation !== this.crossfadeGeneration) return;
+        this.completeCrossfadeCleanup(nextSound, nextTrack);
+      }, 180);
       this.emit('crossfade-start', { track: nextTrack, duration: 0, level: 1, seamless: true });
       return true;
     }
@@ -1660,11 +1709,12 @@ class AudioService {
     const averageDb = (frequencies: number[]) =>
       frequencies.reduce((sum, frequency) => sum + (settings[String(frequency)] || 0), 0) /
       frequencies.length;
+    const dynamicDb = (gain: number) => (this.adaptiveEqEnabled ? 20 * Math.log10(gain) : 0);
     const dbToLinear = (db: number) => Math.pow(10, Math.max(-12, Math.min(6, db)) / 20);
     window.AndroidNative.nativeAudioSetEqGains(
-      dbToLinear(averageDb([31, 62, 125, 250])),
-      dbToLinear(averageDb([500, 1000, 2000])),
-      dbToLinear(averageDb([4000, 8000, 16000]))
+      dbToLinear(averageDb([31, 62, 125, 250]) + dynamicDb(this.adaptiveEqGains.low)),
+      dbToLinear(averageDb([500, 1000, 2000]) + dynamicDb(this.adaptiveEqGains.mid)),
+      dbToLinear(averageDb([4000, 8000, 16000]) + dynamicDb(this.adaptiveEqGains.high))
     );
   }
 

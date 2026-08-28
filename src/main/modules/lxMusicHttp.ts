@@ -29,6 +29,48 @@ interface LxHttpResponse {
 const abortControllers = new Map<string, AbortController>();
 
 /**
+ * 校验请求地址是否安全，禁止访问内网地址（防止 SSRF）
+ * 仅允许 http/https 协议，且目标主机不能是本地/私网/链路本地地址
+ */
+function assertSafeUrl(urlStr: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(urlStr);
+  } catch {
+    throw new Error('无效的请求地址');
+  }
+
+  // 仅允许 http/https
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('仅允许 http/https 协议的请求地址');
+  }
+
+  // IPv6 地址的 hostname 带方括号，统一去掉后判断
+  const hostname = parsed.hostname.toLowerCase().replace(/^\[/, '').replace(/\]$/, '');
+
+  // 禁止访问内网地址（字面量判断）
+  const isPrivate =
+    hostname === 'localhost' ||
+    hostname.endsWith('.local') ||
+    hostname === '0.0.0.0' ||
+    hostname === '::' ||
+    hostname === '::1' ||
+    hostname.startsWith('127.') ||
+    hostname.startsWith('10.') ||
+    hostname.startsWith('192.168.') ||
+    hostname.startsWith('169.254.') ||
+    // IPv6 唯一本地地址 fc00::/7（fc/fd 开头）与链路本地地址 fe80::/10
+    /^f[cd]/.test(hostname) ||
+    /^fe[89ab]/.test(hostname) ||
+    // 172.16.0.0/12 私网段
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
+
+  if (isPrivate) {
+    throw new Error('禁止访问内网地址');
+  }
+}
+
+/**
  * 初始化 HTTP 请求处理
  */
 export const initLxMusicHttp = () => {
@@ -38,11 +80,12 @@ export const initLxMusicHttp = () => {
     async (_, request: LxHttpRequest): Promise<LxHttpResponse> => {
       const { url, options, requestId } = request;
       const controller = new AbortController();
-
-      // 保存取消控制器
       abortControllers.set(requestId, controller);
 
       try {
+        // 校验目标地址，防止访问内网（SSRF）
+        assertSafeUrl(url);
+
         const fetchOptions: RequestInit = {
           method: options.method || 'GET',
           headers: {

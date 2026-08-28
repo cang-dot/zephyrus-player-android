@@ -47,7 +47,13 @@
           <div v-if="!isLandscape" class="portrait-cover-stage">
             <!-- 3D 封面 -->
             <div class="cover-3d-wrapper">
-              <div class="cover-3d">
+              <div
+                class="cover-3d"
+                @pointerdown="startCoverLongPress"
+                @pointerup="cancelCoverLongPress"
+                @pointercancel="cancelCoverLongPress"
+                @contextmenu.prevent="openCoverPreview"
+              >
                 <img
                   v-if="playMusic?.picUrl"
                   :src="getImgUrl(playMusic.picUrl, '400y400')"
@@ -105,7 +111,13 @@
               </div>
             </div>
 
-            <div class="cover-container">
+            <div
+              class="cover-container"
+              @pointerdown="startCoverLongPress"
+              @pointerup="cancelCoverLongPress"
+              @pointercancel="cancelCoverLongPress"
+              @contextmenu.prevent="openCoverPreview"
+            >
               <cover-ripple
                 :src="playMusic?.picUrl ? getImgUrl(playMusic.picUrl, '800y800') : ''"
                 :size="140"
@@ -182,6 +194,12 @@
 
   <mobile-player-settings v-model:visible="showPlayerSettings" />
 
+  <cover-preview-modal
+    v-model:visible="coverPreviewVisible"
+    :src="previewCoverUrl"
+    :title="playMusic?.name || ''"
+  />
+
   <!-- 歌词海报分享弹窗 -->
   <poster-share-modal v-model:visible="showPosterModal" :lyrics="selectedLyrics" />
 </template>
@@ -194,13 +212,14 @@
  * 横屏：左右分词歌词 + 中间封面
  */
 import { useWindowSize } from '@vueuse/core';
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 
 import CoverRipple from '@/components/lyric/CoverRipple.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import RainCanvas from '@/components/lyric/RainCanvas.vue';
 import SplitLyrics from '@/components/lyric/SplitLyrics.vue';
+import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
@@ -222,6 +241,29 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue']);
 
 const playerStore = usePlayerStore();
+
+const coverPreviewVisible = ref(false);
+let coverLongPressTimer: ReturnType<typeof setTimeout> | null = null;
+const previewCoverUrl = computed(() =>
+  playMusic.value?.picUrl ? getImgUrl(playMusic.value.picUrl, '1000y1000') : ''
+);
+
+function startCoverLongPress() {
+  cancelCoverLongPress();
+  coverLongPressTimer = setTimeout(() => {
+    if (previewCoverUrl.value) coverPreviewVisible.value = true;
+  }, 500);
+}
+
+function cancelCoverLongPress() {
+  if (coverLongPressTimer) clearTimeout(coverLongPressTimer);
+  coverLongPressTimer = null;
+}
+
+function openCoverPreview() {
+  cancelCoverLongPress();
+  if (previewCoverUrl.value) coverPreviewVisible.value = true;
+}
 
 const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
   onDoubleClick: () => {
@@ -246,9 +288,11 @@ const {
   isOpen: () => showFullLyrics.value,
   onOpen: () => {
     showFullLyrics.value = true;
+    playerStore.setFullLyricsVisible(true);
   },
   onClose: () => {
     showFullLyrics.value = false;
+    playerStore.setFullLyricsVisible(false);
   }
 });
 const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({
@@ -330,6 +374,8 @@ function close() {
 function openPlaylist() {
   playerStore.setPlayListDrawerVisible(true);
 }
+
+onBeforeUnmount(cancelCoverLongPress);
 </script>
 
 <style lang="scss" scoped>

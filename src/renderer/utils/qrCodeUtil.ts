@@ -31,6 +31,23 @@ export function buildNativeDeepLink(songId: string | number): string {
 }
 
 /**
+ * 生成「一起听」房间分享 URL（指向中继网页）
+ * 与扫码分享歌曲同一架构：扫码 → 中继页写剪贴板 → 跳转深链
+ * @param roomCode 房间唯一识别码
+ */
+export function buildListenRelayUrl(roomCode: string | number): string {
+  return `${RELAY_PAGE_URL}?listen=${roomCode}`;
+}
+
+/**
+ * 生成「一起听」原生 deep link
+ * @param roomCode 房间唯一识别码
+ */
+export function buildListenNativeDeepLink(roomCode: string | number): string {
+  return `zephyrus://listen/${roomCode}`;
+}
+
+/**
  * 生成二维码并渲染到 Canvas
  * @param canvas 目标 Canvas
  * @param data 二维码内容
@@ -102,7 +119,7 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = (e) => reject(new Error(`图片加载失败: ${src}`));
+    img.onerror = () => reject(new Error(`图片加载失败: ${src}`));
     img.src = src;
   });
 }

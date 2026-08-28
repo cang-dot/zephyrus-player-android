@@ -21,7 +21,7 @@
       class="ttml-drop-token ttml-drop-token--ttml"
       :style="ttmlDropTokenStyle"
     >
-      {{ mainToken.text }}
+      <span :class="{ 'climax-shake': climaxShake }">{{ mainToken.text }}</span>
     </div>
 
     <Transition v-else name="ttml-drop" mode="out-in">
@@ -43,8 +43,9 @@ const props = withDefaults(
     mainToken: WordPlaybackToken | null;
     showDrop: boolean;
     centerAuxiliary?: boolean;
+    climaxShake?: boolean;
   }>(),
-  { centerAuxiliary: false }
+  { centerAuxiliary: false, climaxShake: false }
 );
 
 const visibleAuxiliaryTokens = computed(() => {
@@ -145,6 +146,13 @@ const ttmlDropTokenStyle = computed(() => {
   animation: ttml-word-impact-ttml var(--ttml-drop-duration, 80ms) cubic-bezier(0.12, 0.72, 0.2, 1)
     both;
 }
+.ttml-drop-token--ttml > span {
+  display: inline-block;
+  will-change: transform;
+}
+.ttml-drop-token--ttml > span.climax-shake {
+  animation: ttml-climax-shake 260ms linear infinite;
+}
 .ttml-drop-leave-active {
   transition: opacity 70ms linear;
 }
@@ -201,6 +209,25 @@ const ttmlDropTokenStyle = computed(() => {
   }
 }
 
+@keyframes ttml-climax-shake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  20% {
+    transform: translate3d(-1.4vw, 0.7vh, 0) rotate(-1.8deg) scale(1.02);
+  }
+  40% {
+    transform: translate3d(1.6vw, -0.8vh, 0) rotate(1.7deg) scale(1.03);
+  }
+  60% {
+    transform: translate3d(-1.2vw, 0.9vh, 0) rotate(-1.4deg) scale(1.01);
+  }
+  80% {
+    transform: translate3d(1.3vw, -0.7vh, 0) rotate(1.5deg) scale(1.04);
+  }
+}
+
 @media (orientation: landscape) {
   .ttml-auxiliary-layer.is-centered .ttml-auxiliary-token {
     font-size: clamp(104px, 58vh, 300px);
@@ -215,6 +242,7 @@ const ttmlDropTokenStyle = computed(() => {
 @media (prefers-reduced-motion: reduce) {
   .ttml-drop-enter-active,
   .ttml-drop-token--ttml,
+  .ttml-drop-token--ttml > span.climax-shake,
   .ttml-auxiliary-enter-active {
     animation: none;
     transition: opacity 140ms linear;
