@@ -35,14 +35,13 @@
     >
       <div class="title">{{ t('player.playBar.playList') }}</div>
       <div class="header-actions">
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <div class="action-btn" @click="handleClearPlaylist">
-              <i class="iconfont ri-delete-bin-line"></i>
-            </div>
-          </template>
-          {{ t('player.playList.clearAll') }}
-        </n-tooltip>
+        <div
+          class="action-btn"
+          :aria-label="t('player.playList.clearAll')"
+          @click="handleClearPlaylist"
+        >
+          <i class="iconfont ri-delete-bin-line"></i>
+        </div>
         <div class="close-btn" @click="closePanel">
           <i class="iconfont ri-close-line"></i>
         </div>
@@ -88,14 +87,24 @@
       @goto-artist="(id) => invokeSongAction('gotoArtist', id)"
       @goto-album="(id) => invokeSongAction('gotoAlbum', id)"
     />
+    <glass-confirm-dialog
+      v-model:visible="showClearConfirm"
+      :title="t('player.playList.clearConfirmTitle')"
+      :message="t('player.playList.clearConfirmContent')"
+      :confirm-text="t('common.confirm')"
+      :cancel-text="t('common.cancel')"
+      danger
+      @confirm="confirmClearPlaylist"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { useDialog, useMessage } from 'naive-ui';
+import { useMessage } from 'naive-ui';
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import GlassConfirmDialog from '@/components/common/GlassConfirmDialog.vue';
 import MobileSongActionSheet from '@/components/common/MobileSongActionSheet.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
@@ -115,7 +124,6 @@ const props = withDefaults(
 
 const { t } = useI18n();
 const message = useMessage();
-const dialog = useDialog();
 const playerStore = usePlayerStore();
 const embedded = computed(() => props.embedded && isMobile.value);
 const playList = computed(() => playerStore.playList as SongResult[]);
@@ -290,28 +298,19 @@ const onAnimationEnd = () => {
 };
 
 // 清空播放列表
+const showClearConfirm = ref(false);
+
 const handleClearPlaylist = () => {
   if (playList.value.length === 0) {
     message.info(t('player.playList.alreadyEmpty'));
     return;
   }
+  showClearConfirm.value = true;
+};
 
-  if (isMobile.value) {
-    closePanel();
-  }
-
-  dialog.warning({
-    title: t('player.playList.clearConfirmTitle'),
-    content: t('player.playList.clearConfirmContent'),
-    positiveText: t('common.confirm'),
-    negativeText: t('common.cancel'),
-    style: { zIndex: 999999999 }, // 确保对话框显示在遮罩之上
-    onPositiveClick: () => {
-      // 清空播放列表
-      playerStore.clearPlayAll();
-      message.success(t('player.playList.cleared'));
-    }
-  });
+const confirmClearPlaylist = () => {
+  playerStore.clearPlayAll();
+  message.success(t('player.playList.cleared'));
 };
 
 // 处理键盘事件

@@ -1,15 +1,18 @@
 <template>
   <div
+    ref="rootRef"
     class="mobile-controls no-toggle"
     :class="{
       visible,
       'fullscreen-mode': isFullscreen,
       'shared-surface-content': sharedSurface,
       'surface-interaction-active': playerSurfaceFeedback.active.value,
-      'song-transitioning': isSongTransitioning
+      'song-transitioning': isSongTransitioning,
+      'landscape-mode': isLandscape,
+      docked: dockActive
     }"
-    :style="transitionStyles"
-    @click.stop
+    :style="{ ...transitionStyles, ...dockStyle }"
+    @click="handleSurfaceTap"
     @touchstart.stop="emitInteract"
     @touchend.stop
     @mousedown.stop="emitInteract"
@@ -125,7 +128,18 @@
 
     <!-- 控制按钮 -->
     <div class="control-buttons">
-      <div class="side-button" @click="handleTogglePlayMode">
+      <div v-if="isLandscape" class="side-button" aria-label="播放列表" @click="handleShowPlaylist">
+        <i class="iconfont icon-list"></i>
+      </div>
+      <div
+        v-if="isLandscape"
+        class="side-button"
+        aria-label="播放设置"
+        @click="handleShowSettings"
+      >
+        <i class="ri-equalizer-3-line"></i>
+      </div>
+      <div v-if="!isLandscape" class="side-button" @click="handleTogglePlayMode">
         <i :class="[playModeIcon, { 'intelligence-active': playMode === 3 }]"></i>
       </div>
       <div class="main-button prev" @click="handlePrev">
@@ -137,7 +151,7 @@
       <div class="main-button next" @click="handleNext">
         <i class="ri-skip-forward-fill"></i>
       </div>
-      <div class="side-button" @click="handleShowPlaylist">
+      <div v-if="!isLandscape" class="side-button" @click="handleShowPlaylist">
         <i class="iconfont icon-list"></i>
       </div>
     </div>
@@ -150,10 +164,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useMediaQuery } from '@vueuse/core';
 import { useI18n } from 'vue-i18n';
 
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
+import { useControlsDock } from '@/composables/useControlsDock';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import { allTime, artistList, nowTime, pause, play, playMusic } from '@/hooks/MusicHook';
@@ -270,7 +286,7 @@ const thumbPosition = computed(() => {
   return `${(displayNowTime.value / Math.max(1, allTime.value)) * 100}%`;
 });
 
-defineProps<{
+const props = defineProps<{
   visible?: boolean;
   isFullscreen?: boolean;
   sharedSurface?: boolean;
@@ -287,6 +303,49 @@ const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const playerSurfaceFeedback = usePlayerSurfaceFeedback();
 const { playMode, playModeIcon, togglePlayMode } = usePlayMode();
+
+const rootRef = ref<HTMLElement | null>(null);
+
+// ==================== 横屏横条 + 下移贴底 ====================
+
+const isLandscape = useMediaQuery('(orientation: landscape)');
+
+const controlsPinned = ref(false);
+const refreshPinned = () => {
+  try {
+    const raw = localStorage.getItem('music-full-config');
+    const cfg = raw ? JSON.parse(raw) : {};
+    controlsPinned.value = cfg.alwaysShowPlayerControls === true;
+  } catch {
+    controlsPinned.value = false;
+  }
+};
+window.addEventListener('music-full-config-updated', refreshPinned);
+refreshPinned();
+onBeforeUnmount(() => {
+  window.removeEventListener('music-full-config-updated', refreshPinned);
+});
+
+const progressBarEl = () =>
+  rootRef.value?.querySelector<HTMLElement>('.apple-style-progress') || null;
+
+const { dockStyle, dockActive, scheduleMeasure } = useControlsDock(progressBarEl, {
+  hidden: () => !props?.visible,
+  enabled: () => !controlsPinned.value
+});
+
+watch(
+  () => props?.visible,
+  (visible) => {
+    if (visible) scheduleMeasure();
+  }
+);
+
+/** dock 状态下容器仍有进度条露在屏幕内，点击任意处唤回完整控件 */
+function handleSurfaceTap(event: MouseEvent) {
+  event.stopPropagation();
+  if (dockActive.value) emitInteract();
+}
 
 const playState = computed(() => playerStore.isPlay);
 const playIcon = computed(() => (playState.value ? 'ri-pause-fill' : 'ri-play-fill'));
@@ -583,6 +642,62 @@ const handleThumbTouchEnd = () => {
   &.visible {
     opacity: 1;
     pointer-events: auto;
+  }
+
+  /* 下移贴底状态：不再淡出，进度条保持可见（样式组件内嵌路径） */
+  &.docked {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* 横屏横条：进度条横贯顶部，下方一行 = 信息区 + 控制按钮 */
+  &.landscape-mode {
+    display: grid;
+    grid-template-areas:
+      'progress progress'
+      'info actions';
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 14px;
+    row-gap: 10px;
+    padding: 12px 14px calc(var(--safe-area-inset-bottom, 0px) + 10px);
+
+    &:not(.shared-surface-content) {
+      left: 12px;
+      right: 12px;
+      border: 1px solid rgba(var(--player-ink-rgb, 255, 255, 255), 0.12);
+      border-radius: 18px;
+      background: rgba(18, 18, 20, 0.62);
+      backdrop-filter: blur(12px) saturate(1.2);
+      -webkit-backdrop-filter: blur(12px) saturate(1.2);
+    }
+
+    .progress-container {
+      grid-area: progress;
+      margin-bottom: 0;
+    }
+
+    .time-info {
+      display: none;
+    }
+
+    .player-info-row {
+      grid-area: info;
+      margin-bottom: 0;
+      min-height: 44px;
+
+      .player-info-actions {
+        display: none;
+      }
+    }
+
+    .control-buttons {
+      grid-area: actions;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+    }
   }
 
   &.fullscreen-mode {

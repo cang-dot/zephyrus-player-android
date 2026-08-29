@@ -7,7 +7,7 @@
         @click.self="remindLater"
       >
         <div
-          class="w-full max-w-sm bg-gray-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col"
+          class="w-full max-w-sm rounded-3xl overflow-hidden border border-white/10 flex flex-col traffic-sheet"
         >
           <!-- 内容区 -->
           <div class="px-6 py-8 flex flex-col items-center text-center">
@@ -35,7 +35,7 @@
               <a
                 href="https://github.com/cang-dot/zephyrus-player-android"
                 target="_blank"
-                class="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-sm font-medium text-white bg-gradient-to-r from-[var(--accent-color)] to-[var(--accent-color-dark)] hover:brightness-110 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[var(--accent-color)]/25"
+                class="traffic-primary-btn"
               >
                 <i class="ri-github-fill text-lg"></i>
                 前往本项目 GitHub
@@ -45,7 +45,7 @@
               <a
                 href="https://github.com/algerkong/AlgerMusicPlayer"
                 target="_blank"
-                class="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-sm font-medium text-white/80 bg-white/5 hover:bg-white/10 active:scale-[0.98] transition-all duration-200 border border-white/10"
+                class="flex items-center justify-center gap-2 w-full py-3.5 rounded-full text-sm font-medium text-white/80 bg-white/5 active:bg-white/10 active:scale-[0.98] transition-all duration-200 border border-white/10"
               >
                 <i class="ri-github-fill text-lg"></i>
                 前往 AlgerMusicPlayer 的 GitHub
@@ -54,7 +54,7 @@
               <!-- 下次一定 -->
               <button
                 @click="remindLater"
-                class="w-full py-2.5 rounded-2xl text-sm font-medium text-white/40 hover:text-white/70 transition-colors"
+                class="w-full py-2.5 rounded-full text-sm font-medium text-white/40 active:text-white/70 transition-colors"
               >
                 下次一定
               </button>
@@ -95,6 +95,39 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 玻璃表面：与 SharedSongCard 同一配方 */
+.traffic-sheet {
+  background: rgba(28, 28, 32, 0.96);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.traffic-primary-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 0;
+  border: none;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1c;
+  background: var(--accent-color, #d4a056);
+  text-decoration: none;
+  transition:
+    transform 0.15s ease,
+    opacity 0.2s ease;
+}
+
+.traffic-primary-btn:active {
+  transform: scale(0.98);
+}
+
 .welcome-fade-enter-active,
 .welcome-fade-leave-active {
   transition: opacity 0.3s ease;

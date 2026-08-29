@@ -121,7 +121,15 @@ export default {
     eerie: 'Eerie',
     neon: 'Aged',
     rain: 'Rainy Night',
-    smoke: 'Smoke'
+    smoke: 'Smoke',
+    error: 'Error'
+  },
+  photosensitivity: {
+    title: 'Photosensitivity Warning',
+    intro: 'The "Error" player style contains rapidly flashing visuals: full-screen noise, scanlines, and strong brightness swings during chorus sections.',
+    detail: 'Do not use this style if you or your family have a history of photosensitive epilepsy. Use it in a bright environment and avoid staring at the screen for long periods.',
+    confirm: 'I understand, continue',
+    decline: 'Go back'
   },
   styleCustomization: {
     title: 'Style Settings',
@@ -177,7 +185,14 @@ export default {
     smokeLoudnessResponse: 'Loudness response',
     smokeOpacity: 'Smoke opacity',
     smokeVignette: 'Climax vignette',
-    smokeFontStretch: 'Font stretch'
+    smokeFontStretch: 'Font stretch',
+    errorScanlines: 'Scanlines',
+    errorEdgeGlow: 'Climax edge glow',
+    errorNoise: 'Noise intensity',
+    errorJitter: 'Frame jitter',
+    errorFlash: 'Glitch burst intensity',
+    errorFluidPower: 'Fluid force',
+    errorDecorMarks: 'Lyric decorations'
   },
   // Sleep timer related
   sleepTimer: {

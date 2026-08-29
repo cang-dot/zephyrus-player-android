@@ -394,45 +394,57 @@
       </p>
     </div>
 
-    <!-- Folder manager Drawer (shared) -->
-    <n-drawer v-model:show="showFolderManager" :width="400" placement="right">
-      <n-drawer-content :title="t('localMusic.removeFolder')" closable>
-        <div class="space-y-3 py-4">
-          <div
-            v-for="folder in localMusicStore.folderPaths"
-            :key="folder"
-            class="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800"
-          >
-            <div class="flex items-center gap-3 min-w-0 flex-1">
-              <i class="ri-folder-line text-lg text-[var(--accent-color)] flex-shrink-0" />
-              <span class="text-sm text-neutral-700 dark:text-neutral-300 truncate">{{
-                folder
-              }}</span>
-            </div>
-            <button
-              class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:text-red-500 hover:bg-red-500/10 transition-all flex-shrink-0 ml-2"
-              @click="handleRemoveFolder(folder)"
-            >
-              <i class="ri-delete-bin-line" />
-            </button>
-          </div>
+    <!-- Folder manager（底部玻璃 sheet） -->
+    <Teleport to="body">
+      <Transition name="folder-sheet">
+        <div
+          v-if="showFolderManager"
+          class="folder-sheet-overlay"
+          @click.self="showFolderManager = false"
+        >
+          <div class="folder-sheet">
+            <div class="folder-sheet-grabber"></div>
+            <header class="folder-sheet-header">
+              <h3>{{ t('localMusic.removeFolder') }}</h3>
+              <button class="folder-sheet-close" @click="showFolderManager = false">
+                <i class="ri-close-line" />
+              </button>
+            </header>
+            <div class="folder-sheet-body">
+              <div class="space-y-3 py-2">
+                <div
+                  v-for="folder in localMusicStore.folderPaths"
+                  :key="folder"
+                  class="folder-item"
+                >
+                  <div class="flex items-center gap-3 min-w-0 flex-1">
+                    <i class="ri-folder-line text-lg text-[var(--accent-color)] flex-shrink-0" />
+                    <span class="text-sm text-white/80 truncate">{{ folder }}</span>
+                  </div>
+                  <button
+                    class="w-9 h-9 rounded-full flex items-center justify-center text-white/45 active:text-red-500 active:bg-red-500/10 transition-all flex-shrink-0 ml-2"
+                    @click="handleRemoveFolder(folder)"
+                  >
+                    <i class="ri-delete-bin-line" />
+                  </button>
+                </div>
 
-          <div v-if="localMusicStore.folderPaths.length === 0" class="text-center py-8">
-            <i class="ri-folder-line text-4xl text-neutral-200 dark:text-neutral-800" />
-            <p class="text-sm text-neutral-400 mt-2">{{ t('localMusic.emptyState') }}</p>
+                <div v-if="localMusicStore.folderPaths.length === 0" class="text-center py-8">
+                  <i class="ri-folder-line text-4xl text-white/15" />
+                  <p class="text-sm text-white/40 mt-2">{{ t('localMusic.emptyState') }}</p>
+                </div>
+              </div>
+            </div>
+            <div class="folder-sheet-footer">
+              <button class="folder-sheet-add" @click="handleAddFolder">
+                <i class="ri-folder-add-line" />
+                {{ t('localMusic.scanFolder') }}
+              </button>
+            </div>
           </div>
         </div>
-
-        <template #footer>
-          <n-button type="primary" block @click="handleAddFolder">
-            <template #icon>
-              <i class="ri-folder-add-line" />
-            </template>
-            {{ t('localMusic.scanFolder') }}
-          </n-button>
-        </template>
-      </n-drawer-content>
-    </n-drawer>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -1202,6 +1214,130 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   .hero-meta,
   .tab-bar-glow {
     transition: none;
+  }
+}
+
+/* ===== 文件夹管理：底部玻璃 sheet ===== */
+.folder-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.folder-sheet {
+  width: 100%;
+  max-width: 520px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 20px calc(16px + var(--safe-area-inset-bottom, 0px));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: none;
+  border-radius: 24px 24px 0 0;
+  background: rgba(28, 28, 32, 0.96);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    0 -16px 48px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.folder-sheet-grabber {
+  width: 40px;
+  height: 4px;
+  margin: 0 auto 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.folder-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+
+  h3 {
+    margin: 0;
+    color: #f5f5f7;
+    font-size: 17px;
+    font-weight: 700;
+  }
+}
+
+.folder-sheet-close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+  place-items: center;
+}
+
+.folder-sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.folder-sheet-footer {
+  padding-top: 14px;
+}
+
+.folder-sheet-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 0;
+  border: none;
+  border-radius: 999px;
+  color: #1a1a1c;
+  background: var(--accent-color, #d4a056);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+.folder-sheet-enter-active,
+.folder-sheet-leave-active {
+  transition: opacity 0.3s ease;
+
+  .folder-sheet {
+    transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+.folder-sheet-enter-from,
+.folder-sheet-leave-to {
+  opacity: 0;
+
+  .folder-sheet {
+    transform: translateY(100%);
   }
 }
 </style>

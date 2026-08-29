@@ -42,10 +42,10 @@ export const SHOTS = {
   s4IconField: { from: 720, dur: 180 },
   s5StyleCycle: { from: 900, dur: 240 },
   s6Spectrum: { from: 1140, dur: 180 },
-  s7Poster: { from: 1320, dur: 330 }
+  s7Poster: { from: 1320, dur: 240 }
 } as const;
 
-export const TOTAL_FRAMES = 1650;
+export const TOTAL_FRAMES = 1560;
 
 // 确定性伪随机（渲染铁律：禁 Math.random）
 export const mulberry32 = (seed: number) => {

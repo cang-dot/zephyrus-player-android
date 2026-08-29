@@ -577,6 +577,7 @@ const playerStyles = computed(() => {
       if (s.key === 'eerie') return isFeatureEnabled('eerie-style');
       if (s.key === 'neon') return isFeatureEnabled('neon-style');
       if (s.key === 'rain') return isFeatureEnabled('rain-style');
+      if (s.key === 'error') return isFeatureEnabled('error-style');
       return false;
     })
     .map((s) => ({ key: s.key as LyricConfig['playerStyle'], label: s.label }));

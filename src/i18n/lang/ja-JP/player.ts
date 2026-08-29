@@ -121,7 +121,15 @@ export default {
     eerie: '不気味',
     neon: '雨上がり',
     rain: '雨夜',
-    smoke: '煙'
+    smoke: '煙',
+    error: 'エラー'
+  },
+  photosensitivity: {
+    title: '光感受性てんかんの警告',
+    intro: '「エラー」プレイヤースタイルには、高頻度の点滅表現（全画面ノイズ、走査線、サビでの激しい明暗変化）が含まれます。',
+    detail: '光感受性てんかんの既往歴がある方は使用しないでください。明るい環境で使用し、画面を長時間見つめないようにしてください。',
+    confirm: '理解したので続行',
+    decline: '戻る'
   },
   styleCustomization: {
     title: 'スタイル設定',
@@ -177,7 +185,14 @@ export default {
     smokeLoudnessResponse: '音量反応',
     smokeOpacity: '煙の不透明度',
     smokeVignette: '高潮の暗角',
-    smokeFontStretch: 'フォント伸縮'
+    smokeFontStretch: 'フォント伸縮',
+    errorScanlines: '走査線',
+    errorEdgeGlow: '高潮エッジグロー',
+    errorNoise: 'ノイズ強度',
+    errorJitter: '画面の揺れ',
+    errorFlash: 'グリッチバーストの強さ',
+    errorFluidPower: '流体の力強さ',
+    errorDecorMarks: '歌詞の装飾記号'
   },
   // タイマー機能関連
   sleepTimer: {

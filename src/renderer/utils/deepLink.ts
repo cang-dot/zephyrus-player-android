@@ -51,6 +51,30 @@ function parseListenDeepLink(url: string): string | null {
 }
 
 /**
+ * 解析网易云分享链接（music.163.com / y.music.163.com），提取歌曲 ID。
+ * 仅支持歌曲页（/song）；歌单、专辑等其他类型返回 null。
+ * 163cn.tv 短链已由原生层跟随 302 还原为长链，此处不再处理短链。
+ */
+function parseNeteaseSongUrl(url: string): number | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (host !== 'music.163.com' && host !== 'y.music.163.com' && !host.endsWith('.music.163.com')) {
+      return null;
+    }
+    const path = parsed.pathname;
+    if (!/(^|\/)song(\/|$)/.test(path)) return null;
+    const queryId = parsed.searchParams.get('id');
+    if (queryId && /^\d+$/.test(queryId)) return Number(queryId);
+    const pathMatch = path.match(/\/song\/(\d+)/);
+    if (pathMatch) return Number(pathMatch[1]);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 统一处理函数：解析 URL 并弹出歌曲卡片
  * 无论来源是 Intent deep link 还是剪贴板，都走同一条路径
  */
@@ -77,7 +101,8 @@ async function processShareUrl(url: string): Promise<void> {
   }
   lastHandledUrl = url;
 
-  const songId = parseDeepLink(url);
+  // zephyrus://song 或网易云分享链接，统一提取歌曲 ID 走卡片流程
+  const songId = parseDeepLink(url) ?? parseNeteaseSongUrl(url);
   if (songId === null) {
     console.warn('[ShareLink] 无法解析 URL:', url);
     return;

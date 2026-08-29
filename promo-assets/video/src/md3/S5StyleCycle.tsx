@@ -101,7 +101,8 @@ export const S5StyleCycle: React.FC = () => {
         </div>
       </div>
 
-      {/* 中央固定胶囊（动的是列表不是胶囊） */}
+      {/* 中央固定胶囊（动的是列表不是胶囊）。无 zIndex：列表 transform 自建
+          层叠上下文，DOM 顺序（胶囊在前、列表在后）保证词绘制在胶囊之上 */}
       <div
         style={{
           position: 'absolute',
@@ -112,17 +113,18 @@ export const S5StyleCycle: React.FC = () => {
           transform: `translateX(-50%) scale(${pop})`,
           background: pillColor,
           borderRadius: 999,
-          boxShadow: '0 16px 44px rgba(80,60,30,0.22), inset 0 2px 0 rgba(255,255,255,0.35)',
-          zIndex: 2
+          boxShadow: '0 16px 44px rgba(80,60,30,0.22), inset 0 2px 0 rgba(255,255,255,0.35)'
         }}
       />
       {/* 词列表 */}
+      {/* 固定裁剪窗口（不随列表滚动）：世界坐标 y<330 的词被裁掉，杜绝幽灵词压标题 */}
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 330, bottom: 0, overflow: 'hidden' }}>
       <div
         style={{
           position: 'absolute',
           left: 0,
           right: 0,
-          top: 540 - ROW_H / 2,
+          top: 540 - ROW_H / 2 - 330,
           transform: `translateY(${listY}px)`
         }}
       >
@@ -153,6 +155,7 @@ export const S5StyleCycle: React.FC = () => {
             </div>
           );
         })}
+      </div>
       </div>
       {/* 视口上下羽化：必须实时跟 bgColor（写死会穿帮） */}
       <div

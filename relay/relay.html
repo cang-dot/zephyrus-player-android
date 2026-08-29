@@ -259,6 +259,32 @@
     .copy-btn:active { transform: scale(0.97); }
     .copy-btn:hover { background: var(--surface); color: var(--text); }
 
+    .netease-btn {
+      display: none;
+      width: 100%;
+      padding: 13px;
+      border: 1px solid rgba(194, 12, 12, 0.45);
+      border-radius: var(--radius-pill);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(194, 12, 12, 0.12);
+      color: #e5544b;
+      margin-bottom: 10px;
+      transition: transform 0.15s var(--ease), background 0.2s;
+    }
+    .netease-btn:active { transform: scale(0.97); }
+    .netease-btn:hover { background: rgba(194, 12, 12, 0.22); }
+
+    .netease-web-link {
+      display: none;
+      margin-top: 12px;
+      font-size: 13px;
+      color: #e5544b;
+      text-decoration: none;
+      text-align: center;
+    }
+
     .status-msg {
       font-size: 13px;
       color: var(--text-muted);
@@ -440,7 +466,9 @@
     <div class="action-section" id="actionSection" style="display:none;">
       <div class="status-msg" id="statusMsg"></div>
       <button class="open-btn" id="openBtn">打开 Zephyrus Player</button>
+      <button class="netease-btn" id="neteaseBtn" style="display:none;">用网易云音乐打开</button>
       <button class="copy-btn" id="copyBtn">复制歌曲链接</button>
+      <a class="netease-web-link" id="neteaseWebLink" target="_blank" rel="noopener">未检测到网易云 App，打开网页版</a>
       <div class="hint" id="hint"></div>
     </div>
   </div>
@@ -568,6 +596,44 @@
       window.location.href = DEEP_LINK;
     }
 
+    // ========== Netease open ==========
+    var NETEASE_SONG_ID = '';
+    var NETEASE_WEB_URL = '';
+
+    function isPureDigits(str) {
+      return /^\d+$/.test(str || '');
+    }
+
+    /** 仅网易云歌曲（纯数字 id）显示「用网易云打开」入口 */
+    function setupNeteaseOpen(songId) {
+      if (!isPureDigits(songId)) return;
+      NETEASE_SONG_ID = songId;
+      NETEASE_WEB_URL = 'https://music.163.com/song?id=' + songId;
+      document.getElementById('neteaseBtn').style.display = 'block';
+    }
+
+    function tryOpenNetease() {
+      if (!NETEASE_SONG_ID) return;
+      var webLink = document.getElementById('neteaseWebLink');
+      webLink.href = NETEASE_WEB_URL;
+      if (/android/i.test(navigator.userAgent)) {
+        // intent URL：未安装网易云时浏览器自动落到 fallback 网页版
+        var fallback = encodeURIComponent(NETEASE_WEB_URL);
+        window.location.href = 'intent://song/' + NETEASE_SONG_ID +
+          '#Intent;scheme=orpheus;package=com.netease.cloudmusic' +
+          ';S.browser_fallback_url=' + fallback + ';end';
+        return;
+      }
+      var leftAt = Date.now();
+      window.location.href = 'orpheus://song/' + NETEASE_SONG_ID;
+      setTimeout(function () {
+        // 页面仍可见说明 App 未接住跳转，给出网页版出口
+        if (!document.hidden && Date.now() - leftAt < 2500) {
+          webLink.style.display = 'block';
+        }
+      }, 1500);
+    }
+
     // ========== Main ==========
     async function main() {
       var listenCode = getListenCode();
@@ -583,7 +649,16 @@
         return;
       }
 
+      // 跨平台（qq:xxx）/本地歌曲没有网易云 id，网页链路无法处理
+      if (!isPureDigits(songId)) {
+        document.getElementById('loadingScreen').style.display = 'none';
+        document.getElementById('errorState').style.display = 'flex';
+        document.querySelector('.error-text').textContent = '该歌曲来自其他音源，暂不支持网页打开';
+        return;
+      }
+
       DEEP_LINK = 'zephyrus://song/' + songId;
+      setupNeteaseOpen(songId);
 
       try {
         var song = await fetchSongDetail(songId);
@@ -644,6 +719,7 @@
     }
 
     document.getElementById('openBtn').addEventListener('click', openApp);
+    document.getElementById('neteaseBtn').addEventListener('click', tryOpenNetease);
     document.getElementById('copyBtn').addEventListener('click', async function () {
       var ok = await writeToClipboard(DEEP_LINK);
       this.textContent = ok ? '已复制' : '复制失败';

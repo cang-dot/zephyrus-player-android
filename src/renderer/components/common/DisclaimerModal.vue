@@ -6,10 +6,8 @@
         class="fixed inset-0 z-[999999] flex items-center justify-center bg-black/70 backdrop-blur-md p-4"
       >
         <div
-          class="w-full max-w-md max-h-[85vh] bg-gray-900 rounded-3xl overflow-hidden shadow-2xl flex flex-col border border-white/10"
+          class="w-full max-w-md max-h-[85vh] rounded-3xl overflow-hidden flex flex-col border border-white/10 disclaimer-sheet"
         >
-          >
-
           <!-- 标题 -->
           <div class="px-6 pt-8 pb-4 flex-shrink-0">
             <h2 class="text-xl font-bold text-white text-center">用户协议</h2>
@@ -23,10 +21,7 @@
 
           <!-- 按钮 -->
           <div class="px-6 pb-8 pt-2 space-y-3 flex-shrink-0">
-            <button
-              @click="handleAgree"
-              class="w-full py-3.5 rounded-2xl text-base font-medium text-white bg-gradient-to-r from-[var(--accent-color)] to-[var(--accent-color-dark)] hover:brightness-110 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[var(--accent-color)]/25"
-            >
+            <button @click="handleAgree" class="disclaimer-primary-btn">
               <span class="flex items-center justify-center gap-2">
                 <i class="ri-check-line text-lg"></i>
                 同意并继续
@@ -35,7 +30,7 @@
 
             <button
               @click="handleDisagree"
-              class="w-full py-2.5 rounded-2xl text-sm font-medium text-white/40 hover:text-white/70 transition-colors"
+              class="w-full py-2.5 rounded-full text-sm font-medium text-white/40 active:text-white/70 transition-colors"
             >
               不同意，退出应用
             </button>
@@ -98,6 +93,35 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 玻璃表面：与 SharedSongCard 同一配方 */
+.disclaimer-sheet {
+  background: rgba(28, 28, 32, 0.96);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.disclaimer-primary-btn {
+  width: 100%;
+  padding: 14px 0;
+  border: none;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1c;
+  background: var(--accent-color, #d4a056);
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    opacity 0.2s ease;
+}
+
+.disclaimer-primary-btn:active {
+  transform: scale(0.98);
+}
+
 .disclaimer-modal-enter-active,
 .disclaimer-modal-leave-active {
   transition: opacity 0.3s ease;

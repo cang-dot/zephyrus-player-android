@@ -208,7 +208,15 @@
         <label v-if="styleKey === 'frenzy'" class="setting-row">
           <span>CRT</span><input v-model="local.effectCrt" type="checkbox" />
         </label>
-        <label v-if="styleKey === 'frenzy' || styleKey === 'stage'" class="setting-row">
+        <label v-if="styleKey === 'error'" class="setting-row">
+          <span>{{ tr('player.styleCustomization.errorScanlines', '扫描线') }}</span>
+          <input v-model="local.effectCrt" type="checkbox" />
+        </label>
+        <label v-if="styleKey === 'error'" class="setting-row">
+          <span>{{ tr('player.styleCustomization.errorEdgeGlow', '高潮边缘光') }}</span>
+          <input v-model="local.errorEdgeGlow" type="checkbox" />
+        </label>
+        <label v-if="styleKey === 'frenzy' || styleKey === 'stage' || styleKey === 'error'" class="setting-row">
           <span>{{ tr('player.styleCustomization.lyricRecolor', '歌词变色') }}</span>
           <input v-model="local.effectLyricColor" type="checkbox" />
         </label>
@@ -263,7 +271,7 @@
       </label>
 
       <label
-        v-if="['frenzy', 'stage', 'smoke', 'eerie', 'neon'].includes(styleKey)"
+        v-if="['frenzy', 'stage', 'smoke', 'eerie', 'neon', 'error'].includes(styleKey)"
         class="setting-row"
       >
         <span>{{ tr('player.styleCustomization.forceNoWrap', '强制不换行') }}</span>
@@ -325,6 +333,40 @@
         >
         <input v-model.number="local.giantSize" type="range" min="40" max="120" step="5" />
       </label>
+      <template v-if="styleKey === 'error'">
+        <label class="range-row">
+          <span
+            >{{ tr('player.styleCustomization.errorNoise', '噪点强度') }}
+            {{ Number(local.errorNoise ?? 0.5).toFixed(2) }}</span
+          >
+          <input v-model.number="local.errorNoise" type="range" min="0" max="1" step="0.05" />
+        </label>
+        <label class="range-row">
+          <span
+            >{{ tr('player.styleCustomization.errorJitter', '画面抖动') }}
+            {{ Number(local.errorJitter ?? 0.4).toFixed(2) }}</span
+          >
+          <input v-model.number="local.errorJitter" type="range" min="0" max="1" step="0.05" />
+        </label>
+        <label class="range-row">
+          <span
+            >{{ tr('player.styleCustomization.errorFlash', '错误爆发强度') }}
+            {{ Number(local.errorFlash ?? 0.6).toFixed(2) }}</span
+          >
+          <input v-model.number="local.errorFlash" type="range" min="0" max="1" step="0.05" />
+        </label>
+        <label class="range-row">
+          <span
+            >{{ tr('player.styleCustomization.errorFluidPower', '流体力度') }}
+            {{ Number(local.errorFluidPower ?? 1).toFixed(1) }}x</span
+          >
+          <input v-model.number="local.errorFluidPower" type="range" min="0.5" max="2" step="0.1" />
+        </label>
+        <label class="setting-row">
+          <span>{{ tr('player.styleCustomization.errorDecorMarks', '歌词装饰符号') }}</span>
+          <input v-model="local.errorDecorMarks" type="checkbox" />
+        </label>
+      </template>
       <label v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)" class="range-row">
         <span
           >{{ tr('player.styleCustomization.wordDropFontWeight', '砸下巨字粗细') }}
@@ -525,10 +567,10 @@ const colorLayers = computed(() => [
   { key: 'translation' as const, label: tr('player.styleCustomization.translation', '翻译') }
 ]);
 const hasClimaxEffects = computed(() =>
-  ['stage', 'eerie', 'frenzy', 'smoke'].includes(props.styleKey)
+  ['stage', 'eerie', 'frenzy', 'smoke', 'error'].includes(props.styleKey)
 );
 const hasStyleSpecificSettings = computed(() =>
-  ['stage', 'eerie', 'neon', 'frenzy', 'smoke'].includes(props.styleKey)
+  ['stage', 'eerie', 'neon', 'frenzy', 'smoke', 'error'].includes(props.styleKey)
 );
 const customFontSelected = computed(() =>
   Boolean(local.value.builtinFontId || local.value.customFontData)

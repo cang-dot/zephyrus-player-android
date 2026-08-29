@@ -95,6 +95,12 @@ export const S3Lyrics: React.FC = () => {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp'
   });
+  // 时间文字随进度同步跳动（终检 ⚠️ 修复项）
+  const curSec = Math.round(interpolate(progress, [0.4, 0.56], [98, 122], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp'
+  }));
+  const timeLabel = `${String(Math.floor(curSec / 60)).padStart(2, '0')}:${String(curSec % 60).padStart(2, '0')} / 03:56`;
   const timeO = interpolate(frame, [24, 40], [0, 1], {
     easing: Easing.bezier(0.2, 0, 0, 1),
     extrapolateLeft: 'clamp',
@@ -154,7 +160,7 @@ export const S3Lyrics: React.FC = () => {
             marginBottom: 14
           }}
         >
-          01:38 / 03:56
+          {timeLabel}
         </div>
         <div
           style={{

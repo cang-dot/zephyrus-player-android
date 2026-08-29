@@ -121,7 +121,15 @@ export default {
     eerie: '기이',
     neon: '노후화',
     rain: '비 오는 밤',
-    smoke: '연무'
+    smoke: '연무',
+    error: '에러'
+  },
+  photosensitivity: {
+    title: '광과민성 발작 경고',
+    intro: '「에러」플레이어 스타일에는 고빈도 깜빡임(전체 화면 노이즈, 주사선, 클라이맥스의 강한 명암 변화)이 포함되어 있습니다.',
+    detail: '광과민성 발작 병력이 있거나 가족력이 있는 경우 이 스타일을 사용하지 마세요. 밝은 환경에서 사용하고 화면을 오래 응시하지 마세요.',
+    confirm: '이해했으며 계속',
+    decline: '돌아가기'
   },
   styleCustomization: {
     title: '스타일 설정',
@@ -177,7 +185,14 @@ export default {
     smokeLoudnessResponse: '음량 반응',
     smokeOpacity: '연무 불투명도',
     smokeVignette: '클라이맥스 비네트',
-    smokeFontStretch: '글꼴 늘이기'
+    smokeFontStretch: '글꼴 늘이기',
+    errorScanlines: '주사선',
+    errorEdgeGlow: '클라이맥스 에지 글로우',
+    errorNoise: '노이즈 강도',
+    errorJitter: '화면 떨림',
+    errorFlash: '글리치 버스트 강도',
+    errorFluidPower: '유체 강도',
+    errorDecorMarks: '가사 장식 기호'
   },
   sleepTimer: {
     title: '타이머 종료',

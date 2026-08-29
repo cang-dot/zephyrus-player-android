@@ -65,4 +65,12 @@ export function registerBuiltinFeatures() {
     icon: 'ri-rainy-line',
     type: 'playerStyle'
   });
+
+  registerFeature({
+    id: 'error-style',
+    name: '错误样式',
+    description: '黑底高速流体+CRT扫描线+噪点闪烁的故障风格播放器，含高频闪光效果',
+    icon: 'ri-bug-line',
+    type: 'playerStyle'
+  });
 }

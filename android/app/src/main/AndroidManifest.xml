@@ -41,6 +41,20 @@
                 <data android:scheme="zephyrus" android:host="listen" />
             </intent-filter>
 
+            <!-- App link: 网易云分享链接（微信/浏览器"用其他软件打开"）。
+                 无法在网易云域名部署 assetlinks.json，故不做 autoVerify，
+                 以 Deep Link 形式出现在打开方式列表中。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="music.163.com" />
+                <data android:host="y.music.163.com" />
+                <data android:host="163cn.tv" />
+            </intent-filter>
+
         </activity>
 
         <!-- Spotify OAuth 回调独立接收器，避免浏览器任务切换时吞掉自定义 Scheme。 -->

@@ -120,7 +120,15 @@ export default {
     eerie: '詭譎',
     neon: '陳舊',
     rain: '雨夜',
-    smoke: '煙霧'
+    smoke: '煙霧',
+    error: '錯誤'
+  },
+  photosensitivity: {
+    title: '光敏性癲癇警告',
+    intro: '「錯誤」播放器樣式包含高頻閃爍畫面：全螢幕噪點、掃描線與高潮段的強烈明暗變化。',
+    detail: '如果您或您的家人有光敏性癲癇病史，請勿使用此樣式。建議在明亮環境使用，並避免長時間注視螢幕。',
+    confirm: '我已知曉並繼續',
+    decline: '返回'
   },
   styleCustomization: {
     title: '樣式設定',
@@ -176,7 +184,14 @@ export default {
     smokeLoudnessResponse: '響度響應',
     smokeOpacity: '煙霧透明度',
     smokeVignette: '高潮暗角',
-    smokeFontStretch: '字體拉伸'
+    smokeFontStretch: '字體拉伸',
+    errorScanlines: '掃描線',
+    errorEdgeGlow: '高潮邊緣光',
+    errorNoise: '噪點強度',
+    errorJitter: '畫面抖動',
+    errorFlash: '錯誤爆發強度',
+    errorFluidPower: '流體力度',
+    errorDecorMarks: '歌詞裝飾符號'
   },
   // 定時關閉功能相關
   sleepTimer: {

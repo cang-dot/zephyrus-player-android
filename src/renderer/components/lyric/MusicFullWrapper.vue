@@ -24,6 +24,7 @@ import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import DefaultMobilePlayerV2 from '@/components/lyric/DefaultMobilePlayerV2.vue';
 import EerieMobilePlayer from '@/components/lyric/EerieMobilePlayer.vue';
+import ErrorMobilePlayer from '@/components/lyric/ErrorMobilePlayer.vue';
 import FrenzyMobilePlayer from '@/components/lyric/FrenzyMobilePlayer.vue';
 import MusicFull from '@/components/lyric/MusicFull.vue';
 import NeonMobilePlayer from '@/components/lyric/NeonMobilePlayer.vue';
@@ -108,7 +109,8 @@ const mobileStyleComponents: Record<string, any> = {
   eerie: markRaw(EerieMobilePlayer),
   neon: markRaw(NeonMobilePlayer),
   rain: markRaw(RainMobilePlayer),
-  smoke: markRaw(SmokeMobilePlayer)
+  smoke: markRaw(SmokeMobilePlayer),
+  error: markRaw(ErrorMobilePlayer)
 };
 
 const playerStore = usePlayerStore();

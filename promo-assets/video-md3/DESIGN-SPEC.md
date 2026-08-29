@@ -73,3 +73,31 @@
 - `public/textures/magazine.png` — 用户海报（收尾整幅）。
 - 其余全部 Remotion 内绘制（符号化，无需截图采集——非复刻场景，阶段 4 豁免截图三件套）。
 - 音频：video-shotcraft `assets/audio/`（免费商用，见 ATTRIBUTION）；BGM 从 `audio/bgm/` 试听选型。
+
+## 执行修订记录（阶段 5–6 实现后）
+
+- S7 由 330f 压缩为 240f（避免结尾 7s 死静止），TOTAL 1560f ≈ 52s；S7 删除下载信息叠字（海报信息完整，叠字与海报底部导航打架）。
+- S5 修复：胶囊 zIndex 与列表 transform 层叠上下文冲突导致选中词被盖——按 demo 写法去掉胶囊 zIndex，DOM 顺序定层级。
+- S6 真 FFT：@remotion/media-utils visualizeAudio（numberOfSamples=512，2 的幂；此版本 spectrum[i] 为标量）+ 低中频段（前 35%）对数分桶聚合 32 根 + pow 0.6 压缩动态范围；kick 命中帧左端条 85–90px 达标，帧间变化真实。
+- S1 修复：因果圆点移入 chips 行专属槽位（ORIGIN 精确对齐），不再遮挡"私人 FM"chip。
+- BGM 选型：bgm-tech-house.mp3（librosa 实测 123 BPM；前 10s rms 0.11 build-up / 30s 后 0.28 groove，贴合开场呼吸与高潮段），音量 0.34，首 30f 淡入尾 60f 淡出。
+- SFX 14 文件入 public/sfx/（video-shotcraft assets，免费商用授权）；峰值实测贴 0dBFS，系数 0.2–0.55；长样本 impact-cine-big(8s)/impact-deep-whoosh(4.1s)/riser-cine(4.9s) 显式 durationInFrames 截断。
+- 钉帧表见 src/md3/SfxTrack.tsx（全部相对 SHOTS 表达式）。
+
+## 交付
+
+- 成片：out/promo.mp4（带 BGM）/ out/promo-nobgm.mp4（props-nobgm.json 渲，保留 SFX）
+- qa 静帧：out/qa/
+
+- 渲染修复：bundle 中 public 资产位于 /public 子路径，所有 staticFile/Audio 路径去除前导斜杠（字体加载靠 catch 兜底曾掩盖该问题，文字实为微软雅黑回退——修正后 NotoSC 真字重生效）。
+
+## 终检回写（FINAL-REVIEW 后）
+
+- **S5 幽灵词修复**：词列表加 clipPath inset(330px 0 0 0)，上行词进标题带前裁掉（终检 ❌ 项）。
+- **S3 时间戳修复**：时间文字随进度 98s→122s 同步跳动，不再冻结在 01:38（终检 ⚠️ 项）。
+- **S4 四色波确认**：终态即四来源色带（金棕/雾蓝/灰绿/藕粉对应网易云/QQ/酷狗/本地），spec 前文"金棕色横带"表述以本条为准。
+- **卖点 #8 状态栏歌词：本片未拍**。取舍：八样式节拍循环与状态栏歌词二选一取前者（旧片已有状态栏歌词完整镜头），不重复。
+- **S3 罗马音未单独出现**：翻译胶囊承载多声部叙事，罗马音并入"副行"概念记录。
+- **token 标签终名**：S3=LYRICS · WORD-TIMED、S4=SOURCES · MULTI-PLATFORM、S5=STAGES · 8 STYLES（原分镜文案已转画面内 chips，信息未丢）。
+- **TokenTag 24px 裁决**：属编辑风小标签（非正文辅助文字），24px+0.28em 字距为刻意排版，保留；aesthetic-rules 的 ≥32px 针对说明性正文。
+- **S2"顺序"图标**：采用循环箭头（列表循环）——音乐播放器行业惯例语义，保留。

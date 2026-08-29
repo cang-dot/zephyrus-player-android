@@ -1,0 +1,74 @@
+[
+  {
+    "type": "divider",
+    "label": "错误效果"
+  },
+  {
+    "key": "effectCrt",
+    "type": "boolean",
+    "label": "CRT 扫描线",
+    "default": true
+  },
+  {
+    "key": "errorNoise",
+    "type": "slider",
+    "label": "噪点强度",
+    "default": 0.5,
+    "min": 0,
+    "max": 1,
+    "step": 0.05
+  },
+  {
+    "key": "errorJitter",
+    "type": "slider",
+    "label": "画面抖动",
+    "default": 0.4,
+    "min": 0,
+    "max": 1,
+    "step": 0.05
+  },
+  {
+    "key": "errorFluidPower",
+    "type": "slider",
+    "label": "流体力度",
+    "default": 1,
+    "min": 0.5,
+    "max": 2,
+    "step": 0.1
+  },
+  {
+    "type": "divider",
+    "label": "高潮效果"
+  },
+  {
+    "key": "errorFlash",
+    "type": "slider",
+    "label": "错误爆发强度",
+    "default": 0.6,
+    "min": 0,
+    "max": 1,
+    "step": 0.05
+  },
+  {
+    "key": "errorEdgeGlow",
+    "type": "boolean",
+    "label": "边缘光",
+    "default": true
+  },
+  {
+    "key": "effectLyricColor",
+    "type": "boolean",
+    "label": "高潮歌词跟随主题色",
+    "default": true
+  },
+  {
+    "type": "divider",
+    "label": "歌词"
+  },
+  {
+    "key": "errorDecorMarks",
+    "type": "boolean",
+    "label": "装饰符号（!…!）",
+    "default": false
+  }
+]

@@ -12,6 +12,10 @@ import android.webkit.WebView;
 import android.util.Log;
 import org.json.JSONObject;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Locale;
+
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.BackEventCompat;
 import androidx.core.view.WindowCompat;
@@ -195,6 +199,18 @@ public class MainActivity extends BridgeActivity {
         Uri data = intent.getData();
         if (data == null) return false;
         String url = data.toString();
+        String scheme = data.getScheme() == null ? "" : data.getScheme().toLowerCase(Locale.ROOT);
+
+        // 网易云分享链接（微信/浏览器"用其他软件打开"）：解析后走同一弹卡片流程
+        if ("https".equals(scheme) || "http".equals(scheme)) {
+            String host = data.getHost() == null ? "" : data.getHost().toLowerCase(Locale.ROOT);
+            if (!isNeteaseMusicHost(host)) return false;
+            Log.i("ZephyrusDeepLink", "Received netease link: " + url);
+            lastClipboardContent = url;
+            resolveNeteaseUrlAsync(url);
+            return true;
+        }
+
         // 只处理 zephyrus:// scheme
         if (!url.startsWith("zephyrus://")) return false;
         Log.i("ZephyrusDeepLink", "Received deep link: " + url);
@@ -230,6 +246,64 @@ public class MainActivity extends BridgeActivity {
         // 记录到 lastClipboardContent 防止 onResume 重复处理
         lastClipboardContent = url;
         return true;
+    }
+
+    private boolean isNeteaseMusicHost(String host) {
+        return "music.163.com".equals(host)
+                || "y.music.163.com".equals(host)
+                || host.endsWith(".music.163.com")
+                || "163cn.tv".equals(host)
+                || host.endsWith(".163cn.tv");
+    }
+
+    /** 163cn.tv 短链需跟随 302 拿最终长链（原生解析绕开 WebView CORS），其他网易域名直接使用 */
+    private void resolveNeteaseUrlAsync(final String url) {
+        if (!url.contains("163cn.tv")) {
+            dispatchShareUrlToWeb(url);
+            return;
+        }
+        new Thread(() -> {
+            String resolved = resolveRedirectTarget(url);
+            final String target = resolved != null ? resolved : url;
+            runOnUiThread(() -> dispatchShareUrlToWeb(target));
+        }).start();
+    }
+
+    /** 单次 302 跟随：网易云短链 Location 即最终长链 */
+    private String resolveRedirectTarget(String url) {
+        try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setInstanceFollowRedirects(false);
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            conn.setRequestMethod("HEAD");
+            conn.setRequestProperty("User-Agent",
+                    "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36");
+            int code = conn.getResponseCode();
+            String location = conn.getHeaderField("Location");
+            conn.disconnect();
+            if (location != null && !location.isEmpty()
+                    && (code == HttpURLConnection.HTTP_MOVED_PERM
+                        || code == HttpURLConnection.HTTP_MOVED_TEMP
+                        || code == 303 || code == 307 || code == 308)) {
+                return new URL(new URL(url), location).toString();
+            }
+        } catch (Exception e) {
+            Log.w("ZephyrusDeepLink", "Resolve netease short link failed", e);
+        }
+        return null;
+    }
+
+    /** 复用 Intent 链路的三次重试注入，把链接交给前端统一弹卡片 */
+    private void dispatchShareUrlToWeb(String url) {
+        WebView webView = bridge.getWebView();
+        if (webView == null) return;
+        // url 来自外部 Intent（不可信输入），必须经 JSONObject.quote 转义
+        final String js = "window.__handleClipboardShare && window.__handleClipboardShare("
+                + JSONObject.quote(url) + ");";
+        webView.postDelayed(() -> evaluateJavascript(js), 300);
+        webView.postDelayed(() -> evaluateJavascript(js), 1500);
+        webView.postDelayed(() -> evaluateJavascript(js), 3000);
     }
 
     /**

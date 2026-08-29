@@ -1,5 +1,7 @@
 import { computed } from 'vue';
 
+import tinycolor from 'tinycolor2';
+
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { playMusic } from '@/hooks/MusicHook';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
@@ -16,7 +18,8 @@ const ORIGINAL_STYLE_BACKGROUNDS: Record<MobilePlayerStyleKey, string> = {
   eerie: '',
   neon: '#1a1814',
   rain: '#0a0a0f',
-  smoke: '#111111'
+  smoke: '#111111',
+  error: '#000000'
 };
 
 function gradientValue(colors: string[], direction: string, fallback: string): string {
@@ -30,16 +33,22 @@ function resolveChoice(choice: PlayerStyleColorChoice, themeColor: string): stri
 }
 
 function saturateHex(color: string): string {
-  const match = color.match(/^#([0-9a-f]{6})$/i);
-  if (!match) return color;
-  const values = [0, 1, 2].map((i) => Number.parseInt(match[1].slice(i * 2, i * 2 + 2), 16));
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const spread = Math.max(1, max - min);
-  return `#${values
-    .map((value) => Math.min(255, Math.round(min + ((value - min) * 1.55 * 255) / spread)))
-    .map((value) => value.toString(16).padStart(2, '0'))
-    .join('')}`;
+  const tiny = tinycolor(color);
+  if (!tiny.isValid()) return color;
+  const hsl = tiny.toHsl();
+  let hue = hsl.h;
+  // 封面近灰白时饱和度无从拉伸，借用全局强调色的色相，保证烟雾/流体仍有明确色调
+  if (hsl.s < 0.08) {
+    const accent = tinycolor(
+      getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim()
+    );
+    hue = accent.isValid() ? accent.toHsl().h : 355;
+  }
+  return tinycolor({
+    h: hue,
+    s: Math.max(hsl.s, 0.72),
+    l: Math.min(0.65, Math.max(0.42, hsl.l))
+  }).toHexString();
 }
 
 export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {

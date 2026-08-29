@@ -12,7 +12,8 @@ const STYLE_LYRIC_COLORS: Record<MobilePlayerStyleKey, string> = {
   eerie: '#f3eee4',
   neon: '#f2dfb0',
   rain: '#ffffff',
-  smoke: '#e9f7f2'
+  smoke: '#e9f7f2',
+  error: '#ffffff'
 };
 
 const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unknown>> = {
@@ -55,6 +56,18 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     smokeCustomColor: '#5fffd0',
     smokeGlowFollowThemeColor: true,
     smokeGlowCustomColor: '#ff765f'
+  },
+  error: {
+    effectCrt: true,
+    effectLyricColor: true,
+    effectWordDrop: false,
+    effectStaggered: false,
+    errorEdgeGlow: true,
+    errorNoise: 0.5,
+    errorJitter: 0.4,
+    errorFlash: 0.6,
+    errorFluidPower: 1,
+    errorDecorMarks: false
   }
 };
 
@@ -182,6 +195,27 @@ export function resolvePlayerStyleConfig(
   config.smokeCustomColor = normalizeColor(config.smokeCustomColor, '#5fffd0');
   config.smokeGlowFollowThemeColor = config.smokeGlowFollowThemeColor !== false;
   config.smokeGlowCustomColor = normalizeColor(config.smokeGlowCustomColor, '#ff765f');
+  config.errorEdgeGlow = config.errorEdgeGlow !== false;
+  config.errorNoise = Math.min(
+    1,
+    Math.max(0, Number.isFinite(Number(config.errorNoise)) ? Number(config.errorNoise) : 0.5)
+  );
+  config.errorJitter = Math.min(
+    1,
+    Math.max(0, Number.isFinite(Number(config.errorJitter)) ? Number(config.errorJitter) : 0.4)
+  );
+  config.errorFlash = Math.min(
+    1,
+    Math.max(0, Number.isFinite(Number(config.errorFlash)) ? Number(config.errorFlash) : 0.6)
+  );
+  config.errorFluidPower = Math.min(
+    2,
+    Math.max(
+      0.5,
+      Number.isFinite(Number(config.errorFluidPower)) ? Number(config.errorFluidPower) : 1
+    )
+  );
+  config.errorDecorMarks = config.errorDecorMarks === true;
   if (!['solid', 'gradient', 'image'].includes(config.backgroundMode)) {
     config.backgroundMode = defaults.backgroundMode;
   }
@@ -208,8 +242,10 @@ export function resolvePlayerStyleEffects(
 ): PlayerStyleEffects {
   const source = config.mode === 'custom' ? config : createPlayerStyleConfig(styleKey);
   return {
-    crt: styleKey === 'frenzy' && source.effectCrt === true,
-    lyricColor: (styleKey === 'frenzy' || styleKey === 'stage') && source.effectLyricColor === true,
+    crt: (styleKey === 'frenzy' || styleKey === 'error') && source.effectCrt === true,
+    lyricColor:
+      (styleKey === 'frenzy' || styleKey === 'stage' || styleKey === 'error') &&
+      source.effectLyricColor === true,
     wordDrop:
       (styleKey === 'frenzy' ||
         styleKey === 'eerie' ||

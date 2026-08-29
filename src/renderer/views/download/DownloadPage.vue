@@ -270,37 +270,49 @@
     </n-scrollbar>
 
     <!-- 鍒犻櫎纭对话框-->
-    <n-modal
-      v-model:show="showDeleteConfirm"
-      preset="dialog"
-      type="warning"
+    <glass-confirm-dialog
+      v-model:visible="showDeleteConfirm"
       :title="t('download.delete.title')"
-      :content="
+      :message="
         t('download.delete.message', {
           filename: itemToDelete?.displayName || itemToDelete?.filename
         })
       "
-      :positive-text="t('download.delete.confirm')"
-      :negative-text="t('download.delete.cancel')"
-      @positive-click="confirmDelete"
+      :confirm-text="t('download.delete.confirm')"
+      :cancel-text="t('download.delete.cancel')"
+      danger
+      @confirm="confirmDelete"
     />
 
     <!-- 娓呯┖纭对话框-->
-    <n-modal
-      v-model:show="showClearConfirm"
-      preset="dialog"
-      type="error"
+    <glass-confirm-dialog
+      v-model:visible="showClearConfirm"
       :title="t('download.clear.title')"
-      :content="t('download.clear.message')"
-      :positive-text="t('download.clear.confirm')"
-      :negative-text="t('download.clear.cancel')"
-      @positive-click="clearDownloadRecords"
+      :message="t('download.clear.message')"
+      :confirm-text="t('download.clear.confirm')"
+      :cancel-text="t('download.clear.cancel')"
+      danger
+      @confirm="clearDownloadRecords"
     />
 
-    <!-- 下载设置抽屉 -->
-    <n-drawer v-model:show="showSettingsDrawer" :width="400" placement="right">
-      <n-drawer-content :title="t('download.settingsPanel.title')" closable>
-        <div class="download-settings-content space-y-8 py-4">
+    <!-- 下载设置（底部玻璃 sheet） -->
+    <Teleport to="body">
+      <Transition name="download-sheet">
+        <div
+          v-if="showSettingsDrawer"
+          class="download-sheet-overlay"
+          @click.self="showSettingsDrawer = false"
+        >
+          <div class="download-sheet">
+            <div class="download-sheet-grabber"></div>
+            <header class="download-sheet-header">
+              <h3>{{ t('download.settingsPanel.title') }}</h3>
+              <button class="download-sheet-close" @click="showSettingsDrawer = false">
+                <i class="ri-close-line" />
+              </button>
+            </header>
+            <div class="download-sheet-body">
+              <div class="download-settings-content space-y-8 py-2">
           <!-- Path Section -->
           <div class="setting-group">
             <h3 class="text-sm font-bold text-neutral-900 dark:text-white mb-2">
@@ -445,15 +457,18 @@
               </div>
             </div>
           </div>
-        </div>
+            </div>
+          </div>
 
-        <template #footer>
-          <n-button type="primary" block @click="saveDownloadSettings">{{
-            t('common.save')
-          }}</n-button>
-        </template>
-      </n-drawer-content>
-    </n-drawer>
+          <div class="download-sheet-footer">
+            <button class="download-sheet-save" @click="saveDownloadSettings">{{
+              t('common.save')
+            }}</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
   </div>
 </template>
 
@@ -463,6 +478,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { getMusicDetail } from '@/api/music';
+import GlassConfirmDialog from '@/components/common/GlassConfirmDialog.vue';
 import { usePlayerStore } from '@/store/modules/player';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
@@ -1142,5 +1158,129 @@ onMounted(() => {
 .downloading-item,
 .downloaded-item {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===== 下载设置：底部玻璃 sheet ===== */
+.download-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.download-sheet {
+  width: 100%;
+  max-width: 520px;
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 20px calc(16px + var(--safe-area-inset-bottom, 0px));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: none;
+  border-radius: 24px 24px 0 0;
+  background: rgba(28, 28, 32, 0.96);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    0 -16px 48px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.download-sheet-grabber {
+  width: 40px;
+  height: 4px;
+  margin: 0 auto 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.download-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+
+  h3 {
+    margin: 0;
+    color: #f5f5f7;
+    font-size: 17px;
+    font-weight: 700;
+  }
+}
+
+.download-sheet-close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+  place-items: center;
+}
+
+.download-sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.download-sheet-footer {
+  padding-top: 14px;
+}
+
+.download-sheet-save {
+  width: 100%;
+  padding: 14px 0;
+  border: none;
+  border-radius: 999px;
+  color: #1a1a1c;
+  background: var(--accent-color, #d4a056);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    opacity 0.2s ease;
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+/* 深色玻璃表面上的设置文案统一为白系 */
+.download-settings-content {
+  h3 {
+    color: #f5f5f7 !important;
+  }
+
+  p {
+    color: rgba(255, 255, 255, 0.55) !important;
+  }
+}
+
+.download-sheet-enter-active,
+.download-sheet-leave-active {
+  transition: opacity 0.3s ease;
+
+  .download-sheet {
+    transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+.download-sheet-enter-from,
+.download-sheet-leave-to {
+  opacity: 0;
+
+  .download-sheet {
+    transform: translateY(100%);
+  }
 }
 </style>

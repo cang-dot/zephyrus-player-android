@@ -7,6 +7,7 @@ import './eerie';
 import './neon';
 import './rain';
 import './smoke';
+import './error';
 
 // 导出注册表 API
 export type { PlayerStyleDefinition, SettingItem } from './registry';

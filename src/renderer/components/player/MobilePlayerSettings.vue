@@ -1081,12 +1081,18 @@
       </div>
     </Transition>
     <song-metadata-editor v-model:show="metadataEditorShow" :song="currentSong!" />
+    <photosensitivity-warning
+      v-model:visible="photosensitivityVisible"
+      @confirm="handlePhotosensitivityConfirm"
+      @decline="handlePhotosensitivityDecline"
+    />
   </Teleport>
 </template>
 
 <script setup lang="ts">
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+
 import { storeToRefs } from 'pinia';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -1103,6 +1109,7 @@ import { searchServerSongs } from '@/api/serverSongs';
 import InlinePlaylistPicker from '@/components/common/InlinePlaylistPicker.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import SongMetadataEditor from '@/components/common/SongMetadataEditor.vue';
+import PhotosensitivityWarning from '@/components/lyric/PhotosensitivityWarning.vue';
 import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
 import ListenTogetherSettings from '@/components/settings/ListenTogetherSettings.vue';
 import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
@@ -1989,6 +1996,12 @@ const playerStyles = computed<
     label: tr('player.styles.smoke', '烟雾'),
     icon: 'ri-cloudy-line',
     color: '#14b8a6'
+  },
+  {
+    key: 'error' as const,
+    label: tr('player.styles.error', '错误'),
+    icon: 'ri-bug-line',
+    color: '#ef4444'
   }
 ]);
 
@@ -1996,10 +2009,39 @@ const currentPlayerStyle = computed<MobilePlayerStyleKey>(() =>
   isMobilePlayerStyleKey(lyricConfig.value.playerStyle) ? lyricConfig.value.playerStyle : 'default'
 );
 
-const setPlayerStyle = (style: MobilePlayerStyleKey) => {
+// 「错误」样式含高频闪烁，首次启用前必须通过光敏性癫痫警告
+const PHOTOSENSITIVITY_ACK_KEY = 'photosensitivity-warning-acked';
+const pendingErrorStyle = ref(false);
+const photosensitivityVisible = ref(false);
+
+const applyPlayerStyle = (style: MobilePlayerStyleKey) => {
   lyricConfig.value.playerStyle = style;
   localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
   window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+};
+
+const setPlayerStyle = (style: MobilePlayerStyleKey) => {
+  let acknowledged = true;
+  try {
+    acknowledged = Boolean(localStorage.getItem(PHOTOSENSITIVITY_ACK_KEY));
+  } catch {
+    acknowledged = true;
+  }
+  if (style === 'error' && !acknowledged) {
+    pendingErrorStyle.value = true;
+    photosensitivityVisible.value = true;
+    return;
+  }
+  applyPlayerStyle(style);
+};
+
+const handlePhotosensitivityConfirm = () => {
+  if (pendingErrorStyle.value) applyPlayerStyle('error');
+  pendingErrorStyle.value = false;
+};
+
+const handlePhotosensitivityDecline = () => {
+  pendingErrorStyle.value = false;
 };
 
 // ==================== 自定义效果配置 ====================

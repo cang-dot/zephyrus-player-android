@@ -391,7 +391,7 @@ onBeforeUnmount(() => {
 }
 
 .landscape .shared-controls-spacer {
-  height: calc(154px + var(--safe-area-inset-bottom, 0px));
+  height: calc(96px + var(--safe-area-inset-bottom, 0px));
 }
 
 .landscape .player-content {

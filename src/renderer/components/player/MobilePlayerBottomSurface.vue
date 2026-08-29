@@ -85,6 +85,7 @@ import type { CSSProperties, Ref } from 'vue';
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
+import { useControlsDock } from '@/composables/useControlsDock';
 import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
@@ -187,6 +188,47 @@ const surfaceMounted = computed(
 const controlsShown = computed(
   () => playerTransition.controlsVisible.value && surfaceMode.value === 'controls'
 );
+
+// ==================== 控件下移贴底（default 样式共享容器路径） ====================
+
+const surfacePinned = ref(false);
+const refreshSurfacePinned = () => {
+  try {
+    const raw = localStorage.getItem('music-full-config');
+    const cfg = raw ? JSON.parse(raw) : {};
+    surfacePinned.value = cfg.alwaysShowPlayerControls === true;
+  } catch {
+    surfacePinned.value = false;
+  }
+};
+window.addEventListener('music-full-config-updated', refreshSurfacePinned);
+refreshSurfacePinned();
+onBeforeUnmount(() => {
+  window.removeEventListener('music-full-config-updated', refreshSurfacePinned);
+});
+
+const surfaceDock = useControlsDock(
+  () =>
+    document.querySelector<HTMLElement>(
+      '.shared-player-bottom-surface .apple-style-progress'
+    ),
+  {
+    hidden: () => surfaceMode.value === 'controls' && !playerTransition.controlsVisible.value,
+    enabled: () => !surfacePinned.value && !lyricSelection.active.value
+  }
+);
+const surfaceDocked = computed(
+  () => surfaceDock.dockActive.value && playerTransition.sheetProgress.value < 0.02
+);
+
+// 容器由 v-if 控制挂载，播放器打开后进度条才存在，需要重新测量基准位置
+watch(
+  () => playerStore.musicFull,
+  (open) => {
+    if (open) void nextTick(() => surfaceDock.scheduleMeasure());
+  }
+);
+
 const chromeVisibility = computed(() => {
   if (lyricSelection.active.value) return 1;
   const transitionState = playerTransition.state.value;
@@ -198,8 +240,12 @@ const chromeVisibility = computed(() => {
   ) {
     return progressReveal;
   }
-  const controlsReveal =
-    surfaceMode.value !== 'controls' || playerTransition.controlsVisible.value ? 1 : 0;
+  // dock 状态下控件位移到进度条贴底而非消失，整层保持可见
+  const controlsReveal = surfaceDocked.value
+    ? 1
+    : surfaceMode.value !== 'controls' || playerTransition.controlsVisible.value
+      ? 1
+      : 0;
   return progressReveal * controlsReveal;
 });
 
@@ -225,7 +271,7 @@ const surfaceStyle = computed<CSSProperties>(() => {
   const sheet = sheetProgress.value;
   const playerProgress = lyricSelection.active.value ? 1 : playerTransition.progress.value;
   const landscape = isLandscape.value;
-  const controlHeight = lyricSelection.active.value ? 88 : landscape ? 154 : 168;
+  const controlHeight = lyricSelection.active.value ? 88 : landscape ? 96 : 168;
   const basePanelHeight = landscape
     ? viewportHeight.value - 28
     : Math.min(viewportHeight.value * 0.68, 560);
@@ -253,7 +299,9 @@ const surfaceStyle = computed<CSSProperties>(() => {
     width: `${width}px`,
     height: `${height}px`,
     borderRadius: `${finalRadius}px`,
-    transform: 'none',
+    transform: surfaceDocked.value
+      ? `translate3d(0, ${surfaceDock.dockShift.value}px, 0)`
+      : 'none',
     pointerEvents: chromeVisibility.value > 0.02 ? 'auto' : 'none'
   };
 });
@@ -481,7 +529,8 @@ const onSurfacePointerCancel = (event: PointerEvent) => {
   transition:
     border-color var(--player-glass-feedback-duration, 220ms) ease,
     background-color var(--player-glass-feedback-duration, 220ms) ease,
-    box-shadow var(--player-glass-feedback-duration, 220ms) ease;
+    box-shadow var(--player-glass-feedback-duration, 220ms) ease,
+    transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .shared-player-bottom-surface.player-transitioning {

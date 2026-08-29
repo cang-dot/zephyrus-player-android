@@ -120,7 +120,15 @@ export default {
     eerie: '诡谲',
     neon: '陈旧',
     rain: '雨夜',
-    smoke: '烟雾'
+    smoke: '烟雾',
+    error: '错误'
+  },
+  photosensitivity: {
+    title: '光敏性癫痫警告',
+    intro: '「错误」播放器样式包含高频闪烁画面：全屏噪点、扫描线与高潮段的强烈明暗变化。',
+    detail: '如果您或您的家人有光敏性癫痫病史，请勿使用此样式。建议在明亮环境使用，并避免长时间注视屏幕。',
+    confirm: '我已知晓并继续',
+    decline: '返回'
   },
   styleCustomization: {
     title: '样式设置',
@@ -176,7 +184,14 @@ export default {
     smokeLoudnessResponse: '响度响应',
     smokeOpacity: '烟雾透明度',
     smokeVignette: '高潮暗角',
-    smokeFontStretch: '字体拉伸'
+    smokeFontStretch: '字体拉伸',
+    errorScanlines: '扫描线',
+    errorEdgeGlow: '高潮边缘光',
+    errorNoise: '噪点强度',
+    errorJitter: '画面抖动',
+    errorFlash: '错误爆发强度',
+    errorFluidPower: '流体力度',
+    errorDecorMarks: '歌词装饰符号'
   },
   // 定时关闭功能相关
   sleepTimer: {

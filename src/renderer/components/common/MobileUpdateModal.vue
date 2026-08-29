@@ -5,15 +5,9 @@
         v-if="showModal"
         class="fixed inset-0 z-[999999] flex items-end justify-center bg-black/50 backdrop-blur-sm"
       >
-        <div
-          class="w-full max-w-lg bg-white dark:bg-gray-900 rounded-t-3xl overflow-hidden animate-slide-up"
-        >
-          <div
-            class="h-1 bg-gradient-to-r from-[var(--accent-color-light)] via-[var(--accent-color)] to-[var(--accent-color-dark)]"
-          ></div>
-
+        <div class="w-full max-w-lg rounded-t-3xl overflow-hidden animate-slide-up update-sheet">
           <div class="flex justify-center pt-3 pb-2">
-            <div class="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-700"></div>
+            <div class="w-10 h-1 rounded-full update-sheet-grabber"></div>
           </div>
 
           <div class="px-6 pb-5">
@@ -29,44 +23,40 @@
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-2">
-                  <span
-                    class="px-3 py-1 text-xs font-medium text-white bg-gradient-to-r from-[var(--accent-color)] to-[var(--accent-color-dark)] rounded-full"
-                  >
+                  <span class="update-version-pill">
                     {{ t('comp.update.title') }}
                   </span>
                 </div>
-                <h2 class="text-2xl font-bold text-gray-900 dark:text-white truncate">
+                <h2 class="text-2xl font-bold update-sheet-title truncate">
                   v{{ latestVersion }}
                 </h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <p class="text-sm update-sheet-subtitle mt-1">
                   {{ t('comp.update.currentVersion') }}: v{{ currentVersion }}
                 </p>
               </div>
             </div>
           </div>
 
-          <div
-            class="mx-6 mb-6 max-h-72 overflow-y-auto rounded-2xl bg-gray-50 dark:bg-gray-800/50"
-          >
+          <div class="mx-6 mb-6 max-h-72 overflow-y-auto rounded-2xl update-sheet-notes">
             <div
-              class="p-5 text-sm text-gray-600 dark:text-gray-300 leading-relaxed"
+              class="p-5 text-sm leading-relaxed update-sheet-notes-text"
               v-html="parsedReleaseNotes"
             ></div>
           </div>
 
           <!-- 下载进度 -->
           <div v-if="downloadState === 'downloading'" class="px-6 pb-4">
-            <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+            <div class="flex justify-between text-xs update-sheet-subtitle mb-2">
               <span>{{ t('comp.update.downloading') }}</span>
               <span>{{ downloadProgressText }}</span>
             </div>
-            <div class="h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+            <div class="h-2 rounded-full update-sheet-track overflow-hidden">
               <div
-                class="h-full bg-gradient-to-r from-[var(--accent-color)] to-[var(--accent-color-dark)] rounded-full transition-all duration-200"
+                class="h-full rounded-full transition-all duration-200 update-progress-fill"
                 :style="{ width: `${Math.round(downloadProgress * 100)}%` }"
               ></div>
             </div>
-            <p class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">{{ downloadSpeedText }}</p>
+            <p class="mt-1.5 text-xs update-sheet-subtitle">{{ downloadSpeedText }}</p>
           </div>
           <p v-else-if="downloadState === 'error'" class="px-6 pb-4 text-xs text-red-500">
             {{ t('comp.update.downloadFailed') }}：{{ downloadError }}
@@ -76,17 +66,10 @@
             class="px-6 pb-8 flex gap-3"
             :style="{ paddingBottom: `calc(32px + var(--safe-area-inset-bottom, 0px))` }"
           >
-            <button
-              @click="handleLater"
-              :disabled="downloadState === 'downloading'"
-              class="flex-1 py-4 px-4 rounded-2xl text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-[0.98] transition-all duration-200 disabled:opacity-50"
-            >
+            <button @click="handleLater" :disabled="downloadState === 'downloading'" class="update-btn-secondary">
               {{ t('comp.update.noThanks') }}
             </button>
-            <button
-              @click="handlePrimaryAction"
-              class="flex-1 py-4 px-4 rounded-2xl text-base font-medium text-white bg-gradient-to-r from-[var(--accent-color)] to-[var(--accent-color-dark)] hover:brightness-90 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[var(--accent-color)]/25 disabled:opacity-60"
-            >
+            <button @click="handlePrimaryAction" class="update-btn-primary">
               <span class="flex items-center justify-center gap-2">
                 <i
                   :class="
@@ -317,6 +300,95 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 玻璃表面：与 SharedSongCard 同一配方（Teleport 到 body，不依赖 .mobile 令牌作用域） */
+.update-sheet {
+  background: rgba(28, 28, 32, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: none;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    0 -16px 48px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.update-sheet-grabber {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.update-sheet-title {
+  color: #f5f5f7;
+}
+
+.update-sheet-subtitle {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.update-version-pill {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1a1c;
+  background: var(--accent-color, #d4a056);
+  border-radius: 999px;
+}
+
+.update-sheet-notes {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.update-sheet-notes-text {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.update-sheet-track {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.update-progress-fill {
+  background: var(--accent-color, #d4a056);
+}
+
+.update-btn-secondary,
+.update-btn-primary {
+  flex: 1;
+  padding: 16px;
+  border: none;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 0.15s ease,
+    opacity 0.2s ease;
+}
+
+.update-btn-secondary {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.update-btn-secondary:disabled {
+  opacity: 0.5;
+}
+
+.update-btn-primary {
+  color: #1a1a1c;
+  background: var(--accent-color, #d4a056);
+}
+
+.update-btn-primary:disabled {
+  opacity: 0.6;
+}
+
+.update-btn-secondary:active,
+.update-btn-primary:active {
+  transform: scale(0.98);
+}
+
 .update-modal-enter-active,
 .update-modal-leave-active {
   transition: opacity 0.3s ease;

@@ -121,19 +121,26 @@ defineExpose({ showInvite });
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   padding: 20px;
 }
 
+/* 玻璃卡片：与 SharedSongCard 同一表面配方 */
 .lt-invite-card {
   position: relative;
   width: min(360px, calc(100vw - 40px));
   border-radius: 20px;
   padding: 28px 22px 22px;
-  background: var(--zephyrus-card-bg, #1c1c1e);
-  color: var(--zephyrus-card-fg, #fff);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.35);
+  color: #f5f5f7;
+  background: rgba(28, 28, 32, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -148,12 +155,13 @@ defineExpose({ showInvite });
   border-radius: 50%;
   border: none;
   background: rgba(255, 255, 255, 0.08);
-  color: inherit;
+  color: rgba(255, 255, 255, 0.6);
   font-size: 18px;
   cursor: pointer;
 
   &:hover {
     background: rgba(255, 255, 255, 0.16);
+    color: rgba(255, 255, 255, 0.85);
   }
 }
 
@@ -165,8 +173,8 @@ defineExpose({ showInvite });
   display: grid;
   place-items: center;
   font-size: 30px;
-  background: linear-gradient(135deg, rgba(120, 120, 255, 0.25), rgba(80, 200, 255, 0.2));
-  color: #8ab4ff;
+  background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.16);
+  color: var(--accent-color, #d4a056);
 }
 
 .card-info {
@@ -177,7 +185,7 @@ defineExpose({ showInvite });
     align-items: center;
     gap: 6px;
     font-size: 12px;
-    opacity: 0.65;
+    color: rgba(255, 255, 255, 0.5);
   }
 
   .card-title {
@@ -191,7 +199,7 @@ defineExpose({ showInvite });
     margin: 0;
     font-size: 13px;
     line-height: 1.5;
-    opacity: 0.7;
+    color: rgba(255, 255, 255, 0.66);
   }
 }
 
@@ -200,10 +208,10 @@ defineExpose({ showInvite });
 
   .invite-name-input {
     flex: 1;
-    height: 42px;
-    padding: 0 14px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    height: 44px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     background: rgba(255, 255, 255, 0.06);
     color: inherit;
     font-size: 14px;
@@ -211,7 +219,7 @@ defineExpose({ showInvite });
     transition: border-color 0.2s ease;
 
     &:focus {
-      border-color: rgba(138, 180, 255, 0.7);
+      border-color: rgba(var(--accent-color-rgb, 136, 136, 136), 0.65);
     }
 
     &::placeholder {
@@ -227,8 +235,8 @@ defineExpose({ showInvite });
 
   .action-btn {
     flex: 1;
-    height: 44px;
-    border-radius: 12px;
+    height: 46px;
+    border-radius: 999px;
     border: none;
     font-size: 14px;
     font-weight: 600;
@@ -239,25 +247,24 @@ defineExpose({ showInvite });
     gap: 6px;
     transition:
       transform 0.15s ease,
-      filter 0.2s ease;
+      opacity 0.2s ease;
 
     &:active {
       transform: scale(0.97);
     }
 
     &.primary {
-      color: #fff;
-      background: linear-gradient(135deg, #7a9cff, #5aa9ff);
+      color: #1a1a1c;
+      background: var(--accent-color, #d4a056);
 
       &:disabled {
-        filter: grayscale(0.4);
-        opacity: 0.75;
+        opacity: 0.5;
       }
     }
 
     &.secondary {
       background: rgba(255, 255, 255, 0.08);
-      color: inherit;
+      color: rgba(255, 255, 255, 0.85);
     }
   }
 }

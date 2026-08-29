@@ -6,7 +6,8 @@ export const MOBILE_PLAYER_STYLE_KEYS = [
   'eerie',
   'neon',
   'rain',
-  'smoke'
+  'smoke',
+  'error'
 ] as const;
 
 export type MobilePlayerStyleKey = (typeof MOBILE_PLAYER_STYLE_KEYS)[number];
@@ -80,6 +81,18 @@ export interface PlayerStyleCustomConfig {
   smokeCustomColor?: string;
   smokeGlowFollowThemeColor?: boolean;
   smokeGlowCustomColor?: string;
+  /** 「错误」样式：高潮烟雾式边缘光开关 */
+  errorEdgeGlow?: boolean;
+  /** 「错误」样式：白色噪点强度 0-1 */
+  errorNoise?: number;
+  /** 「错误」样式：歌词抽帧抖动强度 0-1 */
+  errorJitter?: number;
+  /** 「错误」样式：高潮错误闪烁强度 0-1 */
+  errorFlash?: number;
+  /** 「错误」样式：流体力度倍率 0.5-2 */
+  errorFluidPower?: number;
+  /** 「错误」样式：歌词装饰符号（!…!）开关 */
+  errorDecorMarks?: boolean;
   [key: string]: unknown;
 }
 
