@@ -262,26 +262,9 @@ if (!isLyricWindow.value) {
 
 handleSetLanguage(settingsStore.setData.language);
 
-// 监听迷你模式状态
+// Electron 迷你模式已随 /mini 路由与 MiniLayout 移除（移动端项目，桌面迷你窗为遗留）
 if (isElectron) {
   window.api.onLanguageChanged(handleSetLanguage);
-  window.electron.ipcRenderer.on('mini-mode', (_, value) => {
-    settingsStore.setMiniMode(value);
-    if (value) {
-      // 存储当前路由
-      localStorage.setItem('currentRoute', router.currentRoute.value.path);
-      router.push('/mini');
-    } else {
-      // 恢复当前路由
-      const currentRoute = localStorage.getItem('currentRoute');
-      if (currentRoute) {
-        router.push(currentRoute);
-        localStorage.removeItem('currentRoute');
-      } else {
-        router.push('/');
-      }
-    }
-  });
 }
 
 // 使用应用内快捷键

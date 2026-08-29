@@ -1,7 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 
 import AppLayout from '@/layout/AppLayout.vue';
-import MiniLayout from '@/layout/MiniLayout.vue';
 import homeRouter from '@/router/home';
 import { isBareMobileLaunch, readMobileStartupTarget } from '@/router/mobileStartup';
 import otherRouter from '@/router/other';
@@ -45,10 +44,6 @@ const routes = [
   {
     path: '/lyric',
     component: () => import('@/views/lyric/index.vue')
-  },
-  {
-    path: '/mini',
-    component: MiniLayout
   }
 ];
 
@@ -74,21 +69,14 @@ router.beforeEach((to, _, next) => {
 
   const settingsStore = getSettingsStore();
 
-  // 如果是迷你模式
-  if (settingsStore.isMiniMode) {
-    // 只允许访问 /mini 路由
-    if (to.path === '/mini') {
-      next();
-    } else {
-      next(false); // 阻止导航
-    }
-  } else if (to.path === '/mini') {
-    // 如果不是迷你模式但想访问 /mini 路由，重定向到首页
+  // 迷你模式为 Electron 桌面遗留（移动端永不触发），/mini 路由已随 MiniLayout 移除
+  if (to.path === '/mini') {
     next('/');
-  } else {
-    // 其他情况正常导航
-    next();
+    return;
   }
+
+  // 其他情况正常导航
+  next();
 });
 
 // 添加全局后置钩子，记录页面访问
