@@ -1249,6 +1249,13 @@ function collapseControlSections() {
   expandedControlSections.value = new Set();
 }
 
+function expandControlSection(section: ControlSection) {
+  if (expandedControlSections.value.has(section)) return;
+  const next = new Set(expandedControlSections.value);
+  next.add(section);
+  expandedControlSections.value = next;
+}
+
 const settingsTabViewportRef = ref<HTMLElement | null>(null);
 const settingsTabDragOffset = ref(0);
 const settingsTabDragging = ref(false);
@@ -1905,6 +1912,58 @@ function loadStoredLyricConfig(): LyricConfig {
 }
 
 const lyricConfig = ref<LyricConfig>(loadStoredLyricConfig());
+
+// ==================== 配置持久化（统一防御式写回） ====================
+// 面板实例随各播放器组件常驻挂载（8+1 个实例并存），各自持有 lyricConfig 内存快照。
+// 必须保证：a) 写回前合并 localStorage 最新值，防止过时快照覆盖他人写入（如 playerStyle）；
+// b) 监听外部更新实时刷新快照；c) stringify 失败时降级并留日志（曾导致样式切换"没反应"）。
+let suppressConfigSync = false;
+
+function persistLyricConfig(next: LyricConfig) {
+  try {
+    let latest: Record<string, unknown> = {};
+    try {
+      latest = JSON.parse(localStorage.getItem('music-full-config') || '{}') as Record<
+        string,
+        unknown
+      >;
+    } catch {
+      latest = {};
+    }
+    try {
+      localStorage.setItem('music-full-config', JSON.stringify({ ...latest, ...next }));
+    } catch (serializeError) {
+      // 整快照序列化失败（循环引用等）：降级为仅写 playerStyle，保证样式切换永不失效
+      console.error('[PlayerSettings] 快照序列化失败，降级写入 playerStyle:', serializeError);
+      latest.playerStyle = next.playerStyle;
+      localStorage.setItem('music-full-config', JSON.stringify(latest));
+    }
+  } catch (storageError) {
+    console.error('[PlayerSettings] localStorage 写入失败:', storageError);
+  }
+  suppressConfigSync = true;
+  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  void nextTick(() => {
+    suppressConfigSync = false;
+  });
+}
+
+function handleExternalConfigUpdate() {
+  if (suppressConfigSync) return;
+  const latest = loadStoredLyricConfig();
+  if (JSON.stringify(latest) !== JSON.stringify(lyricConfig.value)) {
+    suppressConfigSync = true;
+    lyricConfig.value = latest;
+    void nextTick(() => {
+      suppressConfigSync = false;
+    });
+  }
+}
+window.addEventListener('music-full-config-updated', handleExternalConfigUpdate);
+onUnmounted(() => {
+  window.removeEventListener('music-full-config-updated', handleExternalConfigUpdate);
+});
+
 const settingsDragOffset = ref(0);
 const settingsDragging = ref(false);
 let settingsDragPointer = -1;
@@ -1940,8 +1999,7 @@ const onSettingsDragEnd = (event: PointerEvent) => {
 watch(
   lyricConfig,
   (value) => {
-    localStorage.setItem('music-full-config', JSON.stringify(value));
-    window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+    persistLyricConfig(value);
   },
   { deep: true }
 );
@@ -2015,9 +2073,22 @@ const pendingErrorStyle = ref(false);
 const photosensitivityVisible = ref(false);
 
 const applyPlayerStyle = (style: MobilePlayerStyleKey) => {
+  const previous = lyricConfig.value.playerStyle;
   lyricConfig.value.playerStyle = style;
-  localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
-  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  // 切换样式后保持「播放器样式」分区展开，避免 remount 重开面板后网格收起造成"没反应"观感
+  expandControlSection('playerStyle');
+  console.info(
+    `[PlayerSettings] playerStyle: ${String(previous)} -> ${style}, stored=${String(
+      (() => {
+        try {
+          return JSON.parse(localStorage.getItem('music-full-config') || '{}').playerStyle;
+        } catch {
+          return '?';
+        }
+      })()
+    )}`
+  );
+  persistLyricConfig(lyricConfig.value);
 };
 
 const setPlayerStyle = (style: MobilePlayerStyleKey) => {
@@ -2067,8 +2138,7 @@ function resetCurrentStyleConfig() {
       delete lyricConfig.value.styleCustomConfig[currentPlayerStyle.value];
     }
     styleConfig.value = createPlayerStyleConfig(currentPlayerStyle.value);
-    localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
-    window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+    persistLyricConfig(lyricConfig.value);
     void nextTick(() => {
       suppressStyleSave = false;
     });
@@ -2085,8 +2155,7 @@ function saveStyleConfig() {
       ...styleConfig.value,
       customFontName: styleConfig.value.customFontName
     };
-    localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
-    window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+    persistLyricConfig(lyricConfig.value);
   } catch (e) {
     console.error('保存自定义配置失败:', e);
   }
@@ -2133,14 +2202,12 @@ function setLyricSwipeDirection(direction: LyricSwipeDirection) {
 
 function toggleShowTranslation() {
   lyricConfig.value.showTranslation = !lyricConfig.value.showTranslation;
-  localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
-  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  persistLyricConfig(lyricConfig.value);
 }
 
 function toggleShowRomanization() {
   lyricConfig.value.showRomanization = !lyricConfig.value.showRomanization;
-  localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
-  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  persistLyricConfig(lyricConfig.value);
 }
 
 function toggleStatusBarLyrics() {
@@ -2152,8 +2219,7 @@ function toggleStatusBarLyrics() {
     },
     lyricConfig.value.statusBarLyricsEnabled
   );
-  localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
-  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  persistLyricConfig(lyricConfig.value);
   if (lyricConfig.value.statusBarLyricsEnabled && !hasStatusBarLyricPermission()) {
     requestStatusBarLyricPermission();
     message?.info('请允许 Zephyrus 显示在其他应用上层');
@@ -2169,14 +2235,12 @@ const posterLayouts = [
 
 function toggleShareScreenshotQRCode() {
   lyricConfig.value.shareScreenshotQRCode = !lyricConfig.value.shareScreenshotQRCode;
-  localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
-  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  persistLyricConfig(lyricConfig.value);
 }
 
 function setShareDefaultLayout(layout: 'torn-paper' | 'immersive') {
   lyricConfig.value.shareDefaultPosterLayout = layout;
-  localStorage.setItem('music-full-config', JSON.stringify(lyricConfig.value));
-  window.dispatchEvent(new CustomEvent('music-full-config-updated'));
+  persistLyricConfig(lyricConfig.value);
 }
 
 // Props & Emits

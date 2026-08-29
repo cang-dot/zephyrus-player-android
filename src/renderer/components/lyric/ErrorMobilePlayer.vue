@@ -1,6 +1,7 @@
 <template>
   <teleport to="body">
-    <transition name="error-mobile-fade">
+    <!-- appear：播放器打开时组件以 modelValue=true 挂载，无 appear 则入场动画永不播放 -->
+    <transition name="error-mobile-fade" appear>
       <div
         v-if="isVisible"
         class="error-mobile-player player-style-surface"
@@ -12,6 +13,7 @@
         :style="{
           ...styleVars,
           ...lyricsSwipeStyle,
+          ...errorRootGestureStyle,
           '--error-glow-color': saturatedThemeColor || '#ffffff',
           '--error-rgb-split': `${rgbSplitPx}px`,
           '--player-style-resolved-font': errorFontFamily,
@@ -26,7 +28,7 @@
         @touchend="onSwipeCloseTouchEnd"
       >
         <!-- 高速流体背景（黑底 + 高饱和主题色纹理）；减弱动画时静止 -->
-        <div class="error-fluid-layer no-toggle">
+        <div class="error-fluid-layer">
           <liquid-ether
             :colors="fluidColors"
             :mouse-force="fluidMouseForce"
@@ -100,34 +102,37 @@
 
         <climax-interlude-overlay :state="wordPlayback.interludeState.value" />
 
-        <!-- 大字歌词（溶解入场出场 + 抽帧轻微抖动）；间奏或滚动歌词打开时隐藏 -->
-        <div
-          v-show="lyricsUnderlayVisible && !wordPlayback.interludeState.value.active"
-          class="error-lyric-stage"
-          :style="lyricsUnderlayStyle"
-        >
-          <div class="error-lyric-jitter" :style="jitterStyle">
-            <div
-              v-if="prevLineText"
-              ref="prevLineRef"
-              class="error-line error-line-prev"
-              :style="{ fontFamily: errorFontFamily }"
-            >
-              {{ decoratedText(prevLineText) }}
-            </div>
-            <div
-              ref="currLineRef"
-              class="error-line error-line-main"
-              :class="{
-                'force-nowrap': isCustom && styleCfg.forceNoWrap === true,
-                negative: negativeLine
-              }"
-              :style="{ color: mainLyricColor, fontFamily: errorFontFamily }"
-            >
-              {{ decoratedText(currentLyricText) }}
+        <!-- 大字歌词（行级溶解 + 抽帧抖动；段落头尾（间奏/滚动歌词开关）整体溶解进出） -->
+        <transition name="error-stage-dissolve">
+          <div
+            v-show="lyricsUnderlayVisible && !wordPlayback.interludeState.value.active"
+            class="error-lyric-stage"
+          >
+            <div class="error-lyric-underlay" :style="lyricsUnderlayStyle">
+              <div class="error-lyric-jitter" :style="jitterStyle">
+                <div
+                  v-if="prevLineText"
+                  ref="prevLineRef"
+                  class="error-line error-line-prev"
+                  :style="{ fontFamily: errorFontFamily }"
+                >
+                  {{ decoratedText(prevLineText) }}
+                </div>
+                <div
+                  ref="currLineRef"
+                  class="error-line error-line-main"
+                  :class="{
+                    'force-nowrap': isCustom && styleCfg.forceNoWrap === true,
+                    negative: negativeLine
+                  }"
+                  :style="{ color: mainLyricColor, fontFamily: errorFontFamily }"
+                >
+                  {{ decoratedText(currentLyricText) }}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </transition>
 
         <!-- 顶部控件（tap 弹出） -->
         <transition name="ctrl-fade">
@@ -290,9 +295,18 @@ const {
     playerStore.setFullLyricsVisible(false);
   }
 });
-const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({
-  shouldClose: () => !showFullLyrics.value,
-  onClose: () => close()
+const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd, swipeProgress } =
+  useSwipeClose({
+    shouldClose: () => !showFullLyrics.value,
+    onClose: () => close()
+  });
+
+/** 下滑跟手：黑底样式用变暗表达淡出（不整层位移，与其他样式的关闭行为一致） */
+const errorRootGestureStyle = computed(() => {
+  const drag = swipeProgress.value;
+  return {
+    filter: drag > 0.01 ? `brightness(${(1 - drag * 0.85).toFixed(3)})` : undefined
+  };
 });
 
 const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
@@ -337,8 +351,12 @@ const showPlayerSettings = computed({
 
 function close() {
   useMobilePlayerTransition().close(0, () => {
+    // 先翻 isVisible 播放 0.26s 渐隐离场；立即 setMusicFull(false) 会让宿主
+    // 在同一帧卸载整个播放器子树，离场动画活不过一帧（表现为突然消失）
     isVisible.value = false;
-    playerStore.setMusicFull(false);
+    window.setTimeout(() => {
+      playerStore.setMusicFull(false);
+    }, 290);
   });
 }
 
@@ -796,25 +814,71 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
+/* 舞台用 inset+flex 居中，不占 transform——
+   手势的内联 transform 会整体替换 CSS transform，曾把大字整块推到屏幕边角 */
 .error-lyric-stage {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  inset: 0;
   z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  max-width: none;
+  padding: 0 20px;
+  pointer-events: none;
+}
+
+.error-lyric-underlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
   max-width: min(92vw, 640px);
-  transform: translate(-50%, -50%);
-  will-change: transform;
+  will-change: transform, opacity;
 }
 
 .error-lyric-jitter {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
   will-change: transform;
+}
+
+/* 段落头尾溶解：只动 opacity+blur 的 animation 类
+   （手势预览期 underlay 内联 transition:'none' 会杀掉 transition 类） */
+.error-stage-dissolve-enter-active {
+  animation: error-stage-in 0.42s ease;
+}
+
+.error-stage-dissolve-leave-active {
+  animation: error-stage-out 0.34s ease forwards;
+}
+
+@keyframes error-stage-in {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes error-stage-out {
+  from {
+    opacity: 1;
+    filter: blur(0);
+  }
+
+  to {
+    opacity: 0;
+    filter: blur(8px);
+  }
 }
 
 .error-line {
@@ -834,11 +898,21 @@ onUnmounted(() => {
   }
 
   &.error-line-prev {
+    /* 与主行同位叠放：溶解时新旧两行重叠在原位，
+       不挤占布局（此前 prev 在文档流里插在上方，切换呈"滚动轮换"感） */
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: rgba(255, 255, 255, 0.26);
   }
 }
 
 .error-line-main {
+  position: relative;
+  z-index: 1;
   color: #fff;
   /* 常态小幅 RGB 色散（青左红右），超大错误爆发时 --error-rgb-split 被放大到 6-10px */
   text-shadow:
@@ -964,7 +1038,9 @@ onUnmounted(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .error-mobile-fade-enter-active,
-  .error-mobile-fade-leave-active {
+  .error-mobile-fade-leave-active,
+  .error-stage-dissolve-enter-active,
+  .error-stage-dissolve-leave-active {
     animation: none;
   }
 

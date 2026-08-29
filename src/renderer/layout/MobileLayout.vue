@@ -26,24 +26,37 @@
         'page-swipe-dragging': pageSwipeDragging
       }"
       :inert="backgroundSuspended"
-      :style="pageSwipeStyle"
       @click.capture="onPageClickCapture"
       @pointerdown="onContentPointerDown"
       @pointermove="onContentPointerMove"
       @pointerup="onContentPointerUp"
       @pointercancel="onContentPointerCancel"
+      @touchmove="onContentTouchMove"
     >
-      <router-view v-if="!backgroundUnmounted" v-slot="{ Component }" class="mobile-page">
-        <Transition
-          :name="pageTransitionName"
-          :mode="pageTransitionDirection ? undefined : 'out-in'"
-          :css="!gestureNavigationInProgress"
+      <!-- Tab pager：四页常驻（首次激活挂载），横滑时当前页与相邻页 1:1 双页跟手 -->
+      <div v-show="isBottomMenuRoute" class="tab-pager">
+        <div
+          v-for="(tab, index) in menuStore.menus"
+          :key="tab.path"
+          class="pager-page"
+          :style="pagerPageStyle(index)"
         >
-          <keep-alive :include="keepAliveInclude">
-            <component :is="Component" />
-          </keep-alive>
-        </Transition>
-      </router-view>
+          <template v-if="pagerMounted[tab.path]">
+            <component :is="tabComponent(tab.path)" />
+          </template>
+        </div>
+      </div>
+
+      <!-- 二级页（非底栏路由） -->
+      <div v-if="!isBottomMenuRoute && !backgroundUnmounted" class="secondary-page-host">
+        <router-view v-slot="{ Component }">
+          <Transition :name="pageTransitionName" :css="!gestureNavigationInProgress">
+            <keep-alive :include="keepAliveInclude">
+              <component :is="Component" />
+            </keep-alive>
+          </Transition>
+        </router-view>
+      </div>
     </div>
 
     <!-- 非播放界面打开播放列表/歌曲信息时，底栏之外的页面由半透明遮罩覆盖，
@@ -142,6 +155,7 @@
 
 <script setup lang="ts">
 import {
+  type Component,
   computed,
   defineAsyncComponent,
   nextTick,
@@ -256,9 +270,7 @@ const playerOverlayActive = computed(
 // work while keeping the already-created page available for a fast close.
 const backgroundUnmounted = computed(() => false);
 const backgroundSuspended = computed(
-  () =>
-    playerTransition.state.value === 'open' &&
-    playerTransition.progress.value > 0.98
+  () => playerTransition.state.value === 'open' && playerTransition.progress.value > 0.98
 );
 let playerSourceReleaseFrame = 0;
 let playerSurfaceClassReleaseTimer: ReturnType<typeof setTimeout> | undefined;
@@ -385,17 +397,55 @@ const menuRouteMemory = ref<Record<string, string>>({});
 const miniPlayerIdleCollapsed = ref(false);
 const playlistSurfaceMounted = ref(false);
 const playlistSurfaceExpanded = ref(false);
-const pageSwipeOffset = ref(0);
-const pageSwipeAnimating = ref(false);
 const gestureNavigationInProgress = ref(false);
 const pageTransitionName = computed(() =>
   pageTransitionDirection.value ? `page-slide-${pageTransitionDirection.value}` : 'page-fade'
 );
-const pageSwipeStyle = computed(() => ({
-  transform: pageSwipeOffset.value ? `translate3d(${pageSwipeOffset.value}px, 0, 0)` : undefined,
-  transition: 'none',
-  willChange: pageSwipeOffset.value || pageSwipeAnimating.value ? 'transform' : undefined
-}));
+
+// ==================== Tab pager（四页常驻 + 双页跟手） ====================
+const pagerMounted = ref<Record<string, boolean>>({});
+const pagerIndex = ref(0);
+const pagerOffset = ref(0); // 拖动/弹簧偏移（px），叠加在各页基准位上
+const pageSwipeAnimating = ref(false);
+const pagerComponents: Record<string, Component> = {};
+let lastPageSwipeVelocity = 0;
+
+const mountPagerPage = (path: string) => {
+  if (pagerMounted.value[path]) return;
+  pagerMounted.value = { ...pagerMounted.value, [path]: true };
+};
+
+/** 预挂载相邻页：拖动开始前相邻页必须已渲染，才能贴边跟手 */
+const mountAdjacentPagerPages = (index: number) => {
+  const paths = menuStore.menus.map((item: any) => item.path);
+  [index - 1, index, index + 1].forEach((i) => {
+    if (paths[i]) mountPagerPage(paths[i]);
+  });
+};
+
+const tabComponent = (path: string) => {
+  if (!pagerComponents[path]) {
+    const routeDef = homeRouter.find((item) => item.path === path);
+    pagerComponents[path] = routeDef
+      ? defineAsyncComponent(routeDef.component as () => Promise<Component>)
+      : (undefined as unknown as Component);
+  }
+  return pagerComponents[path];
+};
+
+const pagerPageStyle = (index: number) => ({
+  // 位置必须相对当前页（index - pagerIndex）：动画结束 done 回调会设置
+  // pagerIndex=targetIndex、pagerOffset=0，若不减 pagerIndex，目标页会弹回
+  // index*屏宽 的容器外位置，导致任何切换动画结束后都显示首页
+  transform: `translate3d(calc(${(index - pagerIndex.value) * 100}% + ${pagerOffset.value}px), 0, 0)`
+});
+
+// 初始化：挂载当前页与相邻页
+pagerIndex.value = Math.max(
+  0,
+  menuStore.menus.findIndex((item: any) => item.path === route.path)
+);
+mountAdjacentPagerPages(pagerIndex.value);
 
 let pageTransitionTimer: ReturnType<typeof setTimeout> | undefined;
 let pageSwipeAnimationFrame = 0;
@@ -457,6 +507,21 @@ watch(
   (path, previousPath) => {
     if (path !== previousPath && !pageTransitionDirection.value) {
       inferMenuTransition(path, previousPath);
+    }
+    // 底栏 tab 路由变化（点底栏/返回）：双页弹簧平移到目标页
+    const targetIndex = menuStore.menus.findIndex((item: any) => item.path === path);
+    if (targetIndex >= 0 && targetIndex !== pagerIndex.value) {
+      const target = menuStore.menus[targetIndex];
+      if (target) mountPagerPage(target.path);
+      mountAdjacentPagerPages(targetIndex);
+      const distance = -(targetIndex - pagerIndex.value) * window.innerWidth;
+      const velocity = lastPageSwipeVelocity;
+      lastPageSwipeVelocity = 0;
+      animatePageOffset(distance, velocity, () => {
+        pagerIndex.value = targetIndex;
+        pagerOffset.value = 0;
+        mountAdjacentPagerPages(targetIndex);
+      });
     }
   }
 );
@@ -526,11 +591,11 @@ const animatePageOffset = (target: number, initialVelocity = 0, done?: () => voi
   if (pageSwipeAnimationFrame) cancelAnimationFrame(pageSwipeAnimationFrame);
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     pageSwipeAnimating.value = true;
-    const start = pageSwipeOffset.value;
+    const start = pagerOffset.value;
     const startedAt = performance.now();
     const tick = (now: number) => {
       const progress = Math.min(1, (now - startedAt) / 160);
-      pageSwipeOffset.value = start + (target - start) * (1 - Math.pow(1 - progress, 3));
+      pagerOffset.value = start + (target - start) * (1 - Math.pow(1 - progress, 3));
       if (progress < 1) pageSwipeAnimationFrame = requestAnimationFrame(tick);
       else {
         pageSwipeAnimationFrame = 0;
@@ -541,7 +606,7 @@ const animatePageOffset = (target: number, initialVelocity = 0, done?: () => voi
     pageSwipeAnimationFrame = requestAnimationFrame(tick);
     return;
   }
-  let value = pageSwipeOffset.value;
+  let value = pagerOffset.value;
   let velocity = initialVelocity * 1000;
   let previous = performance.now();
   pageSwipeAnimating.value = true;
@@ -551,9 +616,9 @@ const animatePageOffset = (target: number, initialVelocity = 0, done?: () => voi
     const acceleration = -420 * (value - target) - 38 * velocity;
     velocity += acceleration * dt;
     value += velocity * dt;
-    pageSwipeOffset.value = value;
+    pagerOffset.value = value;
     if (Math.abs(value - target) < 0.5 && Math.abs(velocity) < 5) {
-      pageSwipeOffset.value = target;
+      pagerOffset.value = target;
       pageSwipeAnimating.value = false;
       pageSwipeAnimationFrame = 0;
       done?.();
@@ -612,7 +677,13 @@ const onContentPointerMove = (event: PointerEvent) => {
   const currentIndex = menuStore.menus.findIndex((item: any) => item.path === route.path);
   const movingToNext = deltaX < 0;
   const hasAdjacent = movingToNext ? currentIndex < menuStore.menus.length - 1 : currentIndex > 0;
-  pageSwipeOffset.value = hasAdjacent ? deltaX : deltaX * 0.24;
+  // 1:1 跟手：当前页与相邻页一起平移（各页 transform 由 pagerOffset 驱动）
+  pagerOffset.value = hasAdjacent ? deltaX : deltaX * 0.24;
+  if (hasAdjacent) {
+    const dragTargetIndex = movingToNext ? currentIndex + 1 : currentIndex - 1;
+    const adjacentPath = menuStore.menus[dragTargetIndex]?.path;
+    if (adjacentPath) mountPagerPage(adjacentPath);
+  }
 };
 
 const resetPageSwipe = () => {
@@ -648,27 +719,30 @@ const onContentPointerUp = (event: PointerEvent) => {
   pagePointerAxis = 'none';
   pageSwipeDragging.value = false;
   if (!commit) {
-    resetPageSwipe();
+    // 取消：双页从当前位置弹回原位（速度接力）
+    animatePageOffset(0, recentPageVelocity());
     return;
   }
 
-  pageTransitionDirection.value = null;
-  gestureNavigationInProgress.value = true;
   triggerPageHaptic();
-  const exitTarget = direction === 'next' ? -window.innerWidth : window.innerWidth;
-  animatePageOffset(exitTarget, velocity, async () => {
-    try {
-      await router.push(menuTarget(target.path));
-      pageSwipeOffset.value = direction === 'next' ? window.innerWidth : -window.innerWidth;
-      await nextTick();
-      animatePageOffset(0, velocity * 0.35, () => {
-        gestureNavigationInProgress.value = false;
-      });
-    } catch (error) {
-      console.warn('[MobilePager] 页面切换失败:', error);
-      gestureNavigationInProgress.value = false;
-      animatePageOffset(0);
+  lastPageSwipeVelocity = velocity;
+  // 提交：双页向目标方向弹簧平移（offset 为负 = 前进），路由同步；页面常驻无重挂载空白
+  const distance = -(targetIndex - pagerIndex.value) * window.innerWidth;
+  animatePageOffset(distance, velocity, () => {
+    // 滑动手势是"先动画后路由"：若 push 失败/未生效（底栏图标由 route.path
+    // 驱动，会停留在旧 tab 高亮），动画收尾时校验路由，未跟上则弹回原页，
+    // 保证视觉与路由永远一致，避免"页面切走了但图标没变"的脱节
+    if (route.path !== target.path) {
+      animatePageOffset(0, 0);
+      return;
     }
+    pagerIndex.value = targetIndex;
+    pagerOffset.value = 0;
+    mountAdjacentPagerPages(targetIndex);
+    gestureNavigationInProgress.value = false;
+  });
+  void router.push(menuTarget(target.path)).catch((error: unknown) => {
+    console.warn('[MobilePager] 页面切换失败:', error);
   });
 };
 
@@ -679,6 +753,14 @@ const onContentPointerCancel = (event: PointerEvent) => {
   pagePointerAxis = 'none';
   pageSwipeDragging.value = false;
   resetPageSwipe();
+};
+
+// pointer 事件的 preventDefault 无法阻止浏览器触摸滚动（规范限定）。
+// touch-action: pan-y 下 Android WebView 判定垂直滚动意图后会触发
+// pointercancel 中断指针流，手势表现为"跟手一点就弹回"。因此在水平
+// 意图锁定后由非被动 touchmove preventDefault 阻止浏览器接管滚动。
+const onContentTouchMove = (event: TouchEvent) => {
+  if (pagePointerAxis === 'horizontal') event.preventDefault();
 };
 
 onBeforeUnmount(() => {
@@ -932,21 +1014,41 @@ onBeforeUnmount(() => {
 }
 
 .mobile-content {
-  @apply flex-1 overflow-auto;
+  @apply flex-1;
   height: 100%;
+  position: relative;
+  overflow: hidden;
   touch-action: pan-y;
   overscroll-behavior-x: contain;
   transform: translate3d(0, 0, 0);
 
   /* 内容铺满全屏 — 顶栏透明叠加在上面 */
   padding-top: 0;
+}
 
-  /* 首页模块化设计占满全屏 */
-  &:has(.modular-home) {
-    overflow: hidden;
-  }
+/* Tab pager：四页 absolute 并排，各自独立滚动，轨道平移决定可见性 */
+.tab-pager {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
 
-  /* 底部不做 padding — 内容延伸到最底下，浮动导航叠加在上 */
+.pager-page {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  background: var(--m-bg, #141414);
+  will-change: transform;
+  padding-bottom: var(--mobile-dock-content-inset, 0px);
+}
+
+/* 二级页宿主：独立滚动容器（原共享滚动改每页自治） */
+.secondary-page-host {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
 }
 
 .mobile-content.player-background-suspended {
@@ -1162,6 +1264,7 @@ onBeforeUnmount(() => {
 /* Teleported players share the same rAF progress as the Dock surface. */
 :global(body.mobile-player-surface-active .n-drawer-container:has(#mobile-drawer-target)),
 :global(body.mobile-player-surface-active #mobile-drawer-target.default-player-v2),
+:global(body.mobile-player-surface-active .error-mobile-player),
 :global(body.mobile-player-surface-active .stage-mobile-player),
 :global(body.mobile-player-surface-active .rain-mobile-player),
 :global(body.mobile-player-surface-active .star-chart-player),
@@ -1387,16 +1490,31 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   transform: translateX(-50%) translateY(20px);
 }
 
-/* Apple-style page transition: 弹簧曲线 */
+/* Apple-style page transition: 弹簧曲线。
+   转场期间页面绝对定位并自带上背景：新旧页并排贴合（无 out-in 空白、无块流堆叠） */
+.page-fade-enter-active,
+.page-fade-leave-active,
+.page-slide-next-enter-active,
+.page-slide-next-leave-active,
+.page-slide-prev-enter-active,
+.page-slide-prev-leave-active {
+  position: absolute;
+  inset: 0;
+  background: var(--m-bg, #141414);
+}
+
 .page-fade-enter-active {
   transition:
-    opacity 0.35s $spring-smooth,
-    transform 0.5s $spring;
+    opacity 0.32s $spring-smooth,
+    transform 0.42s $spring;
+  z-index: 2;
 }
+
 .page-fade-leave-active {
   transition:
-    opacity 0.25s $spring-smooth,
+    opacity 0.28s $spring-smooth,
     transform 0.3s $spring-smooth;
+  z-index: 1;
 }
 
 .page-fade-enter-from {
@@ -1409,34 +1527,35 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   transform: translateY(-10px) scale(1.02);
 }
 
-/* 底栏页面之间的横向切换，方向与手指移动一致。 */
+/* 底栏页面之间的横向切换：全幅推挤，下一页紧贴本页旁边，方向与手指移动一致。 */
 .page-slide-next-enter-active,
 .page-slide-next-leave-active,
 .page-slide-prev-enter-active,
 .page-slide-prev-leave-active {
   transition:
-    transform 280ms cubic-bezier(0.22, 0.84, 0.24, 1.08),
+    transform 300ms cubic-bezier(0.32, 0.72, 0, 1),
     opacity 220ms ease;
 }
 
+.page-slide-next-enter-active,
+.page-slide-prev-enter-active {
+  z-index: 2;
+}
+
 .page-slide-next-enter-from {
-  opacity: 0.7;
   transform: translate3d(100%, 0, 0);
 }
 
 .page-slide-next-leave-to {
-  opacity: 0.45;
-  transform: translate3d(-24%, 0, 0);
+  transform: translate3d(-38%, 0, 0);
 }
 
 .page-slide-prev-enter-from {
-  opacity: 0.7;
   transform: translate3d(-100%, 0, 0);
 }
 
 .page-slide-prev-leave-to {
-  opacity: 0.45;
-  transform: translate3d(24%, 0, 0);
+  transform: translate3d(38%, 0, 0);
 }
 
 /* ═══════════════════════════════════════════════════

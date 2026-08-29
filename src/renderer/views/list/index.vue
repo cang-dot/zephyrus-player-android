@@ -96,7 +96,7 @@ import {
   touchPlaylistCardMru
 } from '@/utils/playlistCardMru';
 
-defineOptions({ name: 'MyMusic' });
+defineOptions({ name: 'List' });
 
 const router = useRouter();
 const route = useRoute();

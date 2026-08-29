@@ -331,7 +331,9 @@ const progressBarEl = () =>
 
 const { dockStyle, dockActive, scheduleMeasure } = useControlsDock(progressBarEl, {
   hidden: () => !props?.visible,
-  enabled: () => !controlsPinned.value
+  // sharedSurface（default 样式共享容器）由 BottomSurface 做容器级 dock，
+  // 自身再 dock 会双重位移且互相干扰测量（收起面板后控件悬空）
+  enabled: () => !controlsPinned.value && !props.sharedSurface
 });
 
 watch(

@@ -15,113 +15,127 @@
     }"
     :style="{ '--player-header-progress': String(playerTransition.progress.value) }"
   >
-    <button v-if="showBack" type="button" class="topbar-pill topbar-back" @click="onTitleClick">
-      <i class="ri-arrow-left-s-line" />
-    </button>
+    <Transition name="topbar-pill-morph">
+      <button v-if="showBack" type="button" class="topbar-pill topbar-back" @click="onTitleClick">
+        <i class="ri-arrow-left-s-line" />
+      </button>
+    </Transition>
 
-    <div
-      v-if="showPageCapsule"
-      ref="morphAnchorRef"
-      class="topbar-morph-anchor"
-      :class="{ expanded: topbarMenu.expanded.value }"
-      :style="morphAnchorStyle"
+    <!-- 标题形变胶囊（详情页出现）：收合/展开的形变过渡 -->
+    <Transition
+      name="topbar-pill-morph"
+      mode="out-in"
+      @enter="onTopbarPillMorphEnter"
+      @leave="onTopbarPillMorphLeave"
     >
-      <section
-        ref="morphPanelRef"
-        class="topbar-pill topbar-morph"
-        :class="{ expanded: topbarMenu.expanded.value, 'has-menu': hasMorphMenu }"
-        @pointerdown.stop
+      <div
+        v-if="showPageCapsule"
+        :key="route.path"
+        ref="morphAnchorRef"
+        class="topbar-morph-anchor"
+        :class="{ expanded: topbarMenu.expanded.value }"
+        :style="morphAnchorStyle"
       >
-        <header ref="morphTriggerRef" class="morph-trigger" @click.stop="toggleMorphMenu">
-          <img
-            v-if="topbarMenu.presentation.value?.imageUrl"
-            :src="topbarMenu.presentation.value.imageUrl"
-            class="morph-trigger-image"
-            alt=""
-          />
-          <span class="morph-trigger-copy">
-            <strong>{{
-              topbarMenu.presentation.value?.title ||
-              (hasMorphMenu ? topbarMenu.activeLabel.value || displayTitle : displayTitle)
-            }}</strong>
-            <small v-if="topbarMenu.presentation.value?.subtitle">
-              {{ topbarMenu.presentation.value.subtitle }}
-            </small>
-          </span>
-          <i v-if="hasMorphMenu" class="ri-arrow-down-s-line" />
-        </header>
-        <div v-if="topbarMenu.presentation.value?.badge" class="morph-badge">
-          {{ topbarMenu.presentation.value.badge }}
-        </div>
-        <div ref="morphContentRef" class="morph-content" @click.stop>
-          <section v-if="topbarMenu.presentation.value?.description" class="morph-description">
-            <header v-if="topbarMenu.presentation.value.descriptionTitle">
-              <i class="ri-information-line" />
-              <strong>{{ topbarMenu.presentation.value.descriptionTitle }}</strong>
-            </header>
-            <p>{{ topbarMenu.presentation.value.description }}</p>
-          </section>
-          <label v-if="topbarMenu.presentation.value?.searchPlaceholder" class="morph-search">
-            <i class="ri-search-line" />
-            <input
-              ref="morphSearchInputRef"
-              :value="topbarMenu.presentation.value.searchValue || ''"
-              :placeholder="topbarMenu.presentation.value.searchPlaceholder"
-              @input="
-                topbarMenu.presentation.value.onSearchInput?.(
-                  ($event.target as HTMLInputElement).value
-                )
-              "
+        <section
+          ref="morphPanelRef"
+          class="topbar-pill topbar-morph"
+          :class="{ expanded: topbarMenu.expanded.value, 'has-menu': hasMorphMenu }"
+          @pointerdown.stop
+        >
+          <header ref="morphTriggerRef" class="morph-trigger" @click.stop="toggleMorphMenu">
+            <img
+              v-if="topbarMenu.presentation.value?.imageUrl"
+              :src="topbarMenu.presentation.value.imageUrl"
+              class="morph-trigger-image"
+              alt=""
             />
-          </label>
-          <div v-for="group in topbarMenu.groups.value" :key="group.id" class="morph-group">
-            <button
-              v-for="option in group.options"
-              :key="option.key"
-              type="button"
-              :class="{ active: String(option.key) === String(group.value) }"
-              @click="selectMorphOption(group, option.key)"
-            >
-              <i v-if="option.icon" :class="option.icon" />
-              <span>{{ option.label }}</span>
-              <i v-if="String(option.key) === String(group.value)" class="ri-check-line" />
-            </button>
+            <span class="morph-trigger-copy">
+              <strong>{{
+                topbarMenu.presentation.value?.title ||
+                (hasMorphMenu ? topbarMenu.activeLabel.value || displayTitle : displayTitle)
+              }}</strong>
+              <small v-if="topbarMenu.presentation.value?.subtitle">
+                {{ topbarMenu.presentation.value.subtitle }}
+              </small>
+            </span>
+            <i v-if="hasMorphMenu" class="ri-arrow-down-s-line" />
+          </header>
+          <div v-if="topbarMenu.presentation.value?.badge" class="morph-badge">
+            {{ topbarMenu.presentation.value.badge }}
           </div>
-          <div v-if="topbarMenu.actions.value.length" class="morph-actions">
-            <section
-              v-for="action in topbarMenu.actions.value"
-              :key="action.id"
-              class="morph-action-shell"
-              :class="{ expanded: expandedMorphActionId === action.id }"
-            >
-              <button
-                type="button"
-                class="morph-action-trigger"
-                @click.stop="runMorphAction(action)"
-              >
-                <i :class="action.icon" />
-                <span>{{ action.label }}</span>
-                <i v-if="action.options?.length" class="ri-arrow-down-s-line morph-action-arrow" />
-              </button>
-              <div v-if="action.options?.length" class="morph-action-options-wrap">
-                <div class="morph-action-options">
-                  <button
-                    v-for="option in action.options"
-                    :key="option.key"
-                    type="button"
-                    :class="{ active: String(option.key) === String(action.value) }"
-                    @click.stop="selectMorphActionOption(action, option.key)"
-                  >
-                    <span>{{ option.label }}</span>
-                    <i v-if="String(option.key) === String(action.value)" class="ri-check-line" />
-                  </button>
-                </div>
-              </div>
+          <div ref="morphContentRef" class="morph-content" @click.stop>
+            <section v-if="topbarMenu.presentation.value?.description" class="morph-description">
+              <header v-if="topbarMenu.presentation.value.descriptionTitle">
+                <i class="ri-information-line" />
+                <strong>{{ topbarMenu.presentation.value.descriptionTitle }}</strong>
+              </header>
+              <p>{{ topbarMenu.presentation.value.description }}</p>
             </section>
+            <label v-if="topbarMenu.presentation.value?.searchPlaceholder" class="morph-search">
+              <i class="ri-search-line" />
+              <input
+                ref="morphSearchInputRef"
+                :value="topbarMenu.presentation.value.searchValue || ''"
+                :placeholder="topbarMenu.presentation.value.searchPlaceholder"
+                @input="
+                  topbarMenu.presentation.value.onSearchInput?.(
+                    ($event.target as HTMLInputElement).value
+                  )
+                "
+              />
+            </label>
+            <div v-for="group in topbarMenu.groups.value" :key="group.id" class="morph-group">
+              <button
+                v-for="option in group.options"
+                :key="option.key"
+                type="button"
+                :class="{ active: String(option.key) === String(group.value) }"
+                @click="selectMorphOption(group, option.key)"
+              >
+                <i v-if="option.icon" :class="option.icon" />
+                <span>{{ option.label }}</span>
+                <i v-if="String(option.key) === String(group.value)" class="ri-check-line" />
+              </button>
+            </div>
+            <div v-if="topbarMenu.actions.value.length" class="morph-actions">
+              <section
+                v-for="action in topbarMenu.actions.value"
+                :key="action.id"
+                class="morph-action-shell"
+                :class="{ expanded: expandedMorphActionId === action.id }"
+              >
+                <button
+                  type="button"
+                  class="morph-action-trigger"
+                  @click.stop="runMorphAction(action)"
+                >
+                  <i :class="action.icon" />
+                  <span>{{ action.label }}</span>
+                  <i
+                    v-if="action.options?.length"
+                    class="ri-arrow-down-s-line morph-action-arrow"
+                  />
+                </button>
+                <div v-if="action.options?.length" class="morph-action-options-wrap">
+                  <div class="morph-action-options">
+                    <button
+                      v-for="option in action.options"
+                      :key="option.key"
+                      type="button"
+                      :class="{ active: String(option.key) === String(action.value) }"
+                      @click.stop="selectMorphActionOption(action, option.key)"
+                    >
+                      <span>{{ option.label }}</span>
+                      <i v-if="String(option.key) === String(action.value)" class="ri-check-line" />
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </div>
           </div>
-        </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </Transition>
 
     <!-- 搜索框（非搜索页：点击跳转；搜索页：真实输入框） -->
     <section
@@ -294,31 +308,36 @@
       </section>
     </div>
 
-    <button
-      v-if="route.path === '/user'"
-      type="button"
-      class="topbar-pill topbar-action-pill topbar-settings-pill"
-      :title="t('common.settings')"
-      @click="goToSettings"
-    >
-      <i class="ri-settings-3-line action-icon" />
-    </button>
+    <!-- 右侧动作胶囊随路由切换：缩回再展开的形变过渡 -->
+    <Transition name="topbar-pill-morph" mode="out-in">
+      <button
+        v-if="route.path === '/user'"
+        key="settings"
+        type="button"
+        class="topbar-pill topbar-action-pill topbar-settings-pill"
+        :title="t('common.settings')"
+        @click="goToSettings"
+      >
+        <i class="ri-settings-3-line action-icon" />
+      </button>
 
-    <!-- 头像 / 搜索按钮 -->
-    <div
-      v-else
-      class="topbar-pill topbar-action-pill"
-      :class="{ 'search-btn': isSearchPage }"
-      @click="isSearchPage ? handleSearchSubmit() : goToUser()"
-    >
-      <i v-if="isSearchPage" class="ri-search-line action-icon"></i>
-      <template v-else>
-        <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-img" />
-        <div v-else class="avatar-placeholder">
-          <i class="ri-user-3-line"></i>
-        </div>
-      </template>
-    </div>
+      <!-- 头像 / 搜索按钮 -->
+      <div
+        v-else
+        key="avatar"
+        class="topbar-pill topbar-action-pill"
+        :class="{ 'search-btn': isSearchPage }"
+        @click="isSearchPage ? handleSearchSubmit() : goToUser()"
+      >
+        <i v-if="isSearchPage" class="ri-search-line action-icon"></i>
+        <template v-else>
+          <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-img" />
+          <div v-else class="avatar-placeholder">
+            <i class="ri-user-3-line"></i>
+          </div>
+        </template>
+      </div>
+    </Transition>
 
     <div
       v-if="playerHeaderMounted"
@@ -785,6 +804,76 @@ const closeFloatingMenus = () => {
   closeSearchAssist();
 };
 
+// ==================== 顶栏胶囊路由过渡 ====================
+// 胶囊锚点/back 按钮的出现与消失会瞬间改变 flex 布局，导致搜索框宽度跳变。
+// 通过 JS hook 测量目标宽度，做"宽度从 0 展开 / 收缩到 0"的过渡，
+// 搜索框随锚点宽度变化被平滑推让，实现顶栏整体的路由切换动画。
+const TOPBAR_MORPH_ENTER_MS = 320;
+const TOPBAR_MORPH_LEAVE_MS = 190;
+
+const clearTopbarMorphInline = (el: HTMLElement) => {
+  el.style.removeProperty('width');
+  el.style.removeProperty('min-width');
+  el.style.removeProperty('flex-basis');
+};
+
+const onTopbarPillMorphEnter = (el: Element, done: () => void) => {
+  const node = el as HTMLElement;
+  const isBack = node.classList.contains('topbar-back');
+  const isAnchor = node.classList.contains('topbar-morph-anchor');
+  if (!isBack && !isAnchor) {
+    done();
+    return;
+  }
+  let target: number;
+  if (isBack) {
+    target = node.offsetWidth || 40;
+    node.style.flexBasis = '0px';
+  } else {
+    node.style.width = 'auto';
+    target = node.offsetWidth;
+    node.style.width = '0px';
+    node.style.minWidth = '0px';
+  }
+  void node.offsetWidth; // 强制 reflow，确保起始尺寸生效后再过渡
+  if (isBack) {
+    node.style.flexBasis = `${target}px`;
+  } else {
+    node.style.width = `${target}px`;
+    node.style.minWidth = `${target}px`;
+  }
+  window.setTimeout(() => {
+    clearTopbarMorphInline(node);
+    done();
+  }, TOPBAR_MORPH_ENTER_MS + 60);
+};
+
+const onTopbarPillMorphLeave = (el: Element, done: () => void) => {
+  const node = el as HTMLElement;
+  const isBack = node.classList.contains('topbar-back');
+  const isAnchor = node.classList.contains('topbar-morph-anchor');
+  if (!isBack && !isAnchor) {
+    done();
+    return;
+  }
+  if (isBack) {
+    node.style.flexBasis = `${node.offsetWidth}px`;
+    void node.offsetWidth;
+    node.style.flexBasis = '0px';
+  } else {
+    const current = node.offsetWidth;
+    node.style.width = `${current}px`;
+    node.style.minWidth = `${current}px`;
+    void node.offsetWidth;
+    node.style.width = '0px';
+    node.style.minWidth = '0px';
+  }
+  window.setTimeout(() => {
+    clearTopbarMorphInline(node);
+    done();
+  }, TOPBAR_MORPH_LEAVE_MS + 60);
+};
+
 const onTitleClick = () => {
   if (showBack.value) {
     // Clear search value when leaving search
@@ -1247,8 +1336,10 @@ const handleSearchSubmit = () => {
   height: 40px;
   flex: 0 1 auto;
   pointer-events: auto;
+  transform-origin: left center;
   transition:
     width 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    min-width 360ms cubic-bezier(0.32, 0.72, 0, 1),
     flex-basis 360ms cubic-bezier(0.32, 0.72, 0, 1),
     max-width 360ms cubic-bezier(0.32, 0.72, 0, 1);
 
@@ -1299,6 +1390,7 @@ const handleSearchSubmit = () => {
   border-color: var(--cover-border, rgba(128, 128, 128, 0.14));
   color: var(--cover-text-primary, var(--text-color));
   font-size: 22px;
+  transform-origin: left center;
 }
 
 .topbar-morph {
@@ -2362,6 +2454,11 @@ const handleSearchSubmit = () => {
     transform: none !important;
   }
 
+  .topbar-pill-morph-enter-active,
+  .topbar-pill-morph-leave-active {
+    transition: none;
+  }
+
   .floating-topbar,
   .topbar-pill {
     transition: none;
@@ -2389,5 +2486,31 @@ const handleSearchSubmit = () => {
   .search-assist-item:active {
     transform: none;
   }
+}
+
+/* 顶栏胶囊形变：路由切换时缩回再展开（Dock 同款曲线）。
+   宽度/flex-basis 过渡配合 JS hook 的宽度测量，让搜索框平滑让位。 */
+.topbar-pill-morph-enter-active {
+  transition:
+    opacity 220ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 220ms cubic-bezier(0.32, 0.72, 0, 1),
+    width 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    min-width 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    flex-basis 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.topbar-pill-morph-leave-active {
+  transition:
+    opacity 170ms ease,
+    transform 170ms ease,
+    width 190ms cubic-bezier(0.32, 0.72, 0, 1),
+    min-width 190ms cubic-bezier(0.32, 0.72, 0, 1),
+    flex-basis 190ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.topbar-pill-morph-enter-from,
+.topbar-pill-morph-leave-to {
+  opacity: 0;
+  transform: scale(0.72);
 }
 </style>
