@@ -354,10 +354,14 @@ function handlePointerDown(event: PointerEvent) {
     return;
   }
   pointerId = event.pointerId;
-  try {
-    rootRef.value?.setPointerCapture(event.pointerId);
-  } catch {
-    // Pointer capture is unavailable in a few embedded WebView versions.
+  // 立即捕获仅限触摸:触摸需要长按选词期间锁住目标;
+  // 鼠标立即捕获会把 click 重定向到组件根,歌词行点击定位在电脑端失效。
+  if (event.pointerType !== 'mouse') {
+    try {
+      rootRef.value?.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture is unavailable in a few embedded WebView versions.
+    }
   }
   longPressTimer = setTimeout(() => {
     const sourceIndex = longPressSourceIndex;
