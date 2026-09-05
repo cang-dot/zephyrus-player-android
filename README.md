@@ -1,8 +1,8 @@
-# Zephyrus Player
-
 <p align="center">
   <img src="assets/banner-magazine.webp" alt="Zephyrus Player" width="100%" />
 </p>
+
+# Zephyrus Player
 
 Zephyrus Player 是一款只为 Android 手机设计的音乐播放器：歌曲、歌词和播放器舞台共享同一条时间轴，常用操作围绕单手触控和可中断动画组织。它同时提供**网页版**——电脑浏览器打开即可使用同一套账号与播放能力。
 
