@@ -85,6 +85,7 @@ class ClimaxDetector {
 
   /** 动画帧 ID，用于取消 rAF */
   private animationFrameId: number | null = null;
+  private externalMode = false;
 
   /** 上次高潮触发时间戳 */
   private lastClimaxTime = 0;
@@ -198,6 +199,32 @@ class ClimaxDetector {
   }
 
   /**
+   * 外部数据模式:安卓原生路径无 Web Audio 图谱,
+   * 由 ingestLoudness() 按固定节奏喂入响度(0~1)驱动能量电平。
+   */
+  public startExternal(): void {
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    this.externalMode = true;
+    this.frameIndex = 0;
+    this.lastClimaxTime = 0;
+    this.energyHistory = [];
+  }
+
+  /**
+   * 注入一帧外部响度(0~1):平滑后作为 energyLevel,
+   * 频谱覆盖率置满(外部数据无频谱明细,视为可用)。
+   */
+  public ingestLoudness(loudness: number): void {
+    if (!this.externalMode) return;
+    const clamped = Math.max(0, Math.min(1, loudness));
+    this.energyLevel = this.energyLevel * 0.72 + clamped * 0.28;
+    this.spectrumCoverage = 1;
+  }
+
+  /**
    * 停止高潮检测
    */
   public stop(): void {
@@ -205,6 +232,7 @@ class ClimaxDetector {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
+    this.externalMode = false;
 
     // 重置状态
     this.isClimax = false;

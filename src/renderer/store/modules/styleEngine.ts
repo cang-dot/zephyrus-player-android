@@ -9,10 +9,12 @@ import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 
 import type { KeywordLine } from '@/api/keywords';
+import { isAndroidNative } from '@/services/androidNative';
 import { nowTime } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { climaxDetector } from '@/services/climaxDetector';
 import { type BeatInfo, drumDetector } from '@/services/drumDetector';
+import { NativeAudioPlayer } from '@/services/nativeAudioPlayer';
 
 import { useCommunityDataStore } from './communityData';
 import { usePlayerStore } from './player';
@@ -52,10 +54,28 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
   let climaxUnsubscribe: (() => void) | null = null;
   let analysisStarted = false;
   const beatResetTimers = new Set<ReturnType<typeof setTimeout>>();
+  let nativeTicker: ReturnType<typeof setInterval> | null = null;
 
   function startAudioAnalysis() {
     if (analysisStarted) return;
     analysisStarted = true;
+
+    // 安卓原生路径:无 Web Audio 图谱,检测器切外部数据模式,
+    // 由原生分析(三频段+响度+BPM,50ms 推送,本地/在线歌曲一视同仁)驱动
+    if (isAndroidNative()) {
+      drumDetector.startExternal();
+      climaxDetector.startExternal();
+      nativeTicker = setInterval(() => {
+        const analysis = NativeAudioPlayer.getAnalysis();
+        drumDetector.ingestBands(
+          { low: analysis.low, mid: analysis.mid, high: analysis.high },
+          analysis.bpm
+        );
+        climaxDetector.ingestLoudness(analysis.loudness);
+      }, 50);
+      return;
+    }
+
     // 启动鼓点检测
     drumDetector.start();
     beatUnsubscribe = drumDetector.onBeat((info: BeatInfo) => {
@@ -90,6 +110,10 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
     if (climaxUnsubscribe) {
       climaxUnsubscribe();
       climaxUnsubscribe = null;
+    }
+    if (nativeTicker !== null) {
+      clearInterval(nativeTicker);
+      nativeTicker = null;
     }
     drumDetector.stop();
     climaxDetector.stop();

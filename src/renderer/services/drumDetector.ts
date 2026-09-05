@@ -103,6 +103,7 @@ class DrumDetector {
   private animationFrameId: number | null = null;
   private frameIndex = 0;
 
+  private externalMode = false;
   private beatCallbacks: BeatCallback[] = [];
 
   private config: Required<DrumDetectorConfig>;
@@ -168,6 +169,20 @@ class DrumDetector {
       return;
     }
 
+    this.startExternal();
+    this.analysisLoop();
+  }
+
+  /**
+   * 外部数据模式:无 Web Audio 图谱时(安卓原生 ExoPlayer)由
+   * ingestBands() 按固定节奏喂数据,检测管线与 AnalyserNode 路径完全一致。
+   */
+  public startExternal(): void {
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    this.externalMode = true;
     this.running = true;
     this.frameIndex = 0;
     this.fluxHistory = [];
@@ -177,7 +192,38 @@ class DrumDetector {
     this.cooldownEndTime = 0;
     this.bpm = 0;
 
-    this.analysisLoop();
+    if (this.frequencyData.length === 0) {
+      this.frequencyData = new Uint8Array(512);
+      this.prevFrequencyData = new Float32Array(512);
+    }
+  }
+
+  /**
+   * 注入一帧外部频段数据(low/mid/high 均 0~1),可选原生精确 BPM。
+   * 三频段合成伪频谱帧后走与 AnalyserNode 路径相同的通量/低频/鼓点判定。
+   */
+  public ingestBands(
+    bands: { low: number; mid: number; high: number },
+    nativeBpm?: number
+  ): void {
+    if (!this.running || !this.externalMode) return;
+    const data = this.frequencyData;
+    if (data.length === 0) return;
+
+    // 低频段占 bin 1~10、中频 11~120、高频 121~末尾(48kHz/FFT1024 量级),
+    // 段内轻微梯度避免完全平坦导致通量恒为 0
+    const fill = (from: number, to: number, level: number) => {
+      const clamped = Math.max(0, Math.min(1, level));
+      for (let i = from; i <= to; i++) {
+        data[i] = Math.round(clamped * 255 * (0.8 + 0.2 * Math.abs(Math.sin(i * 1.7))));
+      }
+    };
+    fill(1, Math.min(10, data.length - 1), bands.low);
+    fill(11, Math.min(120, data.length - 1), bands.mid);
+    fill(121, data.length - 1, bands.high);
+    data[0] = data[1];
+
+    this.processFrame(nativeBpm);
   }
 
   /**
@@ -189,6 +235,7 @@ class DrumDetector {
       this.animationFrameId = null;
     }
     this.running = false;
+    this.externalMode = false;
   }
 
   /**
@@ -224,7 +271,11 @@ class DrumDetector {
 
     // 读取频域数据
     this.analyserNode.getByteFrequencyData(this.frequencyData);
+    this.processFrame();
+  };
 
+  /** 通量/低频/鼓点判定核心:AnalyserNode 与外部注入两条路径共用 */
+  private processFrame(nativeBpm?: number): void {
     // 计算频谱通量
     const spectralFlux = this.calculateSpectralFlux(this.frequencyData);
 
@@ -286,11 +337,16 @@ class DrumDetector {
       });
     }
 
+    if (nativeBpm && nativeBpm > 0) {
+      // 原生侧已算好 BPM(频域自相关,比间隔中位数稳),直接采用
+      this.bpm = nativeBpm;
+    }
+
     // 存储当前帧数据用于下一帧的频谱通量计算
     for (let i = 0; i < this.frequencyData.length; i++) {
       this.prevFrequencyData[i] = this.frequencyData[i];
     }
-  };
+  }
 
   /**
    * 计算频谱通量 (Spectral Flux)
@@ -321,9 +377,9 @@ class DrumDetector {
    * 对于其他 FFT 大小，按比例计算 bin 范围
    */
   private calculateKickEnergy(data: Uint8Array): number {
-    if (!this.context || data.length === 0) return 0;
-
-    const sampleRate = this.context.sampleRate;
+    // 外部注入模式无 AudioContext,按 48kHz 量级折算 bin
+    const sampleRate = this.context?.sampleRate ?? 48000;
+    if (data.length === 0) return 0;
     const binResolution = sampleRate / (data.length * 2); // 每个 bin 对应的 Hz
     const lowBin = Math.max(1, Math.floor(60 / binResolution));
     const highBin = Math.min(data.length - 1, Math.ceil(200 / binResolution));
@@ -376,11 +432,11 @@ class DrumDetector {
    * 高频 (4000-20000Hz): 镲片/空气感
    */
   public getBandEnergies(): { low: number; mid: number; high: number } {
-    if (!this.context || !this.frequencyData || this.frequencyData.length === 0) {
+    if (this.frequencyData.length === 0) {
       return { low: 0, mid: 0, high: 0 };
     }
 
-    const sampleRate = this.context.sampleRate;
+    const sampleRate = this.context?.sampleRate ?? 48000;
     const binResolution = sampleRate / (this.frequencyData.length * 2);
 
     const lowStart = Math.max(1, Math.floor(20 / binResolution));
