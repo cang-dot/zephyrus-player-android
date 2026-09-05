@@ -348,7 +348,7 @@
                 >
                   <span class="control-section-title">
                     <i class="ri-translate-2 mr-1"></i>
-                    歌词设置
+                    {{ tr('settings.lyricSettings.title', '滚动歌词设置') }}
                   </span>
                   <i
                     class="ri-arrow-down-s-line control-section-chevron"
@@ -469,6 +469,85 @@
                         </button>
                       </div>
                     </div>
+
+                    <!-- 滚动歌词字体 -->
+                    <div class="p-3 rounded-2xl bg-white/5 mb-2">
+                      <div class="text-sm text-white/80">
+                        {{ tr('settings.lyricSettings.scrollFont', '滚动歌词字体') }}
+                      </div>
+                      <div class="text-xs text-white/40 mt-1">
+                        {{
+                          tr(
+                            'settings.lyricSettings.scrollFontDescription',
+                            '仅作用于全屏滚动歌词页'
+                          )
+                        }}
+                      </div>
+                      <div class="lyric-font-options mt-2" role="listbox">
+                        <button
+                          type="button"
+                          class="lyric-font-chip"
+                          :class="{ active: !lyricConfig.scrollFontId }"
+                          @click="lyricConfig.scrollFontId = ''"
+                        >
+                          {{ tr('settings.lyricSettings.scrollFontDefault', '默认') }}
+                        </button>
+                        <button
+                          v-for="font in builtinFontOptions"
+                          :key="font.id"
+                          type="button"
+                          class="lyric-font-chip"
+                          :class="{ active: lyricConfig.scrollFontId === font.id }"
+                          @click="lyricConfig.scrollFontId = font.id"
+                        >
+                          {{ font.name }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- 滚动歌词字重 -->
+                    <label class="block p-3 rounded-2xl bg-white/5 mb-2">
+                      <span class="flex items-center justify-between">
+                        <span class="text-sm text-white/80">
+                          {{ tr('settings.lyricSettings.scrollFontWeight', '滚动歌词字重') }}
+                        </span>
+                        <span class="text-xs text-white/40">{{
+                          lyricConfig.scrollFontWeight
+                        }}</span>
+                      </span>
+                      <input
+                        v-model.number="lyricConfig.scrollFontWeight"
+                        class="lyric-font-range mt-2"
+                        type="range"
+                        min="100"
+                        max="900"
+                        step="50"
+                      />
+                    </label>
+
+                    <!-- 滚动歌词字号 -->
+                    <label class="block p-3 rounded-2xl bg-white/5 mb-2">
+                      <span class="flex items-center justify-between">
+                        <span class="text-sm text-white/80">
+                          {{ tr('settings.lyricSettings.scrollFontSize', '滚动歌词大小') }}
+                        </span>
+                        <span class="text-xs text-white/40">
+                          {{
+                            lyricConfig.scrollFontSize > 0
+                              ? `${lyricConfig.scrollFontSize}px`
+                              : tr('settings.lyricSettings.scrollFontSizeAuto', '默认')
+                          }}
+                        </span>
+                      </span>
+                      <input
+                        v-model.number="lyricConfig.scrollFontSize"
+                        class="lyric-font-range mt-2"
+                        type="range"
+                        min="0"
+                        max="96"
+                        step="2"
+                      />
+                    </label>
 
                     <!-- 显示罗马音 -->
                     <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
@@ -1063,6 +1142,9 @@
                     back-layer-id="player-settings-playlist-picker"
                     @update:expanded="settingsPlaylistExpanded = $event"
                   />
+                  <button class="song-setting-action" @click="shareCurrentSong">
+                    <i class="ri-share-forward-line"></i><span>分享歌曲</span>
+                  </button>
                   <button class="song-setting-action" @click="toggleCurrentFavorite">
                     <i
                       :class="currentIsFavorite ? 'ri-heart-fill text-red-400' : 'ri-heart-line'"
@@ -1081,6 +1163,7 @@
       </div>
     </Transition>
     <song-metadata-editor v-model:show="metadataEditorShow" :song="currentSong!" />
+    <poster-share-modal v-model:visible="showPosterModal" :lyrics="[]" :subject="posterSubject" />
     <photosensitivity-warning
       v-model:visible="photosensitivityVisible"
       @confirm="handlePhotosensitivityConfirm"
@@ -1092,7 +1175,6 @@
 <script setup lang="ts">
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-
 import { storeToRefs } from 'pinia';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -1112,6 +1194,8 @@ import SongMetadataEditor from '@/components/common/SongMetadataEditor.vue';
 import PhotosensitivityWarning from '@/components/lyric/PhotosensitivityWarning.vue';
 import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
 import ListenTogetherSettings from '@/components/settings/ListenTogetherSettings.vue';
+import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { usePosterShare } from '@/composables/usePosterShare';
 import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
 import { type GatewayModel, listGatewayModels } from '@/features/ai/gateway';
 import {
@@ -1147,6 +1231,8 @@ import {
 } from '@/types/lyric';
 import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from '@/types/playerStyle';
 import { isMobilePlayerStyleKey } from '@/types/playerStyle';
+import type { PosterSubject } from '@/types/share';
+import { BUILTIN_FONTS } from '@/types/share';
 import { getImgUrl, secondToMinute } from '@/utils';
 import { formatAudioSegments } from '@/utils/audioFormat';
 
@@ -1395,6 +1481,23 @@ const currentIsFavorite = computed(() => {
     playerStore.favoriteList.some((favoriteId) => String(favoriteId) === String(id))
   );
 });
+
+// ==================== 分享歌曲海报（歌曲信息模式） ====================
+const { showPosterModal, posterSubject, openPosterForSubject } = usePosterShare();
+
+function shareCurrentSong() {
+  const song = currentSong.value;
+  if (!song) return;
+  const pic = song.picUrl || song.al?.picUrl || (song as any).album?.picUrl || '';
+  const subject: PosterSubject = {
+    kind: 'song',
+    songId: song.id,
+    songName: song.name || '未知歌曲',
+    artists: currentArtistText.value || '未知艺术家',
+    coverUrl: pic ? getImgUrl(pic, '500y500') : ''
+  };
+  openPosterForSubject(subject);
+}
 
 function playCurrentSong() {
   if (currentSong.value) void playerStore.setPlayMusic(true);
@@ -2199,6 +2302,9 @@ const lyricSwipeOptions: Array<{ value: LyricSwipeDirection; label: string }> = 
 function setLyricSwipeDirection(direction: LyricSwipeDirection) {
   lyricConfig.value.lyricSwipeDirection = direction;
 }
+
+// 滚动歌词字体选项（内置字体，含"默认"空选项）
+const builtinFontOptions = BUILTIN_FONTS.map((font) => ({ id: font.id, name: font.name }));
 
 function toggleShowTranslation() {
   lyricConfig.value.showTranslation = !lyricConfig.value.showTranslation;
@@ -3137,6 +3243,36 @@ onUnmounted(() => {
 .lyric-swipe-control button.active {
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
+}
+
+.lyric-font-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lyric-font-chip {
+  max-width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.24);
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lyric-font-chip.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.lyric-font-range {
+  width: 100%;
+  accent-color: var(--accent-color, #6366f1);
 }
 
 /* ==================== 高潮段落时间轴 ==================== */

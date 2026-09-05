@@ -1,3 +1,5 @@
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
+
 import { getMusicDB } from '@/hooks/MusicHook';
 import { useSettingsStore, useUserStore } from '@/store';
 import type { ILyric } from '@/types/lyric';
@@ -140,6 +142,177 @@ export const getParsingMusicUrl = async (
 // 收藏歌曲
 export const likeSong = (id: number, like: boolean = true) => {
   return request.get('/like', { params: { id, like } });
+};
+
+/**
+ * 简介缓存：歌曲级按歌名，专辑简介按专辑 ID，歌手简介按歌手 ID。
+ * 空串也缓存——表示"查过但没有"，调用方靠链路下一级兜底。
+ */
+const baikeDescCache = new Map<string, string>();
+const wikiDescCache = new Map<string, string>();
+const anysearchDescCache = new Map<string, string>();
+const albumDescriptionCache = new Map<string, string>();
+const artistBriefDescCache = new Map<string, string>();
+
+/** 百科类结果域名（与服务端 anysearch_song.js 同款过滤） */
+const ENCY_URL_PATTERNS = [/baike\.baidu\.com/, /zh\.wikipedia\.org/];
+
+/** 从 AnySearch 结果中提取百科类简介：过滤歌词站噪音 + 歌手名校验 + 截断 */
+function extractAnySearchDescription(results: any[], artist: string): string {
+  for (const item of results) {
+    const url = String(item?.url || '');
+    if (!ENCY_URL_PATTERNS.some((p) => p.test(url))) continue;
+    const text = String(item?.content || item?.snippet || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (text.length < 20) continue;
+    // 歌手名校验：防止命中同名小说/电影等错误词条
+    if (artist && !text.includes(artist)) continue;
+    return text.slice(0, 200);
+  }
+  return '';
+}
+
+/**
+ * Android 原生直连 AnySearch：CapacitorHttp 走原生 HTTP，不受 CORS 限制，
+ * 匿名额度按设备 IP 独立计算，避免共享服务器 IP 被限流。
+ */
+async function fetchAnySearchIntroDirect(name: string, artist: string): Promise<string> {
+  try {
+    const res = await CapacitorHttp.post({
+      url: 'https://api.anysearch.com/v1/search',
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        query: `${name} ${artist} 歌曲 简介`,
+        max_results: 8,
+        zone: 'cn',
+        language: 'zh-CN'
+      },
+      readTimeout: 10000,
+      connectTimeout: 5000
+    });
+    if (res.status !== 200) return '';
+    const results = (res.data as any)?.data?.results || [];
+    return extractAnySearchDescription(results, artist);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * 获取歌曲简介（海报信息模式使用），五级兜底链：
+ * 1. AnySearch 聚合搜索（Android 原生直连 api.anysearch.com——原生 HTTP 不受 CORS 限制，
+ *    匿名额度按设备 IP 独立计算；非原生平台或直连失败时降级走服务器代理 /anysearch/song。
+ *    服务端同款过滤：百科域名结果 + 歌手名校验）；
+ * 2. 百度百科歌曲词条：/baike/song（服务端做歧义校验，摘要须含歌手名）；
+ * 3. 维基百科词条导语：/wiki/extract（baike 未命中时兜底，如《杀死那个石家庄人》baidu 命中同名小说）；
+ * 4. 专辑简介：/album description；
+ * 5. 歌手简介：/artist/desc briefDesc。
+ * 说明：/song/wiki/summary 在当前 API 版本（4.32.0）仅返回音乐百科标签块、无简介文本。
+ * 请求失败或均无简介时返回空字符串（调用方降级为无简介，不抛错）。
+ */
+export const getSongWikiSummary = async (id: number | string): Promise<string> => {
+  try {
+    // 注意：request 响应拦截器原样返回 axios response，body 在 .data 中
+    const detail = await request.get('/song/detail', { params: { ids: id } });
+    const song = detail?.data?.songs?.[0];
+    if (!song) return '';
+    const name = String(song.name || '').trim();
+    const artistName = String(song.ar?.[0]?.name || '').trim();
+
+    // 1. AnySearch 聚合搜索（原生直连优先，失败降级服务器代理）
+    if (name) {
+      const cachedAny = anysearchDescCache.get(name);
+      if (cachedAny !== undefined) {
+        if (cachedAny) return cachedAny;
+      } else {
+        let desc = '';
+        if (Capacitor.isNativePlatform()) {
+          desc = await fetchAnySearchIntroDirect(name, artistName);
+        }
+        if (!desc) {
+          try {
+            const res = await request.get('/anysearch/song', {
+              params: { name, artist: artistName }
+            });
+            desc = String(res?.data?.description || '').trim();
+          } catch {
+            desc = '';
+          }
+        }
+        anysearchDescCache.set(name, desc);
+        if (desc) return desc;
+      }
+    }
+
+    // 2. 百度百科歌曲词条
+    if (name) {
+      const cachedBaike = baikeDescCache.get(name);
+      if (cachedBaike !== undefined) {
+        if (cachedBaike) return cachedBaike;
+      } else {
+        try {
+          const res = await request.get('/baike/song', { params: { name, artist: artistName } });
+          const abstract = String(res?.data?.abstract || '').trim();
+          baikeDescCache.set(name, abstract);
+          if (abstract) return abstract;
+        } catch {
+          baikeDescCache.set(name, '');
+        }
+      }
+    }
+
+    // 3. 维基百科词条导语（服务器代理，客户端直连会被墙）
+    if (name) {
+      const cachedWiki = wikiDescCache.get(name);
+      if (cachedWiki !== undefined) {
+        if (cachedWiki) return cachedWiki;
+      } else {
+        try {
+          const res = await request.get('/wiki/extract', { params: { title: name } });
+          const extract = String(res?.data?.extract || '').trim();
+          wikiDescCache.set(name, extract);
+          if (extract) return extract;
+        } catch {
+          wikiDescCache.set(name, '');
+        }
+      }
+    }
+
+    // 4. 专辑简介
+    const albumId = song.al?.id;
+    if (albumId) {
+      const albumKey = String(albumId);
+      const cachedAlbum = albumDescriptionCache.get(albumKey);
+      if (cachedAlbum) return cachedAlbum;
+      if (cachedAlbum === undefined) {
+        const res = await request.get('/album', { params: { id: albumId } });
+        const desc = String(res?.data?.album?.description || '').trim();
+        albumDescriptionCache.set(albumKey, desc);
+        if (desc) return desc;
+      }
+    }
+
+    // 5. 歌手简介兜底
+    const artistId = song.ar?.[0]?.id;
+    if (artistId) {
+      const artistKey = String(artistId);
+      const cachedArtist = artistBriefDescCache.get(artistKey);
+      if (cachedArtist !== undefined) return cachedArtist;
+      try {
+        const res = await request.get('/artist/desc', { params: { id: artistId } });
+        const brief = String(res?.data?.briefDesc || '').trim();
+        artistBriefDescCache.set(artistKey, brief);
+        if (brief) return brief;
+      } catch {
+        artistBriefDescCache.set(artistKey, '');
+      }
+    }
+    return '';
+  } catch (error) {
+    console.warn('[music] 获取歌曲简介失败:', error);
+    return '';
+  }
 };
 
 // 将每日推荐中的歌曲标记为不感兴趣，并获取一首新歌

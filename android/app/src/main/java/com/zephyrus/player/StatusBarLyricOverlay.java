@@ -112,6 +112,14 @@ public final class StatusBarLyricOverlay {
     private String borderColor = "#ffffff";
     private boolean borderEnabled = true;
     private double surfaceOpacity = 0.72;
+    // 渲染去抖缓存：字体/背景/窗口布局仅在实际变化时重建
+    private String cachedTypefaceKey = "";
+    private Typeface cachedBaseTypeface = Typeface.DEFAULT;
+    private String lastBgKey = "";
+    private int lastWidth = -1;
+    private int lastHeight = -1;
+    private int lastX = -1;
+    private int lastY = -1;
 
     private StatusBarLyricOverlay(Context context) {
         this.context = context.getApplicationContext();
@@ -424,14 +432,29 @@ public final class StatusBarLyricOverlay {
             if (lyricView == null) return;
             applyTypography();
             lyricView.setText(buildStyledLyric());
-            lyricView.setBackground(createBackground());
+            String bgKey = fillEnabled + "|" + borderEnabled + "|" + fillSource + "|" + fillColor
+                    + "|" + borderSource + "|" + borderColor + "|" + surfaceOpacity
+                    + "|" + themeColor;
+            if (!bgKey.equals(lastBgKey)) {
+                lyricView.setBackground(createBackground());
+                lastBgKey = bgKey;
+            }
             WindowManager.LayoutParams params = createLayoutParams();
+            boolean layoutChanged = !attached
+                    || params.width != lastWidth
+                    || params.height != lastHeight
+                    || params.x != lastX
+                    || params.y != lastY;
             if (!attached && windowManager != null) {
                 windowManager.addView(lyricView, params);
                 attached = true;
-            } else if (attached && windowManager != null) {
+            } else if (attached && windowManager != null && layoutChanged) {
                 windowManager.updateViewLayout(lyricView, params);
             }
+            lastWidth = params.width;
+            lastHeight = params.height;
+            lastX = params.x;
+            lastY = params.y;
             lyricView.removeCallbacks(scrollRunnable);
             lyricView.post(scrollRunnable);
         } catch (RuntimeException exception) {
@@ -486,18 +509,27 @@ public final class StatusBarLyricOverlay {
 
     private void applyTypography() {
         lyricView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp);
-        Typeface base = Typeface.DEFAULT;
-        try {
-            if ("imported".equals(fontSource) && !fontId.isEmpty()) {
-                File file = new File(context.getFilesDir(), "status-bar-fonts/" + new File(fontId).getName());
-                if (file.exists()) base = Typeface.createFromFile(file);
-            } else if ("builtin".equals(fontSource) && !fontId.isEmpty()) {
-                String assetPath = fontId.replaceFirst("^/+", "");
-                if (assetPath.startsWith("assets/")) assetPath = "public/" + assetPath;
-                if (!assetPath.startsWith("public/")) assetPath = "public/assets/" + assetPath;
-                base = Typeface.createFromAsset(context.getAssets(), assetPath);
-            }
-        } catch (Exception ignored) { base = Typeface.DEFAULT; }
+        // 逐字歌词每个字变化都会触发全量渲染：字体必须缓存，
+        // createFromAsset/createFromFile 每次重跑会造成主线程卡顿与闪烁
+        String key = fontSource + "|" + fontId;
+        if (!key.equals(cachedTypefaceKey)) {
+            Typeface resolved = Typeface.DEFAULT;
+            try {
+                if ("imported".equals(fontSource) && !fontId.isEmpty()) {
+                    File file = new File(context.getFilesDir(),
+                            "status-bar-fonts/" + new File(fontId).getName());
+                    if (file.exists()) resolved = Typeface.createFromFile(file);
+                } else if ("builtin".equals(fontSource) && !fontId.isEmpty()) {
+                    String assetPath = fontId.replaceFirst("^/+", "");
+                    if (assetPath.startsWith("assets/")) assetPath = "public/" + assetPath;
+                    if (!assetPath.startsWith("public/")) assetPath = "public/assets/" + assetPath;
+                    resolved = Typeface.createFromAsset(context.getAssets(), assetPath);
+                }
+            } catch (Exception ignored) { resolved = Typeface.DEFAULT; }
+            cachedBaseTypeface = resolved;
+            cachedTypefaceKey = key;
+        }
+        Typeface base = cachedBaseTypeface;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             lyricView.setTypeface(Typeface.create(base, fontWeight, false));
         } else {

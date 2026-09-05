@@ -2,516 +2,551 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0a0a0c">
-  <title>Zephyrus Player</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0e12">
+  <title>Zephyrus Player - 分享</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
     :root {
-      --bg: #0a0a0c;
-      --surface: rgba(255, 255, 255, 0.05);
-      --surface-hover: rgba(255, 255, 255, 0.08);
-      --border: rgba(255, 255, 255, 0.1);
-      --border-bright: rgba(255, 255, 255, 0.18);
-      --text: #f5f5f7;
-      --text-muted: rgba(255, 255, 255, 0.5);
-      --text-dim: rgba(255, 255, 255, 0.35);
-      --accent: #d4a056;
-      --accent-hover: #e0ad62;
-      --radius-card: 16px;
-      --radius-pill: 999px;
-      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --bg: #0d0e12;
+      --tone: #e8e6e3;
+      --tone-rgb: 232, 230, 227;
+      --card-bg: rgba(22, 24, 30, 0.62);
+      --card-border: rgba(255, 255, 255, 0.14);
+      --text-hi: rgba(255, 255, 255, 0.95);
+      --text-mid: rgba(255, 255, 255, 0.66);
+      --text-low: rgba(255, 255, 255, 0.42);
+      --spring: cubic-bezier(0.32, 0.72, 0, 1);
     }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      min-height: 100dvh;
       background: var(--bg);
-      color: var(--text);
+      font-family: system-ui, -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+      color: var(--text-hi);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 氛围背景：封面等比放大铺满 + 模糊 + 遮罩 */
+    .bg {
+      position: fixed;
+      inset: -48px;
+      z-index: 0;
+      background-size: cover;
+      background-position: center;
+      filter: blur(56px) brightness(0.42) saturate(1.25);
+      transform: scale(1.02);
+      opacity: 0;
+      transition: opacity 900ms var(--spring);
+    }
+    .bg.on { opacity: 1; }
+    .bg-fallback {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(120% 90% at 50% 0%, rgba(var(--tone-rgb), 0.10), transparent 60%),
+        var(--bg);
+    }
+    .scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      background: linear-gradient(180deg, rgba(13, 14, 18, 0.30), rgba(13, 14, 18, 0.72) 78%);
+    }
+
+    .page {
+      position: relative;
+      z-index: 2;
+      max-width: 420px;
+      margin: 0 auto;
       min-height: 100dvh;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      padding: 40px 20px;
-      -webkit-font-smoothing: antialiased;
-      text-rendering: optimizeLegibility;
-    }
-
-    /* ===== Loading skeleton ===== */
-    .loading-screen {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
       justify-content: center;
-      min-height: 50vh;
-      width: 100%;
-      max-width: 360px;
-    }
-    .skeleton-card {
-      width: 100%;
-      aspect-ratio: 1;
-      border-radius: var(--radius-card);
-      background: var(--surface);
-      overflow: hidden;
-      position: relative;
-    }
-    .skeleton-card::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.04) 50%, transparent 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.6s infinite;
-    }
-    .skeleton-line {
-      height: 14px;
-      border-radius: var(--radius-pill);
-      background: var(--surface);
-      margin-top: 16px;
-      position: relative;
-      overflow: hidden;
-    }
-    .skeleton-line::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.04) 50%, transparent 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.6s infinite;
-    }
-    .skeleton-line.short { width: 60%; }
-    .skeleton-line.long { width: 90%; }
-    @keyframes shimmer {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
+      padding: max(28px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
     }
 
-    /* ===== Main content ===== */
-    .main-content {
-      display: none;
-      flex-direction: column;
+    .brand {
+      display: flex;
       align-items: center;
-      width: 100%;
-      max-width: 360px;
-      animation: fadeUp 0.5s var(--ease) both;
+      gap: 9px;
+      margin-bottom: 18px;
     }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(12px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* ===== Logo ===== */
-    .app-logo {
-      width: 56px;
-      height: 56px;
-      border-radius: 14px;
-      margin-bottom: 20px;
-      display: block;
+    .brand img { width: 26px; height: 26px; border-radius: 7px; display: block; }
+    .brand span {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--text-mid);
     }
 
-    /* ===== Poster card ===== */
-    .poster-card {
-      width: 100%;
-      border-radius: var(--radius-card);
+    /* 玻璃卡片 */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 22px;
+      backdrop-filter: blur(28px) saturate(160%);
+      -webkit-backdrop-filter: blur(28px) saturate(160%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.10),
+        0 24px 70px rgba(0, 0, 0, 0.45);
       overflow: hidden;
-      position: relative;
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-      margin-bottom: 16px;
+      opacity: 0;
+      transform: translateY(16px) scale(0.985);
+      transition:
+        opacity 640ms var(--spring),
+        transform 640ms var(--spring);
     }
-    .poster-cover {
+    .card.on { opacity: 1; transform: none; }
+
+    .cover {
       width: 100%;
-      aspect-ratio: 1;
+      aspect-ratio: 1 / 1;
       object-fit: cover;
       display: block;
+      background: rgba(255, 255, 255, 0.04);
     }
-    .poster-overlay {
+    .cover.album { aspect-ratio: 1 / 1; }
+    .cover-wrap { position: relative; }
+    .kind-tag {
       position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: linear-gradient(transparent 20%, rgba(0, 0, 0, 0.75));
-      padding: 28px 20px 18px;
-    }
-    .poster-title {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 4px;
-      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
-    }
-    .poster-artist {
-      font-size: 14px;
-      color: rgba(255, 255, 255, 0.7);
-      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-    }
-
-    /* ===== Audio player (glassmorphism) ===== */
-    .audio-player {
-      width: 100%;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-card);
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 20px;
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    }
-    .play-btn {
-      flex-shrink: 0;
-      width: 44px;
-      height: 44px;
-      border-radius: var(--radius-pill);
-      border: none;
-      background: var(--accent);
-      color: #1a1a1c;
-      font-size: 18px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform 0.15s var(--ease), background 0.2s;
-    }
-    .play-btn:active { transform: scale(0.92); }
-    .play-btn:hover { background: var(--accent-hover); }
-    .play-btn:disabled {
-      background: var(--surface);
-      color: var(--text-dim);
-      cursor: default;
-    }
-    .play-btn.loading {
-      background: var(--surface);
-      animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-
-    .player-info {
-      flex: 1;
-      min-width: 0;
-    }
-    .player-label {
+      left: 14px;
+      bottom: 14px;
       font-size: 11px;
       font-weight: 600;
-      letter-spacing: 0.04em;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(255, 255, 255, 0.92);
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      padding: 5px 11px;
+      border-radius: 999px;
     }
-    .player-progress {
-      height: 3px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: var(--radius-pill);
+
+    .meta { padding: 22px 22px 18px; }
+    .title {
+      font-size: clamp(21px, 6vw, 26px);
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      line-height: 1.22;
       overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
     }
-    .player-progress-fill {
-      height: 100%;
-      background: var(--accent);
-      border-radius: var(--radius-pill);
-      width: 0%;
-      transition: width 0.3s linear;
+    .subtitle {
+      margin-top: 7px;
+      font-size: 14px;
+      color: var(--text-mid);
+      line-height: 1.5;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
     }
-    .player-time {
-      font-size: 11px;
-      color: var(--text-dim);
-      margin-top: 4px;
-      display: flex;
-      justify-content: space-between;
+    .stats {
+      margin-top: 10px;
+      font-size: 12.5px;
+      color: var(--text-low);
       font-variant-numeric: tabular-nums;
     }
 
-    /* ===== Action section ===== */
-    .action-section {
-      width: 100%;
-    }
-    .open-btn {
-      display: block;
-      width: 100%;
-      padding: 15px;
-      border: none;
-      border-radius: var(--radius-pill);
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      background: var(--accent);
-      color: #1a1a1c;
-      margin-bottom: 10px;
-      transition: transform 0.15s var(--ease), background 0.2s;
-    }
-    .open-btn:active { transform: scale(0.97); }
-    .open-btn:hover { background: var(--accent-hover); }
-
-    .copy-btn {
-      display: block;
-      width: 100%;
-      padding: 13px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-pill);
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      background: transparent;
-      color: var(--text-muted);
-      transition: transform 0.15s var(--ease), background 0.2s, color 0.2s;
-    }
-    .copy-btn:active { transform: scale(0.97); }
-    .copy-btn:hover { background: var(--surface); color: var(--text); }
-
-    .netease-btn {
-      display: none;
-      width: 100%;
-      padding: 13px;
-      border: 1px solid rgba(194, 12, 12, 0.45);
-      border-radius: var(--radius-pill);
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      background: rgba(194, 12, 12, 0.12);
-      color: #e5544b;
-      margin-bottom: 10px;
-      transition: transform 0.15s var(--ease), background 0.2s;
-    }
-    .netease-btn:active { transform: scale(0.97); }
-    .netease-btn:hover { background: rgba(194, 12, 12, 0.22); }
-
-    .netease-web-link {
-      display: none;
-      margin-top: 12px;
+    .desc {
+      margin-top: 13px;
       font-size: 13px;
-      color: #e5544b;
-      text-decoration: none;
-      text-align: center;
+      line-height: 1.65;
+      color: var(--text-mid);
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
 
-    .status-msg {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-bottom: 14px;
-      min-height: 18px;
-      text-align: center;
-    }
-    .status-msg.success { color: #6ee7b7; }
-    .status-msg.error { color: #fca5a5; }
-
-    .hint {
-      margin-top: 16px;
-      font-size: 12px;
-      color: var(--text-dim);
-      line-height: 1.6;
-      text-align: center;
-    }
-
-    /* ===== WeChat guide ===== */
-    .wechat-guide {
+    /* 30 秒试听 */
+    .player {
       display: none;
-      flex-direction: column;
-      align-items: center;
-      width: 100%;
-    }
-    .wechat-guide .arrow {
-      position: fixed;
-      top: 12px;
-      right: 20px;
-      font-size: 48px;
-      animation: bounce 1.2s var(--ease) infinite;
-      z-index: 100;
-    }
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(8px); }
-    }
-    .wechat-guide .tip {
-      position: fixed;
-      top: 70px;
-      right: 16px;
-      background: var(--surface);
-      border: 1px solid var(--border-bright);
-      border-radius: 12px;
-      padding: 12px 16px;
-      font-size: 13px;
-      max-width: 200px;
-      text-align: right;
-      z-index: 100;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-    }
-    .wechat-guide .tip strong { color: var(--accent); }
-    .wechat-guide .steps {
-      margin-top: 100px;
-      width: 100%;
-    }
-    .wechat-guide .step {
-      display: flex;
       align-items: center;
       gap: 14px;
-      padding: 16px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-card);
-      margin-bottom: 10px;
-      text-align: left;
+      padding: 16px 22px 20px;
     }
-    .wechat-guide .step-num {
-      flex-shrink: 0;
-      width: 28px;
-      height: 28px;
-      border-radius: var(--radius-pill);
-      background: var(--accent);
-      color: #1a1a1c;
+    .player.on { display: flex; }
+    .play-btn {
+      width: 46px;
+      height: 46px;
+      flex: none;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      color: #101116;
+      background: var(--tone);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 13px;
-      font-weight: 700;
+      font-size: 17px;
+      transition: transform 120ms ease-out;
     }
-    .wechat-guide .step-text { font-size: 14px; line-height: 1.5; }
+    .play-btn:active { transform: scale(0.94); }
+    .play-btn:disabled { opacity: 0.4; cursor: default; }
+    .player-track {
+      flex: 1;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      overflow: hidden;
+    }
+    .player-fill {
+      width: 0%;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--tone);
+      transition: width 200ms linear;
+    }
+    .player-time {
+      font-size: 12px;
+      color: var(--text-low);
+      font-variant-numeric: tabular-nums;
+      min-width: 34px;
+      text-align: right;
+    }
 
-    /* ===== Error state ===== */
-    .error-state {
+    /* 曲目列表 */
+    .tracks { display: none; padding: 4px 22px 8px; }
+    .tracks.on { display: block; }
+    .track {
       display: flex;
+      align-items: baseline;
+      gap: 13px;
+      padding: 9px 0;
+    }
+    .track + .track { border-top: 1px solid rgba(255, 255, 255, 0.055); }
+    .track-no {
+      font-size: 12px;
+      color: var(--text-low);
+      font-variant-numeric: tabular-nums;
+      width: 20px;
+      flex: none;
+      text-align: right;
+    }
+    .track-body { min-width: 0; }
+    .track-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-hi);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .track-artist {
+      margin-top: 2px;
+      font-size: 12px;
+      color: var(--text-low);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tracks-more {
+      padding: 10px 0 6px;
+      font-size: 12px;
+      color: var(--text-low);
+      text-align: center;
+    }
+
+    /* 动作区 */
+    .actions {
+      margin-top: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      opacity: 0;
+      transform: translateY(12px);
+      transition:
+        opacity 640ms var(--spring) 120ms,
+        transform 640ms var(--spring) 120ms;
+    }
+    .actions.on { opacity: 1; transform: none; }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 15px 18px;
+      border: none;
+      border-radius: 15px;
+      font-size: 15.5px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 120ms ease-out, filter 160ms ease;
+    }
+    .btn:active { transform: scale(0.975); }
+    .btn-primary {
+      color: #101116;
+      background: var(--tone);
+      box-shadow: 0 10px 34px rgba(0, 0, 0, 0.35);
+    }
+    .btn-primary:hover { filter: brightness(1.06); }
+    .btn-secondary {
+      color: var(--text-hi);
+      background: rgba(255, 255, 255, 0.09);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.13); }
+    .btn-ghost {
+      background: transparent;
+      border: none;
+      padding: 9px;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--text-low);
+    }
+    .btn-ghost:hover { color: var(--text-mid); }
+
+    .status {
+      display: none;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-mid);
+      line-height: 1.6;
+    }
+    .status.on { display: block; }
+    .status .ok { color: var(--tone); }
+
+    .foot {
+      margin-top: 22px;
+      text-align: center;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.30);
+    }
+
+    /* 状态屏 */
+    .screen {
+      display: none;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 40vh;
-      width: 100%;
-      max-width: 360px;
+      gap: 14px;
+      min-height: 60dvh;
+      text-align: center;
     }
-    .error-state .error-text {
-      color: #fca5a5;
-      font-size: 14px;
-      margin-bottom: 16px;
+    .screen.on { display: flex; }
+    .spinner {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      border: 2.5px solid rgba(255, 255, 255, 0.16);
+      border-top-color: rgba(255, 255, 255, 0.72);
+      animation: spin 0.9s linear infinite;
     }
-    .error-state .retry-btn {
-      padding: 12px 32px;
-      border: 1px solid var(--border-bright);
-      border-radius: var(--radius-pill);
-      background: transparent;
-      color: var(--text);
-      font-size: 14px;
-      cursor: pointer;
-      transition: transform 0.15s var(--ease), background 0.2s;
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .screen-title { font-size: 15px; font-weight: 600; color: var(--text-mid); }
+    .screen-sub { font-size: 13px; color: var(--text-low); line-height: 1.7; max-width: 300px; }
+
+    /* 微信引导：全屏遮罩 + 中央提示 + 指向右上角菜单的箭头 */
+    .wechat-guide {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      background: rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
     }
-    .error-state .retry-btn:active { transform: scale(0.97); }
-    .error-state .retry-btn:hover { background: var(--surface); }
+    .wechat-guide.on { display: block; }
+
+    /* 右上角菜单指示圈 */
+    .wechat-target {
+      position: absolute;
+      top: calc(env(safe-area-inset-top, 0px) + 10px);
+      right: 14px;
+      width: 52px;
+      height: 52px;
+      border: 2px solid rgba(255, 255, 255, 0.95);
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: wechat-pulse 1.6s ease-in-out infinite;
+    }
+    .wechat-target i { font-size: 26px; color: #fff; }
+    @keyframes wechat-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.45); }
+      50% { box-shadow: 0 0 0 12px rgba(255, 255, 255, 0); }
+    }
+
+    /* 从中央指向右上角的箭头 */
+    .wechat-arrow {
+      position: absolute;
+      top: calc(env(safe-area-inset-top, 0px) + 58px);
+      right: 34px;
+      width: 140px;
+      height: 200px;
+      pointer-events: none;
+    }
+
+    /* 中央提示 */
+    .wechat-center {
+      position: absolute;
+      left: 50%;
+      top: 44%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      width: min(78vw, 320px);
+    }
+    .wechat-center .app-badge {
+      width: 62px;
+      height: 62px;
+      margin: 0 auto 16px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .wechat-center .app-badge img { width: 38px; height: 38px; border-radius: 9px; display: block; }
+    .wechat-center h2 {
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+    .wechat-center p {
+      font-size: 14.5px;
+      line-height: 1.75;
+      color: rgba(255, 255, 255, 0.78);
+    }
+    .wechat-center p strong { color: #fff; font-weight: 600; }
+    .wechat-dismiss {
+      position: absolute;
+      left: 50%;
+      bottom: max(34px, env(safe-area-inset-bottom, 0px));
+      transform: translateX(-50%);
+      font-size: 12.5px;
+      color: rgba(255, 255, 255, 0.45);
+      white-space: nowrap;
+    }
+
+    /* 无障碍与偏好适配 */
+    @media (prefers-reduced-motion: reduce) {
+      .card, .actions, .bg { transition: opacity 300ms ease; transform: none; }
+      .spinner { animation-duration: 1.6s; }
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      .card { background: rgba(24, 26, 32, 0.97); backdrop-filter: none; -webkit-backdrop-filter: none; }
+      .btn-secondary { background: rgba(255, 255, 255, 0.10); backdrop-filter: none; -webkit-backdrop-filter: none; }
+    }
+    @media (prefers-contrast: more) {
+      .card { border-color: rgba(255, 255, 255, 0.34); }
+      .subtitle, .stats, .track-artist { color: rgba(255, 255, 255, 0.82); }
+    }
   </style>
 </head>
 <body>
-  <!-- Loading skeleton -->
-  <div class="loading-screen" id="loadingScreen">
-    <div class="skeleton-card"></div>
-    <div class="skeleton-line long"></div>
-    <div class="skeleton-line short"></div>
+  <div class="bg-fallback"></div>
+  <div class="bg" id="bg"></div>
+  <div class="scrim"></div>
+
+  <div class="page">
+    <div class="brand">
+      <img src="/zephyrus/logo.png?v=2" alt="" onerror="this.style.display='none'">
+      <span>Zephyrus Player</span>
+    </div>
+
+    <!-- 加载中 -->
+    <div class="screen on" id="loadingScreen">
+      <div class="spinner"></div>
+      <div class="screen-title">正在加载</div>
+    </div>
+
+    <!-- 错误 -->
+    <div class="screen" id="errorScreen">
+      <div class="screen-title" id="errorTitle">内容不存在或已失效</div>
+      <div class="screen-sub" id="errorSub">分享链接可能不完整，请联系分享者重新获取</div>
+    </div>
+
+    <!-- 主内容 -->
+    <div id="mainContent" style="display:none;">
+      <div class="card" id="card">
+        <div class="cover-wrap">
+          <img class="cover" id="coverImg" alt="" crossorigin="anonymous">
+          <div class="kind-tag" id="kindTag">歌曲</div>
+        </div>
+        <div class="meta">
+          <div class="title" id="titleText"></div>
+          <div class="subtitle" id="subtitleText"></div>
+          <div class="stats" id="statsText" style="display:none;"></div>
+          <div class="desc" id="descText" style="display:none;"></div>
+        </div>
+        <div class="player" id="player">
+          <button class="play-btn" id="playBtn" disabled>&#9654;</button>
+          <div class="player-track"><div class="player-fill" id="playerFill"></div></div>
+          <div class="player-time" id="playerTime">0:00</div>
+        </div>
+        <div class="tracks" id="tracks"></div>
+      </div>
+
+      <div class="actions" id="actions">
+        <div class="status" id="status"></div>
+        <button class="btn btn-primary" id="openBtn">打开 Zephyrus Player</button>
+        <button class="btn btn-secondary" id="neteaseBtn" style="display:none;">用网易云音乐打开</button>
+        <a class="btn btn-secondary" id="webLink" style="display:none;" target="_blank" rel="noopener">在网页版播放器中打开</a>
+        <button class="btn btn-ghost" id="copyBtn">复制链接</button>
+      </div>
+
+      <!-- 微信内引导：全屏遮罩，指向右上角菜单 -->
+      <div class="wechat-guide" id="wechat">
+        <div class="wechat-target"><i class="ri-more-fill"></i></div>
+        <svg class="wechat-arrow" viewBox="0 0 140 200" fill="none" aria-hidden="true">
+          <path
+            d="M28 190 C 60 150, 96 110, 108 48"
+            stroke="rgba(255,255,255,0.92)"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-dasharray="1 9"
+          />
+          <path d="M96 62 L 108 44 L 120 60" stroke="rgba(255,255,255,0.92)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+        </svg>
+        <div class="wechat-center">
+          <div class="app-badge"><img src="/zephyrus/logo.png?v=2" alt="" onerror="this.parentElement.style.display='none'"></div>
+          <h2>在浏览器中打开</h2>
+          <p>微信内无法直接跳转应用。<br>点击右上角 <strong>···</strong> 菜单，选择<br><strong>「在浏览器打开」</strong>即可继续访问</p>
+        </div>
+        <div class="wechat-dismiss">点击任意位置关闭</div>
+      </div>
+
+      <div class="foot" id="foot">Zephyrus Player · 开源音乐播放器</div>
+    </div>
   </div>
 
-  <!-- Error state -->
-  <div class="error-state" id="errorState" style="display:none;">
-    <div class="error-text">加载失败，请重试</div>
-    <button class="retry-btn" onclick="location.reload()">重新加载</button>
-  </div>
-
-  <!-- Main content -->
-  <div class="main-content" id="mainContent">
-    <!-- App Logo -->
-    <img class="app-logo" id="appLogo" src="logo.png" alt="Zephyrus Player">
-
-    <!-- Poster card -->
-    <div class="poster-card" id="posterCard" style="display:none;">
-      <img class="poster-cover" id="posterCover" alt="">
-      <div class="poster-overlay">
-        <div class="poster-title" id="posterTitle"></div>
-        <div class="poster-artist" id="posterArtist"></div>
-      </div>
-    </div>
-
-    <!-- Audio player -->
-    <div class="audio-player" id="audioPlayer" style="display:none;">
-      <button class="play-btn" id="playBtn" disabled>
-        <span id="playIcon">&#9654;</span>
-      </button>
-      <div class="player-info">
-        <div class="player-label" id="playerLabel">30秒试听</div>
-        <div class="player-progress">
-          <div class="player-progress-fill" id="progressFill"></div>
-        </div>
-        <div class="player-time">
-          <span id="currentTime">0:00</span>
-          <span>0:30</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- WeChat guide -->
-    <div class="wechat-guide" id="wechatGuide">
-      <div class="arrow">&#128073;</div>
-      <div class="tip">请点击右上角 <strong>&middot;&middot;&middot;</strong><br>选择「在浏览器打开」</div>
-      <div class="steps">
-        <div class="step">
-          <div class="step-num">1</div>
-          <div class="step-text">点击右上角 <strong>&middot;&middot;&middot;</strong> 菜单</div>
-        </div>
-        <div class="step">
-          <div class="step-num">2</div>
-          <div class="step-text">选择「在浏览器中打开」</div>
-        </div>
-        <div class="step">
-          <div class="step-num">3</div>
-          <div class="step-text">浏览器会自动跳转到 Zephyrus Player 播放歌曲</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Action section -->
-    <div class="action-section" id="actionSection" style="display:none;">
-      <div class="status-msg" id="statusMsg"></div>
-      <button class="open-btn" id="openBtn">打开 Zephyrus Player</button>
-      <button class="netease-btn" id="neteaseBtn" style="display:none;">用网易云音乐打开</button>
-      <button class="copy-btn" id="copyBtn">复制歌曲链接</button>
-      <a class="netease-web-link" id="neteaseWebLink" target="_blank" rel="noopener">未检测到网易云 App，打开网页版</a>
-      <div class="hint" id="hint"></div>
-    </div>
-  </div>
-
-  <audio id="audioElement" preload="auto" crossorigin="anonymous"></audio>
+  <audio id="audio" preload="auto" crossorigin="anonymous"></audio>
 
   <script>
-    // ========== Config ==========
     var API_BASE = '/zephyrus/api';
-    var LOGO_URL = '/zephyrus/logo.png';
+    var LOGO_URL = '/zephyrus/logo.png?v=2';
+    var WEB_BASE = 'https://www.mucang.xyz/zephyrus/web/';
     var DEEP_LINK = '';
+    var NETEASE_ID = '';
+    var NETEASE_PATH = 'song';
 
-    // ========== Parse params ==========
-    function getSongId() {
-      var params = new URLSearchParams(location.search);
-      return params.get('song') || params.get('id');
+    function $(id) { return document.getElementById(id); }
+    function params() { return new URLSearchParams(location.search); }
+    function isWeChat() { return /micromessenger/i.test(navigator.userAgent); }
+    function isPureDigits(str) { return /^\d+$/.test(str || ''); }
+
+    async function fetchJSON(url) {
+      var res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
     }
 
-    // ========== Listen-Together mode ==========
-    function getListenCode() {
-      var params = new URLSearchParams(location.search);
-      return (params.get('listen') || '').toUpperCase();
-    }
-
-    // ========== WeChat detection ==========
-    function isWeChat() {
-      return navigator.userAgent.toLowerCase().indexOf('micromessenger') !== -1;
-    }
-
-    // ========== API ==========
-    async function fetchSongDetail(songId) {
-      var res = await fetch(API_BASE + '/song/detail?ids=' + songId);
-      var data = await res.json();
-      return data.songs && data.songs[0];
-    }
-
-    async function fetchSongUrl(songId) {
-      var res = await fetch(API_BASE + '/song/url/v1?id=' + songId + '&level=standard');
-      var data = await res.json();
-      return data.data && data.data[0];
-    }
-
-    // ========== Clipboard ==========
     async function writeToClipboard(text) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
@@ -519,8 +554,7 @@
       try {
         var ta = document.createElement('textarea');
         ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
+        ta.style.cssText = 'position:fixed;opacity:0';
         document.body.appendChild(ta);
         ta.select();
         var ok = document.execCommand('copy');
@@ -529,250 +563,318 @@
       } catch (e) { return false; }
     }
 
-    // ========== Format ==========
-    function formatTime(sec) {
-      var m = Math.floor(sec / 60);
-      var s = Math.floor(sec % 60);
-      return m + ':' + (s < 10 ? '0' : '') + s;
-    }
-
-    function getArtistNames(song) {
-      if (!song.ar) return '未知歌手';
-      return song.ar.map(function (a) { return a.name; }).join(' / ');
-    }
-
-    function getCoverUrl(song) {
-      if (song.al && song.al.picUrl) return song.al.picUrl + '?param=400y400';
-      return '';
-    }
-
-    // ========== Player ==========
-    var audio = document.getElementById('audioElement');
-    var playBtn = document.getElementById('playBtn');
-    var playIcon = document.getElementById('playIcon');
-    var progressFill = document.getElementById('progressFill');
-    var currentTimeEl = document.getElementById('currentTime');
-
-    playBtn.addEventListener('click', function () {
-      if (audio.paused) {
-        audio.play();
-      } else {
-        audio.pause();
-      }
-    });
-
-    audio.addEventListener('play', function () {
-      playIcon.innerHTML = '&#10074;&#10074;';
-    });
-
-    audio.addEventListener('pause', function () {
-      playIcon.innerHTML = '&#9654;';
-    });
-
-    audio.addEventListener('timeupdate', function () {
-      var cur = audio.currentTime;
-      if (cur > 30) { audio.pause(); return; }
-      var pct = (cur / 30) * 100;
-      progressFill.style.width = pct + '%';
-      currentTimeEl.textContent = formatTime(cur);
-    });
-
-    audio.addEventListener('ended', function () {
-      playIcon.innerHTML = '&#9654;';
-      progressFill.style.width = '0%';
-      currentTimeEl.textContent = '0:00';
-    });
-
-    audio.addEventListener('error', function () {
-      playBtn.classList.remove('loading');
-      playBtn.disabled = true;
-      playIcon.textContent = '\u2715';
-      document.getElementById('playerLabel').textContent = '试听不可用';
-    });
-
-    // ========== Open app ==========
-    function openApp() {
-      if (!DEEP_LINK) return;
-      window.location.href = DEEP_LINK;
-    }
-
-    // ========== Netease open ==========
-    var NETEASE_SONG_ID = '';
-    var NETEASE_WEB_URL = '';
-
-    function isPureDigits(str) {
-      return /^\d+$/.test(str || '');
-    }
-
-    /** 仅网易云歌曲（纯数字 id）显示「用网易云打开」入口 */
-    function setupNeteaseOpen(songId) {
-      if (!isPureDigits(songId)) return;
-      NETEASE_SONG_ID = songId;
-      NETEASE_WEB_URL = 'https://music.163.com/song?id=' + songId;
-      document.getElementById('neteaseBtn').style.display = 'block';
-    }
-
-    function tryOpenNetease() {
-      if (!NETEASE_SONG_ID) return;
-      var webLink = document.getElementById('neteaseWebLink');
-      webLink.href = NETEASE_WEB_URL;
-      if (/android/i.test(navigator.userAgent)) {
-        // intent URL：未安装网易云时浏览器自动落到 fallback 网页版
-        var fallback = encodeURIComponent(NETEASE_WEB_URL);
-        window.location.href = 'intent://song/' + NETEASE_SONG_ID +
-          '#Intent;scheme=orpheus;package=com.netease.cloudmusic' +
-          ';S.browser_fallback_url=' + fallback + ';end';
-        return;
-      }
-      var leftAt = Date.now();
-      window.location.href = 'orpheus://song/' + NETEASE_SONG_ID;
-      setTimeout(function () {
-        // 页面仍可见说明 App 未接住跳转，给出网页版出口
-        if (!document.hidden && Date.now() - leftAt < 2500) {
-          webLink.style.display = 'block';
-        }
-      }, 1500);
-    }
-
-    // ========== Main ==========
-    async function main() {
-      var listenCode = getListenCode();
-      if (listenCode) {
-        await mainListen(listenCode);
-        return;
-      }
-      var songId = getSongId();
-      if (!songId) {
-        document.getElementById('loadingScreen').style.display = 'none';
-        document.getElementById('errorState').style.display = 'flex';
-        document.querySelector('.error-text').textContent = '缺少歌曲 ID';
-        return;
-      }
-
-      // 跨平台（qq:xxx）/本地歌曲没有网易云 id，网页链路无法处理
-      if (!isPureDigits(songId)) {
-        document.getElementById('loadingScreen').style.display = 'none';
-        document.getElementById('errorState').style.display = 'flex';
-        document.querySelector('.error-text').textContent = '该歌曲来自其他音源，暂不支持网页打开';
-        return;
-      }
-
-      DEEP_LINK = 'zephyrus://song/' + songId;
-      setupNeteaseOpen(songId);
-
-      try {
-        var song = await fetchSongDetail(songId);
-        if (!song) throw new Error('未找到歌曲');
-
-        // Fill poster card
-        var coverUrl = getCoverUrl(song);
-        if (coverUrl) {
-          document.getElementById('posterCover').src = coverUrl;
-          document.getElementById('posterCard').style.display = 'block';
-        }
-        document.getElementById('posterTitle').textContent = song.name || '未知歌曲';
-        document.getElementById('posterArtist').textContent = getArtistNames(song);
-
-        // Fetch preview URL
-        var urlData = await fetchSongUrl(songId);
-        if (urlData && urlData.url) {
-          audio.src = urlData.url;
-          playBtn.disabled = false;
-          playBtn.classList.remove('loading');
-          document.getElementById('audioPlayer').style.display = 'flex';
-        }
-
-        // Show main content
-        document.getElementById('loadingScreen').style.display = 'none';
-        document.getElementById('mainContent').style.display = 'flex';
-
-        if (isWeChat()) {
-          document.getElementById('wechatGuide').style.display = 'flex';
-          document.getElementById('actionSection').style.display = 'none';
-          await writeToClipboard(DEEP_LINK);
-        } else {
-          document.getElementById('wechatGuide').style.display = 'none';
-          document.getElementById('actionSection').style.display = 'block';
-
-          var clipOk = await writeToClipboard(DEEP_LINK);
-          var statusEl = document.getElementById('statusMsg');
-          if (clipOk) {
-            statusEl.textContent = '已写入剪贴板，正在跳转';
-            statusEl.className = 'status-msg success';
-          } else {
-            statusEl.textContent = '请点击下方按钮打开应用';
+    /* 从封面采样主色，作为页面唯一强调色 */
+    function applyTone(imageUrl) {
+      if (!imageUrl) return;
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () {
+        try {
+          var c = document.createElement('canvas');
+          c.width = 24; c.height = 24;
+          var ctx = c.getContext('2d');
+          ctx.drawImage(img, 0, 0, 24, 24);
+          var d = ctx.getImageData(0, 0, 24, 24).data;
+          var r = 0, g = 0, b = 0, n = 0;
+          for (var i = 0; i < d.length; i += 4) {
+            if (d[i + 3] < 128) continue;
+            r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
           }
-
-          setTimeout(function () { openApp(); }, 1000);
-
-          setTimeout(function () {
-            document.getElementById('hint').textContent =
-              '如果未自动跳转，请点击上方按钮打开应用。' +
-              '歌曲链接已复制到剪贴板，打开应用后即可播放。';
-          }, 3000);
-        }
-      } catch (err) {
-        console.error('加载失败:', err);
-        document.getElementById('loadingScreen').style.display = 'none';
-        document.getElementById('errorState').style.display = 'flex';
-      }
+          if (!n) return;
+          r = Math.round(r / n); g = Math.round(g / n); b = Math.round(b / n);
+          var max = Math.max(r, g, b), min = Math.min(r, g, b);
+          var light = (max + min) / 510;
+          var sat = max === min ? 0 : (max - min) / 255;
+          if (light > 0.82 || light < 0.10 || sat < 0.16) return;
+          document.documentElement.style.setProperty('--tone', 'rgb(' + r + ',' + g + ',' + b + ')');
+          document.documentElement.style.setProperty('--tone-rgb', r + ',' + g + ',' + b);
+        } catch (e) { /* 跨域失败保持中性色 */ }
+      };
+      img.src = imageUrl;
     }
 
-    document.getElementById('openBtn').addEventListener('click', openApp);
-    document.getElementById('neteaseBtn').addEventListener('click', tryOpenNetease);
-    document.getElementById('copyBtn').addEventListener('click', async function () {
-      var ok = await writeToClipboard(DEEP_LINK);
-      this.textContent = ok ? '已复制' : '复制失败';
-    });
+    function setBackground(imageUrl) {
+      if (!imageUrl) return;
+      var bg = $('bg');
+      bg.style.backgroundImage = 'url("' + imageUrl + '")';
+      bg.classList.add('on');
+    }
 
-    // ========== Listen-Together 落地页 ==========
-    async function mainListen(code) {
-      DEEP_LINK = 'zephyrus://listen/' + code;
-
-      var cover = document.getElementById('posterCover');
-      if (cover) cover.src = LOGO_URL;
-      var poster = document.getElementById('posterCard');
-      if (poster) poster.style.display = 'block';
-      var titleEl = document.getElementById('posterTitle');
-      if (titleEl) titleEl.textContent = '一起听房间 ' + code;
-      var artistEl = document.getElementById('posterArtist');
-      if (artistEl) artistEl.textContent = '打开 Zephyrus App 加入同步收听';
-
-      var audioBox = document.getElementById('audioPlayer');
-      if (audioBox) audioBox.style.display = 'none';
-
-      document.getElementById('loadingScreen').style.display = 'none';
-      document.getElementById('mainContent').style.display = 'flex';
-
-      if (isWeChat()) {
-        document.getElementById('wechatGuide').style.display = 'flex';
-        document.getElementById('actionSection').style.display = 'none';
-        await writeToClipboard(DEEP_LINK);
-      } else {
-        document.getElementById('wechatGuide').style.display = 'none';
-        document.getElementById('actionSection').style.display = 'block';
-
-        var clipOk = await writeToClipboard(DEEP_LINK);
-        var statusEl = document.getElementById('statusMsg');
-        if (clipOk) {
-          statusEl.textContent = '邀请链接已写入剪贴板，正在跳转';
-          statusEl.className = 'status-msg success';
-        } else {
-          statusEl.textContent = '请点击下方按钮打开应用';
+    function showCard(kind, title, subtitle, coverUrl, opts) {
+      opts = opts || {};
+      $('loadingScreen').classList.remove('on');
+      $('errorScreen').classList.remove('on');
+      $('mainContent').style.display = 'block';
+      $('kindTag').textContent = kind;
+      $('titleText').textContent = title;
+      $('subtitleText').textContent = subtitle;
+      var cover = $('coverImg');
+      cover.style.display = coverUrl ? 'block' : 'none';
+      if (coverUrl) cover.src = coverUrl;
+      setBackground(coverUrl || LOGO_URL);
+      applyTone(coverUrl);
+      if (opts.stats) { $('statsText').textContent = opts.stats; $('statsText').style.display = 'block'; }
+      if (opts.desc) { $('descText').textContent = opts.desc; $('descText').style.display = '-webkit-box'; }
+      if (opts.tracks) {
+        var box = $('tracks');
+        box.classList.add('on');
+        var html = '';
+        for (var i = 0; i < opts.tracks.length; i++) {
+          var t = opts.tracks[i];
+          html += '<div class="track"><div class="track-no">' + (i + 1) +
+            '</div><div class="track-body"><div class="track-name"></div>' +
+            '<div class="track-artist"></div></div></div>';
         }
+        if (opts.more) {
+          html += '<div class="tracks-more">还有 ' + opts.more + ' 首，打开应用查看全部</div>';
+        }
+        box.innerHTML = html;
+        var rows = box.querySelectorAll('.track');
+        for (var j = 0; j < rows.length; j++) {
+          rows[j].querySelector('.track-name').textContent = opts.tracks[j].name;
+          rows[j].querySelector('.track-artist').textContent = opts.tracks[j].artist;
+        }
+      }
+      requestAnimationFrame(function () {
+        $('card').classList.add('on');
+        $('actions').classList.add('on');
+      });
+    }
 
-        setTimeout(function () { openApp(); }, 1000);
+    function showError(title, sub) {
+      $('loadingScreen').classList.remove('on');
+      $('errorScreen').classList.add('on');
+      $('errorTitle').textContent = title || '内容不存在或已失效';
+      $('errorSub').textContent = sub || '分享链接可能不完整，请联系分享者重新获取';
+    }
 
+    /* 通用动作绑定：主 CTA = App 深链，次级 = 网易云，ghost = 复制 */
+    function bindActions(opts) {
+      opts = opts || {};
+      DEEP_LINK = opts.deepLink || '';
+      NETEASE_ID = opts.neteaseId && isPureDigits(opts.neteaseId) ? opts.neteaseId : '';
+      NETEASE_PATH = opts.neteasePath || 'song';
+
+      var openBtn = $('openBtn');
+      var neteaseBtn = $('neteaseBtn');
+      var webLink = $('webLink');
+      var status = $('status');
+
+      if (opts.webUrl) {
+        webLink.href = opts.webUrl;
+        webLink.style.display = 'flex';
+      }
+      if (NETEASE_ID) neteaseBtn.style.display = 'flex';
+      if (isWeChat()) {
+        $('wechat').classList.add('on');
+        $('actions').classList.remove('on');
+        writeToClipboard(DEEP_LINK);
+        return;
+      }
+
+      if (!DEEP_LINK && !opts.webUrl) return;
+      writeToClipboard(DEEP_LINK || opts.webUrl).then(function (ok) {
+        if (!ok || !DEEP_LINK) return;
+        status.classList.add('on');
+        status.innerHTML = '<span class="ok">链接已复制</span>，正在打开应用';
+      });
+      if (DEEP_LINK) {
+        setTimeout(function () { window.location.href = DEEP_LINK; }, 1000);
         setTimeout(function () {
-          var hint = document.getElementById('hint');
-          if (hint) {
-            hint.textContent =
-              '如果未自动跳转，请点击上方按钮打开应用。' +
-              '打开应用后会弹出加入确认卡片。';
+          if (!document.hidden) {
+            status.classList.add('on');
+            status.textContent = '未自动跳转？点击上方按钮打开，或选择网页版继续';
           }
         }, 3000);
+      } else if (status) {
+        status.classList.add('on');
+        status.textContent = '在浏览器中打开链接，可复制到应用内使用';
+      }
+
+      openBtn.addEventListener('click', function () {
+        if (DEEP_LINK) window.location.href = DEEP_LINK;
+      });
+      neteaseBtn.addEventListener('click', function () {
+        if (!NETEASE_ID) return;
+        var webUrl = 'https://music.163.com/' + NETEASE_PATH + '?id=' + NETEASE_ID;
+        if (/android/i.test(navigator.userAgent)) {
+          window.location.href = 'intent://' + NETEASE_PATH + '/' + NETEASE_ID +
+            '#Intent;scheme=orpheus;package=com.netease.cloudmusic;S.browser_fallback_url=' +
+            encodeURIComponent(webUrl) + ';end';
+          return;
+        }
+        var leftAt = Date.now();
+        window.location.href = 'orpheus://' + NETEASE_PATH + '/' + NETEASE_ID;
+        setTimeout(function () {
+          if (!document.hidden && Date.now() - leftAt < 2500) {
+            webLink.href = webUrl;
+            webLink.style.display = 'flex';
+          }
+        }, 1500);
+      });
+      $('copyBtn').addEventListener('click', function () {
+        writeToClipboard(DEEP_LINK || opts.webUrl || location.href).then(
+          function (ok) { $('copyBtn').textContent = ok ? '已复制' : '复制失败'; }
+        );
+      });
+    }
+
+    /* ========== 歌曲模式 ========== */
+    async function mainSong(songId) {
+      if (!isPureDigits(songId)) {
+        showError('暂不支持此链接', '该歌曲来自其他音源，无法在网页中打开');
+        return;
+      }
+      try {
+        var data = await fetchJSON(API_BASE + '/song/detail?ids=' + songId);
+        var song = data.songs && data.songs[0];
+        if (!song) throw new Error('未找到歌曲');
+
+        var artists = (song.ar || []).map(function (a) { return a.name; }).join(' / ') || '未知歌手';
+        var cover = song.al && song.al.picUrl ? song.al.picUrl + '?param=500y500' : '';
+        showCard('歌曲', song.name || '未知歌曲', artists, cover);
+        bindActions({
+          deepLink: 'zephyrus://song/' + songId,
+          neteaseId: songId,
+          neteasePath: 'song'
+        });
+
+        try {
+          var urlData = await fetchJSON(API_BASE + '/song/url/v1?id=' + songId + '&level=standard');
+          var urlInfo = urlData.data && urlData.data[0];
+          if (urlInfo && urlInfo.url) setupPlayer(urlInfo.url);
+        } catch (e) { /* 试听不可用不影响主流程 */ }
+      } catch (e) {
+        showError();
       }
     }
+
+    function setupPlayer(url) {
+      var audio = $('audio');
+      var playBtn = $('playBtn');
+      var fill = $('playerFill');
+      var timeEl = $('playerTime');
+      audio.src = url;
+      $('player').classList.add('on');
+      playBtn.disabled = false;
+      playBtn.addEventListener('click', function () {
+        if (audio.paused) audio.play(); else audio.pause();
+      });
+      audio.addEventListener('play', function () { playBtn.innerHTML = '&#10074;&#10074;'; });
+      audio.addEventListener('pause', function () { playBtn.innerHTML = '&#9654;'; });
+      audio.addEventListener('timeupdate', function () {
+        if (audio.currentTime > 30) { audio.pause(); return; }
+        fill.style.width = (audio.currentTime / 30) * 100 + '%';
+        var m = Math.floor(audio.currentTime / 60);
+        var s = Math.floor(audio.currentTime % 60);
+        timeEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+      });
+      audio.addEventListener('ended', function () {
+        playBtn.innerHTML = '&#9654;';
+        fill.style.width = '0%';
+        timeEl.textContent = '0:00';
+      });
+      audio.addEventListener('error', function () {
+        $('player').classList.remove('on');
+      });
+    }
+
+    /* ========== 歌单 / 专辑模式 ========== */
+    async function mainCollection(kind, id) {
+      if (!isPureDigits(id)) {
+        showError('暂不支持此链接', '该内容来自其他音源，无法在网页中打开');
+        return;
+      }
+      var isAlbum = kind === 'album';
+      try {
+        var tracks = [];
+        var title, subtitle, cover, desc, totalCount, stats;
+
+        if (isAlbum) {
+          var data = await fetchJSON(API_BASE + '/album?id=' + id);
+          var album = data.album;
+          if (!album) throw new Error('未找到专辑');
+          title = album.name;
+          subtitle = (album.artist && album.artist.name) || '未知歌手';
+          cover = album.picUrl ? album.picUrl + '?param=500y500' : '';
+          desc = (album.description || '').trim();
+          totalCount = data.songs ? data.songs.length : 0;
+          stats = totalCount + ' 首' + (album.company ? ' · ' + album.company : '');
+          tracks = (data.songs || []).slice(0, 10).map(function (s, i) {
+            return {
+              name: s.name,
+              artist: (s.ar || []).map(function (a) { return a.name; }).join(' / '),
+              no: i
+            };
+          });
+        } else {
+          var pdata = await fetchJSON(API_BASE + '/playlist/detail?id=' + id);
+          var pl = pdata.playlist;
+          if (!pl) throw new Error('未找到歌单');
+          title = pl.name;
+          subtitle = (pl.creator && pl.creator.nickname) || '未知创建者';
+          cover = pl.coverImgUrl ? pl.coverImgUrl + '?param=500y500' : '';
+          desc = (pl.description || '').trim();
+          totalCount = (pl.trackIds || []).length;
+          var countLabel = totalCount >= 100000 ? Math.round(totalCount / 10000) + '万' : totalCount;
+          stats = countLabel + ' 首' + (pl.playCount ? ' · 播放 ' + (pl.playCount >= 100000 ? Math.round(pl.playCount / 10000) + '万' : pl.playCount) + ' 次' : '');
+          var ids = (pl.trackIds || []).slice(0, 10).map(function (t) { return t.id; });
+          if (ids.length) {
+            var d = await fetchJSON(API_BASE + '/song/detail?ids=' + ids.join(','));
+            tracks = (d.songs || []).map(function (s) {
+              return {
+                name: s.name,
+                artist: (s.ar || []).map(function (a) { return a.name; }).join(' / ')
+              };
+            });
+          }
+        }
+
+        showCard(isAlbum ? '专辑' : '歌单', title, subtitle, cover, {
+          stats: stats,
+          desc: desc ? desc.replace(/\s+/g, ' ').slice(0, 120) : '',
+          tracks: tracks,
+          more: totalCount > tracks.length ? totalCount - tracks.length : 0
+        });
+        bindActions({
+          deepLink: 'zephyrus://' + kind + '/' + id,
+          // 网页版路由为 /music-list/:id?type=album|playlist（两段式路径无对应路由，会渲染空白）
+          webUrl: WEB_BASE + '#/music-list/' + id + '?type=' + kind,
+          neteaseId: id,
+          neteasePath: kind
+        });
+      } catch (e) {
+        showError();
+      }
+    }
+
+    /* ========== 一起听模式 ========== */
+    async function mainListen(code) {
+      var deepLink = 'zephyrus://listen/' + code;
+      showCard('一起听', '一起听房间 ' + code, '打开 Zephyrus App 加入同步收听', LOGO_URL);
+      bindActions({ deepLink: deepLink });
+    }
+
+    /* ========== 入口 ========== */
+    async function main() {
+      var q = params();
+      var listenCode = (q.get('listen') || '').toUpperCase();
+      var songId = q.get('song') || q.get('id');
+      var playlistId = q.get('playlist');
+      var albumId = q.get('album');
+
+      if (listenCode) return mainListen(listenCode);
+      if (songId) return mainSong(songId);
+      if (playlistId) return mainCollection('playlist', playlistId);
+      if (albumId) return mainCollection('album', albumId);
+
+      showError('链接缺少内容参数', '请确认分享链接完整，或联系分享者重新获取');
+    }
+
+    // 微信引导遮罩：点击任意位置关闭
+    $('wechat').addEventListener('click', function () {
+      this.classList.remove('on');
+    });
 
     main();
   </script>

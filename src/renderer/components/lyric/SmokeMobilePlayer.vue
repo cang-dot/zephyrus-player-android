@@ -132,7 +132,11 @@
     </transition>
   </teleport>
   <mobile-player-settings v-model:visible="showPlayerSettings" />
-  <poster-share-modal v-model:visible="showPosterModal" :lyrics="selectedLyrics" />
+  <poster-share-modal
+    v-model:visible="showPosterModal"
+    :lyrics="selectedLyrics"
+    :subject="posterSubject"
+  />
 </template>
 
 <script setup lang="ts">
@@ -156,6 +160,7 @@ import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
+import { ensureFontLoaded } from '@/utils/fontLoader';
 
 const props = defineProps({ modelValue: { type: Boolean, default: false } });
 const emit = defineEmits(['update:modelValue']);
@@ -192,7 +197,7 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
   shouldClose: () => !showFullLyrics.value,
   onClose: () => close()
 });
-const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
+const { showPosterModal, selectedLyrics, posterSubject, handleGeneratePoster } = usePosterShare();
 const {
   config: styleCfg,
   effects,
@@ -231,6 +236,8 @@ onMounted(() => {
   window.addEventListener('music-full-config-updated', loadConfig);
   styleEngine.syncFromPlayerStore();
   styleEngine.syncCoverColors();
+  // 默认字体为马善政毛笔楷书：提前注册 FontFace，首帧即可生效
+  void ensureFontLoaded('ma-shan-zheng');
 });
 onUnmounted(() => window.removeEventListener('music-full-config-updated', loadConfig));
 const showWordDrop = computed(
@@ -251,20 +258,20 @@ const showStaggered = computed(
     Boolean(wordPlayback.currentDisplayLine.value?.words?.length)
 );
 const smokeDensity = computed(() =>
-  Math.min(1, Number(styleCfg.value.smokeDensity || 0.58) + styleEngine.energyLevel * 0.2)
+  Math.min(1, Number(styleCfg.value.smokeDensity || 1) + styleEngine.energyLevel * 0.2)
 );
 const smokeChaos = computed(() =>
-  Math.min(1, Number(styleCfg.value.smokeChaos || 0.42) + styleEngine.beatFlux * 0.4)
+  Math.min(1, Number(styleCfg.value.smokeChaos || 1) + styleEngine.beatFlux * 0.4)
 );
 const smokeLoudness = computed(() =>
   Math.min(
     1,
     Math.max(styleEngine.energyLevel, audioService.getLoudness()) *
-      Number(styleCfg.value.smokeLoudnessResponse || 0.72) +
+      Number(styleCfg.value.smokeLoudnessResponse || 1) +
       Math.max(styleEngine.kickEnergy, audioService.getBandEnergies().low) * 0.3
   )
 );
-const smokeOpacity = computed(() => Number(styleCfg.value.smokeOpacity || 0.76));
+const smokeOpacity = computed(() => Number(styleCfg.value.smokeOpacity || 1));
 const smokeVignette = computed(() => Number(styleCfg.value.smokeVignette || 0.48));
 const smokeColor = computed(() =>
   !isCustom.value || styleCfg.value.smokeFollowThemeColor !== false
@@ -277,7 +284,10 @@ const smokeClimaxGlowColor = computed(() =>
     : styleCfg.value.smokeGlowCustomColor || '#ff765f'
 );
 const fontFamily = computed(
-  () => selectedFontFamily.value || "'KaiTi', 'STKaiti', 'Noto Serif SC', serif"
+  () =>
+    selectedFontFamily.value ||
+    // 默认字体：马善政毛笔楷书（未自定义时生效，见 STYLE_SPECIFIC_DEFAULTS.smoke）
+    "'ZephyrusMaShanZheng', 'KaiTi', 'STKaiti', 'Noto Serif SC', serif"
 );
 function close() {
   useMobilePlayerTransition().close(0, () => {

@@ -126,8 +126,10 @@ export default {
   },
   photosensitivity: {
     title: '光感受性てんかんの警告',
-    intro: '「エラー」プレイヤースタイルには、高頻度の点滅表現（全画面ノイズ、走査線、サビでの激しい明暗変化）が含まれます。',
-    detail: '光感受性てんかんの既往歴がある方は使用しないでください。明るい環境で使用し、画面を長時間見つめないようにしてください。',
+    intro:
+      '「エラー」プレイヤースタイルには、高頻度の点滅表現（全画面ノイズ、走査線、サビでの激しい明暗変化）が含まれます。',
+    detail:
+      '光感受性てんかんの既往歴がある方は使用しないでください。明るい環境で使用し、画面を長時間見つめないようにしてください。',
     confirm: '理解したので続行',
     decline: '戻る'
   },
@@ -142,6 +144,16 @@ export default {
     styleDefaultFont: 'スタイル標準',
     fontWeight: 'フォントの太さ',
     importFont: 'フォントを読み込む',
+    showTrackInfo: 'カバー下に曲名とアーティストを表示',
+    artworkSize: 'カバーサイズ',
+    artworkAlign: 'カバーの配置',
+    alignStart: '左',
+    alignCenter: '中央',
+    alignEnd: '右',
+    backgroundPreset: '背景プリセット',
+    presetNone: 'なし',
+    presetAurora: 'オーロラ',
+    presetFluid: '流体',
     customBackground: 'カスタム背景',
     solid: '単色',
     gradient: 'グラデーション',

@@ -1,5 +1,9 @@
 <template>
-  <div ref="mountRef" :class="`w-full h-full relative overflow-hidden ${className || ''}`" :style="style" />
+  <div
+    ref="mountRef"
+    :class="`w-full h-full relative overflow-hidden ${className || ''}`"
+    :style="style"
+  />
 </template>
 
 <script setup lang="ts">
@@ -9,7 +13,7 @@
  * 本地适配：安卓浮点纹理降级、FBO/调色板释放、colors 调色板热更新、关闭 MSAA
  */
 import * as THREE from 'three';
-import { onMounted, onUnmounted, ref, watch, type CSSProperties } from 'vue';
+import { type CSSProperties, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { shouldSkipMobilePlayerFrame } from '@/utils/mobilePlayerPerformance';
 
@@ -869,13 +873,23 @@ const initWebGLUnsafe = () => {
       // 运行时按扩展支持降级，iOS UA 检测只作兜底
       const gl = Common.renderer?.getContext();
       if (gl && !gl.getExtension('OES_texture_float_linear')) return THREE.HalfFloatType;
-      return /(iPad|iPhone|iPod)/i.test(navigator.userAgent) ? THREE.HalfFloatType : THREE.FloatType;
+      return /(iPad|iPhone|iPod)/i.test(navigator.userAgent)
+        ? THREE.HalfFloatType
+        : THREE.FloatType;
     }
 
     createAllFBO() {
       const type = this.getFloatType();
-      const keys = ['vel_0', 'vel_1', 'vel_viscous0', 'vel_viscous1', 'div', 'pressure_0', 'pressure_1'];
-      keys.forEach(key => {
+      const keys = [
+        'vel_0',
+        'vel_1',
+        'vel_viscous0',
+        'vel_viscous1',
+        'div',
+        'pressure_0',
+        'pressure_1'
+      ];
+      keys.forEach((key) => {
         this.fbos[key] = new THREE.WebGLRenderTarget(this.fboSize.x, this.fboSize.y, {
           type,
           depthBuffer: false,
@@ -889,8 +903,17 @@ const initWebGLUnsafe = () => {
     }
 
     createShaderPass() {
-      const common = { cellScale: this.cellScale, dt: this.options.dt, boundarySpace: this.boundarySpace };
-      this.advection = new Advection({ ...common, fboSize: this.fboSize, src: this.fbos.vel_0, dst: this.fbos.vel_1 });
+      const common = {
+        cellScale: this.cellScale,
+        dt: this.options.dt,
+        boundarySpace: this.boundarySpace
+      };
+      this.advection = new Advection({
+        ...common,
+        fboSize: this.fboSize,
+        src: this.fbos.vel_0,
+        dst: this.fbos.vel_1
+      });
       this.externalForce = new ExternalForce({
         cellScale: this.cellScale,
         cursor_size: this.options.cursor_size,
@@ -903,7 +926,11 @@ const initWebGLUnsafe = () => {
         dst: this.fbos.vel_viscous1,
         dst_: this.fbos.vel_viscous0
       });
-      this.divergence = new Divergence({ ...common, src: this.fbos.vel_viscous0, dst: this.fbos.div });
+      this.divergence = new Divergence({
+        ...common,
+        src: this.fbos.vel_viscous0,
+        dst: this.fbos.div
+      });
       this.poisson = new Poisson({
         ...common,
         src: this.fbos.div,
@@ -927,14 +954,18 @@ const initWebGLUnsafe = () => {
 
     resize() {
       this.calcSize();
-      Object.values(this.fbos).forEach(fbo => fbo.setSize(this.fboSize.x, this.fboSize.y));
+      Object.values(this.fbos).forEach((fbo) => fbo.setSize(this.fboSize.x, this.fboSize.y));
     }
 
     update() {
       if (this.options.isBounce) this.boundarySpace.set(0, 0);
       else this.boundarySpace.copy(this.cellScale);
 
-      this.advection.updateArgs({ dt: this.options.dt, isBounce: this.options.isBounce, BFECC: this.options.BFECC });
+      this.advection.updateArgs({
+        dt: this.options.dt,
+        isBounce: this.options.isBounce,
+        BFECC: this.options.BFECC
+      });
       this.externalForce.updateArgs({
         cursor_size: this.options.cursor_size,
         mouse_force: this.options.mouse_force,
@@ -1110,7 +1141,7 @@ const initWebGLUnsafe = () => {
       if (this._onVisibility) document.removeEventListener('visibilitychange', this._onVisibility);
       Mouse.dispose();
       if (this.output) {
-        Object.values(this.output.simulation.fbos).forEach(fbo => fbo.dispose());
+        Object.values(this.output.simulation.fbos).forEach((fbo) => fbo.dispose());
         this.output.outputMesh.geometry.dispose();
         (this.output.outputMesh.material as THREE.Material).dispose();
       }
@@ -1164,7 +1195,7 @@ const initWebGLUnsafe = () => {
   webgl.start();
 
   const io = new IntersectionObserver(
-    entries => {
+    (entries) => {
       const isVisible = entries[0].isIntersecting;
       isVisibleRef.value = isVisible;
       if (isVisible && !document.hidden) webgl.start();

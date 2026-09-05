@@ -313,162 +313,168 @@
             </header>
             <div class="download-sheet-body">
               <div class="download-settings-content space-y-8 py-2">
-          <!-- Path Section -->
-          <div class="setting-group">
-            <h3 class="text-sm font-bold text-neutral-900 dark:text-white mb-2">
-              {{ t('download.settingsPanel.path') }}
-            </h3>
-            <p class="text-xs text-neutral-500 mb-4">{{ t('download.settingsPanel.pathDesc') }}</p>
-            <div class="space-y-3">
-              <n-input :value="downloadSettings.path" readonly placeholder="Select path..." />
-              <div class="flex gap-2">
-                <n-button class="flex-1" @click="selectDownloadPath">{{
-                  t('download.settingsPanel.select')
-                }}</n-button>
-                <n-button class="flex-1" @click="openDownloadPath">{{
-                  t('download.settingsPanel.open')
-                }}</n-button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Save Lyric File -->
-          <div class="setting-group">
-            <div class="flex items-center justify-between">
-              <div>
-                <h3 class="text-sm font-bold text-neutral-900 dark:text-white">
-                  {{ t('download.settingsPanel.saveLyric') }}
-                </h3>
-                <p class="text-xs text-neutral-500 mt-1">
-                  {{ t('download.settingsPanel.saveLyricDesc') }}
-                </p>
-              </div>
-              <n-switch v-model:value="downloadSettings.saveLyric" />
-            </div>
-          </div>
-
-          <!-- Format Section -->
-          <div class="setting-group">
-            <h3 class="text-sm font-bold text-neutral-900 dark:text-white mb-2">
-              {{ t('download.settingsPanel.fileFormat') }}
-            </h3>
-            <p class="text-xs text-neutral-500 mb-4">
-              {{ t('download.settingsPanel.fileFormatDesc') }}
-            </p>
-
-            <div class="space-y-4">
-              <div class="flex flex-wrap gap-2">
-                <n-button
-                  v-for="preset in [
-                    { label: 'songArtist', value: '{songName} - {artistName}' },
-                    { label: 'artistSong', value: '{artistName} - {songName}' },
-                    { label: 'songOnly', value: '{songName}' }
-                  ]"
-                  :key="preset.label"
-                  size="small"
-                  :type="downloadSettings.nameFormat === preset.value ? 'primary' : 'default'"
-                  @click="downloadSettings.nameFormat = preset.value"
-                >
-                  {{ t(`download.settingsPanel.presets.${preset.label}`) }}
-                </n-button>
-              </div>
-
-              <div>
-                <p class="text-[10px] text-neutral-400 mb-2 uppercase font-bold">
-                  {{ t('download.settingsPanel.separator') }}
-                </p>
-                <div class="flex items-center gap-2">
-                  <n-button
-                    v-for="sep in [' - ', '_', ' ']"
-                    :key="sep"
-                    size="small"
-                    :type="downloadSettings.separator === sep ? 'primary' : 'default'"
-                    @click="downloadSettings.separator = sep"
-                  >
-                    {{ sep === ' ' ? 'Space' : sep }}
-                  </n-button>
-                  <n-input v-model:value="downloadSettings.separator" size="small" class="w-20" />
-                </div>
-              </div>
-
-              <div>
-                <p class="text-[10px] text-neutral-400 mb-2 uppercase font-bold">
-                  {{ t('download.settingsPanel.dragToArrange') }}
-                </p>
-                <div class="space-y-2">
-                  <div
-                    v-for="(comp, idx) in formatComponents"
-                    :key="comp.id"
-                    class="flex items-center justify-between p-2 bg-neutral-50 dark:bg-neutral-900 rounded-lg"
-                  >
-                    <span class="text-xs">{{
-                      t(`download.settingsPanel.components.${comp.type}`)
-                    }}</span>
-                    <div class="flex items-center gap-1">
-                      <n-button
-                        quaternary
-                        circle
-                        size="tiny"
-                        :disabled="idx === 0"
-                        @click="handleMoveUp(idx)"
-                        ><i class="ri-arrow-up-s-line"
-                      /></n-button>
-                      <n-button
-                        quaternary
-                        circle
-                        size="tiny"
-                        :disabled="idx === formatComponents.length - 1"
-                        @click="handleMoveDown(idx)"
-                        ><i class="ri-arrow-down-s-line"
-                      /></n-button>
-                      <n-button
-                        quaternary
-                        circle
-                        size="tiny"
-                        :disabled="formatComponents.length <= 1"
-                        @click="removeFormatComponent(idx)"
-                        ><i class="ri-close-line"
-                      /></n-button>
+                <!-- Path Section -->
+                <div class="setting-group">
+                  <h3 class="text-sm font-bold text-neutral-900 dark:text-white mb-2">
+                    {{ t('download.settingsPanel.path') }}
+                  </h3>
+                  <p class="text-xs text-neutral-500 mb-4">
+                    {{ t('download.settingsPanel.pathDesc') }}
+                  </p>
+                  <div class="space-y-3">
+                    <n-input :value="downloadSettings.path" readonly placeholder="Select path..." />
+                    <div class="flex gap-2">
+                      <n-button class="flex-1" @click="selectDownloadPath">{{
+                        t('download.settingsPanel.select')
+                      }}</n-button>
+                      <n-button class="flex-1" @click="openDownloadPath">{{
+                        t('download.settingsPanel.open')
+                      }}</n-button>
                     </div>
                   </div>
-                  <div class="flex flex-wrap gap-2 mt-2">
-                    <n-button
-                      v-for="type in ['songName', 'artistName', 'albumName']"
-                      :key="type"
-                      size="tiny"
-                      :disabled="formatComponents.some((c) => c.type === type)"
-                      @click="addFormatComponent(type)"
+                </div>
+
+                <!-- Save Lyric File -->
+                <div class="setting-group">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <h3 class="text-sm font-bold text-neutral-900 dark:text-white">
+                        {{ t('download.settingsPanel.saveLyric') }}
+                      </h3>
+                      <p class="text-xs text-neutral-500 mt-1">
+                        {{ t('download.settingsPanel.saveLyricDesc') }}
+                      </p>
+                    </div>
+                    <n-switch v-model:value="downloadSettings.saveLyric" />
+                  </div>
+                </div>
+
+                <!-- Format Section -->
+                <div class="setting-group">
+                  <h3 class="text-sm font-bold text-neutral-900 dark:text-white mb-2">
+                    {{ t('download.settingsPanel.fileFormat') }}
+                  </h3>
+                  <p class="text-xs text-neutral-500 mb-4">
+                    {{ t('download.settingsPanel.fileFormatDesc') }}
+                  </p>
+
+                  <div class="space-y-4">
+                    <div class="flex flex-wrap gap-2">
+                      <n-button
+                        v-for="preset in [
+                          { label: 'songArtist', value: '{songName} - {artistName}' },
+                          { label: 'artistSong', value: '{artistName} - {songName}' },
+                          { label: 'songOnly', value: '{songName}' }
+                        ]"
+                        :key="preset.label"
+                        size="small"
+                        :type="downloadSettings.nameFormat === preset.value ? 'primary' : 'default'"
+                        @click="downloadSettings.nameFormat = preset.value"
+                      >
+                        {{ t(`download.settingsPanel.presets.${preset.label}`) }}
+                      </n-button>
+                    </div>
+
+                    <div>
+                      <p class="text-[10px] text-neutral-400 mb-2 uppercase font-bold">
+                        {{ t('download.settingsPanel.separator') }}
+                      </p>
+                      <div class="flex items-center gap-2">
+                        <n-button
+                          v-for="sep in [' - ', '_', ' ']"
+                          :key="sep"
+                          size="small"
+                          :type="downloadSettings.separator === sep ? 'primary' : 'default'"
+                          @click="downloadSettings.separator = sep"
+                        >
+                          {{ sep === ' ' ? 'Space' : sep }}
+                        </n-button>
+                        <n-input
+                          v-model:value="downloadSettings.separator"
+                          size="small"
+                          class="w-20"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <p class="text-[10px] text-neutral-400 mb-2 uppercase font-bold">
+                        {{ t('download.settingsPanel.dragToArrange') }}
+                      </p>
+                      <div class="space-y-2">
+                        <div
+                          v-for="(comp, idx) in formatComponents"
+                          :key="comp.id"
+                          class="flex items-center justify-between p-2 bg-neutral-50 dark:bg-neutral-900 rounded-lg"
+                        >
+                          <span class="text-xs">{{
+                            t(`download.settingsPanel.components.${comp.type}`)
+                          }}</span>
+                          <div class="flex items-center gap-1">
+                            <n-button
+                              quaternary
+                              circle
+                              size="tiny"
+                              :disabled="idx === 0"
+                              @click="handleMoveUp(idx)"
+                              ><i class="ri-arrow-up-s-line"
+                            /></n-button>
+                            <n-button
+                              quaternary
+                              circle
+                              size="tiny"
+                              :disabled="idx === formatComponents.length - 1"
+                              @click="handleMoveDown(idx)"
+                              ><i class="ri-arrow-down-s-line"
+                            /></n-button>
+                            <n-button
+                              quaternary
+                              circle
+                              size="tiny"
+                              :disabled="formatComponents.length <= 1"
+                              @click="removeFormatComponent(idx)"
+                              ><i class="ri-close-line"
+                            /></n-button>
+                          </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                          <n-button
+                            v-for="type in ['songName', 'artistName', 'albumName']"
+                            :key="type"
+                            size="tiny"
+                            :disabled="formatComponents.some((c) => c.type === type)"
+                            @click="addFormatComponent(type)"
+                          >
+                            + {{ t(`download.settingsPanel.components.${type}`) }}
+                          </n-button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      class="p-3 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800"
                     >
-                      + {{ t(`download.settingsPanel.components.${type}`) }}
-                    </n-button>
+                      <p class="text-[10px] text-neutral-400 mb-1 uppercase font-bold">
+                        {{ t('download.settingsPanel.preview') }}
+                      </p>
+                      <p class="text-sm font-medium text-[var(--accent-color)] truncate">
+                        {{ formatNamePreview }}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-
-              <div
-                class="p-3 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800"
-              >
-                <p class="text-[10px] text-neutral-400 mb-1 uppercase font-bold">
-                  {{ t('download.settingsPanel.preview') }}
-                </p>
-                <p class="text-sm font-medium text-[var(--accent-color)] truncate">
-                  {{ formatNamePreview }}
-                </p>
-              </div>
             </div>
-          </div>
-            </div>
-          </div>
 
-          <div class="download-sheet-footer">
-            <button class="download-sheet-save" @click="saveDownloadSettings">{{
-              t('common.save')
-            }}</button>
+            <div class="download-sheet-footer">
+              <button class="download-sheet-save" @click="saveDownloadSettings">
+                {{ t('common.save') }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </Transition>
-  </Teleport>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 

@@ -8,14 +8,35 @@ import {
   normalizePosterConfig,
   type PosterConfig,
   type PosterSongInfo,
+  type PosterSubject,
   type SelectedLyric
 } from '@/types/share';
 import { ensureFontLoaded, getFontFamily } from '@/utils/fontLoader';
-import { buildSongDeepLink, generateQRCodeImage, loadImage } from '@/utils/qrCodeUtil';
+import {
+  buildCollectionDeepLink,
+  buildSongDeepLink,
+  generateQRCodeImage,
+  loadImage
+} from '@/utils/qrCodeUtil';
+import { truncateText } from '@/utils/text';
 
 /** 海报尺寸 */
 export const POSTER_WIDTH = 1080;
 export const POSTER_HEIGHT = 1920;
+
+/** 各布局内容区（歌词/简介/曲目）纵向度量：top=内容起始 y，line/para=行高与段距，bottomPad=底部预留（二维码/水印） */
+const LAYOUT_CONTENT_METRICS: Record<
+  PosterConfig['layout'],
+  { top: number; line: number; para: number; bottomPad: number; fontPx: number }
+> = {
+  'torn-paper': { top: 580, line: 58, para: 24, bottomPad: 220, fontPx: 42 },
+  immersive: { top: 520, line: 60, para: 28, bottomPad: 220, fontPx: 44 },
+  'performance-archive': { top: 1130, line: 78, para: 22, bottomPad: 160, fontPx: 60 },
+  'seal-tour': { top: 1430, line: 78, para: 22, bottomPad: 160, fontPx: 60 }
+};
+
+/** 各布局在非长图/未开"全部内容"时的歌词条数上限（保持原海报构图） */
+const LYRIC_CONTENT_LIMIT = 12;
 
 /** 二维码尺寸 */
 const QR_CODE_SIZE = 140;
@@ -249,10 +270,11 @@ async function drawTornPaperLayout(
   ctx: CanvasRenderingContext2D,
   config: PosterConfig,
   songInfo: PosterSongInfo,
-  lyrics: SelectedLyric[]
+  lyrics: SelectedLyric[],
+  H: number = POSTER_HEIGHT,
+  tracks: TracksCardPayload | null = null
 ): Promise<void> {
   const W = POSTER_WIDTH;
-  const H = POSTER_HEIGHT;
 
   // 1. 绘制背景
   await drawTornPaperBackground(ctx, config, songInfo, W, H);
@@ -349,7 +371,9 @@ async function drawTornPaperLayout(
 
   const lyricStartY = coverY + coverSize + 120;
   const lyricMaxWidth = W - 160;
+  const contentBottom = H - 220; // 底部预留二维码/水印
   let currentY = lyricStartY;
+  let truncated = false;
 
   for (const lyric of lyrics) {
     const text = lyric.text;
@@ -382,12 +406,29 @@ async function drawTornPaperLayout(
 
     ctx.textAlign = align;
     for (const line of lines) {
+      if (currentY + 58 > contentBottom) {
+        truncated = true;
+        break;
+      }
       ctx.fillText(line, startX, currentY);
       currentY += 58;
     }
+    if (truncated) break;
     currentY += 24; // 歌词间距
   }
+
+  // 内容超出画布：在底部标记省略
+  if (truncated) {
+    ctx.font = `${config.fontWeight || 600} 36px ${fontFamily}`;
+    ctx.fillStyle = rgba(dominantColor.r, dominantColor.g, dominantColor.b, 0.6);
+    ctx.fillText('……', W / 2, Math.min(currentY + 10, contentBottom));
+  }
   ctx.restore();
+
+  // 曲目列表毛玻璃卡片（歌单/专辑信息模式）
+  if (tracks) {
+    await drawTracksCard(ctx, config, tracks, 80, currentY + 36, W - 160, H - 200);
+  }
 
   // 7. 二维码
   if (config.showQRCode) {
@@ -410,12 +451,17 @@ async function drawTornPaperBackground(
 ): Promise<void> {
   switch (config.backgroundMode) {
     case 'cover': {
-      // 跟随封面
+      // 跟随封面（等比例放大填满画布，不拉伸变形；超出部分裁剪）
       try {
         const img = await loadImage(songInfo.coverUrl);
         ctx.save();
         ctx.filter = 'blur(40px) brightness(0.3) saturate(1.2)';
-        ctx.drawImage(img, -40, -40, W + 80, H + 80);
+        const iw = img.naturalWidth || img.width;
+        const ih = img.naturalHeight || img.height;
+        const coverScale = Math.max(W / iw, H / ih);
+        const drawW = iw * coverScale;
+        const drawH = ih * coverScale;
+        ctx.drawImage(img, (W - drawW) / 2, (H - drawH) / 2, drawW, drawH);
         ctx.restore();
         // 暗色遮罩
         ctx.fillStyle = 'rgba(20, 20, 25, 0.5)';
@@ -453,10 +499,11 @@ async function drawImmersiveLayout(
   ctx: CanvasRenderingContext2D,
   config: PosterConfig,
   songInfo: PosterSongInfo,
-  lyrics: SelectedLyric[]
+  lyrics: SelectedLyric[],
+  H: number = POSTER_HEIGHT,
+  tracks: TracksCardPayload | null = null
 ): Promise<void> {
   const W = POSTER_WIDTH;
-  const H = POSTER_HEIGHT;
 
   // 1. 全屏模糊封面背景
   let coverImg: HTMLImageElement | null = null;
@@ -469,13 +516,13 @@ async function drawImmersiveLayout(
   if (coverImg) {
     ctx.save();
     ctx.filter = `blur(${config.blurAmount}px) brightness(0.7) saturate(1.3)`;
-    // 放大绘制以覆盖模糊边缘
-    const scale = 1.15;
-    const drawW = W * scale;
-    const drawH = H * scale;
-    const offsetX = (W - drawW) / 2;
-    const offsetY = (H - drawH) / 2;
-    ctx.drawImage(coverImg, offsetX, offsetY, drawW, drawH);
+    // 等比例放大填满画布（不拉伸变形；超出部分裁剪）
+    const iw = coverImg.naturalWidth || coverImg.width;
+    const ih = coverImg.naturalHeight || coverImg.height;
+    const coverScale = Math.max(W / iw, H / ih);
+    const drawW = iw * coverScale;
+    const drawH = ih * coverScale;
+    ctx.drawImage(coverImg, (W - drawW) / 2, (H - drawH) / 2, drawW, drawH);
     ctx.restore();
   } else {
     ctx.fillStyle = '#0a0a0f';
@@ -542,7 +589,9 @@ async function drawImmersiveLayout(
 
   const lyricStartY = artistY + 120;
   const lyricMaxWidth = W - 160;
+  const contentBottom = H - 220; // 底部预留二维码/水印
   let currentY = lyricStartY;
+  let truncated = false;
 
   for (const lyric of lyrics) {
     const text = lyric.text;
@@ -550,12 +599,30 @@ async function drawImmersiveLayout(
 
     const lines = wrapText(ctx, text, lyricMaxWidth);
     for (const line of lines) {
+      if (currentY + 60 > contentBottom) {
+        truncated = true;
+        break;
+      }
       ctx.fillText(line, W / 2, currentY);
       currentY += 60;
     }
+    if (truncated) break;
     currentY += 28;
   }
+
+  // 内容超出画布：在底部标记省略
+  if (truncated) {
+    ctx.font = `${config.fontWeight || 600} 34px ${fontFamily}`;
+    ctx.fillStyle = rgba(255, 255, 255, 0.6);
+    ctx.textAlign = 'center';
+    ctx.fillText('……', W / 2, Math.min(currentY + 10, contentBottom));
+  }
   ctx.restore();
+
+  // 曲目列表毛玻璃卡片（歌单/专辑信息模式）
+  if (tracks) {
+    await drawTracksCard(ctx, config, tracks, 80, currentY + 36, W - 160, H - 200);
+  }
 
   // 6. 二维码
   if (config.showQRCode) {
@@ -609,7 +676,7 @@ function drawArchiveLyrics(
   color: string,
   startY: number,
   maxY: number
-): void {
+): number {
   ctx.save();
   ctx.font = `${weight} 60px ${family}`;
   ctx.fillStyle = color;
@@ -627,6 +694,7 @@ function drawArchiveLyrics(
     if (y >= maxY) break;
   }
   ctx.restore();
+  return y;
 }
 
 /** 黑白影像、书法标题与档案信息构成的演出海报。 */
@@ -634,12 +702,14 @@ async function drawPerformanceArchiveLayout(
   ctx: CanvasRenderingContext2D,
   config: PosterConfig,
   songInfo: PosterSongInfo,
-  lyrics: SelectedLyric[]
+  lyrics: SelectedLyric[],
+  H: number = POSTER_HEIGHT,
+  tracks: TracksCardPayload | null = null
 ): Promise<void> {
   const family = getFontFamily(config.fontId);
   const accentColor = resolvePosterAccentColor(config);
   ctx.fillStyle = '#090909';
-  ctx.fillRect(0, 0, POSTER_WIDTH, POSTER_HEIGHT);
+  ctx.fillRect(0, 0, POSTER_WIDTH, H);
 
   try {
     const cover = await loadImage(songInfo.coverUrl);
@@ -689,9 +759,30 @@ async function drawPerformanceArchiveLayout(
   ctx.fillStyle = accentColor;
   ctx.fillRect(72, 1034, 936, 5);
 
-  drawArchiveLyrics(ctx, lyrics, family, config.fontWeight, '#ffffff', 1130, 1780);
-  if (config.showQRCode) await drawQRCode(ctx, songInfo, POSTER_WIDTH, POSTER_HEIGHT);
-  drawWatermark(ctx, config, POSTER_WIDTH, POSTER_HEIGHT);
+  const lyricEndY = drawArchiveLyrics(
+    ctx,
+    lyrics,
+    family,
+    config.fontWeight,
+    '#ffffff',
+    1130,
+    H - 140
+  );
+  // 二维码占位（qrY - padding 顶部 ≈ H-188）：开启二维码时曲目卡片需在其上方留出间距
+  const tracksMaxBottom = config.showQRCode ? H - 220 : H - 140;
+  if (tracks) {
+    await drawTracksCard(
+      ctx,
+      config,
+      tracks,
+      74,
+      lyricEndY + 30,
+      POSTER_WIDTH - 148,
+      tracksMaxBottom
+    );
+  }
+  if (config.showQRCode) await drawQRCode(ctx, songInfo, POSTER_WIDTH, H);
+  drawWatermark(ctx, config, POSTER_WIDTH, H);
 }
 
 /** 高对比图像、错位竖题与中央印章构成的巡演海报。 */
@@ -699,12 +790,14 @@ async function drawSealTourLayout(
   ctx: CanvasRenderingContext2D,
   config: PosterConfig,
   songInfo: PosterSongInfo,
-  lyrics: SelectedLyric[]
+  lyrics: SelectedLyric[],
+  H: number = POSTER_HEIGHT,
+  tracks: TracksCardPayload | null = null
 ): Promise<void> {
   const family = getFontFamily(config.fontId);
   const accentColor = resolvePosterAccentColor(config);
   ctx.fillStyle = '#f1eee8';
-  ctx.fillRect(0, 0, POSTER_WIDTH, POSTER_HEIGHT);
+  ctx.fillRect(0, 0, POSTER_WIDTH, H);
   try {
     const cover = await loadImage(songInfo.coverUrl);
     ctx.save();
@@ -762,10 +855,32 @@ async function drawSealTourLayout(
     ctx.stroke();
   });
 
-  const shortLyrics = lyrics.slice(0, 3);
-  drawArchiveLyrics(ctx, shortLyrics, family, config.fontWeight, '#121212', 1430, 1790);
-  if (config.showQRCode) await drawQRCode(ctx, songInfo, POSTER_WIDTH, POSTER_HEIGHT);
-  drawWatermark(ctx, config, POSTER_WIDTH, POSTER_HEIGHT);
+  const fullContent = Boolean(config.longImage && config.showFullContent);
+  const shortLyrics = fullContent ? lyrics : lyrics.slice(0, 3);
+  const lyricEndY = drawArchiveLyrics(
+    ctx,
+    shortLyrics,
+    family,
+    config.fontWeight,
+    '#121212',
+    1430,
+    H - 140
+  );
+  if (tracks) {
+    // 二维码占位：开启二维码时曲目卡片需在其上方留出间距
+    const sealTracksMaxBottom = config.showQRCode ? H - 220 : H - 140;
+    await drawTracksCard(
+      ctx,
+      config,
+      tracks,
+      70,
+      lyricEndY + 30,
+      POSTER_WIDTH - 140,
+      sealTracksMaxBottom
+    );
+  }
+  if (config.showQRCode) await drawQRCode(ctx, songInfo, POSTER_WIDTH, H);
+  drawWatermark(ctx, config, POSTER_WIDTH, H);
 }
 
 // ==================== 公共绘制函数 ====================
@@ -780,7 +895,11 @@ async function drawQRCode(
   H: number
 ): Promise<void> {
   try {
-    const deepLink = buildSongDeepLink(songInfo.songId);
+    const kind = (songInfo as PosterSubject).kind || 'song';
+    const deepLink =
+      kind === 'song'
+        ? buildSongDeepLink(songInfo.songId)
+        : buildCollectionDeepLink(kind as 'playlist' | 'album', songInfo.songId);
     const qrImg = await generateQRCodeImage(deepLink, QR_CODE_SIZE);
 
     // 白色背景圆角
@@ -897,44 +1016,412 @@ function drawWatermark(
   ctx.restore();
 }
 
+// ==================== Subject 与内容行 ====================
+
+/** 兼容旧调用方（PosterSongInfo 无 kind）：默认视为歌曲海报 */
+function normalizeSubject(subject: PosterSubject | PosterSongInfo): PosterSubject {
+  const normalized = 'kind' in subject ? subject : { ...subject, kind: 'song' as const };
+  // 歌单/专辑场景调用方可能只传 title：布局绘制统一消费 songName，此处回退
+  if (!normalized.songName) {
+    normalized.songName = normalized.title || '';
+  }
+  return normalized;
+}
+
+/** 曲目列表条数：默认取 config.trackLimit（10）；长图+全部 = 40 */
+const TRACK_LIMIT_FULL = 40;
+/** 详细列表样式（需逐首加载封面）的硬上限 */
+const TRACK_LIMIT_DETAILED = 15;
+/** 长图+全部模式下简介的防御性字数上限 */
+const DESC_LIMIT_FULL = 500;
+/** 曲目卡片内边距与行度量 */
+const TRACKS_CARD = {
+  padding: 24,
+  radius: 28,
+  compact: { row: 52, gap: 10 },
+  detailed: { row: 88, gap: 10 }
+};
+
+/**
+ * 根据模式解析实际绘制的文本内容行（歌词摘录 / 简介行）。
+ * 曲目列表不在此转换，由布局函数以毛玻璃卡片单独绘制（见 drawTracksCard）。
+ * - 歌词摘录模式（lyrics 非空）：非长图/未开"全部内容"时截取前 LYRIC_CONTENT_LIMIT 句；
+ *   非长图模式下绘制阶段还会按画布高度二次截断（超出画布画不下）。
+ * - 信息模式（lyrics 为空）：song 取简介（按 config.descLimit 截断，默认 30）；
+ *   playlist/album 取简介（曲目走卡片）。长图+全部内容：简介放宽至 500 字防御。
+ */
+function resolveContentLines(
+  config: PosterConfig,
+  subject: PosterSubject,
+  lyrics: SelectedLyric[]
+): SelectedLyric[] {
+  const full = Boolean(config.longImage && config.showFullContent);
+  if (lyrics.length > 0) {
+    return config.longImage && !full ? lyrics.slice(0, LYRIC_CONTENT_LIMIT) : lyrics;
+  }
+
+  const lines: SelectedLyric[] = [];
+  const desc = truncateText(subject.description, full ? DESC_LIMIT_FULL : (config.descLimit ?? 30));
+  if (desc) lines.push({ index: 0, text: desc });
+  return lines;
+}
+
+/** 曲目卡片绘制参数；无曲目/歌曲主题时为 null */
+interface TracksCardPayload {
+  tracks: NonNullable<PosterSubject['tracks']>;
+  limit: number;
+  style: 'compact' | 'detailed';
+}
+
+function resolveTracksCardPayload(
+  config: PosterConfig,
+  subject: PosterSubject,
+  hasLyrics: boolean
+): TracksCardPayload | null {
+  if (hasLyrics || subject.kind === 'song') return null;
+  const tracks = subject.tracks || [];
+  if (!tracks.length) return null;
+  const full = Boolean(config.longImage && config.showFullContent);
+  const style: 'compact' | 'detailed' =
+    config.trackListStyle === 'detailed' ? 'detailed' : 'compact';
+  const hardMax = style === 'detailed' ? TRACK_LIMIT_DETAILED : TRACK_LIMIT_FULL;
+  const limit = Math.min(config.trackLimit ?? 10, hardMax, tracks.length);
+  return { tracks, limit, style };
+}
+
+/** 卡片行度量：实际绘制行数（含溢出省略行）与卡片总高 */
+function tracksCardLayout(
+  payload: TracksCardPayload,
+  availableHeight: number
+): { rows: number; rowHeight: number; rowGap: number; cardHeight: number; overflow: boolean } {
+  const { padding } = TRACKS_CARD;
+  const { row: rowHeight, gap: rowGap } = TRACKS_CARD[payload.style];
+  let rows = payload.limit;
+  let overflow = payload.tracks.length > rows;
+  if (availableHeight > 0) {
+    // 非长图：卡片需在画布内完整呈现，放不下时截行并追加省略行
+    const inner = availableHeight - padding * 2;
+    const fitRows = Math.max(1, Math.floor((inner + rowGap) / (rowHeight + rowGap)));
+    if (rows > fitRows) {
+      rows = overflow ? Math.max(1, fitRows - 1) : fitRows;
+      overflow = payload.tracks.length > rows;
+    }
+  }
+  const cardHeight =
+    padding * 2 + rows * rowHeight + (rows - 1) * rowGap + (overflow ? rowHeight : 0);
+  return { rows, rowHeight, rowGap, cardHeight, overflow };
+}
+
+/** 卡片完整高度（无画布约束），供长图度量 */
+function tracksCardFullHeight(payload: TracksCardPayload): number {
+  const { padding } = TRACKS_CARD;
+  const { row: rowHeight, gap: rowGap } = TRACKS_CARD[payload.style];
+  const rows = Math.min(payload.limit, payload.tracks.length);
+  const overflow = payload.tracks.length > rows;
+  return padding * 2 + rows * rowHeight + (rows - 1) * rowGap + (overflow ? rowHeight : 0);
+}
+
+/** 圆角矩形路径（兼容未支持 ctx.roundRect 的 WebView） */
+function roundedRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+): void {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+/** 单行文本绘制：超宽自动省略号截断，返回实际文本 */
+function fillTextWithEllipsis(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number
+): void {
+  if (ctx.measureText(text).width <= maxWidth) {
+    ctx.fillText(text, x, y);
+    return;
+  }
+  let clipped = text;
+  while (clipped.length > 1 && ctx.measureText(`${clipped}……`).width > maxWidth) {
+    clipped = clipped.slice(0, -1);
+  }
+  ctx.fillText(`${clipped}……`, x, y);
+}
+
+/**
+ * 曲目列表玻璃卡片：透出海报背景（画布自采样模糊）+ 白色提亮 + 圆角描边，
+ * 支持 compact（序号+单行）与 detailed（封面+两行）两种呈现（可切换）。
+ */
+async function drawTracksCard(
+  ctx: CanvasRenderingContext2D,
+  config: PosterConfig,
+  payload: TracksCardPayload,
+  x: number,
+  y: number,
+  width: number,
+  maxBottom: number
+): Promise<void> {
+  const { padding, radius } = TRACKS_CARD;
+  const layout = tracksCardLayout(payload, maxBottom - y);
+  const cardHeight = layout.cardHeight;
+  const family = getFontFamily(config.fontId);
+  // seal-tour 为浅色布局，透出背景的玻璃卡上需用深色文字保证可读
+  const isLight = config.layout === 'seal-tour';
+  const textPrimary = isLight ? 'rgba(20, 20, 20, 0.92)' : 'rgba(255, 255, 255, 0.94)';
+  const textSecondary = isLight ? 'rgba(20, 20, 20, 0.55)' : 'rgba(255, 255, 255, 0.55)';
+
+  // 玻璃底：透出海报背景（画布自采样模糊）+ 白色提亮层
+  ctx.save();
+  roundedRectPath(ctx, x, y, width, cardHeight, radius);
+  ctx.clip();
+  try {
+    const overscan = 48; // 放大采样，抵消模糊边缘的虚化暗边
+    ctx.filter = 'blur(24px)';
+    ctx.drawImage(
+      ctx.canvas,
+      x,
+      y,
+      width,
+      cardHeight,
+      x - overscan,
+      y - overscan,
+      width + overscan * 2,
+      cardHeight + overscan * 2
+    );
+    ctx.filter = 'none';
+  } catch {
+    // 自采样不可用时仅保留提亮层
+  }
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+  ctx.fillRect(x, y, width, cardHeight);
+  ctx.restore();
+
+  // 描边
+  ctx.save();
+  roundedRectPath(ctx, x, y, width, cardHeight, radius);
+  ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.16)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  // 曲目行
+  ctx.save();
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+  const innerX = x + padding;
+  let rowY = y + padding;
+  const drawn = Math.min(layout.rows, payload.tracks.length);
+
+  if (payload.style === 'detailed') {
+    // 详细：封面缩略图 + 曲名/歌手两行
+    for (let i = 0; i < drawn; i++) {
+      const track = payload.tracks[i];
+      const coverSize = 64;
+      try {
+        const thumb = await loadImage(
+          track.picUrl
+            ? `${track.picUrl}${track.picUrl.includes('?') ? '&' : '?'}param=100y100`
+            : ''
+        );
+        ctx.save();
+        roundedRectPath(
+          ctx,
+          innerX,
+          rowY + (layout.rowHeight - coverSize) / 2,
+          coverSize,
+          coverSize,
+          12
+        );
+        ctx.clip();
+        ctx.drawImage(
+          thumb,
+          innerX,
+          rowY + (layout.rowHeight - coverSize) / 2,
+          coverSize,
+          coverSize
+        );
+        ctx.restore();
+      } catch {
+        ctx.fillStyle = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.08)';
+        roundedRectPath(
+          ctx,
+          innerX,
+          rowY + (layout.rowHeight - coverSize) / 2,
+          coverSize,
+          coverSize,
+          12
+        );
+        ctx.fill();
+      }
+      const textX = innerX + coverSize + 20;
+      ctx.font = `600 26px ${family}`;
+      ctx.fillStyle = textPrimary;
+      fillTextWithEllipsis(ctx, track.name, textX, rowY + 8, x + width - padding - textX);
+      ctx.font = `400 20px ${family}`;
+      ctx.fillStyle = textSecondary;
+      fillTextWithEllipsis(ctx, track.artist, textX, rowY + 44, x + width - padding - textX);
+      rowY += layout.rowHeight + layout.rowGap;
+    }
+  } else {
+    // 紧凑：序号 + 曲名 - 歌手 单行
+    for (let i = 0; i < drawn; i++) {
+      const track = payload.tracks[i];
+      const rowCenterY = rowY + layout.rowHeight / 2;
+      ctx.font = `600 24px ${family}`;
+      ctx.fillStyle = textSecondary;
+      ctx.textAlign = 'left';
+      ctx.fillText(String(i + 1).padStart(2, '0'), innerX, rowCenterY - 14);
+      const textX = innerX + 52;
+      ctx.font = `${config.fontWeight || 600} 28px ${family}`;
+      ctx.fillStyle = textPrimary;
+      fillTextWithEllipsis(
+        ctx,
+        `${track.name} - ${track.artist}`,
+        textX,
+        rowCenterY - 16,
+        x + width - padding - textX
+      );
+      rowY += layout.rowHeight + layout.rowGap;
+    }
+  }
+
+  // 溢出省略
+  if (layout.overflow) {
+    ctx.font = `500 26px ${family}`;
+    ctx.fillStyle = textSecondary;
+    ctx.textAlign = 'center';
+    ctx.fillText('……', x + width / 2, rowY + 8);
+  }
+  ctx.restore();
+}
+
+/** 估算内容区总高度（含换行），供长图画布高度计算。换行宽度取各布局最小值，宁高勿矮。 */
+function estimateContentHeight(
+  ctx: CanvasRenderingContext2D,
+  config: PosterConfig,
+  contentLines: SelectedLyric[]
+): number {
+  const metrics = LAYOUT_CONTENT_METRICS[config.layout];
+  ctx.font = `${config.fontWeight || 600} ${metrics.fontPx}px ${getFontFamily(config.fontId)}`;
+  let total = 0;
+  for (const line of contentLines) {
+    if (!line.text.trim()) continue;
+    const wrapped = wrapText(ctx, line.text, POSTER_WIDTH - 160);
+    total += wrapped.length * metrics.line + metrics.para;
+  }
+  return total;
+}
+
+/** 计算画布高度：非长图固定 1920；长图 = max(1920, 内容区 + 基础头部/底部)。 */
+function resolvePosterHeight(config: PosterConfig, contentHeight: number): number {
+  if (!config.longImage) return POSTER_HEIGHT;
+  const metrics = LAYOUT_CONTENT_METRICS[config.layout];
+  return Math.max(POSTER_HEIGHT, Math.round(metrics.top + contentHeight + metrics.bottomPad));
+}
+
 // ==================== 主入口 ====================
 
 /**
  * 生成海报
  * @param config 海报配置
- * @param songInfo 歌曲信息
- * @param lyrics 选中的歌词
+ * @param subject 海报主题（歌曲/歌单/专辑；旧调用方传 PosterSongInfo 时按歌曲处理）
+ * @param lyrics 选中的歌词（空 = 信息模式：简介/曲目）
  * @returns 生成的 Canvas 元素
  */
 export async function generatePoster(
   config: PosterConfig,
-  songInfo: PosterSongInfo,
-  lyrics: SelectedLyric[]
+  subject: PosterSubject | PosterSongInfo,
+  lyrics: SelectedLyric[] = []
 ): Promise<HTMLCanvasElement> {
-  config = normalizePosterConfig(config);
+  const normalizedConfig = normalizePosterConfig(config);
+  const normalizedSubject = normalizeSubject(subject);
+  // 实际绘制的文本内容行（歌词摘录或简介行），长图截条数在此决定
+  const contentLines = resolveContentLines(normalizedConfig, normalizedSubject, lyrics);
+  // 曲目毛玻璃卡片（歌单/专辑信息模式独有）
+  const tracksCard = resolveTracksCardPayload(
+    normalizedConfig,
+    normalizedSubject,
+    lyrics.length > 0
+  );
+
+  // 计算画布高度（长图 = 内容自适应：文本行 + 曲目卡片）
+  const measureCanvas = document.createElement('canvas');
+  measureCanvas.width = POSTER_WIDTH;
+  measureCanvas.height = POSTER_HEIGHT;
+  const measureCtx = measureCanvas.getContext('2d');
+  const linesHeight = measureCtx
+    ? estimateContentHeight(measureCtx, normalizedConfig, contentLines)
+    : 0;
+  const TRACKS_CARD_GAP = 36;
+  const totalContentHeight =
+    linesHeight + (tracksCard ? TRACKS_CARD_GAP + tracksCardFullHeight(tracksCard) : 0);
+  const H = resolvePosterHeight(normalizedConfig, totalContentHeight);
+
   // 创建 Canvas
   const canvas = document.createElement('canvas');
   canvas.width = POSTER_WIDTH;
-  canvas.height = POSTER_HEIGHT;
+  canvas.height = H;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('无法获取 Canvas 2D 上下文');
 
   // 确保字体已加载
-  await ensureFontLoaded(config.fontId);
+  await ensureFontLoaded(normalizedConfig.fontId);
 
   // 根据布局选择渲染函数
-  switch (config.layout) {
+  switch (normalizedConfig.layout) {
     case 'performance-archive':
-      await drawPerformanceArchiveLayout(ctx, config, songInfo, lyrics);
+      await drawPerformanceArchiveLayout(
+        ctx,
+        normalizedConfig,
+        normalizedSubject,
+        contentLines,
+        H,
+        tracksCard
+      );
       break;
     case 'seal-tour':
-      await drawSealTourLayout(ctx, config, songInfo, lyrics);
+      await drawSealTourLayout(
+        ctx,
+        normalizedConfig,
+        normalizedSubject,
+        contentLines,
+        H,
+        tracksCard
+      );
       break;
     case 'immersive':
-      await drawImmersiveLayout(ctx, config, songInfo, lyrics);
+      await drawImmersiveLayout(
+        ctx,
+        normalizedConfig,
+        normalizedSubject,
+        contentLines,
+        H,
+        tracksCard
+      );
       break;
     default:
-      await drawTornPaperLayout(ctx, config, songInfo, lyrics);
+      await drawTornPaperLayout(
+        ctx,
+        normalizedConfig,
+        normalizedSubject,
+        contentLines,
+        H,
+        tracksCard
+      );
   }
 
   return canvas;

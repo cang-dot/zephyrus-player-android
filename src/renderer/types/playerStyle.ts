@@ -93,6 +93,14 @@ export interface PlayerStyleCustomConfig {
   errorFluidPower?: number;
   /** 「错误」样式：歌词装饰符号（!…!）开关 */
   errorDecorMarks?: boolean;
+  /** 默认样式：封面下方显示歌名与作者（不影响底部控制栏） */
+  showTrackInfo?: boolean;
+  /** 默认样式：封面大小 60-100（占可用空间的百分比） */
+  artworkSize?: number;
+  /** 默认样式：封面块对齐 */
+  artworkAlign?: 'start' | 'center' | 'end';
+  /** 默认样式：背景预设（后续可扩展 vuebits 背景板块） */
+  backgroundPreset?: 'none' | 'aurora' | 'fluid';
   [key: string]: unknown;
 }
 

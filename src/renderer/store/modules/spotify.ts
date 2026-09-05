@@ -8,8 +8,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
-import { usePlatformAccountsStore } from './platformAccounts';
-
 import {
   getCurrentUser,
   getPlaylistTracks,
@@ -22,14 +20,18 @@ import {
   skipToPrevious,
   type SpotifyPlaylist,
   type SpotifyUser,
-  startPlayback} from '@/services/spotifyApi';
+  startPlayback
+} from '@/services/spotifyApi';
 import {
   getValidAccessToken,
   handleSpotifyCallback,
   isSpotifyLoggedIn,
   spotifyLogout,
-  startSpotifyAuth} from '@/services/spotifyAuth';
+  startSpotifyAuth
+} from '@/services/spotifyAuth';
 import type { SongResult } from '@/types/music';
+
+import { usePlatformAccountsStore } from './platformAccounts';
 
 export const useSpotifyStore = defineStore(
   'spotify',
@@ -95,11 +97,12 @@ export const useSpotifyStore = defineStore(
 
       console.error('[Spotify] 获取用户信息失败:', lastError);
       const detail = lastError instanceof Error ? lastError.message : '';
-      authError.value = detail.includes('(403)') || detail.includes('may not be registered')
-        ? 'Spotify 拒绝了账号资料请求（403）：当前账号还没有加入该应用的 Users and Access 白名单。请在 Spotify Developer Dashboard → Settings → Users Management 添加此 Spotify 账号后重新授权。'
-        : detail
-          ? `Spotify 账号资料读取失败：${detail}`
-          : 'Spotify 账号资料读取失败';
+      authError.value =
+        detail.includes('(403)') || detail.includes('may not be registered')
+          ? 'Spotify 拒绝了账号资料请求（403）：当前账号还没有加入该应用的 Users and Access 白名单。请在 Spotify Developer Dashboard → Settings → Users Management 添加此 Spotify 账号后重新授权。'
+          : detail
+            ? `Spotify 账号资料读取失败：${detail}`
+            : 'Spotify 账号资料读取失败';
       if (resetOnFailure) {
         loggedIn.value = false;
         user.value = null;

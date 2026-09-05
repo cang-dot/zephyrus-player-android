@@ -2262,8 +2262,11 @@ const handleLoginError = (error: string) => {
   cursor: pointer;
   outline: none;
 
-  &:hover {
-    background: var(--cover-surface-hover, rgba(128, 128, 128, 0.06));
+  /* 触屏 tap 会粘滞 :hover,与歌曲项 is-active 叠成两层变色,只在真悬停设备生效 */
+  @media (hover: hover) {
+    &:hover {
+      background: var(--cover-surface-hover, rgba(128, 128, 128, 0.06));
+    }
   }
 
   &:active {

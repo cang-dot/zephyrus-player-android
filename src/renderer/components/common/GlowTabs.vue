@@ -25,11 +25,14 @@
 
 <script setup lang="ts">
 import {
+  computed,
   getCurrentInstance,
+  inject,
   onActivated,
   onBeforeUnmount,
   onDeactivated,
   onMounted,
+  type Ref,
   watch
 } from 'vue';
 import { useRoute } from 'vue-router';
@@ -51,10 +54,14 @@ const props = withDefaults(
     modelValue: string | number;
     fullWidth?: boolean;
     scrollable?: boolean;
+    /** 组件所属页面路径。Tab pager 的四个页面常驻且启动即预挂载相邻页，
+     *  挂载/激活时 route.path 可能仍是别的页面，pager 页必须显式声明归属 */
+    pagePath?: string;
   }>(),
   {
     fullWidth: false,
-    scrollable: false
+    scrollable: false,
+    pagePath: ''
   }
 );
 
@@ -65,24 +72,34 @@ const emit = defineEmits<{
 const route = useRoute();
 const instance = getCurrentInstance();
 const registryId = `glow-tabs-${instance?.uid ?? Math.random().toString(36).slice(2)}`;
-const ownerRoutePath = route.path;
 const useTopbar = isMobile;
 
+// 顶栏注册跟随「页面可见性」而非生命周期时机：Tab pager 常驻页不走
+// keep-alive 生命周期，onActivated 只在首次挂载时跑一次，若那一刻
+// route.path 不是本页（预挂载），注册会落在错误路径且永不修正。
+const pagerActivePath = inject<Ref<string> | null>('mobilePagerActivePath', null);
+const ownerPath = computed(() => props.pagePath || route.path);
+const isVisible = computed(() => {
+  const current = pagerActivePath ? pagerActivePath.value : route.path;
+  return current === ownerPath.value;
+});
+
 const syncTopbar = () => {
-  if (!useTopbar.value) {
+  if (!useTopbar.value || !isVisible.value) {
     unregisterMobileTopbarGroup(registryId);
     return;
   }
   registerMobileTopbarGroup({
     id: registryId,
-    routePath: ownerRoutePath,
+    routePath: ownerPath.value,
     options: props.tabs,
     value: props.modelValue,
     select: (value) => emit('update:modelValue', value)
   });
 };
 
-watch(() => [props.tabs, props.modelValue, useTopbar.value], syncTopbar, {
+// tabs 内容/选中值/可见性变化都重算注册
+watch(() => [props.tabs, props.modelValue, useTopbar.value, isVisible.value], syncTopbar, {
   deep: true
 });
 onMounted(syncTopbar);

@@ -229,6 +229,8 @@ const getGDMusicAudio = async (id: number, data: SongResult): Promise<ParsedMusi
  * @returns 解析结果
  */
 const getUnblockMusicAudio = (id: number, data: SongResult, sources: any[]) => {
+  // unblockMusic 依赖 Electron IPC（window.api），Web/Capacitor 环境跳过
+  if (!isElectron) return Promise.resolve(null);
   const filteredSources = sources.filter((source) => source !== 'gdmusic');
   return window.api.unblockMusic(id, cloneDeep(data), cloneDeep(filteredSources));
 };
@@ -384,6 +386,8 @@ class UnblockMusicStrategy implements MusicSourceStrategy {
   priority = 4;
 
   canHandle(sources: string[]): boolean {
+    // unblockMusic 依赖 Electron IPC，Web/Capacitor 环境不可用
+    if (!isElectron) return false;
     const unblockSources = sources.filter((source) => !['custom', 'gdmusic'].includes(source));
     return unblockSources.length > 0;
   }
@@ -461,6 +465,8 @@ class CrossPlatformStrategy implements MusicSourceStrategy {
     data: SongResult,
     platform: string
   ): Promise<MusicParseResult | null> {
+    // unblockMusic 依赖 Electron IPC（window.api），Web/Capacitor 环境跳过
+    if (!isElectron) return null;
     try {
       const unblockData = {
         name: data.name,

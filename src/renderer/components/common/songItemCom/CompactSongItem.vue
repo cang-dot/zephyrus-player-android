@@ -61,7 +61,7 @@
             line-clamp="1"
             class="cursor-pointer hover:text-[var(--accent-color)]"
             @click.stop="onAlbumNameClick"
-            >{{ item.al?.name || '-' }}</n-ellipsis
+            >{{ item.al?.name || item.album?.name || '-' }}</n-ellipsis
           >
         </div>
         <div class="song-item-content-compact-duration">
@@ -116,6 +116,8 @@ const isPlaying = computed(() => baseItem.value?.isPlaying || false);
 const artists = computed(() => baseItem.value?.artists || []);
 
 const onAlbumNameClick = () => {
+  const albumName = props.item.al?.name || (props.item as any).album?.name;
+  if (!albumName) return; // 无专辑信息(显示「-」)时不跳转,避免落到无效页面
   const albumId = props.item.al?.id ?? (props.item as any).album?.id ?? -1;
   baseItem.value?.handleAlbumClick(albumId);
 };

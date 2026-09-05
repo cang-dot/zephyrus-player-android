@@ -83,6 +83,10 @@
               @update:expanded="playlistExpanded = $event"
               @added="$emit('update:show', false)"
             />
+            <button class="sheet-action-btn" @click="handleShareSong">
+              <i class="ri-share-forward-line"></i>
+              <span>分享歌曲</span>
+            </button>
             <button class="sheet-action-btn" @click="handleAction('favorite')">
               <i
                 :class="[
@@ -107,6 +111,7 @@
       </div>
     </transition>
     <song-metadata-editor v-model:show="metadataEditorShow" :song="item" />
+    <poster-share-modal v-model:visible="showPosterModal" :lyrics="[]" :subject="posterSubject" />
   </Teleport>
 </template>
 
@@ -117,15 +122,18 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { isServerSongResult } from '@/api/serverSongs';
+import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import type {
   MobileSongActionGeometry,
   MobileSongActionOrigin
 } from '@/composables/useMobileSongActionSurface';
+import { usePosterShare } from '@/composables/usePosterShare';
 import { playMusic } from '@/hooks/MusicHook';
 import { isLocalSong } from '@/hooks/useLocalMusic';
 import { activeAudioFormat } from '@/services/nativeAudioPlayer';
 import { useLocalMusicStore } from '@/store/modules/localMusic';
 import type { SongResult } from '@/types/music';
+import type { PosterSubject } from '@/types/share';
 import { getImgUrl } from '@/utils';
 import { formatAudioSegments } from '@/utils/audioFormat';
 
@@ -194,6 +202,23 @@ const audioParamSegments = computed(() => {
 });
 const playlistExpanded = ref(false);
 const metadataEditorShow = ref(false);
+
+// ==================== 分享歌曲海报（歌曲信息模式） ====================
+const { showPosterModal, posterSubject, openPosterForSubject } = usePosterShare();
+
+function handleShareSong() {
+  const song = props.item;
+  const subject: PosterSubject = {
+    kind: 'song',
+    songId: song.id,
+    songName: song.name || '未知歌曲',
+    artists: artistNames.value || '未知艺术家',
+    coverUrl: coverUrl.value ? getImgUrl(coverUrl.value, '500y500') : ''
+  };
+  // 不收起菜单：菜单宿主是 v-if 挂载，收起即卸载组件，
+  // 挂载在组件内的海报弹窗会被连带销毁。海报为全屏高层级浮层，可直接覆盖菜单。
+  openPosterForSubject(subject);
+}
 const origin = computed(() => props.origin ?? 'mini-player');
 const embedded = computed(() => props.embedded === true);
 const sheetStyle = computed<CSSProperties>(() => {

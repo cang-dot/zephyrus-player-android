@@ -38,6 +38,10 @@
             </span>
             <span v-if="artistIndex < artists.length - 1"> / </span>
           </template>
+          <template v-if="albumName">
+            <span v-if="artists.length"> - </span>
+            <span class="artist-link" @click.stop="onAlbumNameClick">{{ albumName }}</span>
+          </template>
         </n-ellipsis>
       </div>
     </template>
@@ -59,7 +63,7 @@ import { getImgUrl } from '@/utils';
 
 import BaseSongItem from './BaseSongItem.vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     item: SongResult;
     favorite?: boolean;
@@ -84,8 +88,14 @@ defineEmits(['play', 'select', 'remove-song']);
 const baseItem = ref<InstanceType<typeof BaseSongItem>>();
 const isPlaying = computed(() => baseItem.value?.isPlaying || false);
 const artists = computed(() => baseItem.value?.artists || []);
+const albumName = computed(() => props.item.al?.name || (props.item as any).album?.name || '');
 
 const onArtistClick = (id: number) => baseItem.value?.handleArtistClick(id);
+const onAlbumNameClick = () => {
+  if (!albumName.value) return;
+  const albumId = props.item.al?.id ?? (props.item as any).album?.id ?? -1;
+  baseItem.value?.handleAlbumClick(albumId);
+};
 const onMenuClick = (event: MouseEvent) => baseItem.value?.openItemMenu(event);
 </script>
 

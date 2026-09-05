@@ -56,6 +56,22 @@ const otherRouter = [
     component: () => import('@/views/artist/detail.vue')
   },
   {
+    // 旧版分享链接兼容：/music-list/album/{id} 两段式路由无匹配（渲染空白），
+    // 重定向到现行格式 /music-list/{id}?type=album|playlist
+    path: '/music-list/album/:id',
+    redirect: (to) => ({
+      path: `/music-list/${String(to.params.id)}`,
+      query: { type: 'album' }
+    })
+  },
+  {
+    path: '/music-list/playlist/:id',
+    redirect: (to) => ({
+      path: `/music-list/${String(to.params.id)}`,
+      query: { type: 'playlist' }
+    })
+  },
+  {
     path: '/music-list/:id?',
     name: 'musicList',
     meta: {

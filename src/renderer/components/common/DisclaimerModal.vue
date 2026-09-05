@@ -15,8 +15,8 @@
           </div>
 
           <!-- 协议内容（Markdown 渲染） -->
-          <div class="flex-1 overflow-y-auto px-6 pb-4 prose prose-sm prose-invert max-w-none">
-            <div v-html="agreementHtml"></div>
+          <div class="flex-1 overflow-y-auto px-6 pb-4 max-w-none">
+            <div class="disclaimer-markdown" v-html="agreementHtml"></div>
           </div>
 
           <!-- 按钮 -->
@@ -50,13 +50,19 @@ import { isElectron, isLyricWindow } from '@/utils';
 import userAgreementText from '../../../../用户协议.md?raw';
 
 const DISCLAIMER_AGREED_KEY = 'disclaimer_agreed_timestamp';
+const ONBOARDING_COMPLETED_KEY = 'onboarding-completed';
 
 const showDisclaimer = ref(false);
 const isTransitioning = ref(false);
 const agreementHtml = marked.parse(userAgreementText, { async: false });
 
 const shouldShowDisclaimer = () => {
-  return !localStorage.getItem(DISCLAIMER_AGREED_KEY);
+  // 未同意过协议，且引导已完成（引导流程本身包含协议步骤；
+  // 新装用户由 OnboardingOverlay 的协议步骤负责，避免双重弹窗）
+  return (
+    !localStorage.getItem(DISCLAIMER_AGREED_KEY) &&
+    Boolean(localStorage.getItem(ONBOARDING_COMPLETED_KEY))
+  );
 };
 
 const handleAgree = () => {
@@ -130,5 +136,61 @@ onMounted(() => {
 .disclaimer-modal-enter-from,
 .disclaimer-modal-leave-to {
   opacity: 0;
+}
+
+/* 协议 Markdown 深色排版（未启用 tailwind typography，手写覆盖防止黑字） */
+.disclaimer-markdown {
+  font-size: 13px;
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.78);
+  text-align: left;
+}
+
+.disclaimer-markdown h1,
+.disclaimer-markdown h2,
+.disclaimer-markdown h3 {
+  margin: 1.2em 0 0.5em;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.disclaimer-markdown h1:first-child,
+.disclaimer-markdown h2:first-child,
+.disclaimer-markdown p:first-child {
+  margin-top: 0;
+}
+
+.disclaimer-markdown p,
+.disclaimer-markdown ul,
+.disclaimer-markdown ol {
+  margin: 0.6em 0;
+}
+
+.disclaimer-markdown ul,
+.disclaimer-markdown ol {
+  padding-left: 1.4em;
+}
+
+.disclaimer-markdown li {
+  margin: 0.3em 0;
+  list-style: inherit;
+}
+
+.disclaimer-markdown strong {
+  color: #fff;
+}
+
+.disclaimer-markdown a {
+  color: var(--accent-color, #fff);
+  text-decoration: underline;
+}
+
+.disclaimer-markdown code {
+  padding: 0.1em 0.4em;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.9);
 }
 </style>

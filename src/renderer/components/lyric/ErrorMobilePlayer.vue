@@ -55,7 +55,11 @@
         <canvas ref="noiseCanvasRef" class="error-noise" aria-hidden="true"></canvas>
 
         <!-- 烟雾式高潮边缘光 -->
-        <div v-if="edgeGlowEnabled" class="error-edge-glow" :class="{ active: styleEngine.isInClimax }"></div>
+        <div
+          v-if="edgeGlowEnabled"
+          class="error-edge-glow"
+          :class="{ active: styleEngine.isInClimax }"
+        ></div>
 
         <!-- 高潮超大错误：整帧暖纸白负片闪 -->
         <div class="error-flash" :style="flashStyle"></div>
@@ -192,7 +196,11 @@
   <mobile-player-settings v-model:visible="showPlayerSettings" />
 
   <!-- 歌词海报分享弹窗 -->
-  <poster-share-modal v-model:visible="showPosterModal" :lyrics="selectedLyrics" />
+  <poster-share-modal
+    v-model:visible="showPosterModal"
+    :lyrics="selectedLyrics"
+    :subject="posterSubject"
+  />
 </template>
 
 <script setup lang="ts">
@@ -222,8 +230,8 @@ import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
-import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 import { ensureFontLoaded } from '@/utils/fontLoader';
+import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 
 const PHOTOSENSITIVITY_ACK_KEY = 'photosensitivity-warning-acked';
 
@@ -295,21 +303,24 @@ const {
     playerStore.setFullLyricsVisible(false);
   }
 });
-const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd, swipeProgress } =
-  useSwipeClose({
-    shouldClose: () => !showFullLyrics.value,
-    onClose: () => close()
-  });
+const {
+  onTouchStart: onSwipeCloseTouchStart,
+  onTouchEnd: onSwipeCloseTouchEnd,
+  swipeProgress
+} = useSwipeClose({
+  shouldClose: () => !showFullLyrics.value,
+  onClose: () => close()
+});
 
-/** 下滑跟手：黑底样式用变暗表达淡出（不整层位移，与其他样式的关闭行为一致） */
+/** 下滑跟手：渐隐直接跟手（不做变黑，也不整层位移） */
 const errorRootGestureStyle = computed(() => {
   const drag = swipeProgress.value;
   return {
-    filter: drag > 0.01 ? `brightness(${(1 - drag * 0.85).toFixed(3)})` : undefined
+    opacity: drag > 0.01 ? Math.max(0, 1 - drag).toFixed(3) : undefined
   };
 });
 
-const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
+const { showPosterModal, selectedLyrics, posterSubject, handleGeneratePoster } = usePosterShare();
 const {
   config: styleCfg,
   effects,
@@ -351,8 +362,16 @@ const showPlayerSettings = computed({
 
 function close() {
   useMobilePlayerTransition().close(0, () => {
-    // 先翻 isVisible 播放 0.26s 渐隐离场；立即 setMusicFull(false) 会让宿主
-    // 在同一帧卸载整个播放器子树，离场动画活不过一帧（表现为突然消失）
+    // 手势提交路径：useSwipeClose 提交时不清零进度，渐隐已跟手完成且保持
+    // 在 1.25（opacity=0），直接卸载；若再走 0.26s 离场动画，会把 opacity
+    // 闪回 1 再渐隐一遍（表现为收起动画在手势结束后才开始）
+    if (swipeProgress.value > 0.05) {
+      playerStore.setMusicFull(false);
+      isVisible.value = false;
+      return;
+    }
+    // 按钮关闭路径：先翻 isVisible 播放 0.26s 渐隐离场；立即 setMusicFull(false)
+    // 会让宿主在同一帧卸载整个播放器子树，离场动画活不过一帧（表现为突然消失）
     isVisible.value = false;
     window.setTimeout(() => {
       playerStore.setMusicFull(false);
@@ -575,10 +594,13 @@ function triggerMegaGlitch(scale = 1) {
   showTearAndBlocks(strength);
 
   if (glitchResetTimer) clearTimeout(glitchResetTimer);
-  glitchResetTimer = setTimeout(() => {
-    resetMegaState();
-    fluidPulse.value = 0;
-  }, 120 + Math.random() * 150);
+  glitchResetTimer = setTimeout(
+    () => {
+      resetMegaState();
+      fluidPulse.value = 0;
+    },
+    120 + Math.random() * 150
+  );
 }
 
 function scheduleMega() {
@@ -633,9 +655,7 @@ const mainLyricColor = computed(() => {
   return '#ffffff';
 });
 
-const errorFontFamily = computed(
-  () => selectedFontFamily.value || ERROR_DEFAULT_FONT_FAMILY
-);
+const errorFontFamily = computed(() => selectedFontFamily.value || ERROR_DEFAULT_FONT_FAMILY);
 
 watch(
   () => wordPlayback.displayLineKey.value,
@@ -795,7 +815,8 @@ onUnmounted(() => {
     color-mix(in srgb, var(--error-glow-color, #fff) 10%, transparent) 76%,
     color-mix(in srgb, var(--error-glow-color, #fff) 48%, transparent) 100%
   );
-  box-shadow: inset 0 0 clamp(42px, 11vw, 120px) color-mix(in srgb, var(--error-glow-color, #fff) 34%, transparent);
+  box-shadow: inset 0 0 clamp(42px, 11vw, 120px)
+    color-mix(in srgb, var(--error-glow-color, #fff) 34%, transparent);
   opacity: 0;
   transition: opacity 0.6s ease;
   pointer-events: none;

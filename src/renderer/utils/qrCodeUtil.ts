@@ -22,6 +22,14 @@ export function buildSongDeepLink(songId: string | number): string {
 }
 
 /**
+ * 生成歌单/专辑分享 URL（指向中继网页）
+ * 中继页展示歌单/专辑信息，并提供网页版播放器与网易云跳转
+ */
+export function buildCollectionDeepLink(kind: 'playlist' | 'album', id: string | number): string {
+  return `${RELAY_PAGE_URL}?${kind}=${id}`;
+}
+
+/**
  * 生成原生 deep link URL（供中继页面跳转使用）
  * @param songId 歌曲 ID
  * @returns 深链 URL，如 zephyrus://song/123456

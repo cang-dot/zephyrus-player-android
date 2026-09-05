@@ -213,7 +213,7 @@
             <p>{{ t('comp.musicList.noSearchResults') }}</p>
           </div>
 
-          <div v-else class="song-list-container">
+          <div v-else ref="songListRef" class="song-list-container">
             <div
               v-for="(item, index) in filteredSongs"
               :key="item.id"
@@ -267,6 +267,7 @@
       </div>
     </n-scrollbar>
     <play-bottom />
+    <poster-share-modal v-model:visible="showPosterModal" :lyrics="[]" :subject="posterSubject" />
   </div>
 </template>
 
@@ -285,16 +286,19 @@ import {
   updatePlaylistTracks
 } from '@/api/music';
 import { fetchPlatformPlaylistTracks } from '@/api/platformQrApi';
+import { getUserPlaylist } from '@/api/user';
 import playlistPlaceholder from '@/assets/icon_512.png';
 import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
+import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import {
   registerMobileTopbarAction,
   registerMobileTopbarPresentation,
   unregisterMobileTopbarAction,
   unregisterMobileTopbarPresentation
 } from '@/composables/useMobileTopbarMenu';
+import { usePosterShare } from '@/composables/usePosterShare';
 import { useDownload } from '@/hooks/useDownload';
 import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
@@ -304,6 +308,7 @@ import { useLocalPlaylistStore } from '@/store/modules/localPlaylist';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayHistoryStore } from '@/store/modules/playHistory';
 import { SongResult } from '@/types/music';
+import type { PosterSubject } from '@/types/share';
 import { calculateAnimationDelay, getImgUrl, isElectron, isMobile } from '@/utils';
 import { getLoginErrorMessage, hasPermission } from '@/utils/auth';
 import {
@@ -601,6 +606,34 @@ const topbarSource = computed(() =>
   route.query.from === 'platform' ? '平台歌单' : isAlbum.value ? '专辑' : '歌单'
 );
 
+// ==================== 海报分享（歌单/专辑直接分享，不摘录歌词） ====================
+const { showPosterModal, posterSubject, openPosterForSubject } = usePosterShare();
+
+const buildPosterSubject = (): PosterSubject => {
+  const subtitle = isAlbum.value
+    ? listInfo.value?.artist?.name || ''
+    : listInfo.value?.creator?.nickname || '';
+  const cover = getCoverImgUrl.value;
+  const tracks = (allFilteredSongs.value || []).slice(0, 40).map((s: SongResult) => ({
+    name: s.name || '',
+    artist: (s.ar || s.artists || []).map((a: any) => a.name).join(' / '),
+    // 单曲封面缺失时用歌单/专辑封面兜底
+    picUrl: s.picUrl || s.al?.picUrl || (s as any).album?.picUrl || cover
+  }));
+  return {
+    kind: isAlbum.value ? 'album' : 'playlist',
+    // id 可能在路径参数（navigateToMusicList push params.id）或 query 中
+    songId: (route.params.id as string) || (route.query.id as string) || '',
+    songName: name.value || '歌单',
+    title: name.value || '歌单',
+    artists: subtitle || '未知',
+    subtitle: subtitle || '未知',
+    coverUrl: getCoverImgUrl.value ? getImgUrl(getCoverImgUrl.value, '500y500') : '',
+    description: listDescription.value || '',
+    tracks
+  };
+};
+
 const registerMusicListTopbar = () => {
   registerMobileTopbarPresentation({
     routePath: '/music-list/*',
@@ -647,6 +680,13 @@ const registerMusicListTopbar = () => {
     run: toggleLayout
   });
   registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-poster`,
+    routePath: '/music-list/*',
+    label: '分享',
+    icon: 'ri-share-line',
+    run: () => openPosterForSubject(buildPosterSubject())
+  });
+  registerMobileTopbarAction({
     id: `${topbarActionPrefix}-sort`,
     routePath: '/music-list/*',
     label: '排序方式',
@@ -656,6 +696,77 @@ const registerMusicListTopbar = () => {
     value: sortBy.value,
     select: (value) => handleSortChange(value as SortType)
   });
+  registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-addall`,
+    routePath: '/music-list/*',
+    label: '全部加入歌单',
+    icon: 'ri-folder-add-line',
+    keepOpen: true,
+    options: userPlaylistOptions.value,
+    select: (value) => void addAllToPlaylist(value)
+  });
+};
+
+// ==================== 一键加入歌单 ====================
+const userPlaylistOptions = ref<{ key: number; label: string }[]>([]);
+let userPlaylistsLoaded = false;
+
+/** 拉取当前登录用户自己创建的歌单，作为顶栏二级选项 */
+const loadUserPlaylistsForTopbar = async () => {
+  if (userPlaylistsLoaded) return;
+  if (!userStore.user?.userId || !hasPermission(true)) return;
+  try {
+    const response = await getUserPlaylist(userStore.user.userId, 999);
+    const list = (response.data?.playlist || []).filter(
+      (playlist: any) => playlist.userId === userStore.user?.userId
+    );
+    userPlaylistOptions.value = list.map((playlist: any) => ({
+      key: Number(playlist.id),
+      label: `${playlist.name}（${playlist.trackCount || 0}首）`
+    }));
+    userPlaylistsLoaded = true;
+    // 重新注册以附带二级选项
+    registerMusicListTopbar();
+  } catch (error) {
+    console.warn('[MusicList] 获取用户歌单失败:', error);
+  }
+};
+
+/** 全量曲目 id：优先 listInfo.trackIds（网易云权威全量），缺省回退已加载歌曲 */
+const collectAllTrackIds = (): string[] => {
+  const fromInfo = (listInfo.value?.trackIds || []).map((item: any) => item.id);
+  const loaded = completePlaylist.value.length ? completePlaylist.value : displayedSongs.value;
+  const ids = fromInfo.length ? fromInfo : loaded.map((s) => s.id);
+  // 网易云歌单接口只接受数字 id（跨平台/本地歌曲不适用）
+  return [...new Set(ids.filter((id) => /^\d+$/.test(String(id))))].map(String);
+};
+
+const addAllToPlaylist = async (playlistId: string | number) => {
+  const target = userPlaylistOptions.value.find((p) => String(p.key) === String(playlistId));
+  const name = target?.label.replace(/（\d+首）$/, '') || '歌单';
+  const ids = collectAllTrackIds();
+  if (!ids.length) {
+    message.error('没有可添加的歌曲（非网易云来源不支持）');
+    return;
+  }
+  const loadingMsg = message.loading(`正在添加 ${ids.length} 首到「${name}」…`, { duration: 0 });
+  try {
+    // 批量接口按 500 首分批
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500);
+      const response = await updatePlaylistTracks({
+        op: 'add',
+        pid: Number(playlistId),
+        tracks: chunk.join(',')
+      });
+      if (response.status !== 200) throw new Error(response.data?.message || '添加失败');
+    }
+    message.success(`已将 ${ids.length} 首歌曲加入「${name}」`);
+  } catch (error: any) {
+    message.error(error?.message || '添加失败，可能包含已在歌单中的歌曲');
+  } finally {
+    loadingMsg.destroy();
+  }
 };
 
 const isSelecting = ref(false);
@@ -1161,9 +1272,66 @@ const scrollToCurrentSong = async () => {
   setTimeout(() => target.classList.remove('song-highlight'), 2000);
 };
 
+// ==================== LAYOUT FLIP(规格 §4:同批 DOM 卡片同节点变形) ====================
+const songListRef = ref<HTMLElement>();
+
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' &&
+  !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * 对列表已渲染的 .song-item-wrap 执行 FLIP:测 First → mutate → 测 Last → 反向补间。
+ * 仅同一批存活的 wrapper 参与(key=item.id 稳定);窗口外/新挂载行自动跳过。
+ */
+const flipSongItems = async (
+  mutate: () => void,
+  duration = 450,
+  options: { fadeInner?: boolean } = {}
+) => {
+  const container = songListRef.value;
+  if (!container || prefersReducedMotion()) {
+    mutate();
+    return;
+  }
+  const wraps = [...container.querySelectorAll<HTMLElement>('.song-item-wrap')];
+  const first = new Map(wraps.map((el) => [el, el.getBoundingClientRect()]));
+  mutate();
+  await nextTick();
+  wraps.forEach((el) => {
+    if (!el.isConnected) return;
+    const a = first.get(el);
+    if (!a) return;
+    const b = el.getBoundingClientRect();
+    const dx = a.left - b.left;
+    const dy = a.top - b.top;
+    const s = a.width / b.width;
+    if (!dx && !dy && Math.abs(s - 1) < 0.01) return;
+    el.animate(
+      [
+        { transform: `translate(${dx}px, ${dy}px) scale(${s})`, transformOrigin: 'top left' },
+        { transform: 'none' }
+      ],
+      { duration, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' }
+    );
+  });
+  if (options.fadeInner) {
+    container.querySelectorAll<HTMLElement>('.song-item-wrap > .song-item').forEach((el) => {
+      el.animate([{ opacity: 0.3 }, { opacity: 1 }], { duration: 160, easing: 'ease-out' });
+    });
+  }
+};
+
 const toggleLayout = () => {
-  isCompactLayout.value = !isCompactLayout.value;
-  localStorage.setItem('musicListLayout', isCompactLayout.value ? 'compact' : 'normal');
+  // LAYOUT(规格 §4):同批卡片行在两种布局间同节点变形;
+  // 行内容由 SongItem 内动态组件整树重建,额外的快速淡入弱化「换壳」跳变
+  void flipSongItems(
+    () => {
+      isCompactLayout.value = !isCompactLayout.value;
+      localStorage.setItem('musicListLayout', isCompactLayout.value ? 'compact' : 'normal');
+    },
+    450,
+    { fadeInner: true }
+  );
 };
 
 // 排序选项
@@ -1180,7 +1348,10 @@ const sortOptions = [
 ];
 
 const handleSortChange = (key: SortType) => {
-  sortBy.value = key;
+  // 排序是同一批卡片纯位置重排,FLIP 让每行滑到新位置而不是瞬间跳变
+  void flipSongItems(() => {
+    sortBy.value = key;
+  }, 400);
 };
 
 const checkCollectionStatus = () => {
@@ -1222,6 +1393,7 @@ watch(
 onMounted(() => {
   checkCollectionStatus();
   registerMusicListTopbar();
+  void loadUserPlaylistsForTopbar();
 });
 
 watch(
@@ -1246,6 +1418,7 @@ onBeforeUnmount(() => {
   unregisterMobileTopbarAction(`${topbarActionPrefix}-search`);
   unregisterMobileTopbarAction(`${topbarActionPrefix}-layout`);
   unregisterMobileTopbarAction(`${topbarActionPrefix}-sort`);
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-addall`);
 });
 
 // keep-alive 重新激活时重置状态

@@ -56,12 +56,12 @@
             </template>
           </n-ellipsis>
         </div>
-        <div v-if="item.al?.name" class="song-item-content-album">
+        <div v-if="item.al?.name || item.album?.name" class="song-item-content-album">
           <n-ellipsis
             class="text-ellipsis cursor-pointer hover:text-[var(--accent-color)]"
             line-clamp="1"
             @click.stop="onAlbumNameClick"
-            >{{ item.al.name }}</n-ellipsis
+            >{{ item.al?.name || item.album?.name }}</n-ellipsis
           >
         </div>
       </div>

@@ -12,7 +12,10 @@ import type { SongResult } from '@/types/music';
 let lastHandledUrl = '';
 
 // SharedSongCard 组件引用
-let sharedSongCardRef: { showSongCard: (songId: number) => void } | null = null;
+let sharedSongCardRef: {
+  showSongCard: (songId: number) => void;
+  showCollectionCard: (kind: 'playlist' | 'album', id: number) => void;
+} | null = null;
 
 // ListenTogetherInviteModal 组件引用
 let listenTogetherInviteRef: { showInvite: (roomCode: string) => void } | null = null;
@@ -51,6 +54,21 @@ function parseListenDeepLink(url: string): string | null {
 }
 
 /**
+ * 解析歌单/专辑 deep link，提取类型与 ID
+ */
+function parseCollectionDeepLink(url: string): { kind: 'playlist' | 'album'; id: number } | null {
+  try {
+    const match = url.match(/^zephyrus:\/\/(playlist|album)\/(\d+)$/);
+    if (match) {
+      return { kind: match[1] as 'playlist' | 'album', id: Number(match[2]) };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 解析网易云分享链接（music.163.com / y.music.163.com），提取歌曲 ID。
  * 仅支持歌曲页（/song）；歌单、专辑等其他类型返回 null。
  * 163cn.tv 短链已由原生层跟随 302 还原为长链，此处不再处理短链。
@@ -59,7 +77,11 @@ function parseNeteaseSongUrl(url: string): number | null {
   try {
     const parsed = new URL(url);
     const host = parsed.hostname.toLowerCase();
-    if (host !== 'music.163.com' && host !== 'y.music.163.com' && !host.endsWith('.music.163.com')) {
+    if (
+      host !== 'music.163.com' &&
+      host !== 'y.music.163.com' &&
+      !host.endsWith('.music.163.com')
+    ) {
       return null;
     }
     const path = parsed.pathname;
@@ -100,6 +122,19 @@ async function processShareUrl(url: string): Promise<void> {
     return;
   }
   lastHandledUrl = url;
+
+  // zephyrus://playlist 或 zephyrus://album，弹出歌单/专辑卡片
+  const collection = parseCollectionDeepLink(url);
+  if (collection !== null) {
+    console.info('[ShareLink] 解析到合集链接:', collection.kind, collection.id);
+    if (sharedSongCardRef) {
+      sharedSongCardRef.showCollectionCard(collection.kind, collection.id);
+    } else {
+      console.warn('[ShareLink] SharedSongCard 尚未就绪，缓存 URL 待重放');
+      pendingUrl = url;
+    }
+    return;
+  }
 
   // zephyrus://song 或网易云分享链接，统一提取歌曲 ID 走卡片流程
   const songId = parseDeepLink(url) ?? parseNeteaseSongUrl(url);
@@ -171,7 +206,12 @@ export function resetLastHandledUrl(): void {
  * 注册 SharedSongCard 组件引用
  * 注册后如果有待处理的 URL，立即重放
  */
-export function setSharedSongCardRef(ref: { showSongCard: (songId: number) => void } | null): void {
+export function setSharedSongCardRef(
+  ref: {
+    showSongCard: (songId: number) => void;
+    showCollectionCard: (kind: 'playlist' | 'album', id: number) => void;
+  } | null
+): void {
   sharedSongCardRef = ref;
 
   // 组件就绪后，重放缓存的 URL

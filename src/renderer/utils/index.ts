@@ -105,6 +105,16 @@ export const isMobile = computed(() => {
 
 export const isElectron = (window as any).electron !== undefined;
 
+/** 纯浏览器环境（非 Electron、非 Capacitor 壳、无 AndroidNative 桥），即部署到网站的 Web 版 */
+export function isWebBrowser(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    !isElectron &&
+    !(window as any).Capacitor &&
+    !(window as any).AndroidNative
+  );
+}
+
 export const isLyricWindow = computed(() => {
   return window.location.hash.includes('lyric');
 });

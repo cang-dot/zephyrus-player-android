@@ -66,7 +66,6 @@
 </template>
 
 <script setup lang="ts">
-
 defineOptions({ name: 'Discover' });
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';

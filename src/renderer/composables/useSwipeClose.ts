@@ -68,12 +68,14 @@ export function useSwipeClose(options: { shouldClose: () => boolean; onClose: ()
   };
 
   const finish = () => {
-    const shouldCommit = verticalIntent && (swipeProgress.value >= COMMIT_PROGRESS || velocity >= COMMIT_VELOCITY);
+    const shouldCommit =
+      verticalIntent && (swipeProgress.value >= COMMIT_PROGRESS || velocity >= COMMIT_VELOCITY);
     if (shouldCommit) {
       // 甩得越快，滑出越快（速度近似接力）
       const duration = Math.max(140, Math.min(320, 320 - velocity * 220));
+      // 提交路径不清零进度：跟手消费者（如错误样式的渐隐）需要在 onClose
+      // 之后仍读到提交值，以跳过二次离场动画；下次手势开始时会重新归零。
       animateProgress(1.25, duration, () => {
-        swipeProgress.value = 0;
         options.onClose();
       });
     } else if (swipeProgress.value > 0.001) {

@@ -13,6 +13,7 @@ import { playbackRequestManager } from '@/services/playbackRequestManager';
 import { SongSourceConfigManager } from '@/services/SongSourceConfigManager';
 import type { ILyric, ILyricText, LyricFormat, LyricSource, SongResult } from '@/types/music';
 import { getImgUrl, isElectron } from '@/utils';
+import { normalizeAudioUrl } from '@/utils/audioUrl';
 import { getImageLinearBackground } from '@/utils/linearColor';
 import { isUsableLyric } from '@/utils/lyricValidation';
 import { mergeAuxiliaryLyrics, parseTimedLyrics } from '@/utils/timedLyrics';
@@ -48,7 +49,9 @@ const resolveCachedPlaybackUrl = async (
   songData: SongResult
 ): Promise<string | null | undefined> => {
   if (!url || !isElectron || !/^https?:\/\//i.test(url)) {
-    return url;
+    // Web/Capacitor：网易云 CDN 常返回 http:// 地址，在 HTTPS 页面会被
+    // 混合内容拦截，统一升级为 https（music.126.net 支持 HTTPS）
+    return normalizeAudioUrl(url);
   }
 
   try {

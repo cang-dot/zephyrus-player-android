@@ -166,39 +166,72 @@ export function fuzzyScoreText(value: string, rawQuery: string): number {
 
 /**
  * 把搜索结果按“与搜索词的匹配度”重新排序（稳定排序，等分保持原顺序）
+ *
+ * @param options.aliasInsertIndex 网易云别名检索保护（默认不启用）：
+ * 网易云搜索自身已按相关性排序（含别名/翻译匹配），其结果中“歌名与歌手均与
+ * 搜索词文本无关”的项即别名命中，全量相似度重排会把它们压到后面而丢失。
+ * 启用后：常规项按相似度排序，别名组保持网易云原序整体插到 aliasInsertIndex 位（第三位）。
  */
-export function rankSearchResults(songs: SongResult[], keyword: string): SongResult[] {
+export function rankSearchResults(
+  songs: SongResult[],
+  keyword: string,
+  options?: { aliasInsertIndex?: number }
+): SongResult[] {
   const trimmed = String(keyword || '').trim();
   if (!trimmed || !songs?.length) return songs;
-  return songs
-    .map((song, index) => {
-      const name = song.name || '';
-      const artistNames = (song.ar || song.artists || [])
-        .map((artist: any) => artist.name || '')
-        .join(' ');
-      const albumName = song.al?.name || (song as any).album?.name || '';
-      const matchScore = Math.min(
-        fuzzyScoreText(name, trimmed),
-        fuzzyScoreText(artistNames, trimmed) + 8,
-        fuzzyScoreText(albumName, trimmed) + 16,
-        fuzzyScoreText(`${name} ${artistNames} ${albumName}`, trimmed) + 24
-      );
-      const popularity = Number(
-        (song as any).popularity ??
-          (song as any).playCount ??
-          (song as any).hot ??
-          (song as any).score ??
-          0
-      );
-      // 热度只作为有限的次级因素，避免热门但不相关的歌曲压过精确命中。
-      const popularityBoost = Number.isFinite(popularity)
-        ? Math.min(8, Math.log10(Math.max(1, popularity)) * 2)
-        : 0;
-      const score = matchScore - popularityBoost;
-      return { song, index, score };
-    })
+  const aliasInsertIndex = options?.aliasInsertIndex;
+
+  const scored = songs.map((song, index) => {
+    const name = song.name || '';
+    const artistNames = (song.ar || song.artists || [])
+      .map((artist: any) => artist.name || '')
+      .join(' ');
+    const albumName = song.al?.name || (song as any).album?.name || '';
+    const matchScore = Math.min(
+      fuzzyScoreText(name, trimmed),
+      fuzzyScoreText(artistNames, trimmed) + 8,
+      fuzzyScoreText(albumName, trimmed) + 16,
+      fuzzyScoreText(`${name} ${artistNames} ${albumName}`, trimmed) + 24
+    );
+    const popularity = Number(
+      (song as any).popularity ??
+        (song as any).playCount ??
+        (song as any).hot ??
+        (song as any).score ??
+        0
+    );
+    // 热度只作为有限的次级因素，避免热门但不相关的歌曲压过精确命中。
+    const popularityBoost = Number.isFinite(popularity)
+      ? Math.min(8, Math.log10(Math.max(1, popularity)) * 2)
+      : 0;
+    const score = matchScore - popularityBoost;
+    return {
+      song,
+      index,
+      score,
+      // 别名命中判定：歌名与歌手均与搜索词文本无关（含拼音/子序列/编辑距离在内均不匹配）
+      isAlias:
+        aliasInsertIndex !== undefined &&
+        song.platform === 'netease' &&
+        Number.isFinite(fuzzyScoreText(name, trimmed)) === false &&
+        Number.isFinite(fuzzyScoreText(artistNames, trimmed)) === false
+    };
+  });
+
+  const sorted = scored
     .sort((left, right) => left.score - right.score || left.index - right.index)
     .map((item) => item.song);
+
+  if (aliasInsertIndex === undefined) return sorted;
+
+  // 常规项按相似度排序；别名组保持网易云原序，整体插到第三位
+  const aliasItems = scored
+    .filter((item) => item.isAlias)
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.song);
+  const regularItems = sorted.filter((song) => !aliasItems.includes(song));
+  const insertAt = Math.min(aliasInsertIndex, regularItems.length);
+  return [...regularItems.slice(0, insertAt), ...aliasItems, ...regularItems.slice(insertAt)];
 }
 
 function scoreServerSong(song: ServerSong, query: string, rawQuery: string): number {

@@ -144,14 +144,14 @@
 <script setup lang="ts">
 import { computed, h, reactive, ref, watch } from 'vue';
 
-import { AI_PROVIDERS, getProvider } from '@/features/ai/providers';
 import {
   createGatewaySession,
-  getGatewayCredits,
-  listGatewayModels,
   type GatewayCredits,
-  type GatewayModel
+  type GatewayModel,
+  getGatewayCredits,
+  listGatewayModels
 } from '@/features/ai/gateway';
+import { AI_PROVIDERS, getProvider } from '@/features/ai/providers';
 import { getMetaphorConfig, saveMetaphorConfig } from '@/features/lyric-metaphor/useMetaphor';
 import SBtn from '@/views/set/SBtn.vue';
 

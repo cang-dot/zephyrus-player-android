@@ -1,11 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="glass-confirm-fade">
-      <div
-        v-if="visible"
-        class="glass-confirm-overlay"
-        @click.self="handleCancel"
-      >
+      <div v-if="visible" class="glass-confirm-overlay" @click.self="handleCancel">
         <div class="glass-confirm-card" role="alertdialog" aria-modal="true">
           <h3 class="confirm-title">{{ title }}</h3>
           <p v-if="message" class="confirm-message">{{ message }}</p>

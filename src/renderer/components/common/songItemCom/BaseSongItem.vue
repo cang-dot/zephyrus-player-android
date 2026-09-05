@@ -243,7 +243,8 @@ defineExpose({
   }
 
   &.is-active {
-    background: var(--d-surface-hover);
+    /* 点击反馈只做轻微着色:不透明浅灰块叠在深色玻璃面上会变成刺眼白块 */
+    background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.12);
   }
 }
 

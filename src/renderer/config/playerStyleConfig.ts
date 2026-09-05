@@ -16,8 +16,16 @@ const STYLE_LYRIC_COLORS: Record<MobilePlayerStyleKey, string> = {
   error: '#ffffff'
 };
 
+/** 烟雾样式的出厂歌词色：未自定义时作为「跟随高饱和歌曲主色」的哨兵值。 */
+export const SMOKE_DEFAULT_LYRIC_COLOR = STYLE_LYRIC_COLORS.smoke;
+
 const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unknown>> = {
-  default: {},
+  default: {
+    showTrackInfo: true,
+    artworkSize: 100,
+    artworkAlign: 'center',
+    backgroundPreset: 'none'
+  },
   stage: {
     auroraSpeed: 0.8,
     beatFlashIntensity: 0.5,
@@ -46,16 +54,20 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     effectKeyword: true,
     effectWordDrop: false,
     effectStaggered: false,
-    smokeDensity: 0.58,
-    smokeChaos: 0.42,
-    smokeLoudnessResponse: 0.72,
-    smokeOpacity: 0.76,
+    smokeDensity: 1,
+    smokeChaos: 1,
+    smokeLoudnessResponse: 1,
+    smokeOpacity: 1,
     smokeVignette: 0.48,
     smokeFontStretch: 1.18,
     smokeFollowThemeColor: true,
     smokeCustomColor: '#5fffd0',
     smokeGlowFollowThemeColor: true,
-    smokeGlowCustomColor: '#ff765f'
+    smokeGlowCustomColor: '#ff765f',
+    // 默认不在高潮时切换歌词颜色（基础色本身已跟随高饱和主题色）
+    climaxUseThemeColor: false,
+    // 默认使用马善政毛笔楷书（未自定义字体时由组件 fallback 应用）
+    builtinFontId: 'ma-shan-zheng'
   },
   error: {
     effectCrt: true,
@@ -142,6 +154,24 @@ export function resolvePlayerStyleConfig(
   } as PlayerStyleCustomConfig;
 
   if (config.mode !== 'custom') config.mode = 'original';
+  // 烟雾样式旧默认值迁移：loadStyleConfig 会把 resolve 结果整体固化，老用户的
+  // 旧出厂值（0.58/0.42/0.72/0.76 等）会永久覆盖新默认。等于旧出厂值的字段视为
+  // 未自定义，回落新默认；用户真实调过的值不受影响。
+  if (styleKey === 'smoke' && saved) {
+    const legacySmokeDefaults: Record<string, unknown> = {
+      smokeDensity: 0.58,
+      smokeChaos: 0.42,
+      smokeLoudnessResponse: 0.72,
+      smokeOpacity: 0.76,
+      climaxUseThemeColor: true,
+      builtinFontId: ''
+    };
+    for (const [field, legacy] of Object.entries(legacySmokeDefaults)) {
+      if (field in saved && (saved as Record<string, unknown>)[field] === legacy) {
+        (config as Record<string, unknown>)[field] = (defaults as Record<string, unknown>)[field];
+      }
+    }
+  }
   config.fontWeight = Math.min(900, Math.max(100, Number(config.fontWeight) || 600));
   config.wordDropFontWeight = Math.min(
     900,
@@ -155,14 +185,11 @@ export function resolvePlayerStyleConfig(
   config.staggeredRotation = Math.min(12, Math.max(0, Number(config.staggeredRotation) || 5));
   config.smokeDensity = Math.min(
     1,
-    Math.max(
-      0.05,
-      Number.isFinite(Number(config.smokeDensity)) ? Number(config.smokeDensity) : 0.58
-    )
+    Math.max(0.05, Number.isFinite(Number(config.smokeDensity)) ? Number(config.smokeDensity) : 1)
   );
   config.smokeChaos = Math.min(
     1,
-    Math.max(0, Number.isFinite(Number(config.smokeChaos)) ? Number(config.smokeChaos) : 0.42)
+    Math.max(0, Number.isFinite(Number(config.smokeChaos)) ? Number(config.smokeChaos) : 1)
   );
   config.smokeLoudnessResponse = Math.min(
     1,
@@ -170,15 +197,12 @@ export function resolvePlayerStyleConfig(
       0,
       Number.isFinite(Number(config.smokeLoudnessResponse))
         ? Number(config.smokeLoudnessResponse)
-        : 0.72
+        : 1
     )
   );
   config.smokeOpacity = Math.min(
     1,
-    Math.max(
-      0.05,
-      Number.isFinite(Number(config.smokeOpacity)) ? Number(config.smokeOpacity) : 0.76
-    )
+    Math.max(0.05, Number.isFinite(Number(config.smokeOpacity)) ? Number(config.smokeOpacity) : 1)
   );
   config.smokeVignette = Math.min(
     1,
@@ -216,6 +240,18 @@ export function resolvePlayerStyleConfig(
     )
   );
   config.errorDecorMarks = config.errorDecorMarks === true;
+  // 默认样式:封面/歌名作者/背景预设
+  config.showTrackInfo = config.showTrackInfo !== false;
+  config.artworkSize = Math.min(
+    100,
+    Math.max(60, Number.isFinite(Number(config.artworkSize)) ? Number(config.artworkSize) : 100)
+  );
+  if (!['start', 'center', 'end'].includes(String(config.artworkAlign))) {
+    config.artworkAlign = 'center';
+  }
+  if (!['none', 'aurora', 'fluid'].includes(String(config.backgroundPreset))) {
+    config.backgroundPreset = 'none';
+  }
   if (!['solid', 'gradient', 'image'].includes(config.backgroundMode)) {
     config.backgroundMode = defaults.backgroundMode;
   }

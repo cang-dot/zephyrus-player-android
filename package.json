@@ -17,6 +17,7 @@
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
     "dev:web": "vite dev",
+    "build:web": "vite build",
     "dev:gateway": "node server-platform-login.js",
     "test:gateway": "node scripts/test-platform-gateway.mjs",
     "test:ai-gateway": "node scripts/test-ai-gateway.mjs",

@@ -175,6 +175,9 @@ export interface LyricConfig {
   lineHeight: number;
   showTranslation: boolean;
   showRomanization: boolean;
+  scrollFontId: string; // 滚动歌词字体（内置字体 ID，空=跟随默认）
+  scrollFontWeight: number; // 滚动歌词字重 100-900
+  scrollFontSize: number; // 滚动歌词字号 px，0=跟随 AMLL 默认
   statusBarLyricsEnabled: boolean;
   statusBarLyricConfig: StatusBarLyricConfig;
   theme: 'default' | 'light' | 'dark';
@@ -249,6 +252,9 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   lineHeight: 2,
   showTranslation: true,
   showRomanization: false,
+  scrollFontId: '',
+  scrollFontWeight: 400,
+  scrollFontSize: 0,
   statusBarLyricsEnabled: false,
   statusBarLyricConfig: DEFAULT_STATUS_BAR_LYRIC_CONFIG,
   theme: 'default',

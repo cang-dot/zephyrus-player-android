@@ -1,10 +1,25 @@
 {
-  "name": "Zephyrus Player PWA",
+  "name": "Zephyrus Player",
+  "short_name": "Zephyrus",
+  "description": "ZephyrusPlayer 音乐播放器 Web 版",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "icons": [
     {
       "src": "./icon.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ]
 }

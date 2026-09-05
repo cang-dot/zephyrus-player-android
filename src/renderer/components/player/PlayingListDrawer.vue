@@ -412,6 +412,11 @@ const handleDeleteSong = (song: SongResult) => {
 
     .music-play-list-content {
       border-radius: 14px;
+
+      /* 深色播放器内嵌时,浅白 hover 层会发白发亮,降为轻微提亮 */
+      &:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
     }
 
     &.song-action-variant {

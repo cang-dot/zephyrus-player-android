@@ -162,6 +162,7 @@ import {
   onBeforeUnmount,
   onMounted,
   provide,
+  readonly,
   ref,
   watch
 } from 'vue';
@@ -409,6 +410,11 @@ const pagerOffset = ref(0); // 拖动/弹簧偏移（px），叠加在各页基�
 const pageSwipeAnimating = ref(false);
 const pagerComponents: Record<string, Component> = {};
 let lastPageSwipeVelocity = 0;
+
+// 常驻页不走 keep-alive 生命周期，页内组件（如 GlowTabs 顶栏注册）需要
+// 感知「当前显示的是哪个 pager 页」来决定可见性，不能依赖挂载时的 route.path
+const pagerActivePath = computed(() => menuStore.menus[pagerIndex.value]?.path || route.path);
+provide('mobilePagerActivePath', readonly(pagerActivePath));
 
 const mountPagerPage = (path: string) => {
   if (pagerMounted.value[path]) return;

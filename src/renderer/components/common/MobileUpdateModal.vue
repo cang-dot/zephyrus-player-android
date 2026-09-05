@@ -27,9 +27,7 @@
                     {{ t('comp.update.title') }}
                   </span>
                 </div>
-                <h2 class="text-2xl font-bold update-sheet-title truncate">
-                  v{{ latestVersion }}
-                </h2>
+                <h2 class="text-2xl font-bold update-sheet-title truncate">v{{ latestVersion }}</h2>
                 <p class="text-sm update-sheet-subtitle mt-1">
                   {{ t('comp.update.currentVersion') }}: v{{ currentVersion }}
                 </p>
@@ -66,7 +64,11 @@
             class="px-6 pb-8 flex gap-3"
             :style="{ paddingBottom: `calc(32px + var(--safe-area-inset-bottom, 0px))` }"
           >
-            <button @click="handleLater" :disabled="downloadState === 'downloading'" class="update-btn-secondary">
+            <button
+              @click="handleLater"
+              :disabled="downloadState === 'downloading'"
+              class="update-btn-secondary"
+            >
               {{ t('comp.update.noThanks') }}
             </button>
             <button @click="handlePrimaryAction" class="update-btn-primary">

@@ -213,6 +213,8 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
         return;
       }
     }
+    // 无有效专辑 id(如纯本地文件缺元数据)时不跳转,避免落到无效页面
+    if (id === -1 || id === 0 || id === '') return;
     navigate(`/music-list/${id}?type=album`);
   };
 

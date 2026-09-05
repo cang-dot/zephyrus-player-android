@@ -93,6 +93,58 @@
         </button>
       </label>
 
+      <!-- 默认样式专属:封面/歌名作者/背景预设 -->
+      <template v-if="styleKey === 'default'">
+        <label class="setting-row">
+          <span>{{ tr('player.styleCustomization.showTrackInfo', '封面下方显示歌名与作者') }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: local.showTrackInfo !== false }"
+            role="switch"
+            :aria-checked="local.showTrackInfo !== false"
+            @click.prevent="local.showTrackInfo = local.showTrackInfo === false"
+          >
+            <span></span>
+          </button>
+        </label>
+        <label class="range-row">
+          <span
+            >{{ tr('player.styleCustomization.artworkSize', '封面大小') }}
+            {{ local.artworkSize ?? 100 }}%</span
+          >
+          <input v-model.number="local.artworkSize" type="range" min="60" max="100" step="2" />
+        </label>
+        <div class="setting-row">
+          <span>{{ tr('player.styleCustomization.artworkAlign', '封面对齐') }}</span>
+          <div class="segmented-control three-options">
+            <button
+              v-for="option in artworkAlignOptions"
+              :key="option.value"
+              type="button"
+              :class="{ active: (local.artworkAlign || 'center') === option.value }"
+              @click="local.artworkAlign = option.value"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span>{{ tr('player.styleCustomization.backgroundPreset', '背景预设') }}</span>
+          <div class="segmented-control three-options">
+            <button
+              v-for="option in backgroundPresetOptions"
+              :key="option.value"
+              type="button"
+              :class="{ active: (local.backgroundPreset || 'none') === option.value }"
+              @click="local.backgroundPreset = option.value"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
+      </template>
+
       <div v-if="local.useCustomBackground" class="nested-settings">
         <div class="segmented-control three-options">
           <button
@@ -216,7 +268,10 @@
           <span>{{ tr('player.styleCustomization.errorEdgeGlow', '高潮边缘光') }}</span>
           <input v-model="local.errorEdgeGlow" type="checkbox" />
         </label>
-        <label v-if="styleKey === 'frenzy' || styleKey === 'stage' || styleKey === 'error'" class="setting-row">
+        <label
+          v-if="styleKey === 'frenzy' || styleKey === 'stage' || styleKey === 'error'"
+          class="setting-row"
+        >
           <span>{{ tr('player.styleCustomization.lyricRecolor', '歌词变色') }}</span>
           <input v-model="local.effectLyricColor" type="checkbox" />
         </label>
@@ -560,6 +615,16 @@ const backgroundOptions = computed(() => [
   { value: 'solid' as const, label: tr('player.styleCustomization.solid', '纯色') },
   { value: 'gradient' as const, label: tr('player.styleCustomization.gradient', '渐变') },
   { value: 'image' as const, label: tr('player.styleCustomization.image', '图片') }
+]);
+const artworkAlignOptions = computed(() => [
+  { value: 'start' as const, label: tr('player.styleCustomization.alignStart', '左') },
+  { value: 'center' as const, label: tr('player.styleCustomization.alignCenter', '中') },
+  { value: 'end' as const, label: tr('player.styleCustomization.alignEnd', '右') }
+]);
+const backgroundPresetOptions = computed(() => [
+  { value: 'none' as const, label: tr('player.styleCustomization.presetNone', '无') },
+  { value: 'aurora' as const, label: tr('player.styleCustomization.presetAurora', '极光') },
+  { value: 'fluid' as const, label: tr('player.styleCustomization.presetFluid', '流体') }
 ]);
 const colorLayers = computed(() => [
   { key: 'main' as const, label: tr('player.styleCustomization.mainLyric', '主歌词') },

@@ -126,8 +126,10 @@ export default {
   },
   photosensitivity: {
     title: 'Photosensitivity Warning',
-    intro: 'The "Error" player style contains rapidly flashing visuals: full-screen noise, scanlines, and strong brightness swings during chorus sections.',
-    detail: 'Do not use this style if you or your family have a history of photosensitive epilepsy. Use it in a bright environment and avoid staring at the screen for long periods.',
+    intro:
+      'The "Error" player style contains rapidly flashing visuals: full-screen noise, scanlines, and strong brightness swings during chorus sections.',
+    detail:
+      'Do not use this style if you or your family have a history of photosensitive epilepsy. Use it in a bright environment and avoid staring at the screen for long periods.',
     confirm: 'I understand, continue',
     decline: 'Go back'
   },
@@ -142,6 +144,16 @@ export default {
     styleDefaultFont: 'Style Default',
     fontWeight: 'Font Weight',
     importFont: 'Import Font',
+    showTrackInfo: 'Show track name & artist under artwork',
+    artworkSize: 'Artwork Size',
+    artworkAlign: 'Artwork Alignment',
+    alignStart: 'Left',
+    alignCenter: 'Center',
+    alignEnd: 'Right',
+    backgroundPreset: 'Background Preset',
+    presetNone: 'None',
+    presetAurora: 'Aurora',
+    presetFluid: 'Fluid',
     customBackground: 'Custom Background',
     solid: 'Solid',
     gradient: 'Gradient',

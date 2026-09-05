@@ -14,8 +14,8 @@
               <i class="ri-close-line" />
             </button>
             <div class="poster-editor-title">
-              <strong>歌词海报</strong>
-              <span>{{ songInfo.songName }} · {{ props.lyrics.length }} 句</span>
+              <strong>{{ headerTitle }}</strong>
+              <span>{{ headerSubtitle }}</span>
             </div>
             <div class="poster-header-spacer" aria-hidden="true" />
           </header>
@@ -43,6 +43,22 @@
 
           <!-- 配置面板 -->
           <div class="poster-config-panel">
+            <!-- 内容模式切换（仅播放器入口：无外部 subject 时） -->
+            <div v-if="!props.subject" class="config-section">
+              <div class="config-label">海报内容</div>
+              <div class="segment-tabs">
+                <button
+                  :class="{ active: contentMode === 'lyrics' }"
+                  @click="setContentMode('lyrics')"
+                >
+                  歌词摘录
+                </button>
+                <button :class="{ active: contentMode === 'info' }" @click="setContentMode('info')">
+                  歌曲信息
+                </button>
+              </div>
+            </div>
+
             <!-- 布局选择 -->
             <div class="config-section">
               <div class="config-label">布局风格</div>
@@ -341,6 +357,79 @@
                 class="range-input"
               />
             </div>
+
+            <!-- 长图模式 -->
+            <div class="config-section">
+              <div class="config-label">生成长图</div>
+              <button
+                class="toggle-switch"
+                :class="{ on: config.longImage }"
+                @click="setConfig('longImage', !config.longImage)"
+              >
+                <span class="toggle-knob"></span>
+              </button>
+            </div>
+            <div v-if="config.longImage" class="config-section">
+              <div class="config-label">按最多文字/项目长度显示</div>
+              <button
+                class="toggle-switch"
+                :class="{ on: config.showFullContent }"
+                @click="setConfig('showFullContent', !config.showFullContent)"
+              >
+                <span class="toggle-knob"></span>
+              </button>
+            </div>
+
+            <!-- 曲目列表样式（歌单/专辑） -->
+            <div v-if="posterTarget.kind !== 'song'" class="config-section">
+              <div class="config-label">曲目列表样式</div>
+              <div class="segment-tabs">
+                <button
+                  :class="{ active: config.trackListStyle === 'compact' }"
+                  @click="setConfig('trackListStyle', 'compact')"
+                >
+                  紧凑列表
+                </button>
+                <button
+                  :class="{ active: config.trackListStyle === 'detailed' }"
+                  @click="setConfig('trackListStyle', 'detailed')"
+                >
+                  封面列表
+                </button>
+              </div>
+            </div>
+
+            <!-- 曲目/简介截断长度 -->
+            <div class="config-section">
+              <div class="config-label">
+                曲目截取数量
+                <span class="value-tag">{{ config.trackLimit }} 首</span>
+              </div>
+              <input
+                v-model.number="config.trackLimit"
+                type="range"
+                min="1"
+                max="40"
+                step="1"
+                @input="regenerateDebounced"
+                class="range-input"
+              />
+            </div>
+            <div class="config-section">
+              <div class="config-label">
+                简介字数上限
+                <span class="value-tag">{{ config.descLimit }} 字</span>
+              </div>
+              <input
+                v-model.number="config.descLimit"
+                type="range"
+                min="10"
+                max="100"
+                step="5"
+                @input="regenerateDebounced"
+                class="range-input"
+              />
+            </div>
           </div>
 
           <!-- 底部操作栏 -->
@@ -386,6 +475,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import { getSongWikiSummary } from '@/api/music';
 import logoUrl from '@/assets/logo.png';
 import MorphingFontSelector from '@/components/share/MorphingFontSelector.vue';
 import { usePosterTransitionOrigin } from '@/composables/usePosterTransitionOrigin';
@@ -397,6 +487,7 @@ import {
   normalizePosterConfig,
   POSTER_LAYOUT_OPTIONS,
   type PosterConfig,
+  type PosterSubject,
   type SelectedLyric
 } from '@/types/share';
 import { getImgUrl } from '@/utils';
@@ -408,6 +499,8 @@ import { saveCanvasToGallery, shareCanvasImage } from '@/utils/shareUtil';
 const props = defineProps<{
   visible: boolean;
   lyrics: SelectedLyric[];
+  /** 外部主题（歌单/专辑页入口）；不传 = 播放器歌曲海报 */
+  subject?: PosterSubject;
 }>();
 
 // Emits
@@ -505,7 +598,12 @@ const currentFontName = computed(() => {
   return font?.name || '默认字体';
 });
 
-// 歌曲信息
+// 内容模式：歌词摘录（默认）/ 歌曲信息（无歌词直接分享）
+const contentMode = ref<'lyrics' | 'info'>('lyrics');
+const songWikiSummary = ref('');
+const wikiLoadedForId = ref<string>('');
+
+// 歌曲信息（须在 infoSubject/posterTarget 与 immediate watch 之前声明，避免 TDZ）
 const songInfo = computed(() => {
   const song = playMusic.value;
   const artists = (artistList.value || []).map((a: any) => a.name).join(' / ');
@@ -516,6 +614,86 @@ const songInfo = computed(() => {
     coverUrl: song?.picUrl ? getImgUrl(song.picUrl, '500y500') : ''
   };
 });
+
+// 歌曲信息模式的海报主题
+const infoSubject = computed<PosterSubject>(() => ({
+  kind: 'song',
+  songId: songInfo.value.songId,
+  songName: songInfo.value.songName,
+  artists: songInfo.value.artists,
+  coverUrl: songInfo.value.coverUrl,
+  description: songWikiSummary.value
+}));
+
+/** 实际生成海报的主题：外部 subject 优先（song 缺简介时自动补 wiki），其次按内容模式 */
+const posterTarget = computed<PosterSubject>(() => {
+  if (props.subject) {
+    const subject = props.subject;
+    if (
+      subject.kind === 'song' &&
+      !subject.description &&
+      wikiLoadedForId.value === String(subject.songId)
+    ) {
+      return { ...subject, description: songWikiSummary.value };
+    }
+    return subject;
+  }
+  if (contentMode.value === 'info') return infoSubject.value;
+  return { kind: 'song', ...songInfo.value };
+});
+
+// 歌词摘录模式的生成参数
+const activeLyrics = computed<SelectedLyric[]>(() => {
+  if (props.subject) return [];
+  return contentMode.value === 'info' ? [] : props.lyrics;
+});
+
+// 按需加载歌曲简介（song 主题且无简介时）
+watch(
+  posterTarget,
+  (target) => {
+    if (
+      target.kind !== 'song' ||
+      target.description ||
+      !target.songId ||
+      wikiLoadedForId.value === String(target.songId)
+    ) {
+      return;
+    }
+    const songId = String(target.songId);
+    wikiLoadedForId.value = songId;
+    songWikiSummary.value = '';
+    void getSongWikiSummary(songId).then((summary) => {
+      songWikiSummary.value = summary;
+      if (summary) regenerateDebounced();
+    });
+  },
+  { immediate: true }
+);
+
+const headerTitle = computed(() => {
+  if (props.subject) {
+    if (props.subject.kind === 'playlist') return '歌单海报';
+    if (props.subject.kind === 'album') return '专辑海报';
+    return '歌曲海报';
+  }
+  return contentMode.value === 'info' ? '歌曲海报' : '歌词海报';
+});
+
+const headerSubtitle = computed(() => {
+  if (props.subject) return props.subject.title || props.subject.songName;
+  const name = songInfo.value.songName;
+  return contentMode.value === 'info'
+    ? `${name} · 歌曲信息`
+    : `${name} · ${props.lyrics.length} 句`;
+});
+
+// 切换内容模式（简介由 posterTarget watch 按需加载）
+function setContentMode(mode: 'lyrics' | 'info') {
+  if (contentMode.value === mode) return;
+  contentMode.value = mode;
+  regenerateDebounced();
+}
 
 // 方法
 function close() {
@@ -555,7 +733,8 @@ function showToast(message: string, icon: string = 'ri-check-line') {
 let regenerateTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function regenerate() {
-  if (props.lyrics.length === 0) return;
+  // 歌词摘录模式需要选中歌词；信息模式/外部主题（歌单/专辑）无歌词也可生成
+  if (activeLyrics.value.length === 0 && !props.subject && contentMode.value !== 'info') return;
   if (saveStateTimer) clearTimeout(saveStateTimer);
   saveState.value = 'idle';
   generating.value = true;
@@ -566,7 +745,7 @@ async function regenerate() {
     await ensureFontLoaded(config.value.fontId);
 
     // 生成海报
-    const canvas = await generatePoster(config.value, songInfo.value, props.lyrics);
+    const canvas = await generatePoster(config.value, posterTarget.value, activeLyrics.value);
     posterCanvas.value = canvas;
     posterDataUrl.value = canvasToDataURL(canvas);
   } catch (e) {
@@ -622,13 +801,21 @@ watch(
   () => props.visible,
   (v) => {
     document.documentElement.classList.toggle('poster-editor-open', v);
-    if (v && props.lyrics.length > 0) {
+    if (v && (activeLyrics.value.length > 0 || props.subject)) {
       preloadLogo();
       regenerate();
     } else if (!v) {
       saveState.value = 'idle';
       window.setTimeout(() => posterTransitionOrigin.clear(), 460);
     }
+  }
+);
+
+// 外部主题变化（歌单/专辑页复用同一弹窗实例）
+watch(
+  () => props.subject,
+  () => {
+    if (props.visible) regenerate();
   }
 );
 

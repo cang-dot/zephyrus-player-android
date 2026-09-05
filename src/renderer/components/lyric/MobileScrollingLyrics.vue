@@ -15,6 +15,10 @@
     @pointermove.capture="handlePointerMove"
     @pointerup.capture="handlePointerEnd"
     @pointercancel.capture="handlePointerCancel"
+    @touchstart.stop
+    @touchmove.stop
+    @touchend.stop
+    @touchcancel.stop
   >
     <Transition name="lyrics-loading">
       <div
@@ -49,6 +53,7 @@
       v-if="renderAmllPlayer"
       ref="playerRef"
       class="amll-player"
+      :style="scrollPlayerStyle"
       :lyric-lines="amllLines"
       :current-time="amllDisabled ? 0 : currentTimeMs"
       :disabled="amllDisabled"
@@ -109,6 +114,7 @@ import {
   providerLyricsToAmll,
   ttmlLyricsToAmll
 } from '@/utils/amllLyricAdapter';
+import { ensureFontLoaded, getFontFamily } from '@/utils/fontLoader';
 import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 
 let scrollingLyricsInstanceId = 0;
@@ -160,6 +166,24 @@ const optimizeOptions = MOBILE_AMLL_OPTIMIZE_OPTIONS;
 
 const currentTimeMs = computed(() => Math.max(0, Math.round(playback.correctedTime.value * 1000)));
 const isPlaying = computed(() => playerStore.isPlaying);
+// 滚动歌词独立字体配置：字体按需加载，字重/字号直接内联到 AMLL 播放器根节点
+const scrollFontFamily = ref('');
+watch(
+  () => config.value.scrollFontId,
+  async (fontId) => {
+    if (!fontId) {
+      scrollFontFamily.value = '';
+      return;
+    }
+    scrollFontFamily.value = (await ensureFontLoaded(fontId)) ? getFontFamily(fontId) : '';
+  },
+  { immediate: true }
+);
+const scrollPlayerStyle = computed(() => ({
+  fontFamily: scrollFontFamily.value || undefined,
+  fontWeight: config.value.scrollFontWeight || undefined,
+  ...(config.value.scrollFontSize > 0 ? { fontSize: `${config.value.scrollFontSize}px` } : {})
+}));
 const lyricAlignment = computed(() =>
   normalizeLyricAlignment(config.value.lyricAlignment, config.value.centerLyrics)
 );
@@ -528,14 +552,8 @@ function handleCopyLyrics() {
 }
 
 function handleGeneratePoster() {
-  const selected = selectedLyrics();
-  const lyrics = selected.slice(0, 12);
-  emit('generatePoster', lyrics);
-  if (selected.length > lyrics.length) {
-    toastMsg.value = t('player.share.lyricsTruncated') || '选中内容过长，已截断至12句';
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => (toastMsg.value = ''), 3000);
-  }
+  // 数量不再限制：长图模式可展示全部选中歌词，普通海报由引擎按画布高度截断（补"……"）
+  emit('generatePoster', selectedLyrics());
   exitSelectMode();
 }
 
@@ -656,6 +674,21 @@ onBeforeUnmount(() => {
   overflow: hidden;
   contain: layout paint style;
   touch-action: pan-y;
+  /* 容器上下边缘渐隐,歌词行滚出时不被生硬截断 */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 56px,
+    #000 calc(100% - 56px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 56px,
+    #000 calc(100% - 56px),
+    transparent 100%
+  );
 }
 
 .lyrics-loading-overlay {
@@ -780,6 +813,8 @@ onBeforeUnmount(() => {
   transition: none !important;
 }
 
+/* Alignment controls which side of the screen the primary lyrics sit on.
+ * Duet lines (secondary agent) mirror to the opposite side; center centers everything. */
 .align-left :deep(.FmKaba_lyricLineWrapper) {
   align-items: flex-start !important;
 }
@@ -790,6 +825,14 @@ onBeforeUnmount(() => {
 
 .align-right :deep(.FmKaba_lyricLineWrapper) {
   align-items: flex-end !important;
+}
+
+.align-left :deep(.FmKaba_lyricLineWrapper:has(> .FmKaba_lyricDuetLine)) {
+  align-items: flex-end !important;
+}
+
+.align-right :deep(.FmKaba_lyricLineWrapper:has(> .FmKaba_lyricDuetLine)) {
+  align-items: flex-start !important;
 }
 
 .align-left :deep(.FmKaba_lyricLine) {
@@ -805,6 +848,43 @@ onBeforeUnmount(() => {
 .align-right :deep(.FmKaba_lyricLine) {
   text-align: right;
   transform-origin: right center;
+}
+
+.align-left :deep(.FmKaba_lyricLine.FmKaba_lyricDuetLine) {
+  text-align: right;
+  transform-origin: right center;
+}
+
+.align-right :deep(.FmKaba_lyricLine.FmKaba_lyricDuetLine) {
+  text-align: left;
+  transform-origin: left center;
+}
+
+/* AMLL's duet stagger padding follows the primary side; mirror it when the
+ * primary lyrics sit on the right, and neutralize it under center alignment. */
+.align-right :deep(.FmKaba_hasDuetLine .FmKaba_lyricLine:not(.FmKaba_lyricDuetLine)) {
+  padding-right: 0;
+  padding-left: 15%;
+}
+
+.align-right :deep(.FmKaba_hasDuetLine .FmKaba_lyricDuetLine) {
+  padding-right: 15%;
+  padding-left: 0;
+}
+
+.align-center :deep(.FmKaba_hasDuetLine .FmKaba_lyricLine) {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+/* Duet background-harmony wrappers mirror their scale origin when the duet
+ * line sits on the left side. */
+.align-right :deep(.FmKaba_lyricLineWrapper:has(> .FmKaba_lyricDuetLine) .FmKaba_bgWrapper) {
+  transform-origin: 0 0;
+}
+
+.align-right :deep(.FmKaba_lyricLineWrapper:has(> .FmKaba_lyricDuetLine) .FmKaba_bgWrapperTop) {
+  transform-origin: 0 100%;
 }
 
 /* AMLL positions interludes independently from lyric lines. The individual
@@ -869,6 +949,20 @@ onBeforeUnmount(() => {
 
 .select-mode.align-right :deep(.FmKaba_lyricLine[data-lyric-selected='true']::after) {
   left: 0.42em;
+}
+
+/* Duet lines sit on the opposite side; mirror their checkmark so it stays on
+ * the trailing edge away from the lyric text. */
+.select-mode.align-left
+  :deep(.FmKaba_lyricLine.FmKaba_lyricDuetLine[data-lyric-selected='true']::after) {
+  right: auto;
+  left: 0.42em;
+}
+
+.select-mode.align-right
+  :deep(.FmKaba_lyricLine.FmKaba_lyricDuetLine[data-lyric-selected='true']::after) {
+  left: auto;
+  right: 0.42em;
 }
 
 .empty-lyrics {

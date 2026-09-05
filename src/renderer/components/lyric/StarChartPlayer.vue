@@ -138,7 +138,11 @@
     :src="previewCoverUrl"
     :title="songTitle"
   />
-  <poster-share-modal v-model:visible="showPosterModal" :lyrics="selectedLyrics" />
+  <poster-share-modal
+    v-model:visible="showPosterModal"
+    :lyrics="selectedLyrics"
+    :subject="posterSubject"
+  />
 </template>
 
 <script setup lang="ts">
@@ -175,7 +179,7 @@ const emit = defineEmits<{
 const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor, primaryColorRgb } = useCoverColor();
-const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
+const { showPosterModal, selectedLyrics, posterSubject, handleGeneratePoster } = usePosterShare();
 const { styleVars, isCustom, customBackgroundActive, customFontActive } =
   usePlayerStyleAppearance('starChart');
 const showFullLyrics = ref(false);

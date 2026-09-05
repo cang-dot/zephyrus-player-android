@@ -240,6 +240,15 @@
   --d-duration-slow: 300ms;
   --d-duration-slower: 500ms;
 
+  /* ── 卡片/按钮交互动效（LAYOUT/FILTER 规格 tokens） ── */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1); /* 位移插值,不用弹簧 */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1); /* 一切退场:收敛、无过冲 */
+  --pop-from-scale: 0.42; /* FILTER-IN 从空槽长出的起始 scale */
+  --filter-out-duration: 250ms;
+  --filter-move-duration: 200ms;
+  --filter-in-duration: 150ms;
+  --filter-in-delay: 450ms; /* OUT+MOVE 之后才进场,三段不重叠 */
+
   /* ── z-index 层级 ── */
   --d-z-base: 0;
   --d-z-dropdown: 1000;

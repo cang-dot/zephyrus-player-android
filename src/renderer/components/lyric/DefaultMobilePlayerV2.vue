@@ -1,5 +1,5 @@
 <template>
-  <Teleport to="#layout-main">
+  <Teleport to="#layout-main" :disabled="embedded">
     <section
       v-if="isVisible"
       id="mobile-drawer-target"
@@ -9,7 +9,8 @@
         landscape: isLandscape,
         'lyrics-expanded': lyricsExpanded,
         'custom-background': customBackgroundActive,
-        'player-transitioning': playerTransitionBusy
+        'player-transitioning': playerTransitionBusy,
+        'controls-docked': controlsDocked
       }"
       :style="{ ...surfaceStyle, ...lyricsSwipeStyle }"
       @click="handleTapToggle"
@@ -20,6 +21,35 @@
       @touchstart="onTouchStart"
       @touchend="onTouchEnd"
     >
+      <!-- 背景预设层(none/aurora/fluid,颜色从封面主色派生) -->
+      <div v-if="backgroundPreset !== 'none'" class="background-preset-layer" aria-hidden="true">
+        <aurora
+          v-if="backgroundPreset === 'aurora'"
+          :color-stops="auroraColorStops"
+          :amplitude="1"
+          :blend="0.5"
+          :speed="0.6"
+        />
+        <liquid-ether
+          v-else-if="backgroundPreset === 'fluid'"
+          :colors="fluidColors"
+          :mouse-force="24"
+          :cursor-size="110"
+          :auto-demo="true"
+          :auto-speed="0.8"
+          :auto-intensity="0.6"
+          :auto-resume-delay="400"
+          :auto-ramp-duration="0.5"
+          :resolution="0.4"
+          :dt="0.012"
+          :iterations-poisson="16"
+          :bfecc="false"
+          :max-pixel-ratio="1.5"
+          :max-fps="30"
+          :paused="reduceMotion || playerTransitionBusy"
+        />
+      </div>
+
       <div v-if="playMusic?.playLoading" class="loading-state" aria-live="polite">
         <i class="ri-loader-4-line"></i>
       </div>
@@ -28,7 +58,7 @@
         <div
           v-if="!lyricsExpanded || lyricsSwipePreview"
           class="artwork-zone"
-          :style="lyricsUnderlayStyle"
+          :style="[lyricsUnderlayStyle, artworkZoneStyle]"
         >
           <div
             class="artwork-preview-trigger"
@@ -44,8 +74,12 @@
               :title="playMusic?.name || 'Zephyrus'"
               mode="full"
               :playing="isPlaying"
-              :style="artworkTransitionStyle"
+              :style="[artworkTransitionStyle, artworkFrameStyle]"
             />
+          </div>
+          <div v-if="showTrackInfo" class="artwork-info">
+            <strong class="artwork-info-name">{{ playMusic?.name || 'Zephyrus' }}</strong>
+            <span v-if="artistText" class="artwork-info-artist">{{ artistText }}</span>
           </div>
         </div>
 
@@ -86,14 +120,16 @@ import { useWindowSize } from '@vueuse/core';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import Aurora from '@/components/Aurora.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
+import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
-import { lrcArray, playMusic, textColors } from '@/hooks/MusicHook';
+import { artistList, lrcArray, playMusic, textColors } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import { getImgUrl } from '@/utils';
@@ -106,11 +142,14 @@ import {
 } from '@/utils/playerInk';
 
 import DefaultPlayerArtwork from './DefaultPlayerArtwork.vue';
+import LiquidEther from './LiquidEther.vue';
 import MobileScrollingLyrics from './MobileScrollingLyrics.vue';
 
 const props = defineProps<{
   modelValue?: boolean;
   background?: string;
+  /** 内嵌预览模式：禁用 Teleport，渲染在挂载位置（引导页小窗口预览用） */
+  embedded?: boolean;
 }>();
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>();
 const { t } = useI18n();
@@ -125,6 +164,72 @@ function handleArtworkClick(event: MouseEvent) {
 const { width, height } = useWindowSize();
 const { styleVars, customBackgroundActive, background, backgroundColor } =
   usePlayerStyleAppearance('default');
+const { config: styleCustom } = useStyleCustomConfig('default');
+
+// ── 默认样式自定义项(封面大小/对齐、歌名作者、背景预设) ──
+const showTrackInfo = computed(() => styleCustom.value.showTrackInfo !== false);
+const artworkSize = computed(() =>
+  Math.min(100, Math.max(60, Number(styleCustom.value.artworkSize) || 88))
+);
+const artworkAlign = computed(() => {
+  const value = String(styleCustom.value.artworkAlign);
+  return (['start', 'center', 'end'].includes(value) ? value : 'center') as
+    | 'start'
+    | 'center'
+    | 'end';
+});
+const backgroundPreset = computed(() => {
+  const value = String(styleCustom.value.backgroundPreset);
+  return (['none', 'aurora', 'fluid'].includes(value) ? value : 'none') as
+    | 'none'
+    | 'aurora'
+    | 'fluid';
+});
+const reduceMotion = ref(
+  typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+);
+
+const artistText = computed(() => artistList.value.map((artist) => artist.name).join(' / '));
+
+const ALIGN_INNER: Record<string, string> = {
+  start: 'flex-start',
+  center: 'center',
+  end: 'flex-end'
+};
+const ALIGN_TEXT: Record<string, string> = { start: 'left', center: 'center', end: 'right' };
+const artworkZoneStyle = computed(() => ({
+  '--artwork-align-inner': ALIGN_INNER[artworkAlign.value],
+  '--artwork-text-align': ALIGN_TEXT[artworkAlign.value]
+}));
+const artworkFrameStyle = computed(() => {
+  // mode-full 画布是非正方形(width 100%/520、height 40dvh、aspect auto),
+  // 图片 contain 居中会在浅色背景上露出灰边;锁定正方形让 frame 紧贴封面。
+  // 横屏分栏高度充裕,基准比竖屏更大
+  const base = isLandscape.value ? 'min(40vw, 52dvh, 460px)' : 'min(82vw, 42dvh, 400px)';
+  const side = `calc(${base} * ${artworkSize.value / 100})`;
+  return { width: side, height: side, aspectRatio: '1' };
+});
+
+function rgbToHex(r: number, g: number, b: number) {
+  const channel = (v: number) =>
+    Math.max(0, Math.min(255, Math.round(v)))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${channel(r)}${channel(g)}${channel(b)}`;
+}
+const themeRgb = computed(
+  () => parseRepresentativeCssColor(resolvedBackgroundColor.value) || { r: 23, g: 23, b: 23 }
+);
+const auroraColorStops = computed(() => {
+  const { r, g, b } = themeRgb.value;
+  const mix = (t: number, tr: number, tg: number, tb: number) =>
+    rgbToHex(r + (tr - r) * t, g + (tg - g) * t, b + (tb - b) * t);
+  return [mix(0.55, 0, 0, 0), rgbToHex(r, g, b), mix(0.5, 255, 255, 255)];
+});
+const fluidColors = computed(() => {
+  const { r, g, b } = themeRgb.value;
+  return ['#000000', rgbToHex(r, g, b), '#ffffff'];
+});
 
 const surfaceRef = ref<HTMLElement | null>(null);
 const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
@@ -148,6 +253,30 @@ const {
 });
 const isLandscape = computed(() => width.value > height.value);
 const isPlaying = computed(() => playerStore.isPlay);
+
+// ── 控制条下滑隐藏时,播放器内容容器同步下滑 ──
+// 与 MobilePlayerBottomSurface 的 dock 同源(controlsVisible/sheetProgress),
+// 「常显控件」设置下不生效
+const surfacePinned = ref(false);
+const refreshSurfacePinned = () => {
+  try {
+    const raw = localStorage.getItem('music-full-config');
+    surfacePinned.value = raw ? JSON.parse(raw).alwaysShowPlayerControls === true : false;
+  } catch {
+    surfacePinned.value = false;
+  }
+};
+refreshSurfacePinned();
+window.addEventListener('music-full-config-updated', refreshSurfacePinned);
+onBeforeUnmount(() => {
+  window.removeEventListener('music-full-config-updated', refreshSurfacePinned);
+});
+const controlsDocked = computed(
+  () =>
+    !surfacePinned.value &&
+    !playerTransition.controlsVisible.value &&
+    playerTransition.sheetProgress.value < 0.02
+);
 const playerTransitionBusy = computed(
   () =>
     playerTransition.state.value === 'dragging' ||
@@ -320,13 +449,66 @@ onBeforeUnmount(() => {
 }
 
 .artwork-zone {
-  display: grid;
+  /* 显式锁定第一格:歌词层手势预览时显式跨满网格,若封面区靠自动放置
+     会被挤进网格外的隐式行(屏幕下方),出现"封面掉到下面"的错乱 */
+  grid-row: 1;
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
   min-height: 0;
-  padding: 8px 20px 12px;
-  place-items: center;
+  align-items: var(--artwork-align-inner, center);
+  justify-content: center;
+  /* 底部留白略大,让封面+文字的视觉重心整体上移 */
+  padding: 12px 20px max(32px, 5%);
   transition:
     opacity 260ms ease,
-    transform 380ms cubic-bezier(0.32, 0.72, 0, 1);
+    transform 380ms cubic-bezier(0.32, 0.72, 0, 1),
+    padding-bottom 350ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.artwork-preview-trigger {
+  min-height: 0;
+}
+
+.artwork-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+  padding: 0 4px;
+  text-align: var(--artwork-text-align, center);
+  pointer-events: none;
+}
+
+.artwork-info-name {
+  overflow: hidden;
+  font-size: clamp(20px, 2.8vh, 26px);
+  font-weight: 700;
+  color: var(--player-ink, #fff);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artwork-info-artist {
+  overflow: hidden;
+  font-size: 14px;
+  color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.62);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.background-preset-layer {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.background-preset-layer > * {
+  width: 100%;
+  height: 100%;
 }
 
 .lyrics-zone {
@@ -334,11 +516,14 @@ onBeforeUnmount(() => {
   overflow: hidden;
   transition:
     transform 380ms cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 260ms ease;
+    opacity 260ms ease,
+    padding-bottom 350ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .lyrics-zone.expanded {
   grid-row: 1 / -1;
+  /* 横屏单行多列:歌词展开时也要横跨全部列,否则仍被锁在右列与封面同屏 */
+  grid-column: 1 / -1;
 }
 
 .default-scrolling-lyrics {
@@ -369,7 +554,13 @@ onBeforeUnmount(() => {
 
 .shared-controls-spacer {
   height: calc(168px + var(--safe-area-inset-bottom, 0px));
+  transition: height 350ms cubic-bezier(0.32, 0.72, 0, 1);
   pointer-events: none;
+}
+
+/* 控制条下滑隐藏:底部占位同步塌陷,内容(封面/歌词)整体下滑重新居中 */
+.controls-docked .shared-controls-spacer {
+  height: var(--safe-area-inset-bottom, 0px);
 }
 
 .loading-state {
@@ -390,8 +581,26 @@ onBeforeUnmount(() => {
   grid-template-rows: minmax(0, 1fr) auto;
 }
 
+/* 横屏:歌词容器吃满全屏高度,底部改由歌词区内部预留控制条悬浮空间 */
 .landscape .shared-controls-spacer {
-  height: calc(96px + var(--safe-area-inset-bottom, 0px));
+  height: 0;
+}
+
+.landscape .lyrics-zone {
+  padding-bottom: calc(96px + var(--safe-area-inset-bottom, 0px));
+}
+
+.landscape .artwork-zone {
+  padding-bottom: calc(96px + var(--safe-area-inset-bottom, 0px));
+}
+
+/* 横屏 + 控件隐藏:预留的控制条悬浮空间释放,歌词/封面下移吃满高度 */
+.landscape.controls-docked .lyrics-zone {
+  padding-bottom: max(16px, 2%);
+}
+
+.landscape.controls-docked .artwork-zone {
+  padding-bottom: max(24px, 3%);
 }
 
 .landscape .player-content {
@@ -402,7 +611,9 @@ onBeforeUnmount(() => {
 }
 
 .landscape .artwork-zone {
-  padding: 8px 24px;
+  padding-top: 8px;
+  padding-left: 24px;
+  padding-right: 24px;
 }
 
 .landscape.lyrics-expanded .player-content {

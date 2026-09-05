@@ -116,7 +116,9 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
 
   const underlayStyle = computed<CSSProperties>(() => {
     if (!previewing.value || !phase.value) return {};
-    const parallax = offset.value * 0.16;
+    // 只在唤起(歌词滑入)时给封面层视差;收起时保持原位,
+    // 否则歌词滑出后封面会先移开再弹回,看起来像瞬移
+    const parallax = phase.value === 'opening' ? offset.value * 0.16 : 0;
     return animatedStyle(
       `translate3d(${parallax.toFixed(2)}px, 0, 0) scale(${(1 - progress.value * 0.018).toFixed(4)})`,
       phase.value === 'opening' ? 1 - progress.value : progress.value

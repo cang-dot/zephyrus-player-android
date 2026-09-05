@@ -1,4 +1,5 @@
 import { readonly, ref } from 'vue';
+
 import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 
 export type MobilePlayerTransitionState = 'idle' | 'dragging' | 'opening' | 'open' | 'closing';
@@ -52,7 +53,9 @@ const cancelAllAnimations = (resetTransientState = false) => {
 
 const controlsArePinned = () => {
   try {
-    return Boolean(JSON.parse(localStorage.getItem('music-full-config') || '{}').alwaysShowPlayerControls);
+    return Boolean(
+      JSON.parse(localStorage.getItem('music-full-config') || '{}').alwaysShowPlayerControls
+    );
   } catch {
     return false;
   }

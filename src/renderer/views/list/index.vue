@@ -2,10 +2,12 @@
   <div class="list-page">
     <div class="list-scroll">
       <glow-tabs
-        v-model="playlistSourceFilter"
+        :model-value="playlistSourceFilter"
         :tabs="playlistSourceTabs"
         scrollable
+        page-path="/list"
         class="playlist-source-tabs"
+        @update:model-value="onSourceFilterChange"
       />
 
       <local-music-view
@@ -29,10 +31,15 @@
       </div>
 
       <!-- Cover Grid -->
-      <div v-else-if="playlistSourceFilter !== 'local' && items.length > 0" class="cover-grid">
+      <div
+        v-else-if="playlistSourceFilter !== 'local' && items.length > 0"
+        ref="gridRef"
+        class="cover-grid"
+      >
         <div
           v-for="item in items"
-          :key="`${item.accountId}-${item.type}-${item.id}`"
+          :key="cardKey(item)"
+          :data-key="cardKey(item)"
           class="cover-card"
           @click.stop="handleItemClick(item)"
         >
@@ -80,7 +87,7 @@
 
 <script lang="ts" setup>
 import { useMessage } from 'naive-ui';
-import { computed, defineAsyncComponent, ref } from 'vue';
+import { computed, defineAsyncComponent, nextTick, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import GlowTabs from '@/components/common/GlowTabs.vue';
@@ -109,6 +116,11 @@ const playlistSourceFilter = computed<'all' | MusicPlatform | 'local'>({
   get: () => (typeof route.query.source === 'string' ? route.query.source : 'all') as any,
   set: (source) => void router.replace({ query: { ...route.query, source } })
 });
+
+const gridRef = ref<HTMLElement>();
+
+/** 封面卡稳定标识:跨来源筛选切换时同卡同 key,是 FILTER MOVE 段 FLIP 的前提 */
+const cardKey = (item: any) => `${item.accountId}-${item.type}-${item.id}`;
 // 加载状态：用户未登录或歌单数据未加载完成
 const isLoading = computed(() => {
   return !accountStore.accounts.length && !userStore.user;
@@ -147,15 +159,16 @@ const touchCardMru = (item: any) => {
   }
 };
 
-const items = computed(() => {
+/** 按来源构建封面卡集合;独立成纯函数以便切换前离线预演新集合(FILTER 编排需要) */
+const buildItems = (source: string) => {
   const result: any[] = [];
 
-  if (playlistSourceFilter.value === 'all') {
+  if (source === 'all') {
     result.push({ ...LOCAL_SONGS_ITEM });
   }
 
   for (const account of accountStore.accounts) {
-    if (playlistSourceFilter.value !== 'all' && account.platform !== playlistSourceFilter.value) {
+    if (source !== 'all' && account.platform !== source) {
       continue;
     }
 
@@ -194,8 +207,108 @@ const items = computed(() => {
     }
   }
 
-  return playlistSourceFilter.value === 'all' ? orderPlaylistCards(result, cardMru.value) : result;
-});
+  return source === 'all' ? orderPlaylistCards(result, cardMru.value) : result;
+};
+
+const items = computed(() => buildItems(playlistSourceFilter.value));
+
+// ==================== FILTER 三段编排(OUT → MOVE → IN,规格 §5) ====================
+const FILTER_OUT_MS = 250;
+const FILTER_MOVE_MS = 200;
+const FILTER_IN_MS = 150;
+let filterBusy = false;
+
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' &&
+  !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+const onSourceFilterChange = async (next: string | number) => {
+  const source = String(next);
+  if (filterBusy || source === playlistSourceFilter.value) return;
+  const grid = gridRef.value;
+
+  // 「本地」是整视图替换(网格让位给 local-music-view),不做卡片级三段编排,
+  // 仅给被替换的网格一个快速淡出,呼应「卡片不凭空消失」
+  const viewSwap = source === 'local' || playlistSourceFilter.value === 'local';
+  if (!grid || viewSwap || prefersReducedMotion()) {
+    if (grid && viewSwap && !prefersReducedMotion()) {
+      grid.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: 150,
+        easing: 'ease-out',
+        fill: 'forwards'
+      });
+      await wait(150);
+    }
+    playlistSourceFilter.value = source as any;
+    return;
+  }
+
+  filterBusy = true;
+  try {
+    const prevKeys = new Set(items.value.map(cardKey));
+    const nextKeys = new Set(buildItems(source).map(cardKey));
+
+    // ── OUT:被筛掉的卡原地缩淡(不位移 = 「被移除」而非「搬走」),同时记录留存卡 First 位置 ──
+    const outCards: HTMLElement[] = [];
+    const stayRects = new Map<HTMLElement, DOMRect>();
+    grid.querySelectorAll<HTMLElement>('[data-key]').forEach((el) => {
+      if (nextKeys.has(el.dataset.key || '')) stayRects.set(el, el.getBoundingClientRect());
+      else outCards.push(el);
+    });
+    if (!outCards.length && !stayRects.size) {
+      playlistSourceFilter.value = source as any;
+      return;
+    }
+    outCards.forEach((el) => el.classList.add('card-out'));
+    await wait(FILTER_OUT_MS);
+
+    // ── 数据切换:Vue 渲染新集合;nextTick 后仍在同帧,新卡先压住避免闪现 ──
+    playlistSourceFilter.value = source as any;
+    await nextTick();
+
+    const inCards: HTMLElement[] = [];
+    grid.querySelectorAll<HTMLElement>('[data-key]').forEach((el) => {
+      if (!prevKeys.has(el.dataset.key || '')) {
+        el.classList.add('card-pending');
+        inCards.push(el);
+      }
+    });
+
+    // ── MOVE:留存卡 FLIP 弹簧滑到新槽位(轻微错峰) ──
+    let moveIndex = 0;
+    stayRects.forEach((first, el) => {
+      if (!el.isConnected) return;
+      const last = el.getBoundingClientRect();
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+      if (!dx && !dy) return;
+      el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], {
+        duration: FILTER_MOVE_MS,
+        delay: Math.min(moveIndex * 20, 40),
+        easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+      });
+      moveIndex += 1;
+    });
+    await wait(FILTER_MOVE_MS + 40);
+
+    // ── IN:新卡从自己的空槽长出(back-out,逐卡 30ms 错峰) ──
+    inCards.forEach((el, i) => {
+      el.classList.remove('card-pending');
+      el.classList.add('card-in');
+      el.style.animationDelay = `${i * 30}ms`;
+    });
+    await wait(FILTER_IN_MS + inCards.length * 30 + 60);
+    inCards.forEach((el) => {
+      el.classList.remove('card-in');
+      el.style.animationDelay = '';
+    });
+  } finally {
+    // 兜底:任何异常路径都不允许永久锁死筛选
+    filterBusy = false;
+  }
+};
 
 const handleItemClick = (item: any) => {
   touchCardMru(item);
@@ -270,6 +383,52 @@ const handleItemClick = (item: any) => {
 .playlist-source-tabs {
   display: flex;
   margin: 0 16px 16px;
+}
+
+/* ── FILTER 三段编排(OUT 原地缩淡 / IN 从空槽长出;MOVE 由 JS FLIP 驱动) ── */
+.cover-card.card-out {
+  pointer-events: none;
+  animation: card-out var(--filter-out-duration) var(--ease-exit) forwards;
+}
+
+@keyframes card-out {
+  to {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+.cover-card.card-pending {
+  opacity: 0;
+}
+
+.cover-card.card-in {
+  animation: card-in var(--filter-in-duration) var(--d-ease-spring) backwards;
+}
+
+@keyframes card-in {
+  from {
+    transform: scale(var(--pop-from-scale));
+    opacity: 0;
+  }
+}
+
+.cover-grid {
+  animation: grid-fade-in 150ms ease-out;
+}
+
+@keyframes grid-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cover-card.card-out,
+  .cover-card.card-in,
+  .cover-grid {
+    animation-duration: 0.01ms;
+  }
 }
 
 .embedded-local-music {

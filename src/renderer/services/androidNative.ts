@@ -461,7 +461,12 @@ let statusBarLyricBridgeInitialized = false;
 /** 推送整首歌的歌词时间轴；WebView 后台计时器节流时，原生侧用它自行推进歌词。 */
 function pushStatusBarLyricTimeline() {
   if (!isAndroidNative() || !window.AndroidNative!.setStatusBarLyricTimeline) return;
-  const lines = (lrcArray.value || [])
+  // 与 refreshStatusBarLyric 取行保持同源：TTML 歌曲必须推送含逐字数据的
+  // displayLines。若推送无字时间轴，原生时钟会按非逐字推进并与 JS 的逐字
+  // 推送互相翻转 wordByWord/currentWordIndex，双方都判定需要全量重绘（频闪）。
+  const ttmlLines = wordTimedPlayback?.displayLines.value;
+  const source = ttmlLines && ttmlLines.length > 0 ? ttmlLines : lrcArray.value || [];
+  const lines = source
     .map((line) => ({
       text: (line?.text || '').trim(),
       startTime: line?.startTime ?? -1,
@@ -491,7 +496,9 @@ function setupStatusBarLyricBridge() {
       () => playMusic?.value?.id,
       () => playerStore.isPlay,
       () => wordTimedPlayback?.displayLineKey.value,
-      () => wordTimedPlayback?.stableAnimationKey.value
+      // displayLines 引用变化覆盖 TTML 异步加载完成；不能用 stableAnimationKey
+      // （TTML 下逐字变化），否则整曲时间轴会被逐字反复推送
+      () => wordTimedPlayback?.displayLines.value
     ],
     () => {
       pushStatusBarLyricTimeline();

@@ -208,10 +208,7 @@ onBeforeUnmount(() => {
 });
 
 const surfaceDock = useControlsDock(
-  () =>
-    document.querySelector<HTMLElement>(
-      '.shared-player-bottom-surface .apple-style-progress'
-    ),
+  () => document.querySelector<HTMLElement>('.shared-player-bottom-surface .apple-style-progress'),
   {
     hidden: () => surfaceMode.value === 'controls' && !playerTransition.controlsVisible.value,
     enabled: () => !surfacePinned.value && !lyricSelection.active.value
@@ -299,9 +296,7 @@ const surfaceStyle = computed<CSSProperties>(() => {
     width: `${width}px`,
     height: `${height}px`,
     borderRadius: `${finalRadius}px`,
-    transform: surfaceDocked.value
-      ? `translate3d(0, ${surfaceDock.dockShift.value}px, 0)`
-      : 'none',
+    transform: surfaceDocked.value ? `translate3d(0, ${surfaceDock.dockShift.value}px, 0)` : 'none',
     pointerEvents: chromeVisibility.value > 0.02 ? 'auto' : 'none'
   };
 });

@@ -81,6 +81,16 @@ export interface PosterConfig {
   titleOrientation: PosterTitleOrientation;
   /** 演出附加信息 */
   eventLabel: string;
+  /** 生成长图：画布高度随内容自适应 */
+  longImage?: boolean;
+  /** 按最多文字/项目长度显示（仅长图模式生效） */
+  showFullContent?: boolean;
+  /** 曲目列表截取数量（默认 10，1-40） */
+  trackLimit?: number;
+  /** 简介截断字数（默认 30，10-100） */
+  descLimit?: number;
+  /** 曲目列表呈现方式（默认紧凑单行） */
+  trackListStyle?: PosterTrackListStyle;
 }
 
 /** 海报默认配置 */
@@ -106,7 +116,12 @@ export const DEFAULT_POSTER_CONFIG: PosterConfig = {
   accentColorMode: 'cover',
   imageFilter: 'monochrome',
   titleOrientation: 'staggered',
-  eventLabel: 'LIVE ARCHIVE'
+  eventLabel: 'LIVE ARCHIVE',
+  longImage: false,
+  showFullContent: false,
+  trackLimit: 10,
+  descLimit: 30,
+  trackListStyle: 'compact'
 };
 
 export function normalizePosterConfig(config: Partial<PosterConfig>): PosterConfig {
@@ -124,6 +139,15 @@ export function normalizePosterConfig(config: Partial<PosterConfig>): PosterConf
     layout,
     fontWeight,
     accentColorMode: config.accentColorMode === 'custom' ? 'custom' : 'cover',
+    trackLimit: Math.min(
+      40,
+      Math.max(1, Math.round(Number(config.trackLimit) || DEFAULT_POSTER_CONFIG.trackLimit!))
+    ),
+    descLimit: Math.min(
+      100,
+      Math.max(10, Math.round(Number(config.descLimit) || DEFAULT_POSTER_CONFIG.descLimit!))
+    ),
+    trackListStyle: config.trackListStyle === 'detailed' ? 'detailed' : 'compact',
     gradientBgColors: config.gradientBgColors?.length
       ? [...config.gradientBgColors]
       : [...DEFAULT_POSTER_CONFIG.gradientBgColors]
@@ -270,6 +294,30 @@ export interface PosterSongInfo {
   songName: string;
   artists: string;
   coverUrl: string;
+}
+
+/** 海报曲目条目（歌单/专辑部分曲目列表） */
+export interface PosterTrackItem {
+  name: string;
+  artist: string;
+  /** 封面缩略图 URL（详细列表样式使用） */
+  picUrl?: string;
+}
+
+/** 海报曲目列表呈现方式：紧凑单行 / 详细（带封面两行） */
+export type PosterTrackListStyle = 'compact' | 'detailed';
+
+/** 海报主题：歌曲 / 歌单 / 专辑（直接分享，无需摘录歌词） */
+export interface PosterSubject extends PosterSongInfo {
+  kind: 'song' | 'playlist' | 'album';
+  /** 显示标题（歌单名/专辑名）；缺省回退 songName */
+  title?: string;
+  /** 副标题（创建者/歌手名）；engine 的歌手行绘制用 artists，二者可同值 */
+  subtitle?: string;
+  /** 简介原文（engine 内统一按 30 字截断） */
+  description?: string;
+  /** 歌单/专辑曲目（kind 为 playlist/album 时用于"部分曲目"列表） */
+  tracks?: PosterTrackItem[];
 }
 
 /** 分享功能全局配置 */

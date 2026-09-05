@@ -423,7 +423,7 @@ const triggerCrossSearch = async (kw: string, neteaseSongs: any[]) => {
     const crossResults = await crossPlatformSearch(kw, existingSongs);
     if (crossResults.length > 0) {
       results.value = [...results.value, ...crossResults];
-      results.value = rankSearchResults(results.value, keyword.value);
+      results.value = rankSearchResults(results.value, keyword.value, { aliasInsertIndex: 2 });
       classifySongs(crossResults);
     }
   } catch (e) {
@@ -464,7 +464,7 @@ const triggerServerSearch = async (kw: string, existingSongs: any[]) => {
 
     if (deduped.length > 0) {
       results.value = [...results.value, ...deduped];
-      results.value = rankSearchResults(results.value, keyword.value);
+      results.value = rankSearchResults(results.value, keyword.value, { aliasInsertIndex: 2 });
       classifySongs(deduped);
     }
   } catch (e) {
@@ -504,7 +504,7 @@ const triggerUnlockSearch = async (kw: string, existingSongs: any[]) => {
         artists: s.ar
       }));
       results.value = [...results.value, ...formatted];
-      results.value = rankSearchResults(results.value, keyword.value);
+      results.value = rankSearchResults(results.value, keyword.value, { aliasInsertIndex: 2 });
       classifySongs(formatted);
     }
   } catch (e) {
@@ -548,7 +548,7 @@ const triggerPlatformSearch = async (kw: string, existingSongs: any[]) => {
       console.error(`[${platform} 搜索失败]:`, e);
     }
   }
-  results.value = rankSearchResults(results.value, keyword.value);
+  results.value = rankSearchResults(results.value, keyword.value, { aliasInsertIndex: 2 });
 };
 
 // 滚动加载更多

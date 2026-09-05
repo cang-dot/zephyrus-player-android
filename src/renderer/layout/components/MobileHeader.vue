@@ -1782,6 +1782,10 @@ const handleSearchSubmit = () => {
   padding: 0 6px 6px;
   opacity: 0;
   transform: translate3d(0, -5px, 0);
+  // 选项过多（如用户歌单列表）时限高滚动，防止菜单撑出屏幕
+  max-height: 42dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   transition:
     opacity 180ms ease,
     transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -1796,6 +1800,12 @@ const handleSearchSubmit = () => {
     padding-inline: 9px;
     border-radius: 11px;
     font-size: 12px;
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 }
 

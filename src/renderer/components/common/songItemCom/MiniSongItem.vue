@@ -51,7 +51,8 @@
               <span
                 class="cursor-pointer hover:text-[var(--accent-color)]"
                 @click.stop="onArtistClick(artist.id)"
-                >{{ artist.name }}</span>
+                >{{ artist.name }}</span
+              >
               <span v-if="index < artists.length - 1"> / </span>
             </template>
           </n-ellipsis>

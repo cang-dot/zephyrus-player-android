@@ -109,7 +109,11 @@
   <mobile-player-settings v-model:visible="showPlayerSettings" />
 
   <!-- 歌词海报分享弹窗 -->
-  <poster-share-modal v-model:visible="showPosterModal" :lyrics="selectedLyrics" />
+  <poster-share-modal
+    v-model:visible="showPosterModal"
+    :lyrics="selectedLyrics"
+    :subject="posterSubject"
+  />
 </template>
 
 <script setup lang="ts">
@@ -183,7 +187,7 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 });
 
 // 海报分享
-const { showPosterModal, selectedLyrics, handleGeneratePoster } = usePosterShare();
+const { showPosterModal, selectedLyrics, posterSubject, handleGeneratePoster } = usePosterShare();
 const controlsRef = ref();
 const {
   config: styleCfg,

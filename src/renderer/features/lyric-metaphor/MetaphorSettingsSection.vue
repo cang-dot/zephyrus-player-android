@@ -51,16 +51,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, onMounted } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
+
 import {
   createGatewaySession,
-  getGatewayCredits,
-  listGatewayModels,
   type GatewayCredits,
-  type GatewayModel
+  type GatewayModel,
+  getGatewayCredits,
+  listGatewayModels
 } from '@/features/ai/gateway';
-import { getMetaphorConfig, saveMetaphorConfig } from './useMetaphor';
 import SBtn from '@/views/set/SBtn.vue';
+
+import { getMetaphorConfig, saveMetaphorConfig } from './useMetaphor';
 
 const config = reactive(getMetaphorConfig());
 const models = ref<GatewayModel[]>([]);

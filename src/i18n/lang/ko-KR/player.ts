@@ -126,8 +126,10 @@ export default {
   },
   photosensitivity: {
     title: '광과민성 발작 경고',
-    intro: '「에러」플레이어 스타일에는 고빈도 깜빡임(전체 화면 노이즈, 주사선, 클라이맥스의 강한 명암 변화)이 포함되어 있습니다.',
-    detail: '광과민성 발작 병력이 있거나 가족력이 있는 경우 이 스타일을 사용하지 마세요. 밝은 환경에서 사용하고 화면을 오래 응시하지 마세요.',
+    intro:
+      '「에러」플레이어 스타일에는 고빈도 깜빡임(전체 화면 노이즈, 주사선, 클라이맥스의 강한 명암 변화)이 포함되어 있습니다.',
+    detail:
+      '광과민성 발작 병력이 있거나 가족력이 있는 경우 이 스타일을 사용하지 마세요. 밝은 환경에서 사용하고 화면을 오래 응시하지 마세요.',
     confirm: '이해했으며 계속',
     decline: '돌아가기'
   },
@@ -142,6 +144,16 @@ export default {
     styleDefaultFont: '스타일 기본값',
     fontWeight: '글꼴 굵기',
     importFont: '글꼴 가져오기',
+    showTrackInfo: '커버 아래 곡명·아티스트 표시',
+    artworkSize: '커버 크기',
+    artworkAlign: '커버 정렬',
+    alignStart: '왼쪽',
+    alignCenter: '중앙',
+    alignEnd: '오른쪽',
+    backgroundPreset: '배경 프리셋',
+    presetNone: '없음',
+    presetAurora: '오로라',
+    presetFluid: '유체',
     customBackground: '사용자 배경',
     solid: '단색',
     gradient: '그라데이션',

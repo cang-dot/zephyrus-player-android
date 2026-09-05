@@ -376,11 +376,17 @@ onUnmounted(() => {
   color: var(--accent-color);
   background: color-mix(in srgb, var(--accent-color) 12%, transparent);
   cursor: pointer;
-  transition: background-color 160ms ease, transform 160ms ease;
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
 }
 
-.copy-btn:hover { background: color-mix(in srgb, var(--accent-color) 20%, transparent); }
-.copy-btn:active { transform: scale(0.97); }
+.copy-btn:hover {
+  background: color-mix(in srgb, var(--accent-color) 20%, transparent);
+}
+.copy-btn:active {
+  transform: scale(0.97);
+}
 
 .typing-caret {
   display: inline-block;
@@ -393,7 +399,9 @@ onUnmounted(() => {
 }
 
 @keyframes metaphor-caret-blink {
-  50% { opacity: 0; }
+  50% {
+    opacity: 0;
+  }
 }
 
 .metaphor-cached-badge {

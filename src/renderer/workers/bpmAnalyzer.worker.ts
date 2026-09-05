@@ -25,8 +25,8 @@ interface AnalyzeMessage {
 interface BpmResult {
   type: 'result';
   bpm: number;
-  confidence: number;   // 0~1
-  beatOffset: number;  // 第一拍的时间偏移（秒）
+  confidence: number; // 0~1
+  beatOffset: number; // 第一拍的时间偏移（秒）
 }
 
 const MIN_BPM = 60;
@@ -109,14 +109,12 @@ function autocorrelateBPM(
   hopSize: number,
   sampleRate: number
 ): { bpm: number; confidence: number; beatOffset: number } {
-  const hopDuration = hopSize / sampleRate;  // 每帧时间间隔（秒）
-  const minLag = Math.round(MIN_BPM / 60 / hopDuration);   // 最小 lag（对应最大间隔 = 最低 BPM）
-  const maxLag = Math.round(MAX_BPM / 60 / hopDuration);   // 最大 lag（对应最小间隔 = 最高 BPM）
-
+  const hopDuration = hopSize / sampleRate; // 每帧时间间隔（秒）
+  const minLag = Math.round(MIN_BPM / 60 / hopDuration); // 最小 lag（对应最大间隔 = 最低 BPM）
   // 注意：lag 越大 → 间隔越大 → BPM 越低
   // 所以 minLag 对应 MAX_BPM，maxLag 对应 MIN_BPM
-  const lowLag = Math.round((60 / MAX_BPM) / hopDuration);
-  const highLag = Math.round((60 / MIN_BPM) / hopDuration);
+  const lowLag = Math.round(60 / MAX_BPM / hopDuration);
+  const highLag = Math.round(60 / MIN_BPM / hopDuration);
 
   let bestLag = 0;
   let bestScore = 0;
@@ -138,7 +136,7 @@ function autocorrelateBPM(
   }
 
   if (bestLag === 0 || sumScore === 0) {
-    return { bpm: 120, confidence: 0, beatOffset: 0 };  // 默认值
+    return { bpm: 120, confidence: 0, beatOffset: 0 }; // 默认值
   }
 
   // 倍频校正
@@ -158,18 +156,13 @@ function autocorrelateBPM(
   const confidence = Math.min(1, bestScore / (sumScore / (highLag - lowLag + 1)));
 
   // 估算第一拍偏移：找能量包络的第一个峰值
-  const beatOffset = findFirstBeat(energy, hopSize, sampleRate, bestLag);
+  const beatOffset = findFirstBeat(energy, hopSize, sampleRate);
 
   return { bpm, confidence, beatOffset };
 }
 
 /** 找第一拍位置 */
-function findFirstBeat(
-  energy: Float32Array,
-  hopSize: number,
-  sampleRate: number,
-  beatLag: number
-): number {
+function findFirstBeat(energy: Float32Array, hopSize: number, sampleRate: number): number {
   // 找能量包络的第一个显著峰值
   const threshold = 0.3 * Math.max(...energy);
   for (let i = 1; i < energy.length - 1; i++) {

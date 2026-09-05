@@ -1,9 +1,10 @@
+import tinycolor from 'tinycolor2';
 import { computed } from 'vue';
 
-import tinycolor from 'tinycolor2';
-
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
+import { SMOKE_DEFAULT_LYRIC_COLOR } from '@/config/playerStyleConfig';
 import { playMusic } from '@/hooks/MusicHook';
+import { useCoverColor } from '@/hooks/useCoverColor';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import type { MobilePlayerStyleKey, PlayerStyleColorChoice } from '@/types/playerStyle';
 import { getFontFamily } from '@/utils/fontLoader';
@@ -54,11 +55,16 @@ function saturateHex(color: string): string {
 export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
   const { config, effects, isCustom } = useStyleCustomConfig(styleKey);
   const styleEngine = useStyleEngineStore();
+  // 响应式封面主色（全局单例，watch playMusic.picUrl 自动更新）。
+  // 不能用 'var(--accent-color)' 字符串兜底：切歌后字符串不变导致 computed 不重算，
+  // saturateHex 里的 getComputedStyle 读到的是旧值（表现为流体背景不随切歌换色）。
+  const coverColor = useCoverColor();
 
   const themeColor = computed(
     () =>
       playMusic.value?.primaryColor ||
       playMusic.value?.backgroundColor ||
+      coverColor.primaryColor.value ||
       'var(--accent-color, #ffffff)'
   );
   const saturatedThemeColor = computed(() => saturateHex(themeColor.value));
@@ -82,7 +88,9 @@ export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
       return ORIGINAL_STYLE_BACKGROUNDS[styleKey] || themeColor.value;
     }
     if (config.value.backgroundMode === 'gradient') {
-      return config.value.gradientColors.colors[1] || config.value.gradientColors.colors[0] || '#111111';
+      return (
+        config.value.gradientColors.colors[1] || config.value.gradientColors.colors[0] || '#111111'
+      );
     }
     if (config.value.backgroundMode === 'image') {
       return config.value.imageBrightness > 70 ? '#eeeeee' : '#111111';
@@ -90,7 +98,13 @@ export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
     return config.value.solidColor;
   });
 
-  const baseLyricColor = computed(() => config.value.lyricColor || '#ffffff');
+  // 烟雾样式出厂色即哨兵值：未自定义歌词颜色时跟随高饱和歌曲主色
+  const baseLyricColor = computed(() => {
+    if (styleKey === 'smoke' && config.value.lyricColor === SMOKE_DEFAULT_LYRIC_COLOR) {
+      return saturatedThemeColor.value;
+    }
+    return config.value.lyricColor || '#ffffff';
+  });
   const selectedFontFamily = computed(() => {
     if (!isCustom.value) return '';
     if (config.value.builtinFontId) return getFontFamily(config.value.builtinFontId);
@@ -100,7 +114,13 @@ export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {
   const climaxColors = computed(() => {
     const base = baseLyricColor.value;
     const mainThemeEnabled = !['stage', 'frenzy'].includes(styleKey) || effects.value.lyricColor;
-    if (!isCustom.value || !styleEngine.isInClimax || !config.value.climaxUseThemeColor) {
+    // 默认样式不做高潮变色:高潮时段歌词保持所选颜色不变
+    if (
+      styleKey === 'default' ||
+      !isCustom.value ||
+      !styleEngine.isInClimax ||
+      !config.value.climaxUseThemeColor
+    ) {
       return { main: base, auxiliary: base, translation: base };
     }
     if (!config.value.climaxSplitColors) {

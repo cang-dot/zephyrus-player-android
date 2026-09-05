@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, onMounted, ref, type CSSProperties } from 'vue';
+import { computed, type CSSProperties, onBeforeUnmount, onMounted, ref } from 'vue';
 
 /**
  * 播放控件「下移贴底」隐藏模式
@@ -41,9 +41,7 @@ export function useControlsDock(
     };
   });
 
-  const dockActive = computed(
-    () => options.hidden() && options.enabled() && shift.value > 0
-  );
+  const dockActive = computed(() => options.hidden() && options.enabled() && shift.value > 0);
 
   onMounted(() => {
     window.addEventListener('resize', scheduleMeasure);

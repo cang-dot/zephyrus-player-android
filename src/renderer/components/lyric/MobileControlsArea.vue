@@ -76,6 +76,8 @@
         class="apple-style-progress"
         @click="handleProgressBarClick"
         @mousedown="handleMouseDown"
+        @mousemove="handleProgressHover"
+        @mouseleave="handleProgressLeave"
       >
         <div class="progress-track">
           <div class="climax-track" v-if="styleEngine.climaxSegments.length > 0 && allTime > 0">
@@ -113,6 +115,17 @@
           ></div>
         </div>
       </div>
+      <!-- 悬停预览：歌词行 + 时间（桌面端 pointer:fine 专属） -->
+      <transition name="hover-tip-fade">
+        <div
+          v-if="showHoverTooltip && (hoverLyric || hoverTimeStr)"
+          class="progress-hover-tooltip"
+          :style="{ left: hoverLeft }"
+        >
+          <div v-if="hoverLyric" class="tooltip-lyric">{{ hoverLyric }}</div>
+          <div class="tooltip-time">{{ hoverTimeStr }}</div>
+        </div>
+      </transition>
       <div class="time-info">
         <span class="current-time">{{ secondToMinute(displayNowTime) }}</span>
         <span v-if="isSongTransitioning" class="transition-status" aria-live="polite">
@@ -131,12 +144,7 @@
       <div v-if="isLandscape" class="side-button" aria-label="播放列表" @click="handleShowPlaylist">
         <i class="iconfont icon-list"></i>
       </div>
-      <div
-        v-if="isLandscape"
-        class="side-button"
-        aria-label="播放设置"
-        @click="handleShowSettings"
-      >
+      <div v-if="isLandscape" class="side-button" aria-label="播放设置" @click="handleShowSettings">
         <i class="ri-equalizer-3-line"></i>
       </div>
       <div v-if="!isLandscape" class="side-button" @click="handleTogglePlayMode">
@@ -164,15 +172,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useMediaQuery } from '@vueuse/core';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import { useControlsDock } from '@/composables/useControlsDock';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
-import { allTime, artistList, nowTime, pause, play, playMusic } from '@/hooks/MusicHook';
+import {
+  allTime,
+  artistList,
+  getLyricTextAtTime,
+  nowTime,
+  pause,
+  play,
+  playMusic
+} from '@/hooks/MusicHook';
 import { usePlayMode } from '@/hooks/usePlayMode';
 import { audioService } from '@/services/audioService';
 import { useListenTogetherStore } from '@/store/modules/listenTogether';
@@ -542,6 +558,29 @@ const dragPreviewTime = ref<number | null>(null);
 const skipNextProgressClick = ref(false);
 const dragProgressElement = ref<HTMLElement | null>(null);
 
+// ==================== 进度条悬停预览（桌面端 pointer:fine 专属） ====================
+const isPointerFine = window.matchMedia?.('(pointer: fine)').matches ?? false;
+const showHoverTooltip = ref(false);
+const hoverLyric = ref<string | null>(null);
+const hoverTimeStr = ref('');
+const hoverLeft = ref('50%');
+
+const handleProgressHover = (e: MouseEvent) => {
+  if (!isPointerFine || isThumbDragging.value || allTime.value <= 0) return;
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const timeSec = percent * allTime.value;
+  hoverTimeStr.value = secondToMinute(timeSec);
+  hoverLyric.value = getLyricTextAtTime(timeSec);
+  // 左右钳制，避免 tooltip 溢出屏幕
+  hoverLeft.value = `${Math.min(88, Math.max(12, percent * 100))}%`;
+  showHoverTooltip.value = true;
+};
+
+const handleProgressLeave = () => {
+  showHoverTooltip.value = false;
+};
+
 const getSeekTime = (clientX: number, target: HTMLElement): number | null => {
   const rect = (
     target.closest('.apple-style-progress') || dragProgressElement.value
@@ -568,6 +607,7 @@ const handleProgressBarClick = (e: MouseEvent) => {
 const handleMouseDown = (e: MouseEvent) => {
   if (e.button !== 0) return;
   isThumbDragging.value = true;
+  showHoverTooltip.value = false;
   skipNextProgressClick.value = true;
   dragProgressElement.value = (e.currentTarget as HTMLElement).closest('.apple-style-progress');
   dragPreviewTime.value = getSeekTime(e.clientX, e.target as HTMLElement);
@@ -628,6 +668,8 @@ const handleThumbTouchEnd = () => {
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  /* 无毛玻璃底后保证浅色背景上的可读性 */
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
   opacity: 0;
   transition:
     opacity 0.3s ease,
@@ -667,11 +709,8 @@ const handleThumbTouchEnd = () => {
     &:not(.shared-surface-content) {
       left: 12px;
       right: 12px;
-      border: 1px solid rgba(var(--player-ink-rgb, 255, 255, 255), 0.12);
+      border: 1px solid rgba(var(--player-ink-rgb, 255, 255, 255), 0.1);
       border-radius: 18px;
-      background: rgba(18, 18, 20, 0.62);
-      backdrop-filter: blur(12px) saturate(1.2);
-      -webkit-backdrop-filter: blur(12px) saturate(1.2);
     }
 
     .progress-container {
@@ -864,8 +903,57 @@ const handleThumbTouchEnd = () => {
 }
 
 .progress-container {
+  position: relative;
   margin-bottom: 10px;
   opacity: clamp(0, calc((var(--player-open-progress, 1) - 0.34) * 2.8), 1);
+}
+
+/* 进度条悬停预览 tooltip（桌面端 pointer:fine 专属） */
+.progress-hover-tooltip {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: min(60vw, 420px);
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  pointer-events: none;
+  white-space: nowrap;
+
+  .tooltip-lyric {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    line-height: 1.4;
+    opacity: 0.92;
+  }
+
+  .tooltip-time {
+    font-size: 11px;
+    line-height: 1.2;
+    opacity: 0.6;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.hover-tip-fade-enter-active,
+.hover-tip-fade-leave-active {
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.hover-tip-fade-enter-from,
+.hover-tip-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
 }
 
 .time-info {

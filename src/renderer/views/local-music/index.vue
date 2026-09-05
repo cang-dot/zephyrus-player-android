@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="local-music-page" :class="{ 'is-embedded': embedded }">
     <!-- ==================== 移动端（Capacitor） ==================== -->
     <div
@@ -12,6 +12,7 @@
         v-if="localMusicStore.musicList.length > 0"
         v-model="activeTab"
         :tabs="tabs.map((tab) => ({ key: tab.key, label: tab.label }))"
+        :page-path="embedded ? '/list' : '/local-music'"
         full-width
         class="tab-bar-glow"
       />
@@ -458,7 +459,9 @@ import GlowTabs from '@/components/common/GlowTabs.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import {
   registerMobileTopbarAction,
-  unregisterMobileTopbarAction
+  registerMobileTopbarPresentation,
+  unregisterMobileTopbarAction,
+  unregisterMobileTopbarPresentation
 } from '@/composables/useMobileTopbarMenu';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { useLocalMusicStore } from '@/store/modules/localMusic';
@@ -524,6 +527,11 @@ watch(activeTab, (tab) => {
 const topbarActionPrefix = `local-music-${getCurrentInstance()?.uid ?? 'view'}`;
 const syncTopbarActions = () => {
   if (!isMobileNative) return;
+  registerMobileTopbarPresentation({
+    routePath: '/local-music/*',
+    title: t('localMusic.title') || '本地音乐',
+    subtitle: `${localMusicStore.musicList.length} 首`
+  });
   registerMobileTopbarAction({
     id: `${topbarActionPrefix}-scan`,
     routePath: route.path,
@@ -647,6 +655,11 @@ function exitDetailView(): void {
 
 // ==================== Folder picker ====================
 async function handleAddFolder(): Promise<void> {
+  // 纯浏览器环境（Web 版）没有文件夹访问能力
+  if (!isElectron && !(window as any).AndroidNative) {
+    message.warning('网页版暂不支持扫描本地音乐，请使用客户端');
+    return;
+  }
   if (isMobileNative) {
     // 移动端：使用 NativeBridge 的文件夹选择器
     (window as any).AndroidNative.pickAudioFolder();
@@ -768,6 +781,7 @@ onBeforeUnmount(() => {
   unregisterMobileTopbarAction(`${topbarActionPrefix}-scan`);
   unregisterMobileTopbarAction(`${topbarActionPrefix}-folders`);
   unregisterMobileTopbarAction(`${topbarActionPrefix}-refresh`);
+  unregisterMobileTopbarPresentation('/local-music/*');
   if (typeof window !== 'undefined') {
     delete (window as any).__localMusicFolderPicked;
   }
