@@ -27,7 +27,7 @@ function isCapacitor(): boolean {
  * - Web: VITE_API 环境变量
  */
 function computeBaseURL(): string {
-  if (window.electron) {
+  if (typeof window !== 'undefined' && (window as any).electron) {
     // Electron: 本地 API 服务
     const port = setData?.musicApiPort || 30488;
     return `http://127.0.0.1:${port}`;

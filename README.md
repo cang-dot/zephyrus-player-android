@@ -1,20 +1,38 @@
 # Zephyrus Player
 
-Zephyrus Player 是一款只为 Android 手机设计的音乐播放器：歌曲、歌词和播放器舞台共享同一条时间轴，常用操作围绕单手触控和可中断动画组织。
+<p align="center">
+  <img src="assets/banner-magazine.webp" alt="Zephyrus Player" width="100%" />
+</p>
 
-[![版本](https://img.shields.io/badge/version-v1.3.0-b48b52)](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.3.0)
+Zephyrus Player 是一款只为 Android 手机设计的音乐播放器：歌曲、歌词和播放器舞台共享同一条时间轴，常用操作围绕单手触控和可中断动画组织。它同时提供**网页版**——电脑浏览器打开即可使用同一套账号与播放能力。
+
+[![版本](https://img.shields.io/badge/version-v1.3.5-b48b52)](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.3.5)
 [![Android](https://img.shields.io/badge/Android-8.0%2B-3ddc84?logo=android&logoColor=white)](https://developer.android.com/about/versions/oreo)
+[![Web](https://img.shields.io/badge/Web-mucang.xyz%2Fzephyrus%2Fweb-4285f4?logo=googlechrome&logoColor=white)](https://mucang.xyz/zephyrus/web/)
 [![Vue](https://img.shields.io/badge/Vue_3-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![许可证](https://img.shields.io/badge/license-AGPL--3.0-blue)](./LICENSE)
 
 ## 下载
 
-- [GitHub Release v1.3.0](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.3.0)
+- [GitHub Release v1.3.5](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.3.5)
 - [服务器直链](https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk)
 - [Android 产品介绍](https://mucang.xyz/zephyrus/)
 - [使用文档](https://mucang.xyz/zephyrus/docs/)
 
 安装需要 Android 8.0 或更高版本。首次启动按提示授予通知、悬浮窗和本地文件访问权限；没有这些权限时，基础播放仍可使用，但对应功能会保持关闭。
+
+## 网页版
+
+电脑浏览器打开 [mucang.xyz/zephyrus/web](https://www.mucang.xyz/zephyrus/web/) 即可直接使用，无需安装：
+
+<p align="center">
+  <img src="assets/web-desktop.webp" alt="Zephyrus Player 网页版桌面端" width="100%" />
+</p>
+
+- 与 Android 端同一套网易云 / QQ 音乐 / 酷狗账号体系，歌单、收藏与播放状态互通；
+- 完整的搜索、歌单/专辑详情、播放队列与歌词展示；播放器支持封面大小、对齐、背景预设（极光 / 流体 / MD3 动态）等自定义；
+- 本地文件扫描、悬浮窗与状态栏歌词等依赖手机硬件的能力在网页版保持关闭；
+- 网页版与安卓端共用同一套部署与更新通道，功能随版本持续同步。
 
 ## 主要能力
 
@@ -38,7 +56,7 @@ TTML 可以同时携带主唱、背景、对唱、翻译和罗马音。默认播
 
 ### 主界面导航
 
-四个主界面以常驻 pager 承载：横滑时当前页与相邻页跟手平移，松手按速度弹簧滑入目标页；每个界面独立记忆滚动位置。顶栏胶囊随页面切换收缩与展开。
+四个主界面以常驻 pager 承载：横滑时当前页与相邻页跟手平移，松手按速度弹簧滑入目标页；每个界面独立记忆滚动位置。
 
 ### 音频与过渡
 
@@ -47,6 +65,7 @@ TTML 可以同时携带主唱、背景、对唱、翻译和罗马音。默认播
 - 智能过渡支持轻量到智能的连续调节、无缝切歌和可中断的加载反馈。
 - 播放器的打开与关闭接入全局弹簧进度：拖拽跟手、松手按速度滑入或滑出，可随时反向。
 - 本地文件播放失败时只提示一次并安全推进队列，不会在同一首歌上重复循环报错。
+- **在线歌曲同样驱动音频响应**：鼓点、能量与 BPM 特征由原生引擎分析提供，本地与在线歌曲一视同仁。
 
 ### 来源与账号
 
