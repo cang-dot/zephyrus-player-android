@@ -141,14 +141,14 @@
 
     <!-- 控制按钮 -->
     <div class="control-buttons">
+      <div class="side-button" @click="handleTogglePlayMode">
+        <i :class="[playModeIcon, { 'intelligence-active': playMode === 3 }]"></i>
+      </div>
       <div v-if="isLandscape" class="side-button" aria-label="播放列表" @click="handleShowPlaylist">
         <i class="iconfont icon-list"></i>
       </div>
       <div v-if="isLandscape" class="side-button" aria-label="播放设置" @click="handleShowSettings">
         <i class="ri-equalizer-3-line"></i>
-      </div>
-      <div v-if="!isLandscape" class="side-button" @click="handleTogglePlayMode">
-        <i :class="[playModeIcon, { 'intelligence-active': playMode === 3 }]"></i>
       </div>
       <div class="main-button prev" @click="handlePrev">
         <i class="ri-skip-back-fill"></i>

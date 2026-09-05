@@ -460,7 +460,7 @@ onBeforeUnmount(() => {
   align-items: var(--artwork-align-inner, center);
   justify-content: center;
   /* 底部留白略大,让封面+文字的视觉重心整体上移 */
-  padding: 12px 20px max(32px, 5%);
+  padding: calc(var(--safe-area-inset-top, 0px) + 10px) 20px max(32px, 5%);
   transition:
     opacity 260ms ease,
     transform 380ms cubic-bezier(0.32, 0.72, 0, 1),
@@ -611,7 +611,7 @@ onBeforeUnmount(() => {
 }
 
 .landscape .artwork-zone {
-  padding-top: 8px;
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 8px);
   padding-left: 24px;
   padding-right: 24px;
 }
