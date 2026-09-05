@@ -131,6 +131,16 @@ export default {
     confirm: '我已知曉並繼續',
     decline: '返回'
   },
+  preset: {
+    modeClassic: '經典',
+    modeLyric: '大字歌詞',
+    background: '背景',
+    lyric: '歌詞',
+    climax: '高潮效果',
+    saveCurrent: '儲存目前組合為預設',
+    presetName: '預設',
+    hideCoverClassic: '隱藏封面（歌詞鋪滿全螢幕）'
+  },
   styleCustomization: {
     title: '樣式設定',
     reset: '一鍵還原',

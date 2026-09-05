@@ -133,6 +133,16 @@ export default {
     confirm: '理解したので続行',
     decline: '戻る'
   },
+  preset: {
+    modeClassic: 'クラシック',
+    modeLyric: 'ビッグ歌詞',
+    background: '背景',
+    lyric: '歌詞',
+    climax: 'サビ演出',
+    saveCurrent: '現在の組み合わせをプリセット保存',
+    presetName: 'プリセット',
+    hideCoverClassic: 'カバーを非表示（全画面歌詞）'
+  },
   styleCustomization: {
     title: 'スタイル設定',
     reset: 'リセット',

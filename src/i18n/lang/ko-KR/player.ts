@@ -133,6 +133,16 @@ export default {
     confirm: '이해했으며 계속',
     decline: '돌아가기'
   },
+  preset: {
+    modeClassic: '클래식',
+    modeLyric: '빅 가사',
+    background: '배경',
+    lyric: '가사',
+    climax: '클라이맥스 연출',
+    saveCurrent: '현재 조합을 프리셋으로 저장',
+    presetName: '프리셋',
+    hideCoverClassic: '커버 숨기기(전체 화면 가사)'
+  },
   styleCustomization: {
     title: '스타일 설정',
     reset: '초기화',

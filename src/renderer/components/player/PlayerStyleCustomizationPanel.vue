@@ -33,7 +33,7 @@
         <input v-model="local.lyricColor" type="color" />
       </label>
 
-      <template v-if="styleKey === 'frenzy'">
+      <template v-if="paramProfile === 'frenzy'">
         <div class="section-label">狂热文字分段颜色</div>
         <label class="setting-row">
           <span>常态第一段</span>
@@ -257,19 +257,19 @@
         <div class="section-label">
           {{ tr('player.styleCustomization.climaxEffects', '高潮效果') }}
         </div>
-        <label v-if="styleKey === 'frenzy'" class="setting-row">
+        <label v-if="paramProfile === 'frenzy'" class="setting-row">
           <span>CRT</span><input v-model="local.effectCrt" type="checkbox" />
         </label>
-        <label v-if="styleKey === 'error'" class="setting-row">
+        <label v-if="paramProfile === 'error'" class="setting-row">
           <span>{{ tr('player.styleCustomization.errorScanlines', '扫描线') }}</span>
           <input v-model="local.effectCrt" type="checkbox" />
         </label>
-        <label v-if="styleKey === 'error'" class="setting-row">
+        <label v-if="paramProfile === 'error'" class="setting-row">
           <span>{{ tr('player.styleCustomization.errorEdgeGlow', '高潮边缘光') }}</span>
           <input v-model="local.errorEdgeGlow" type="checkbox" />
         </label>
         <label
-          v-if="styleKey === 'frenzy' || styleKey === 'stage' || styleKey === 'error'"
+          v-if="paramProfile === 'frenzy' || paramProfile === 'stage' || paramProfile === 'error'"
           class="setting-row"
         >
           <span>{{ tr('player.styleCustomization.lyricRecolor', '歌词变色') }}</span>
@@ -283,7 +283,7 @@
             @change="setStaggeredEffect($event)"
           />
         </label>
-        <label v-if="styleKey === 'eerie' || styleKey === 'smoke'" class="setting-row">
+        <label v-if="paramProfile === 'eerie' || paramProfile === 'smoke'" class="setting-row">
           <span>{{ tr('player.styleCustomization.keyword', '重点字') }}</span>
           <input
             :checked="local.effectKeyword === true"
@@ -304,7 +304,7 @@
           <input
             :checked="local.effectWordDrop === true"
             type="checkbox"
-            @change="styleKey === 'eerie' ? setEerieEffect('drop', $event) : setWordDrop($event)"
+            @change="paramProfile === 'eerie' ? setEerieEffect('drop', $event) : setWordDrop($event)"
           />
         </label>
       </template>
@@ -345,50 +345,50 @@
       <div v-if="hasStyleSpecificSettings" class="section-label">
         {{ tr('player.styleCustomization.styleEffects', '样式参数') }}
       </div>
-      <label v-if="styleKey === 'stage'" class="range-row">
+      <label v-if="paramProfile === 'stage'" class="range-row">
         <span>Aurora {{ local.auroraSpeed }}</span>
         <input v-model.number="local.auroraSpeed" type="range" min="0.4" max="2" step="0.1" />
       </label>
-      <label v-if="styleKey === 'stage'" class="range-row">
+      <label v-if="paramProfile === 'stage'" class="range-row">
         <span
           >{{ tr('player.styleCustomization.beatFlash', '鼓点闪白') }}
           {{ local.beatFlashIntensity }}</span
         >
         <input v-model.number="local.beatFlashIntensity" type="range" min="0" max="1" step="0.05" />
       </label>
-      <label v-if="styleKey === 'eerie'" class="range-row">
+      <label v-if="paramProfile === 'eerie'" class="range-row">
         <span
           >{{ tr('player.styleCustomization.newspaperFrequency', '报纸闪现频率') }}
           {{ local.newspaperFreq }}ms</span
         >
         <input v-model.number="local.newspaperFreq" type="range" min="200" max="1000" step="100" />
       </label>
-      <label v-if="styleKey === 'eerie'" class="range-row">
+      <label v-if="paramProfile === 'eerie'" class="range-row">
         <span
           >{{ tr('player.styleCustomization.keywordSize', '重点字字号') }}
           {{ local.keywordSize }}</span
         >
         <input v-model.number="local.keywordSize" type="range" min="16" max="48" step="2" />
       </label>
-      <label v-if="styleKey === 'neon'" class="range-row">
+      <label v-if="paramProfile === 'neon'" class="range-row">
         <span
           >{{ tr('player.styleCustomization.glowRadius', '光晕半径') }} {{ local.glowRadius }}</span
         >
         <input v-model.number="local.glowRadius" type="range" min="4" max="30" step="2" />
       </label>
-      <label v-if="styleKey === 'neon'" class="range-row">
+      <label v-if="paramProfile === 'neon'" class="range-row">
         <span
           >{{ tr('player.styleCustomization.pulseSpeed', '脉冲速度') }} {{ local.pulseSpeed }}</span
         >
         <input v-model.number="local.pulseSpeed" type="range" min="0.5" max="3" step="0.1" />
       </label>
-      <label v-if="styleKey === 'frenzy'" class="range-row">
+      <label v-if="paramProfile === 'frenzy'" class="range-row">
         <span
           >{{ tr('player.styleCustomization.giantSize', '巨字字号') }} {{ local.giantSize }}</span
         >
         <input v-model.number="local.giantSize" type="range" min="40" max="120" step="5" />
       </label>
-      <template v-if="styleKey === 'error'">
+      <template v-if="paramProfile === 'error'">
         <label class="range-row">
           <span
             >{{ tr('player.styleCustomization.errorNoise', '噪点强度') }}
@@ -465,7 +465,7 @@
           <input v-model.number="local.staggeredRotation" type="range" min="0" max="12" step="1" />
         </label>
       </template>
-      <template v-if="styleKey === 'smoke'">
+      <template v-if="paramProfile === 'smoke'">
         <label class="setting-row">
           <span>{{
             tr('player.styleCustomization.smokeFollowThemeColor', '烟雾颜色跟随歌曲')
@@ -572,6 +572,8 @@ import { BUILTIN_FONTS } from '@/types/share';
 import { ensureFontLoaded } from '@/utils/fontLoader';
 
 const props = defineProps<{
+  /** 参数分组显示档案:预设化后与 styleKey 解耦(数据统一挂 default) */
+  uiProfile?: string;
   styleKey: MobilePlayerStyleKey;
   modelValue: PlayerStyleCustomConfig;
 }>();
@@ -631,11 +633,12 @@ const colorLayers = computed(() => [
   { key: 'auxiliary' as const, label: tr('player.styleCustomization.auxiliary', '背景 / 对唱词') },
   { key: 'translation' as const, label: tr('player.styleCustomization.translation', '翻译') }
 ]);
+const paramProfile = computed(() => props.uiProfile || props.styleKey);
 const hasClimaxEffects = computed(() =>
-  ['stage', 'eerie', 'frenzy', 'smoke', 'error'].includes(props.styleKey)
+  ['stage', 'eerie', 'frenzy', 'smoke', 'error'].includes(paramProfile.value)
 );
 const hasStyleSpecificSettings = computed(() =>
-  ['stage', 'eerie', 'neon', 'frenzy', 'smoke', 'error'].includes(props.styleKey)
+  ['stage', 'eerie', 'neon', 'frenzy', 'smoke', 'error'].includes(paramProfile.value)
 );
 const customFontSelected = computed(() =>
   Boolean(local.value.builtinFontId || local.value.customFontData)

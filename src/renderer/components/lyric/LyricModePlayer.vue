@@ -274,31 +274,26 @@ function readPresetIds() {
     backgroundPresetId.value = typeof saved.backgroundPresetId === 'string' ? saved.backgroundPresetId : 'theme-solid';
     lyricPresetId.value = typeof saved.lyricPresetId === 'string' ? saved.lyricPresetId : 'serif-line';
     climaxPresetId.value = typeof saved.climaxPresetId === 'string' ? saved.climaxPresetId : 'none';
-    presetParams.value =
-      saved.presetParams && typeof saved.presetParams === 'object'
-        ? (saved.presetParams as Record<string, unknown>)
-        : {};
   } catch {
     backgroundPresetId.value = 'theme-solid';
     lyricPresetId.value = 'serif-line';
     climaxPresetId.value = 'none';
-    presetParams.value = {};
   }
 }
 
 const backgroundPresetId = ref('theme-solid');
 const lyricPresetId = ref('serif-line');
 const climaxPresetId = ref('none');
-const presetParams = ref<Record<string, unknown>>({});
 
 const climaxEffects = computed(() => getClimaxEffects(climaxPresetId.value));
+/** 歌词/背景参数:预设出厂值打底,styleCustomConfig['default'](面板编辑的唯一参数源)覆盖 */
 const lyricParams = computed(() => ({
   ...(getLyricPreset(lyricPresetId.value).params || {}),
-  ...(presetParams.value as Record<string, unknown>)
+  ...(styleCfg.value as Record<string, unknown>)
 }));
 const backgroundParams = computed(() => ({
   ...(backgroundPresetParamsDefaults[backgroundPresetId.value] || {}),
-  ...(presetParams.value as Record<string, unknown>)
+  ...(styleCfg.value as Record<string, unknown>)
 }));
 
 /** 背景组件的参数默认值(与 playerPresets.ts 的 params 保持一致的运行时兜底) */
