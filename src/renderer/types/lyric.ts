@@ -1,9 +1,4 @@
-import type {
-  MobilePlayerStyleKey,
-  PlayerStyleCustomConfig,
-  PlayerMode,
-  StylePreset
-} from './playerStyle';
+import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from './playerStyle';
 
 export type LyricAlignment = 'left' | 'center' | 'right';
 export type LyricSwipeDirection = 'none' | 'left' | 'right';
@@ -193,19 +188,6 @@ export interface LyricConfig {
   hideLyrics: boolean;
   contentWidth: number; // 内容区域宽度百分比
   playerStyle: MobilePlayerStyleKey | 'classic';
-  // ===== 双模式 + 三类预设(播放器样式重组) =====
-  /** 基础模式:经典(封面+滚动歌词)/ 大字歌词;迁移后 playerStyle 仅作兼容留存 */
-  playerMode?: PlayerMode;
-  /** 大字歌词模式的歌词渲染预设 id */
-  lyricPresetId?: string;
-  /** 背景预设 id(两种模式通用) */
-  backgroundPresetId?: string;
-  /** 高潮效果预设 id */
-  climaxPresetId?: string;
-  /** 用户保存的组合预设 */
-  stylePresets?: StylePreset[];
-  /** 经典模式:隐藏歌曲封面(歌词铺满全屏,信息置顶) */
-  hideCoverClassic?: boolean;
   animationIntensity: 'soft' | 'normal' | 'power'; // 舞台模式歌词动画幅度
   // 移动端配置
   mobileLayout: 'default' | 'ios' | 'android';

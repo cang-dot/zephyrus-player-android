@@ -23,9 +23,15 @@ import { useWindowSize } from '@vueuse/core';
 import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import DefaultMobilePlayerV2 from '@/components/lyric/DefaultMobilePlayerV2.vue';
-import LyricModePlayer from '@/components/lyric/LyricModePlayer.vue';
+import EerieMobilePlayer from '@/components/lyric/EerieMobilePlayer.vue';
+import ErrorMobilePlayer from '@/components/lyric/ErrorMobilePlayer.vue';
+import FrenzyMobilePlayer from '@/components/lyric/FrenzyMobilePlayer.vue';
 import MusicFull from '@/components/lyric/MusicFull.vue';
-import { migrateLegacyPlayerStyle } from '@/config/playerPresets';
+import NeonMobilePlayer from '@/components/lyric/NeonMobilePlayer.vue';
+import RainMobilePlayer from '@/components/lyric/RainMobilePlayer.vue';
+import SmokeMobilePlayer from '@/components/lyric/SmokeMobilePlayer.vue';
+import StageMobilePlayer from '@/components/lyric/StageMobilePlayer.vue';
+import StarChartPlayer from '@/components/lyric/StarChartPlayer.vue';
 import { getStyle } from '@/playerStyles';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
@@ -35,59 +41,26 @@ import { isMobile } from '@/utils';
 
 // 响应式配置状态
 const playerStyle = ref<LyricConfig['playerStyle']>(DEFAULT_LYRIC_CONFIG.playerStyle);
-const playerMode = ref<LyricConfig['playerMode']>('classic');
 
-/**
- * 读取配置并执行旧样式迁移:
- * - playerStyle='classic' → 经典模式
- * - playerStyle=旧样式 key(stage/frenzy/…) → 对应模式+三类预设(一次性写回)
- * - playerMode 已存在则直接使用(迁移只发生一次)
- */
+// 从 localStorage 读取配置
 function loadConfig() {
   const saved = localStorage.getItem('music-full-config');
-  if (!saved) {
-    playerStyle.value = DEFAULT_LYRIC_CONFIG.playerStyle;
-    playerMode.value = 'classic';
-    return;
-  }
-  try {
-    const parsed = JSON.parse(saved) as Record<string, unknown>;
-    const savedStyle = typeof parsed.playerStyle === 'string' ? parsed.playerStyle : '';
-    const savedMode = typeof parsed.playerMode === 'string' ? parsed.playerMode : '';
-
-    if (savedMode === 'classic' || savedMode === 'lyric') {
-      playerMode.value = savedMode;
-      playerStyle.value = savedMode === 'classic' ? 'classic' : 'default';
-      return;
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      const savedStyle = parsed.playerStyle;
+      const normalized =
+        savedStyle === 'classic' || isMobilePlayerStyleKey(savedStyle)
+          ? savedStyle
+          : DEFAULT_LYRIC_CONFIG.playerStyle;
+      playerStyle.value = normalized;
+      if (savedStyle !== normalized) {
+        parsed.playerStyle = normalized;
+        localStorage.setItem('music-full-config', JSON.stringify(parsed));
+      }
+    } catch {
+      playerStyle.value = DEFAULT_LYRIC_CONFIG.playerStyle;
     }
-
-    if (savedStyle === 'classic') {
-      playerMode.value = 'classic';
-      playerStyle.value = 'classic';
-      parsed.playerMode = 'classic';
-      localStorage.setItem('music-full-config', JSON.stringify(parsed));
-      return;
-    }
-
-    if (isMobilePlayerStyleKey(savedStyle)) {
-      // 旧样式迁移:映射为基础模式+三类预设并写回
-      const migration = migrateLegacyPlayerStyle(savedStyle);
-      playerMode.value = migration.mode;
-      playerStyle.value = migration.mode === 'classic' ? 'classic' : 'default';
-      parsed.playerMode = migration.mode;
-      parsed.lyricPresetId = migration.lyric;
-      parsed.backgroundPresetId = migration.background;
-      parsed.climaxPresetId = migration.climax;
-      // 保留 playerStyle 原值供旧桌面组件判断,新链路只认 playerMode
-      localStorage.setItem('music-full-config', JSON.stringify(parsed));
-      return;
-    }
-
-    playerStyle.value = DEFAULT_LYRIC_CONFIG.playerStyle;
-    playerMode.value = 'classic';
-  } catch {
-    playerStyle.value = DEFAULT_LYRIC_CONFIG.playerStyle;
-    playerMode.value = 'classic';
   }
 }
 
@@ -128,6 +101,18 @@ const isFullScreenStyle = computed(() => {
   return style?.isFullScreen ?? false;
 });
 
+// 移动端专用组件映射
+const mobileStyleComponents: Record<string, any> = {
+  stage: markRaw(StageMobilePlayer),
+  starChart: markRaw(StarChartPlayer),
+  frenzy: markRaw(FrenzyMobilePlayer),
+  eerie: markRaw(EerieMobilePlayer),
+  neon: markRaw(NeonMobilePlayer),
+  rain: markRaw(RainMobilePlayer),
+  smoke: markRaw(SmokeMobilePlayer),
+  error: markRaw(ErrorMobilePlayer)
+};
+
 const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 watch(
@@ -139,13 +124,20 @@ watch(
 );
 
 const componentToUse = computed(() => {
-  // 移动端:按基础模式路由(经典 = DefaultMobilePlayerV2,大字歌词 = 预设化基座)
+  const style = getStyle(playerStyle.value);
+
+  // 移动端
   if (isMobile.value) {
-    return playerMode.value === 'lyric' ? markRaw(LyricModePlayer) : markRaw(DefaultMobilePlayerV2);
+    // 非默认样式使用各自专属的移动端组件（竖屏+横屏）
+    if (style && mobileStyleComponents[style.key]) {
+      return mobileStyleComponents[style.key];
+    }
+
+    // 默认样式使用稳定网格布局的 V2 播放器，旧组件暂留作回退。
+    return markRaw(DefaultMobilePlayerV2);
   }
 
-  // 桌面端:直接使用原始组件
-  const style = getStyle(playerStyle.value);
+  // 桌面端：直接使用原始组件
   if (style) {
     return markRaw(style.component);
   }
@@ -154,9 +146,7 @@ const componentToUse = computed(() => {
 
 // 当从竖屏切换到横屏（或反之）时，需要强制重新渲染组件
 // 通过 watch isLandscape 触发 key 变化（已在 template 中用 :key 绑定）
-const renderKey = computed(
-  () => `${playerMode.value}-${playerStyle.value}-${isLandscape.value ? 'l' : 'p'}`
-);
+const renderKey = computed(() => `${playerStyle.value}-${isLandscape.value ? 'l' : 'p'}`);
 
 const musicFullRef = ref<InstanceType<typeof MusicFull>>();
 
