@@ -104,138 +104,32 @@
                   :inert="!isControlSectionExpanded('playerStyle')"
                 >
                   <div id="control-section-player-style" class="control-section-body">
-                    <!-- 两种基础模式 -->
                     <div class="grid grid-cols-2 gap-3">
                       <button
-                        v-for="mode in modeCards"
-                        :key="mode.key"
-                        @click="setPlayerMode(mode.key)"
+                        v-for="style in playerStyles"
+                        :key="style.key"
+                        @click="setPlayerStyle(style.key)"
                         class="style-card relative flex flex-col items-center gap-2 rounded-2xl p-4 transition-all duration-300"
                         :class="
-                          currentPlayerMode === mode.key
+                          currentPlayerStyle === style.key
                             ? 'style-card-active'
                             : 'bg-white/5 hover:bg-white/10'
                         "
                       >
-                        <i :class="mode.icon" class="text-2xl" :style="{ color: mode.color }" />
+                        <i :class="style.icon" class="text-2xl" :style="{ color: style.color }" />
                         <span
                           class="text-xs font-medium"
-                          :class="currentPlayerMode === mode.key ? 'text-white' : 'text-white/60'"
+                          :class="currentPlayerStyle === style.key ? 'text-white' : 'text-white/60'"
                         >
-                          {{ mode.label }}
+                          {{ style.label }}
                         </span>
                       </button>
                     </div>
 
-                    <!-- 背景预设 -->
-                    <div class="preset-block">
-                      <div class="preset-block-label">
-                        {{ tr('player.preset.background', '背景') }}
-                      </div>
-                      <div class="preset-chips">
-                        <button
-                          v-for="preset in backgroundPresets"
-                          :key="preset.id"
-                          type="button"
-                          class="preset-chip"
-                          :class="{ active: currentBackgroundPreset === preset.id }"
-                          @click="setBackgroundPreset(preset.id)"
-                        >
-                          {{ preset.label }}
-                        </button>
-                      </div>
-                    </div>
-
-                    <!-- 歌词预设(仅大字歌词模式) -->
-                    <div v-if="currentPlayerMode === 'lyric'" class="preset-block">
-                      <div class="preset-block-label">
-                        {{ tr('player.preset.lyric', '歌词') }}
-                      </div>
-                      <div class="preset-chips">
-                        <button
-                          v-for="preset in lyricPresets"
-                          :key="preset.id"
-                          type="button"
-                          class="preset-chip"
-                          :class="{ active: currentLyricPreset === preset.id }"
-                          @click="setLyricPreset(preset.id)"
-                        >
-                          {{ preset.label }}
-                        </button>
-                      </div>
-                    </div>
-
-                    <!-- 高潮效果预设 -->
-                    <div class="preset-block">
-                      <div class="preset-block-label">
-                        {{ tr('player.preset.climax', '高潮效果') }}
-                      </div>
-                      <div class="preset-chips">
-                        <button
-                          v-for="preset in climaxPresets"
-                          :key="preset.id"
-                          type="button"
-                          class="preset-chip"
-                          :class="{ active: currentClimaxPreset === preset.id }"
-                          @click="setClimaxPresetWithSafety(preset.id)"
-                        >
-                          {{ preset.label }}
-                        </button>
-                      </div>
-                    </div>
-
-                    <!-- 保存为预设 + 用户预设列表 -->
-                    <div class="preset-block">
-                      <button type="button" class="preset-save-btn" @click="saveAsPreset">
-                        <i class="ri-save-3-line"></i>
-                        {{ tr('player.preset.saveCurrent', '保存当前组合为预设') }}
-                      </button>
-                      <div v-if="savedPresets.length" class="saved-presets">
-                        <div
-                          v-for="preset in savedPresets"
-                          :key="preset.id"
-                          class="saved-preset-row"
-                        >
-                          <button
-                            type="button"
-                            class="saved-preset-name"
-                            :class="{ active: isActiveSavedPreset(preset) }"
-                            @click="applySavedPreset(preset)"
-                          >
-                            {{ preset.name }}
-                          </button>
-                          <button
-                            type="button"
-                            class="saved-preset-delete"
-                            @click.stop="deleteSavedPreset(preset.id)"
-                          >
-                            <i class="ri-close-line"></i>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- 经典模式:隐藏封面 -->
-                    <label v-if="currentPlayerMode === 'classic'" class="setting-row">
-                      <span>{{ tr('player.preset.hideCoverClassic', '隐藏封面(歌词铺满全屏)') }}</span>
-                      <button
-                        type="button"
-                        class="toggle-switch"
-                        :class="{ on: hideCoverClassic }"
-                        role="switch"
-                        :aria-checked="hideCoverClassic"
-                        @click.prevent="hideCoverClassic = !hideCoverClassic"
-                      >
-                        <span></span>
-                      </button>
-                    </label>
-
-                    <!-- 样式参数(按当前预设显示对应参数组) -->
                     <player-style-customization-panel
-                      :key="paramProfile"
+                      :key="currentPlayerStyle"
                       v-model="styleConfig"
-                      :style-key="'default'"
-                      :ui-profile="paramProfile"
+                      :style-key="currentPlayerStyle"
                       @reset="resetCurrentStyleConfig"
                     />
                   </div>
@@ -1335,17 +1229,8 @@ import {
   normalizeLyricSwipeDirection,
   normalizeStatusBarLyricConfig
 } from '@/types/lyric';
-import type {
-  MobilePlayerStyleKey,
-  PlayerStyleCustomConfig,
-  StylePreset
-} from '@/types/playerStyle';
+import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from '@/types/playerStyle';
 import { isMobilePlayerStyleKey } from '@/types/playerStyle';
-import {
-  BACKGROUND_PRESETS,
-  CLIMAX_PRESETS,
-  LYRIC_PRESETS
-} from '@/config/playerPresets';
 import type { PosterSubject } from '@/types/share';
 import { BUILTIN_FONTS } from '@/types/share';
 import { getImgUrl, secondToMinute } from '@/utils';
@@ -2222,160 +2107,119 @@ watch(
   { deep: true }
 );
 
-// ==================== 双模式 + 三类预设 ====================
-
-const modeCards = computed<
-  Array<{ key: 'classic' | 'lyric'; label: string; icon: string; color: string }>
+const playerStyles = computed<
+  Array<{ key: MobilePlayerStyleKey; label: string; icon: string; color: string }>
 >(() => [
   {
-    key: 'classic',
-    label: tr('player.preset.modeClassic', '经典'),
-    icon: 'ri-disc-line',
+    key: 'default' as const,
+    label: tr('player.styles.default', '默认'),
+    icon: 'ri-music-2-line',
     color: '#6366f1'
   },
   {
-    key: 'lyric',
-    label: tr('player.preset.modeLyric', '大字歌词'),
-    icon: 'ri-font-size-2',
+    key: 'stage' as const,
+    label: tr('player.styles.stage', '舞台'),
+    icon: 'ri-spotify-line',
     color: '#ec4899'
+  },
+  {
+    key: 'starChart' as const,
+    label: tr('player.styles.starChart', '星盘'),
+    icon: 'ri-record-circle-line',
+    color: 'var(--accent-color, #a0a0a0)'
+  },
+  {
+    key: 'frenzy' as const,
+    label: tr('player.styles.frenzy', '狂热'),
+    icon: 'ri-fire-line',
+    color: '#ef4444'
+  },
+  {
+    key: 'eerie' as const,
+    label: tr('player.styles.eerie', '诡谲'),
+    icon: 'ri-ghost-line',
+    color: '#8b5cf6'
+  },
+  {
+    key: 'neon' as const,
+    label: tr('player.styles.neon', '陈旧'),
+    icon: 'ri-lightbulb-flash-line',
+    color: '#c9a96e'
+  },
+  {
+    key: 'rain' as const,
+    label: tr('player.styles.rain', '雨夜'),
+    icon: 'ri-rainy-line',
+    color: '#3b82f6'
+  },
+  {
+    key: 'smoke' as const,
+    label: tr('player.styles.smoke', '烟雾'),
+    icon: 'ri-cloudy-line',
+    color: '#14b8a6'
+  },
+  {
+    key: 'error' as const,
+    label: tr('player.styles.error', '错误'),
+    icon: 'ri-bug-line',
+    color: '#ef4444'
   }
 ]);
 
-const backgroundPresets = BACKGROUND_PRESETS;
-const lyricPresets = LYRIC_PRESETS;
-const climaxPresets = CLIMAX_PRESETS;
-
-/** 基础模式:迁移后以 playerMode 为准,未迁移时从 playerStyle 推导 */
-const currentPlayerMode = computed<'classic' | 'lyric'>(() => {
-  if (lyricConfig.value.playerMode === 'lyric') return 'lyric';
-  if (lyricConfig.value.playerMode === 'classic') return 'classic';
-  return lyricConfig.value.playerStyle === 'classic' ? 'classic' : 'lyric';
-});
-
-const currentBackgroundPreset = computed(
-  () => lyricConfig.value.backgroundPresetId || 'theme-solid'
+const currentPlayerStyle = computed<MobilePlayerStyleKey>(() =>
+  isMobilePlayerStyleKey(lyricConfig.value.playerStyle) ? lyricConfig.value.playerStyle : 'default'
 );
-const currentLyricPreset = computed(() => lyricConfig.value.lyricPresetId || 'serif-line');
-const currentClimaxPreset = computed(() => lyricConfig.value.climaxPresetId || 'none');
 
-const setPlayerMode = (mode: 'classic' | 'lyric') => {
-  lyricConfig.value.playerMode = mode;
-  // 兼容留存:旧桌面链路仍读 playerStyle
-  lyricConfig.value.playerStyle = mode === 'classic' ? 'classic' : 'default';
+// 「错误」样式含高频闪烁，首次启用前必须通过光敏性癫痫警告
+const PHOTOSENSITIVITY_ACK_KEY = 'photosensitivity-warning-acked';
+const pendingErrorStyle = ref(false);
+const photosensitivityVisible = ref(false);
+
+const applyPlayerStyle = (style: MobilePlayerStyleKey) => {
+  const previous = lyricConfig.value.playerStyle;
+  lyricConfig.value.playerStyle = style;
+  // 切换样式后保持「播放器样式」分区展开，避免 remount 重开面板后网格收起造成"没反应"观感
   expandControlSection('playerStyle');
-  persistLyricConfig(lyricConfig.value);
-};
-
-const setBackgroundPreset = (id: string) => {
-  lyricConfig.value.backgroundPresetId = id;
-  persistLyricConfig(lyricConfig.value);
-};
-
-const setLyricPreset = (id: string) => {
-  lyricConfig.value.lyricPresetId = id;
-  persistLyricConfig(lyricConfig.value);
-};
-
-const setClimaxPreset = (id: string) => {
-  lyricConfig.value.climaxPresetId = id;
-  persistLyricConfig(lyricConfig.value);
-};
-
-const savedPresets = computed(() => lyricConfig.value.stylePresets || []);
-
-const isActiveSavedPreset = (preset: StylePreset) =>
-  preset.background === currentBackgroundPreset.value &&
-  preset.lyric === currentLyricPreset.value &&
-  preset.climax === currentClimaxPreset.value;
-
-const saveAsPreset = () => {
-  const list = [...(lyricConfig.value.stylePresets || [])];
-  const name = `${tr('player.preset.presetName', '预设')} ${list.length + 1}`;
-  list.push({
-    id: `preset-${Date.now()}`,
-    name,
-    background: currentBackgroundPreset.value,
-    lyric: currentLyricPreset.value,
-    climax: currentClimaxPreset.value,
-    params: {}
-  });
-  lyricConfig.value.stylePresets = list;
-  persistLyricConfig(lyricConfig.value);
-};
-
-const applySavedPreset = (preset: StylePreset) => {
-  lyricConfig.value.backgroundPresetId = preset.background;
-  lyricConfig.value.lyricPresetId = preset.lyric;
-  lyricConfig.value.climaxPresetId = preset.climax;
-  persistLyricConfig(lyricConfig.value);
-};
-
-const deleteSavedPreset = (id: string) => {
-  lyricConfig.value.stylePresets = (lyricConfig.value.stylePresets || []).filter(
-    (item) => item.id !== id
+  console.info(
+    `[PlayerSettings] playerStyle: ${String(previous)} -> ${style}, stored=${String(
+      (() => {
+        try {
+          return JSON.parse(localStorage.getItem('music-full-config') || '{}').playerStyle;
+        } catch {
+          return '?';
+        }
+      })()
+    )}`
   );
   persistLyricConfig(lyricConfig.value);
 };
 
-/** 经典模式:隐藏封面(歌词铺满全屏,信息置顶) */
-const hideCoverClassic = computed({
-  get: () => lyricConfig.value.hideCoverClassic === true,
-  set: (value) => {
-    lyricConfig.value.hideCoverClassic = value;
-    persistLyricConfig(lyricConfig.value);
-  }
-});
-
-/**
- * 参数面板 profile:按当前歌词预设映射到源样式的参数组
- * (数据统一读写 styleCustomConfig['default'],面板仅切换显示分支)
- */
-const paramProfile = computed(() => {
-  if (currentPlayerMode.value === 'classic') return 'default';
-  const map: Record<string, string> = {
-    'serif-line': 'stage',
-    'giant-two': 'frenzy',
-    'brush-single': 'smoke',
-    calligraphy: 'eerie',
-    'neon-stroke': 'neon',
-    dissolve: 'error'
-  };
-  return map[currentLyricPreset.value] || 'default';
-});
-
-// 高潮效果/背景预设含高频闪烁(狂热/错误)时,首次启用前必须通过光敏性癫痫警告
-const PHOTOSENSITIVITY_ACK_KEY = 'photosensitivity-warning-acked';
-const photosensitivityVisible = ref(false);
-const pendingClimaxPreset = ref('');
-
-const setClimaxPresetWithSafety = (id: string) => {
+const setPlayerStyle = (style: MobilePlayerStyleKey) => {
   let acknowledged = true;
   try {
     acknowledged = Boolean(localStorage.getItem(PHOTOSENSITIVITY_ACK_KEY));
   } catch {
     acknowledged = true;
   }
-  if ((id === 'error' || id === 'frenzy') && !acknowledged) {
+  if (style === 'error' && !acknowledged) {
+    pendingErrorStyle.value = true;
     photosensitivityVisible.value = true;
-    pendingClimaxPreset.value = id;
     return;
   }
-  setClimaxPreset(id);
+  applyPlayerStyle(style);
 };
 
 const handlePhotosensitivityConfirm = () => {
-  if (pendingClimaxPreset.value) setClimaxPreset(pendingClimaxPreset.value);
-  pendingClimaxPreset.value = '';
+  if (pendingErrorStyle.value) applyPlayerStyle('error');
+  pendingErrorStyle.value = false;
 };
 
 const handlePhotosensitivityDecline = () => {
-  pendingClimaxPreset.value = '';
+  pendingErrorStyle.value = false;
 };
 
 // ==================== 自定义效果配置 ====================
-// 预设化后参数统一存 styleCustomConfig['default'](大字歌词基座与经典模式共用)
-const PARAM_CONFIG_KEY: MobilePlayerStyleKey = 'default';
-const styleConfig = ref<PlayerStyleCustomConfig>(createPlayerStyleConfig(PARAM_CONFIG_KEY));
+const styleConfig = ref<PlayerStyleCustomConfig>(createPlayerStyleConfig('default'));
 let suppressStyleSave = false;
 
 function loadStyleConfig() {
@@ -2383,10 +2227,8 @@ function loadStyleConfig() {
     const saved = localStorage.getItem('music-full-config');
     const config = saved ? JSON.parse(saved) : {};
     const allConfigs = config.styleCustomConfig || {};
-    styleConfig.value = resolvePlayerStyleConfig(
-      PARAM_CONFIG_KEY,
-      allConfigs[PARAM_CONFIG_KEY]
-    );
+    const styleKey = isMobilePlayerStyleKey(config.playerStyle) ? config.playerStyle : 'default';
+    styleConfig.value = resolvePlayerStyleConfig(styleKey, allConfigs[styleKey]);
   } catch {
     // 忽略配置读取失败
   }
@@ -2396,9 +2238,9 @@ function resetCurrentStyleConfig() {
   try {
     suppressStyleSave = true;
     if (lyricConfig.value.styleCustomConfig) {
-      delete lyricConfig.value.styleCustomConfig[PARAM_CONFIG_KEY];
+      delete lyricConfig.value.styleCustomConfig[currentPlayerStyle.value];
     }
-    styleConfig.value = createPlayerStyleConfig(PARAM_CONFIG_KEY);
+    styleConfig.value = createPlayerStyleConfig(currentPlayerStyle.value);
     persistLyricConfig(lyricConfig.value);
     void nextTick(() => {
       suppressStyleSave = false;
@@ -2412,7 +2254,7 @@ function saveStyleConfig() {
   if (suppressStyleSave) return;
   try {
     if (!lyricConfig.value.styleCustomConfig) lyricConfig.value.styleCustomConfig = {};
-    lyricConfig.value.styleCustomConfig[PARAM_CONFIG_KEY] = {
+    lyricConfig.value.styleCustomConfig[currentPlayerStyle.value] = {
       ...styleConfig.value,
       customFontName: styleConfig.value.customFontName
     };
@@ -2423,6 +2265,7 @@ function saveStyleConfig() {
 }
 
 watch(styleConfig, () => saveStyleConfig(), { deep: true });
+watch(currentPlayerStyle, () => loadStyleConfig(), { immediate: true });
 
 loadStyleConfig();
 
@@ -3560,109 +3403,5 @@ onUnmounted(() => {
   pointer-events: none;
   z-index: 5;
   box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
-}
-
-/* ==================== 预设选择器(播放器样式重组) ==================== */
-.preset-block {
-  margin-top: 14px;
-}
-
-.preset-block-label {
-  margin-bottom: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.55);
-}
-
-.preset-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.preset-chip {
-  padding: 7px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.66);
-  cursor: pointer;
-  transition:
-    background 160ms ease,
-    color 160ms ease,
-    border-color 160ms ease;
-}
-
-.preset-chip:active {
-  transform: scale(0.96);
-}
-
-.preset-chip.active {
-  border-color: var(--accent-color, #fff);
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-}
-
-.preset-save-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.22);
-  border-radius: 12px;
-  background: transparent;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.72);
-  cursor: pointer;
-}
-
-.preset-save-btn:active {
-  transform: scale(0.98);
-}
-
-.saved-presets {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.saved-preset-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.saved-preset-name {
-  flex: 1;
-  padding: 9px 12px;
-  border: 0;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  font-size: 13px;
-  text-align: left;
-  color: rgba(255, 255, 255, 0.78);
-  cursor: pointer;
-}
-
-.saved-preset-name.active {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-}
-
-.saved-preset-delete {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.4);
-  cursor: pointer;
 }
 </style>

@@ -131,16 +131,6 @@ export default {
     confirm: '我已知晓并继续',
     decline: '返回'
   },
-  preset: {
-    modeClassic: '经典',
-    modeLyric: '大字歌词',
-    background: '背景',
-    lyric: '歌词',
-    climax: '高潮效果',
-    saveCurrent: '保存当前组合为预设',
-    presetName: '预设',
-    hideCoverClassic: '隐藏封面（歌词铺满全屏）'
-  },
   styleCustomization: {
     title: '样式设置',
     reset: '一键还原',

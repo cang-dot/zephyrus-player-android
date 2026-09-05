@@ -133,16 +133,6 @@ export default {
     confirm: 'I understand, continue',
     decline: 'Go back'
   },
-  preset: {
-    modeClassic: 'Classic',
-    modeLyric: 'Big Lyrics',
-    background: 'Background',
-    lyric: 'Lyrics',
-    climax: 'Climax Effects',
-    saveCurrent: 'Save current combo as preset',
-    presetName: 'Preset',
-    hideCoverClassic: 'Hide artwork (full-screen lyrics)'
-  },
   styleCustomization: {
     title: 'Style Settings',
     reset: 'Reset Style',

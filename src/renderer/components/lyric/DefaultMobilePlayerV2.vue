@@ -10,15 +10,14 @@
         'lyrics-expanded': lyricsExpanded,
         'custom-background': customBackgroundActive,
         'player-transitioning': playerTransitionBusy,
-        'controls-docked': controlsDocked,
-        'cover-hidden': coverHidden
+        'controls-docked': controlsDocked
       }"
       :style="{ ...surfaceStyle, ...lyricsSwipeStyle }"
       @click="handleTapToggle"
-      @pointerdown.capture="gatedSwipePointerDown"
-      @pointermove.capture="gatedSwipePointerMove"
-      @pointerup.capture="gatedSwipePointerUp"
-      @pointercancel.capture="gatedSwipePointerCancel"
+      @pointerdown.capture="onLyricsSwipePointerDown"
+      @pointermove.capture="onLyricsSwipePointerMove"
+      @pointerup.capture="onLyricsSwipePointerUp"
+      @pointercancel.capture="onLyricsSwipePointerCancel"
       @touchstart="onTouchStart"
       @touchend="onTouchEnd"
     >
@@ -57,7 +56,7 @@
 
       <main class="player-content">
         <div
-          v-if="(!lyricsExpanded || lyricsSwipePreview) && !coverHidden"
+          v-if="!lyricsExpanded || lyricsSwipePreview"
           class="artwork-zone"
           :style="[lyricsUnderlayStyle, artworkZoneStyle]"
         >
@@ -278,25 +277,6 @@ const controlsDocked = computed(
     !playerTransition.controlsVisible.value &&
     playerTransition.sheetProgress.value < 0.02
 );
-
-// 经典模式「隐藏封面」:歌词铺满全屏、信息置顶,侧滑唤起/收起歌词手势禁用
-const coverHidden = computed(() => config.value.hideCoverClassic === true);
-const gatedSwipePointerDown = (e: PointerEvent) => {
-  if (coverHidden.value) return;
-  onLyricsSwipePointerDown(e);
-};
-const gatedSwipePointerMove = (e: PointerEvent) => {
-  if (coverHidden.value) return;
-  onLyricsSwipePointerMove(e);
-};
-const gatedSwipePointerUp = (e: PointerEvent) => {
-  if (coverHidden.value) return;
-  onLyricsSwipePointerUp(e);
-};
-const gatedSwipePointerCancel = (e: PointerEvent) => {
-  if (coverHidden.value) return;
-  onLyricsSwipePointerCancel(e);
-};
 const playerTransitionBusy = computed(
   () =>
     playerTransition.state.value === 'dragging' ||
@@ -376,8 +356,6 @@ function setLyricsExpanded(value: boolean) {
 }
 
 function toggleLyricsExpanded() {
-  // 隐藏封面时歌词恒为全屏,不再切换展开态
-  if (coverHidden.value) return;
   setLyricsExpanded(!lyricsExpanded.value);
 }
 
@@ -566,25 +544,6 @@ onBeforeUnmount(() => {
 
 .lyrics-expanded .player-content {
   grid-template-rows: minmax(0, 1fr);
-}
-
-/* ==================== 隐藏封面(歌词铺满全屏 + 信息置顶) ==================== */
-
-.cover-hidden .player-content {
-  grid-template-rows: minmax(0, 1fr);
-}
-
-.cover-hidden .lyrics-zone {
-  grid-row: 1 / -1;
-  grid-column: 1 / -1;
-  /* 顶部让出置顶信息条 */
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 64px);
-}
-
-.cover-hidden .song-header {
-  z-index: 5;
-  opacity: 1;
-  top: calc(var(--safe-area-inset-top, 0px) + 14px);
 }
 
 .lyrics-expanded .artwork-zone {
