@@ -1390,10 +1390,15 @@ const onTabPointerDown = (event: PointerEvent) => {
   settingsTabStartY = event.clientY;
   settingsTabAxis = 'none';
   settingsTabSamples = [{ x: event.clientX, time: performance.now() }];
-  try {
-    settingsTabViewportRef.value?.setPointerCapture(event.pointerId);
-  } catch {
-    // Older Android WebViews may not support pointer capture.
+  // 立即捕获仅限触摸:触摸需防止内容滚动取消横滑 tab 切换;
+  // 鼠标立即捕获会把 click 目标重定向到 viewport,
+  // 面板内容区(分区头/开关/样式卡)在电脑端全部点不动。
+  if (event.pointerType !== 'mouse') {
+    try {
+      settingsTabViewportRef.value?.setPointerCapture(event.pointerId);
+    } catch {
+      // Older Android WebViews may not support pointer capture.
+    }
   }
 };
 
