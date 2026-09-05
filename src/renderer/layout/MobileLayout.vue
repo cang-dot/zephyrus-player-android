@@ -655,11 +655,13 @@ const onContentPointerDown = (event: PointerEvent) => {
   pagePointerSamples = [{ x: event.clientX, time: performance.now() }];
   if (pageSwipeAnimationFrame) cancelAnimationFrame(pageSwipeAnimationFrame);
   pageSwipeAnimating.value = false;
-  // Capture immediately. Pointer capture does not cancel taps, but prevents
-  // nested scroll containers from cancelling the horizontal gesture before
-  // the direction lock is established.
-  const target = event.currentTarget as HTMLElement;
-  if (!target.hasPointerCapture(event.pointerId)) target.setPointerCapture(event.pointerId);
+  // 立即捕获仅限触摸:触摸需防止嵌套滚动容器在方向锁定前取消水平手势。
+  // 鼠标立即捕获会把真实点击的 click 目标重定向到容器,
+  // 导致 pager 内所有 @click(歌单卡等)在电脑端全部失效。
+  if (event.pointerType !== 'mouse') {
+    const target = event.currentTarget as HTMLElement;
+    if (!target.hasPointerCapture(event.pointerId)) target.setPointerCapture(event.pointerId);
+  }
 };
 
 const onContentPointerMove = (event: PointerEvent) => {
