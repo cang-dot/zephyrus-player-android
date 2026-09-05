@@ -981,12 +981,12 @@ const handleLoginError = (error: string) => {
   width: 100%;
   min-height: 100%;
   overflow: visible;
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 68px);
+  padding-top: var(--mobile-topbar-inset);
 }
 
 .user-loading-placeholder {
   min-height: 100%;
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 68px);
+  padding-top: var(--mobile-topbar-inset);
 }
 
 /* Safe area spacer */
@@ -1016,7 +1016,7 @@ const handleLoginError = (error: string) => {
   &.compact {
     border-radius: 18px;
     box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
-    top: calc(var(--safe-area-inset-top, 0px) + 56px);
+    top: var(--mobile-topbar-inset);
   }
 }
 

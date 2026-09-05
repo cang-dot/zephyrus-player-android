@@ -371,7 +371,7 @@ const handleItemClick = (item: any) => {
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 68px);
+  padding-top: var(--mobile-topbar-inset);
   padding-bottom: calc(
     var(--mobile-dock-content-inset, 132px) + var(--safe-area-inset-bottom, 0px) + 180px
   );

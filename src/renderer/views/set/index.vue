@@ -425,7 +425,7 @@ onMounted(() => {
   overflow-x: visible;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 68px);
+  padding-top: var(--mobile-topbar-inset);
 }
 .settings-scroll::-webkit-scrollbar {
   display: none;
@@ -458,7 +458,7 @@ onMounted(() => {
 .hero-card.compact {
   border-radius: 18px;
   box-shadow: none;
-  top: calc(var(--safe-area-inset-top, 0px) + 56px);
+  top: var(--mobile-topbar-inset);
 }
 
 .hero-bg {

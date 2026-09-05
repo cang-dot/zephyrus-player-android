@@ -844,7 +844,7 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   &.compact {
     border-radius: 18px;
     box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
-    top: calc(var(--safe-area-inset-top, 0px) + 56px);
+    top: var(--mobile-topbar-inset);
   }
 }
 

@@ -631,7 +631,7 @@ onMounted(() => {
 
 .result-content {
   @apply flex-1 overflow-y-auto;
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);
+  padding-top: var(--mobile-topbar-inset);
   padding-bottom: calc(var(--safe-area-inset-bottom, 0px) + 12px);
 }
 

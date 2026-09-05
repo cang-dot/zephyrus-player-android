@@ -205,7 +205,7 @@ const artworkFrameStyle = computed(() => {
   // mode-full 画布是非正方形(width 100%/520、height 40dvh、aspect auto),
   // 图片 contain 居中会在浅色背景上露出灰边;锁定正方形让 frame 紧贴封面。
   // 横屏分栏高度充裕,基准比竖屏更大
-  const base = isLandscape.value ? 'min(40vw, 52dvh, 460px)' : 'min(82vw, 42dvh, 400px)';
+  const base = isLandscape.value ? 'min(38vw, 48dvh, 430px)' : 'min(76vw, 38dvh, 370px)';
   const side = `calc(${base} * ${artworkSize.value / 100})`;
   return { width: side, height: side, aspectRatio: '1' };
 });

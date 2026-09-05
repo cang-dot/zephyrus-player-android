@@ -1443,7 +1443,7 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .music-list-content {
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);
+  padding-top: var(--mobile-topbar-inset);
 }
 
 .list-topbar-spacer {

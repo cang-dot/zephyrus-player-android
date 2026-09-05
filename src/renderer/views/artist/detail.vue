@@ -5,7 +5,7 @@
     <n-scrollbar ref="scrollbarRef" class="h-full" @scroll="handleScroll">
       <div
         class="artist-detail-content w-full pb-32"
-        style="padding-top: calc(var(--safe-area-inset-top, 0px) + 56px)"
+        style="padding-top: var(--mobile-topbar-inset)"
       >
         <page-loading-placeholder v-if="loading" variant="artist" :label="t('common.loading')" />
 

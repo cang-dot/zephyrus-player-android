@@ -93,7 +93,7 @@ defineExpose({ scrollbarRef, scrollTo });
 
 @media (max-width: 768px) {
   .sticky-page-content {
-    padding-top: calc(var(--safe-area-inset-top, 0px) + 64px);
+    padding-top: var(--mobile-topbar-inset);
   }
 
   .sticky-page-heading {

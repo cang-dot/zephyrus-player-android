@@ -132,7 +132,7 @@ onMounted(() => {
   @apply fixed inset-0 z-50;
   @apply flex flex-col;
   background: var(--m-bg, var(--bg-color));
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 56px);
+  padding-top: var(--mobile-topbar-inset);
 }
 
 .search-content {

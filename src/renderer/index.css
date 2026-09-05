@@ -240,6 +240,9 @@
   --d-duration-slow: 300ms;
   --d-duration-slower: 500ms;
 
+  /* ── 移动顶栏占位:页面内容/骨架屏统一引用,避免与顶栏实际高度脱节 ── */
+  --mobile-topbar-inset: calc(var(--safe-area-inset-top, 0px) + 60px);
+
   /* ── 卡片/按钮交互动效（LAYOUT/FILTER 规格 tokens） ── */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1); /* 位移插值,不用弹簧 */
   --ease-exit: cubic-bezier(0.4, 0, 1, 1); /* 一切退场:收敛、无过冲 */

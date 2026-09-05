@@ -161,7 +161,7 @@ onMounted(async () => {
 <style scoped lang="scss">
 .mobile-home {
   min-height: 100%;
-  padding: calc(var(--safe-area-inset-top, 0px) + 64px) 14px 150px;
+  padding: var(--mobile-topbar-inset) 14px 150px;
   color: var(--m-text-primary, #20211f);
 }
 
