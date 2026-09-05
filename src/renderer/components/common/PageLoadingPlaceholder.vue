@@ -18,24 +18,11 @@
           </div>
         </div>
         <div class="loading-stat-grid">
-          <div v-for="index in 3" :key="`stat-${index}`" class="loading-stat">
+          <div v-for="index in 4" :key="`stat-${index}`" class="loading-stat">
             <span class="loading-shape loading-stat-value" />
             <span class="loading-shape loading-stat-label" />
           </div>
         </div>
-      </div>
-
-      <div class="loading-summary-grid">
-        <span
-          v-for="index in 3"
-          :key="`summary-${index}`"
-          class="loading-summary loading-glass"
-          :style="delayStyle(index)"
-        >
-          <i class="loading-shape loading-summary-icon" />
-          <i class="loading-shape loading-summary-value" />
-          <i class="loading-shape loading-summary-label" />
-        </span>
       </div>
 
       <div class="loading-ranking loading-glass">
@@ -58,15 +45,7 @@
     </template>
 
     <template v-else>
-      <div class="loading-context" :class="{ 'loading-glass': variant === 'artist' }">
-        <span v-if="variant === 'artist'" class="loading-shape loading-context-avatar" />
-        <div class="loading-copy">
-          <span class="loading-shape loading-line loading-line--context" />
-          <span class="loading-shape loading-line loading-line--secondary" />
-        </div>
-        <span class="loading-shape loading-context-action" />
-      </div>
-
+      <!-- 音乐列表/歌手:现版本顶栏由全局胶囊承担,页面直接从列表开始 -->
       <div class="loading-list">
         <div v-for="index in rows" :key="index" class="loading-row" :style="delayStyle(index)">
           <span class="loading-index">{{ String(index).padStart(2, '0') }}</span>
@@ -236,44 +215,9 @@ const delayStyle = (index: number) => ({ '--loading-index': index }) as Record<s
   opacity: 0.68;
 }
 
-.loading-context {
-  display: flex;
-  min-height: 76px;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 4px;
-  border-radius: 24px;
-}
 
-.loading-context-avatar {
-  width: 52px;
-  height: 52px;
-  flex: 0 0 52px;
-  border-radius: 50%;
-}
 
-.loading-line--context {
-  width: min(62%, 190px);
-  height: 16px;
-  border-radius: 8px;
-}
 
-.loading-context-action {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  border-radius: 50%;
-}
-
-.page-loading-placeholder--music-list .loading-context {
-  min-height: 44px;
-  padding-inline: 4px;
-}
-
-.page-loading-placeholder--music-list .loading-context-action {
-  width: 72px;
-  border-radius: 17px;
-}
 
 .loading-profile {
   display: grid;
@@ -307,11 +251,10 @@ const delayStyle = (index: number) => ({ '--loading-index': index }) as Record<s
   border-radius: 10px;
 }
 
-.loading-stat-grid,
-.loading-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+.loading-stat-grid {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 6px;
 }
 
 .loading-stat {
@@ -333,37 +276,9 @@ const delayStyle = (index: number) => ({ '--loading-index': index }) as Record<s
   opacity: 0.68;
 }
 
-.loading-summary {
-  display: grid;
-  min-height: 94px;
-  align-content: center;
-  gap: 8px;
-  padding: 14px;
-  border-radius: 22px;
-  opacity: 0;
-  transform: translate3d(0, 8px, 0);
-  animation: loading-row-arrive 480ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
-  animation-delay: calc(var(--loading-index, 0) * 45ms);
-}
 
-.loading-summary-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 8px;
-}
 
-.loading-summary-value {
-  width: 44px;
-  height: 16px;
-  border-radius: 7px;
-}
 
-.loading-summary-label {
-  width: min(86%, 72px);
-  height: 8px;
-  border-radius: 4px;
-  opacity: 0.68;
-}
 
 .loading-ranking {
   padding: 18px 14px 10px;
@@ -408,8 +323,7 @@ const delayStyle = (index: number) => ({ '--loading-index': index }) as Record<s
     display: none;
   }
 
-  .loading-row,
-  .loading-summary {
+  .loading-row {
     opacity: 1;
     transform: none;
     animation: none;
