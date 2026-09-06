@@ -6,7 +6,7 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
   ">
     <div class="eq-header flex justify-between items-center mb-4">
-      <h3 class="text-xl font-semibold text-gray-800 dark:text-gray-200">
+      <h3 class="text-base font-semibold" style="color: var(--m-text-primary, #f0ece4);">
         {{ t('player.eq.title') }}
         <n-tag type="warning" size="small" round v-if="!isElectron">
           桌面版可用，网页端不支持
@@ -21,18 +21,19 @@
     </div>
 
     <div
-      class="adaptive-eq-row flex items-center gap-3 mb-4 rounded-lg bg-white/60 dark:bg-black/20 p-3"
+      class="adaptive-eq-row flex items-center gap-3 mb-4 rounded-xl p-3"
+      style="background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.08);"
     >
       <div class="min-w-0 flex-1">
-        <div class="font-medium text-gray-800 dark:text-gray-200">AI 动态均衡器</div>
-        <div class="text-xs text-gray-500 dark:text-gray-400">
+        <div class="font-medium text-sm" style="color: var(--m-text-primary, #f0ece4);">AI 动态均衡器</div>
+        <div class="text-xs" style="color: var(--m-text-muted, rgba(255,255,255,0.55));">
           根据实时频段自动平滑调整，限制在安全增益范围内
         </div>
       </div>
       <n-switch v-model:value="isAdaptiveEnabled" @update:value="toggleAdaptiveEQ" />
     </div>
     <div v-if="isAdaptiveEnabled" class="adaptive-eq-intensity flex items-center gap-3 mb-4">
-      <span class="text-xs text-gray-500 dark:text-gray-400">强度</span>
+      <span class="text-xs" style="color: var(--m-text-muted, rgba(255,255,255,0.55));">强度</span>
       <n-slider
         v-model:value="adaptiveIntensity"
         :min="0"
@@ -40,7 +41,7 @@
         :step="0.05"
         @update:value="updateAdaptiveIntensity"
       />
-      <span class="w-10 text-right text-xs text-gray-500 dark:text-gray-400"
+      <span class="w-10 text-right text-xs" style="color: var(--m-text-muted, rgba(255,255,255,0.55));"
         >{{ Math.round(adaptiveIntensity * 100) }}%</span
       >
     </div>
@@ -65,15 +66,16 @@
     </div>
 
     <div
-      class="eq-sliders flex justify-between items-end bg-gray-50 dark:bg-gray-800 gap-1 rounded-lg p-2 h-[300px]"
+      class="eq-sliders flex justify-between items-end gap-0.5 rounded-xl p-2 h-[300px] w-full"
+      style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.06);"
     >
       <div
         v-for="freq in frequencies"
         :key="freq"
-        class="eq-slider flex flex-col items-center w-[45px] h-full"
+        class="eq-slider flex flex-col items-center h-full" style="flex: 1 1 0; min-width: 0;"
       >
         <div
-          class="freq-label text-xs font-medium text-center text-gray-600 dark:text-gray-400 whitespace-nowrap m-2 h-5"
+          class="freq-label font-medium text-center whitespace-nowrap m-2 h-5" style="color: var(--m-text-muted, rgba(255,255,255,0.55)); font-size: 11px;"
         >
           {{ formatFreq(freq) }}
         </div>
@@ -88,7 +90,7 @@
           class="flex-1 my-3 min-h-[180px]"
         />
         <div
-          class="gain-value text-xs font-medium text-center text-gray-600 dark:text-gray-400 whitespace-nowrap my-1 h-4"
+          class="gain-value font-medium text-center whitespace-nowrap my-1 h-4" style="color: var(--m-text-muted, rgba(255,255,255,0.55)); font-size: 10px;"
         >
           {{ eqValues[freq.toString()] }}dB
         </div>
@@ -350,8 +352,8 @@ const formatFreq = (freq: number) => {
 
 :deep(.n-slider) {
   --n-rail-height: 4px;
-  --n-rail-color: #e5e7eb;
-  --n-rail-color-hover: #d1d5db;
+  --n-rail-color: rgba(255, 255, 255, 0.14);
+  --n-rail-color-hover: rgba(255, 255, 255, 0.22);
   --n-fill-color: var(--accent-color);
   --n-fill-color-hover: var(--accent-color);
   --n-handle-color: var(--accent-color);
