@@ -1,7 +1,6 @@
 import { ref } from 'vue';
 
-import { chatCompletion, type ChatMessage } from '@/features/ai/client';
-import { gatewayChatCompletion } from '@/features/ai/gateway';
+import { chatCompletionStream, type ChatMessage } from '@/features/ai/client';
 import { getProvider } from '@/features/ai/providers';
 import { isFeatureEnabled } from '@/features/store';
 
@@ -13,7 +12,6 @@ const CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
 interface MetaphorConfig {
   provider: string;
   apiKey: string;
-  accessToken?: string;
   model: string;
   baseUrl: string;
 }
@@ -30,7 +28,8 @@ export function getMetaphorConfig(): MetaphorConfig {
   } catch {
     // Ignore invalid legacy configuration and use the current defaults.
   }
-  return { provider: 'gateway', apiKey: '', accessToken: '', model: 'opencode-v4f', baseUrl: '' };
+  // 兼容旧配置:历史版本默认走已弃用的云端网关,迁移到智谱免费档
+  return { provider: 'zhipu', apiKey: '', model: 'glm-4-flash', baseUrl: '' };
 }
 
 export function saveMetaphorConfig(config: MetaphorConfig) {
@@ -163,23 +162,15 @@ ${lyrics}`;
         pendingText += delta;
         if (!typingFrame) typingFrame = requestAnimationFrame(pumpTyping);
       };
-      const res =
-        config.provider === 'gateway'
-          ? await gatewayChatCompletion(
-              config.model || 'opencode-v4f',
-              messages,
-              config.accessToken || '',
-              undefined,
-              enqueueDelta
-            )
-          : await chatCompletion({
-              providerId: provider ? config.provider : 'custom',
-              apiKey: config.apiKey || undefined,
-              model: config.model || provider?.defaultModel || 'openai',
-              baseUrl: config.baseUrl || provider?.baseUrl,
-              messages
-            });
-      if (config.provider === 'gateway' && (pendingText || typingFrame)) {
+      const res = await chatCompletionStream({
+        providerId: provider ? config.provider : 'custom',
+        apiKey: config.apiKey || undefined,
+        model: config.model || provider?.defaultModel || 'openai',
+        baseUrl: config.baseUrl || provider?.baseUrl,
+        messages,
+        onDelta: enqueueDelta
+      });
+      if (pendingText || typingFrame) {
         await new Promise<void>((resolve) => {
           const waitForTyping = () => {
             if (!pendingText && !typingFrame) resolve();

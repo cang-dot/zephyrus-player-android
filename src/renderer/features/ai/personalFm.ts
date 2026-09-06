@@ -1,7 +1,6 @@
 import { getSearch } from '@/api/search';
 import type { ChatMessage } from '@/features/ai/client';
 import { chatCompletion } from '@/features/ai/client';
-import { gatewayChatCompletion } from '@/features/ai/gateway';
 import { getProvider } from '@/features/ai/providers';
 
 export interface FmSeed {
@@ -23,7 +22,7 @@ interface AiConfig {
 function normalizeAiConfig(rawConfig: unknown): AiConfig {
   const config = (rawConfig || {}) as Partial<AiConfig>;
   return {
-    provider: config.provider || 'gateway',
+    provider: config.provider || 'zhipu',
     apiKey: config.apiKey || '',
     accessToken: config.accessToken || '',
     model: config.model || 'opencode-v4f',
@@ -54,16 +53,13 @@ async function requestRecommendedTitles(prompt: string): Promise<string[]> {
     throw new Error('请先在歌词隐喻设置中配置 AI');
   }
 
-  const result =
-    config.provider === 'gateway'
-      ? await gatewayChatCompletion(config.model, messages, config.accessToken || '')
-      : await chatCompletion({
-          providerId: getProvider(config.provider) ? config.provider : 'custom',
-          apiKey: config.apiKey || undefined,
-          model: config.model,
-          baseUrl: config.baseUrl || getProvider(config.provider)?.baseUrl,
-          messages
-        });
+  const result = await chatCompletion({
+    providerId: getProvider(config.provider) ? config.provider : 'custom',
+    apiKey: config.apiKey || undefined,
+    model: config.model,
+    baseUrl: config.baseUrl || getProvider(config.provider)?.baseUrl,
+    messages
+  });
   return extractSongTitles(result.content);
 }
 

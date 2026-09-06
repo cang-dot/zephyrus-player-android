@@ -680,52 +680,21 @@
                   <div id="control-section-analysis" class="control-section-body">
                     <div class="control-section-actions">
                       <div
-                        ref="metaphorModelMenuRef"
                         class="metaphor-model-picker"
-                        :class="{ expanded: metaphorModelMenuOpen }"
                         @pointerdown.stop
                         @pointerup.stop
                         @click.stop
                       >
-                        <button
-                          type="button"
-                          class="metaphor-model-trigger"
-                          :aria-expanded="metaphorModelMenuOpen"
-                          @click="metaphorModelMenuOpen = !metaphorModelMenuOpen"
-                        >
-                          <span>{{ selectedMetaphorModelLabel }}</span>
-                          <i
-                            class="ri-arrow-down-s-line"
-                            :class="{ open: metaphorModelMenuOpen }"
-                          ></i>
-                        </button>
-                        <div
-                          class="metaphor-model-menu"
-                          :class="{ visible: metaphorModelMenuOpen }"
-                        >
-                          <button
-                            v-for="option in metaphorModelOptions"
-                            :key="option.value"
-                            type="button"
-                            class="metaphor-model-option"
-                            :class="{
-                              active: option.value === metaphorModelSelection,
-                              settings: option.value === '__open_metaphor_settings__'
-                            }"
-                            :tabindex="metaphorModelMenuOpen ? 0 : -1"
-                            @click="onMetaphorModelChange(option.value)"
-                          >
-                            <span>{{ option.label }}</span>
-                            <i
-                              v-if="option.value === metaphorModelSelection"
-                              class="ri-check-line"
-                            ></i>
-                            <i
-                              v-else-if="option.value === '__open_metaphor_settings__'"
-                              class="ri-settings-3-line"
-                            ></i>
-                          </button>
-                        </div>
+                        <n-select
+                          v-model:value="metaphorModelSelection"
+                          class="metaphor-model-select"
+                          :options="metaphorModelOptions"
+                          filterable
+                          tag
+                          size="small"
+                          placeholder="选择模型"
+                          @update:value="onMetaphorModelChange"
+                        />
                       </div>
                       <button
                         v-if="!metaphorLoading && !metaphorResult"
@@ -1197,7 +1166,7 @@ import ListenTogetherSettings from '@/components/settings/ListenTogetherSettings
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
-import { type GatewayModel, listGatewayModels } from '@/features/ai/gateway';
+import { getProvider } from '@/features/ai/providers';
 import {
   getMetaphorConfig,
   saveMetaphorConfig,
@@ -1248,66 +1217,37 @@ const { navigateToArtist } = useArtist();
 const message = window.$message;
 const androidNativeAvailable = isAndroidNative();
 const activeTab = ref<'song' | 'control'>('control');
-const metaphorModels = ref<GatewayModel[]>([]);
-const metaphorModelsLoading = ref(false);
-const metaphorModelMenuRef = ref<HTMLElement | null>(null);
-const metaphorModelMenuOpen = ref(false);
-const metaphorModelSelection = ref(getMetaphorConfig().model || 'opencode-v4f');
-const metaphorModelName = (id: string, fallback?: string) => {
-  if (id === 'opencode-v4f' || id === 'deepseek-v4-flash-0731') return 'DeepSeekV4Flash';
-  return fallback || id;
-};
+const metaphorModelSelection = ref(getMetaphorConfig().model || 'glm-4-flash');
+
+/** 按当前服务商给出模型建议(预设 + 自由输入兜底当前值) */
 const metaphorModelOptions = computed(() => {
-  const options = metaphorModels.value.map((model) => ({
-    label: `${metaphorModelName(model.id, model.name)} · ${model.multiplier}x`,
+  const config = getMetaphorConfig();
+  const provider = getProvider(config.provider);
+  const options = (provider?.models || []).map((model) => ({
+    label: model.free ? `${model.label}（免费）` : model.badge ? `${model.label}（${model.badge}）` : model.label,
     value: model.id
   }));
-  if (!options.some((option) => option.value === metaphorModelSelection.value)) {
-    options.unshift({
-      label: metaphorModelName(metaphorModelSelection.value),
-      value: metaphorModelSelection.value
-    });
+  if (metaphorModelSelection.value && !options.some((o) => o.value === metaphorModelSelection.value)) {
+    options.unshift({ label: metaphorModelSelection.value, value: metaphorModelSelection.value });
   }
-  return [...options, { label: '打开设置', value: '__open_metaphor_settings__' }];
+  if (!options.length) {
+    options.push({ label: metaphorModelSelection.value || '默认', value: metaphorModelSelection.value });
+  }
+  return options;
 });
-const selectedMetaphorModelLabel = computed(
-  () =>
-    metaphorModelOptions.value.find((option) => option.value === metaphorModelSelection.value)
-      ?.label || metaphorModelName(metaphorModelSelection.value)
-);
 
-async function loadMetaphorModels() {
+function loadMetaphorModels() {
   const config = getMetaphorConfig();
-  metaphorModelSelection.value = config.model || 'opencode-v4f';
-  if (!config.accessToken) return;
-  metaphorModelsLoading.value = true;
-  try {
-    metaphorModels.value = await listGatewayModels(config.accessToken);
-  } catch {
-    metaphorModels.value = [];
-  } finally {
-    metaphorModelsLoading.value = false;
-  }
+  const provider = getProvider(config.provider);
+  metaphorModelSelection.value = config.model || provider?.defaultModel || 'glm-4-flash';
 }
 
-function onMetaphorModelChange(value: string) {
-  metaphorModelMenuOpen.value = false;
-  if (value === '__open_metaphor_settings__') {
-    metaphorModelSelection.value = getMetaphorConfig().model || 'opencode-v4f';
-    close();
-    playerStore.setMusicFull(false);
-    void router.push({ path: '/set', query: { section: 'basic', focus: 'lyric-metaphor-ai' } });
-    return;
-  }
+function onMetaphorModelChange(value: string | null) {
+  if (!value) return;
   metaphorModelSelection.value = value;
   const config = getMetaphorConfig();
-  saveMetaphorConfig({ ...config, provider: 'gateway', model: value });
-}
-
-function closeMetaphorModelMenu(event: PointerEvent) {
-  if (!metaphorModelMenuRef.value?.contains(event.target as Node)) {
-    metaphorModelMenuOpen.value = false;
-  }
+  // BYOK:保留用户所选服务商,不再强制网关
+  saveMetaphorConfig({ ...config, model: value });
 }
 
 type ControlSection =
@@ -2509,14 +2449,12 @@ watch(
 );
 
 onMounted(() => {
-  document.addEventListener('pointerdown', closeMetaphorModelMenu);
   if (hasTimerActive.value && sleepTimer.value.type === 'time') {
     startTimerUpdate();
   }
 });
 
 onUnmounted(() => {
-  document.removeEventListener('pointerdown', closeMetaphorModelMenu);
   stopTimerUpdate();
   stopMetaphorLoadingTimer();
 });

@@ -21,6 +21,25 @@ export interface ChatResult {
 }
 
 export async function chatCompletion(options: ChatOptions): Promise<ChatResult> {
+  const { model, baseUrl, headers, provider } = await resolveProviderEndpoint(options);
+
+  if (provider.needApiKey && !options.apiKey) {
+    throw new Error(`${provider.name} 需要 API 密钥，请在设置中配置`);
+  }
+  if (provider.id === 'gemini') {
+    return geminiChat(baseUrl, model, options.apiKey || '', options.messages, options.signal);
+  }
+
+  return openaiChat(baseUrl, model, options.apiKey, options.messages, options.signal, headers);
+}
+
+/** 解析 provider 预设与自定义覆盖,得到请求端点(模型/地址/附加头) */
+async function resolveProviderEndpoint(options: ChatOptions): Promise<{
+  model: string;
+  baseUrl: string;
+  headers: Record<string, string>;
+  provider: AIProvider;
+}> {
   const provider = getProvider(options.providerId);
   if (!provider && options.providerId !== 'custom') {
     throw new Error(`未知的 AI 提供商: ${options.providerId}`);
@@ -42,21 +61,88 @@ export async function chatCompletion(options: ChatOptions): Promise<ChatResult> 
     throw new Error('未配置 API 地址');
   }
 
-  if (p.needApiKey && !options.apiKey) {
-    throw new Error(`${p.name} 需要 API 密钥，请在设置中配置`);
-  }
-
-  if (p.id === 'gemini') {
-    return geminiChat(baseUrl, model, options.apiKey || '', options.messages, options.signal);
-  }
-
-  const extraHeaders: Record<string, string> = {};
+  const headers: Record<string, string> = {};
   if (p.id === 'github-models') {
-    extraHeaders['Accept'] = 'application/vnd.github+json';
-    extraHeaders['X-GitHub-Api-Version'] = '2022-11-28';
+    headers['Accept'] = 'application/vnd.github+json';
+    headers['X-GitHub-Api-Version'] = '2022-11-28';
   }
 
-  return openaiChat(baseUrl, model, options.apiKey, options.messages, options.signal, extraHeaders);
+  return { model, baseUrl, headers, provider };
+}
+
+/**
+ * OpenAI 兼容流式对话(SSE):delta 经 onDelta 增量回调,
+ * 返回完整文本。BYOK 模式下的唯一流式请求层。
+ */
+export async function chatCompletionStream(
+  options: ChatOptions & { onDelta?: (delta: string, full: string) => void }
+): Promise<ChatResult> {
+  const { model, baseUrl, headers, provider } = await resolveProviderEndpoint(options);
+
+  if (provider.needApiKey && !options.apiKey) {
+    throw new Error(`${provider.name} 需要 API 密钥，请在设置中配置`);
+  }
+  if (provider.id === 'gemini') {
+    const result = await geminiChat(baseUrl, model, options.apiKey || '', options.messages, options.signal);
+    options.onDelta?.(result.content, result.content);
+    return result;
+  }
+
+  const url = `${baseUrl}/chat/completions`;
+  const requestHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...headers
+  };
+  if (options.apiKey) {
+    requestHeaders['Authorization'] = `Bearer ${options.apiKey}`;
+  }
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: requestHeaders,
+    body: JSON.stringify({ model, messages: options.messages, stream: true }),
+    signal: options.signal
+  });
+  if (!resp.ok) {
+    const errText = await resp.text().catch(() => '');
+    throw new Error(`API 请求失败 (${resp.status}): ${errText.slice(0, 200)}`);
+  }
+  if (!resp.body) {
+    throw new Error('当前环境不支持流式响应');
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let full = '';
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const payload = trimmed.slice(5).trim();
+      if (payload === '[DONE]') continue;
+      try {
+        const delta = JSON.parse(payload)?.choices?.[0]?.delta?.content || '';
+        if (delta) {
+          full += delta;
+          options.onDelta?.(delta, full);
+        }
+      } catch {
+        // 忽略无法解析的心跳/注释行
+      }
+    }
+  }
+
+  if (!full) {
+    throw new Error('API 返回了空内容');
+  }
+  return { content: full, model, provider: 'openai' };
 }
 
 async function openaiChat(

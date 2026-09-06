@@ -3,46 +3,88 @@
     <div class="flex items-start justify-between gap-3">
       <div>
         <h3 class="text-base font-medium">歌词 AI 解析</h3>
-        <p class="text-xs text-muted mt-1">配置网关访问凭据、模型和每日积分。</p>
+        <p class="text-xs text-muted mt-1">使用你自己的 API 密钥，客户端直连，不经服务器中转。</p>
       </div>
-      <span class="text-xs text-muted">{{
-        config.provider === 'gateway' ? '云端网关' : config.provider
-      }}</span>
+      <a
+        class="text-xs"
+        style="color: var(--accent-color, #888)"
+        href="https://mucang.xyz/zephyrus/docs/guide/free-api-keys"
+        target="_blank"
+        rel="noopener"
+      >
+        如何领取免费密钥 →
+      </a>
     </div>
 
+    <!-- 服务商选择 -->
     <div>
-      <label class="field-label">共享访问 Token</label>
-      <div class="token-row">
-        <n-input
-          v-model:value="config.accessToken"
-          type="text"
-          placeholder="输入或粘贴 Zephyrus AI 访问 Token"
-        />
-        <s-btn size="small" @click="pasteToken"><i class="ri-clipboard-line mr-1"></i>粘贴</s-btn>
-      </div>
-      <div class="flex items-center gap-2 mt-2">
-        <s-btn size="small" :disabled="loading" @click="connect">
-          {{ loading ? '验证中...' : '验证网易云账号' }}
-        </s-btn>
-        <span v-if="credits" class="text-xs text-muted"
-          >今日剩余 {{ credits.remaining }}/{{ credits.total }} 积分</span
+      <label class="field-label">AI 服务商</label>
+      <div class="provider-chips">
+        <button
+          v-for="provider in providers"
+          :key="provider.id"
+          type="button"
+          class="provider-chip"
+          :class="{ active: config.provider === provider.id }"
+          @click="selectProvider(provider.id)"
         >
+          {{ provider.name }}
+          <span v-if="hasFreeModel(provider)" class="free-dot" title="含免费模型"></span>
+        </button>
       </div>
-      <p v-if="error" class="text-xs text-red-500 mt-2">{{ error }}</p>
+      <p class="text-xs text-muted mt-2">{{ currentProvider?.description }}</p>
     </div>
 
-    <div>
-      <label class="field-label">默认模型</label>
-      <n-select v-model:value="config.model" :options="modelOptions" :loading="loading" />
-      <p v-if="selectedModel" class="text-xs text-muted mt-1">
-        每次分析消耗 {{ selectedModel.multiplier }} 积分<span v-if="selectedModel.privacy">
-          · 可能用于服务改进或训练，请勿提交敏感信息</span
+    <!-- API Key -->
+    <div v-if="currentProvider?.needApiKey">
+      <label class="field-label">API 密钥</label>
+      <n-input
+        v-model:value="config.apiKey"
+        type="password"
+        show-password-on="click"
+        placeholder="粘贴该服务商的 API Key"
+      />
+      <p v-if="currentProvider?.docsAnchor" class="text-xs text-muted mt-1">
+        密钥在服务商控制台创建，领取免费额度见
+        <a
+          :href="`https://mucang.xyz/zephyrus/docs/guide/free-api-keys#${currentProvider.docsAnchor}`"
+          target="_blank"
+          rel="noopener"
+          style="color: var(--accent-color, #888)"
+          >领取指南</a
         >
       </p>
     </div>
 
+    <!-- 模型:预设建议 + 自定义输入 -->
+    <div>
+      <label class="field-label">模型</label>
+      <n-select
+        v-if="currentProvider?.models.length"
+        v-model:value="config.model"
+        :options="modelOptions"
+        tag
+        filterable
+        placeholder="选择或输入模型 id"
+      />
+      <n-input v-else v-model:value="config.model" placeholder="输入模型 id" />
+      <n-input
+        v-if="currentProvider && currentProvider.models.length === 0"
+        v-model:value="config.baseUrl"
+        class="mt-2"
+        placeholder="API 地址（OpenAI 兼容，如 https://api.example.com/v1）"
+      />
+      <p v-if="selectedModelMeta" class="text-xs text-muted mt-1">
+        {{ selectedModelMeta.free ? '该模型免费' : '' }}
+        {{ selectedModelMeta.badge ? `· ${selectedModelMeta.badge} 档` : '' }}
+      </p>
+      <p v-if="currentProvider?.id === 'custom' && !config.baseUrl" class="text-xs text-red-500 mt-1">
+        自定义服务商需要填写 API 地址
+      </p>
+    </div>
+
     <div class="rounded-xl bg-black/5 dark:bg-white/5 p-3 text-xs text-muted leading-relaxed">
-      仅发送歌词及歌曲元数据到所选模型。请勿提交隐私、账号凭据或其他敏感内容。
+      仅发送歌词及歌曲元数据到你选择的服务商。密钥只保存在本机，请勿提交隐私、账号凭据或其他敏感内容。
     </div>
     <div class="flex justify-end">
       <s-btn type="primary" @click="save">保存设置</s-btn>
@@ -51,66 +93,45 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { NInput, NSelect } from 'naive-ui';
+import { computed, reactive } from 'vue';
 
-import {
-  createGatewaySession,
-  type GatewayCredits,
-  type GatewayModel,
-  getGatewayCredits,
-  listGatewayModels
-} from '@/features/ai/gateway';
+import { AI_PROVIDERS } from '@/features/ai/providers';
 import SBtn from '@/views/set/SBtn.vue';
 
 import { getMetaphorConfig, saveMetaphorConfig } from './useMetaphor';
 
+const providers = AI_PROVIDERS.filter((p) => p.id !== 'custom');
 const config = reactive(getMetaphorConfig());
-const models = ref<GatewayModel[]>([]);
-const credits = ref<GatewayCredits | null>(null);
-const loading = ref(false);
-const error = ref('');
-const modelName = (id: string, fallback?: string) =>
-  id === 'opencode-v4f' || id === 'deepseek-v4-flash-0731' ? 'DeepSeekV4Flash' : fallback || id;
+const currentProvider = computed(() => AI_PROVIDERS.find((p) => p.id === config.provider));
+
+const hasFreeModel = (provider: (typeof providers)[number]) =>
+  provider.models.some((model) => model.free);
+
 const modelOptions = computed(() =>
-  models.value.map((model) => ({
-    label: `${modelName(model.id, model.name)} · ${model.multiplier}x`,
+  (currentProvider.value?.models || []).map((model) => ({
+    label: model.free ? `${model.label}（免费）` : model.badge ? `${model.label}（${model.badge}）` : model.label,
     value: model.id
   }))
 );
-const selectedModel = computed(() => models.value.find((model) => model.id === config.model));
 
-async function connect() {
-  loading.value = true;
-  error.value = '';
-  try {
-    localStorage.setItem('ai-gateway-access-token', config.accessToken || '');
-    await createGatewaySession(config.accessToken || '');
-    models.value = await listGatewayModels(config.accessToken || '');
-    credits.value = await getGatewayCredits(config.accessToken || '');
-    if (!models.value.some((model) => model.id === config.model))
-      config.model = models.value[0]?.id || 'opencode-v4f';
-  } catch (err: any) {
-    error.value = err?.message || 'AI 网关验证失败';
-  } finally {
-    loading.value = false;
-  }
-}
-async function pasteToken() {
-  error.value = '';
-  try {
-    const value = await navigator.clipboard.readText();
-    config.accessToken = value.trim();
-  } catch {
-    error.value = '无法读取剪贴板，请长按输入框粘贴';
-  }
-}
-function save() {
+const selectedModelMeta = computed(() =>
+  (currentProvider.value?.models || []).find((model) => model.id === config.model)
+);
+
+function selectProvider(id: string) {
+  config.provider = id;
+  const provider = AI_PROVIDERS.find((p) => p.id === id);
+  config.baseUrl = provider?.baseUrl || '';
+  // 切换服务商时带上该服务商的默认模型,避免残留上一家的模型 id
+  if (provider?.defaultModel) config.model = provider.defaultModel;
   saveMetaphorConfig({ ...config });
-  localStorage.setItem('ai-gateway-access-token', config.accessToken || '');
 }
-onMounted(() => {
-  if (config.accessToken) void connect();
-});
+
+function save() {
+  if (!config.model) config.model = currentProvider.value?.defaultModel || '';
+  saveMetaphorConfig({ ...config });
+}
 </script>
 
 <style scoped>
@@ -123,13 +144,39 @@ onMounted(() => {
   font-size: 13px;
   font-weight: 500;
 }
-.token-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-}
 .text-muted {
   color: var(--m-text-muted, #8c8780);
+}
+.provider-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.provider-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 12.5px;
+  color: var(--m-text-muted, #8c8780);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+.provider-chip.active {
+  border-color: var(--accent-color, #888);
+  background: color-mix(in srgb, var(--accent-color, #888) 14%, transparent);
+  color: var(--m-text-primary, #333);
+}
+.free-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
 }
 </style>
