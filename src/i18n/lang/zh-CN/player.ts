@@ -106,6 +106,7 @@ export default {
     }
   },
   // 播放器设置
+    smartEq: '智能均衡器',
   settings: {
     title: '播放设置',
     playbackSpeed: '播放速度',

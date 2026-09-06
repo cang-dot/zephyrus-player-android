@@ -602,6 +602,64 @@
                 </div>
               </section>
 
+              <!-- 智能均衡器(AI 调参) -->
+              <section
+                class="control-settings-section"
+                :class="{ expanded: isControlSectionExpanded('eq') }"
+              >
+                <button
+                  type="button"
+                  class="control-section-header"
+                  :aria-expanded="isControlSectionExpanded('eq')"
+                  aria-controls="control-section-eq"
+                  @click="toggleControlSection('eq')"
+                >
+                  <span class="control-section-title">
+                    <i class="ri-equalizer-line"></i>
+                    {{ t('player.settings.smartEq') || '智能均衡器' }}
+                  </span>
+                  <i
+                    class="ri-arrow-down-s-line control-section-chevron"
+                    :class="{ expanded: isControlSectionExpanded('eq') }"
+                  ></i>
+                </button>
+                <div
+                  class="control-section-reveal"
+                  :class="{ expanded: isControlSectionExpanded('eq') }"
+                  :aria-hidden="!isControlSectionExpanded('eq')"
+                  :inert="!isControlSectionExpanded('eq')"
+                >
+                  <div id="control-section-eq" class="control-section-body">
+                    <button
+                      type="button"
+                      class="metaphor-analyze-button primary"
+                      style="width: 100%"
+                      :disabled="eqTuning"
+                      @click="tuneEqWithAi"
+                    >
+                      {{ eqTuning ? '调音中…' : '根据当前歌曲智能调音' }}
+                    </button>
+                    <p
+                      v-if="eqRationale"
+                      class="text-xs mt-2"
+                      style="color: rgba(255, 255, 255, 0.55)"
+                    >
+                      {{ eqRationale }}
+                    </p>
+                    <button
+                      v-if="eqTuned"
+                      type="button"
+                      class="preset-save-btn"
+                      style="margin-top: 8px"
+                      @click="restoreEq"
+                    >
+                      还原调音前设置
+                    </button>
+                    <EQControl :key="eqPanelKey" />
+                  </div>
+                </div>
+              </section>
+
               <!-- 播放速度 -->
               <section
                 class="control-settings-section"
@@ -1163,10 +1221,15 @@ import SongMetadataEditor from '@/components/common/SongMetadataEditor.vue';
 import PhotosensitivityWarning from '@/components/lyric/PhotosensitivityWarning.vue';
 import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
 import ListenTogetherSettings from '@/components/settings/ListenTogetherSettings.vue';
+import EQControl from '@/components/EQControl.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
 import { getProvider } from '@/features/ai/providers';
+import {
+  snapshotEqSettings,
+  tuneEqForCurrentSong
+} from '@/features/ai/eqTuner';
 import {
   getMetaphorConfig,
   saveMetaphorConfig,
@@ -1236,6 +1299,46 @@ const metaphorModelOptions = computed(() => {
   return options;
 });
 
+// ==================== AI 智能调音 ====================
+const eqPanelKey = ref(0);
+const eqTuning = ref(false);
+const eqRationale = ref('');
+const eqTuned = ref(false);
+const eqSnapshot = ref('');
+
+async function tuneEqWithAi() {
+  eqTuning.value = true;
+  eqRationale.value = '';
+  try {
+    if (!eqTuned.value) eqSnapshot.value = snapshotEqSettings();
+    const result = await tuneEqForCurrentSong();
+    eqRationale.value = result.rationale;
+    eqTuned.value = true;
+    eqPanelKey.value += 1; // 重挂均衡器以读取新增益
+    message.success('已按当前歌曲完成智能调音');
+  } catch (err: any) {
+    message.error(err?.message || '智能调音失败');
+  } finally {
+    eqTuning.value = false;
+  }
+}
+
+function restoreEq() {
+  try {
+    localStorage.setItem('eqSettings', eqSnapshot.value);
+    const settings = JSON.parse(eqSnapshot.value) as Record<string, number>;
+    Object.entries(settings).forEach(([frequency, gain]) => {
+      audioService.setEQFrequencyGain(frequency, Number(gain));
+    });
+  } catch {
+    // 快照损坏时忽略还原
+  }
+  eqTuned.value = false;
+  eqRationale.value = '';
+  eqPanelKey.value += 1;
+  message.success('已还原调音前设置');
+}
+
 function loadMetaphorModels() {
   const config = getMetaphorConfig();
   const provider = getProvider(config.provider);
@@ -1254,6 +1357,7 @@ type ControlSection =
   | 'playerStyle'
   | 'climax'
   | 'lyrics'
+  | 'eq'
   | 'speed'
   | 'analysis'
   | 'sharing'

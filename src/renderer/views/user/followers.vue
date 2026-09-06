@@ -1,7 +1,7 @@
 <template>
   <div class="h-full w-full page-bg transition-colors duration-500">
     <n-scrollbar class="h-full">
-      <div class="w-full pb-32">
+      <div class="w-full pb-32" style="padding-top: var(--mobile-topbar-inset)">
         <!-- Loading State -->
         <div v-if="followerListLoading && followerList.length === 0">
           <div class="page-padding-x pt-8">

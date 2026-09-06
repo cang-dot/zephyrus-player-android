@@ -58,11 +58,11 @@
                   </div>
                 </div>
                 <div class="profile-stats">
-                  <div>
+                  <div class="profile-stat-clickable" @click="showFollowerList">
                     <strong>{{ userDetail?.profile?.followeds || 0 }}</strong>
                     <span>{{ t('user.profile.followers') }}</span>
                   </div>
-                  <div>
+                  <div class="profile-stat-clickable" @click="showFollowList">
                     <strong>{{ userDetail?.profile?.follows || 0 }}</strong>
                     <span>{{ t('user.profile.following') }}</span>
                   </div>
@@ -450,6 +450,22 @@ const accountCardDescription = (account: PlatformAccount) => {
 
 const platformName = (platform: PlatformAccount['platform']) =>
   ({ netease: '网易云', qq: 'QQ音乐', kugou: '酷狗音乐', spotify: 'Spotify' })[platform];
+
+const showFollowList = () => {
+  if (!userDetail.value) return;
+  router.push({
+    path: '/user/follows',
+    query: { uid: String(user.value?.userId || ''), name: user.value?.nickname || '' }
+  });
+};
+
+const showFollowerList = () => {
+  if (!userDetail.value) return;
+  router.push({
+    path: '/user/followers',
+    query: { uid: String(user.value?.userId || ''), name: user.value?.nickname || '' }
+  });
+};
 
 const handlePlayRecord = (item: any) => {
   playerStore.setPlayList(displayRecordList.value || []);
@@ -1328,7 +1344,15 @@ const handleLoginError = (error: string) => {
 
 .profile-closed-view.is-account-gesture .profile-avatar-button,
 .profile-closed-view.is-account-gesture .profile-copy,
-.profile-closed-view.is-account-gesture .profile-stats {
+.profile-closed-view.is-account-gesture .profile-stat-clickable {
+  cursor: pointer;
+}
+
+.profile-stat-clickable:active {
+  transform: scale(0.96);
+}
+
+.profile-stats {
   transition:
     opacity 180ms ease,
     transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -2034,6 +2058,14 @@ const handleLoginError = (error: string) => {
   color: var(--accent-color);
   font-size: 10px;
   font-weight: 700;
+}
+
+.profile-stat-clickable {
+  cursor: pointer;
+}
+
+.profile-stat-clickable:active {
+  transform: scale(0.96);
 }
 
 .profile-stats {

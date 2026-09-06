@@ -53,6 +53,11 @@ export function getUserFollows(uid: number, limit: number = 30, offset: number =
   return request.get('/user/follows', { params: { uid, limit, offset } });
 }
 
+// 获取用户关注的歌手（网易云「关注的歌手」，非关注的用户）
+export function getArtistSublist(limit: number = 30, offset: number = 0) {
+  return request.get('/artist/sublist', { params: { limit, offset } });
+}
+
 // 获取用户粉丝列表
 export function getUserFollowers(uid: number, limit: number = 30, offset: number = 0) {
   return request.post('/user/followeds', { uid, limit, offset });

@@ -107,6 +107,7 @@ export default {
     }
   },
   // 플레이어 설정
+    smartEq: '스마트 이퀄라이저',
   settings: {
     title: '재생 설정',
     playbackSpeed: '재생 속도',

@@ -268,6 +268,7 @@
     </n-scrollbar>
     <play-bottom />
     <poster-share-modal v-model:visible="showPosterModal" :lyrics="[]" :subject="posterSubject" />
+    <ai-playlist-panel v-model:visible="showAiPlaylistPanel" />
   </div>
 </template>
 
@@ -288,6 +289,7 @@ import {
 import { fetchPlatformPlaylistTracks } from '@/api/platformQrApi';
 import { getUserPlaylist } from '@/api/user';
 import playlistPlaceholder from '@/assets/icon_512.png';
+import AiPlaylistPanel from '@/components/player/AiPlaylistPanel.vue';
 import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
@@ -608,6 +610,7 @@ const topbarSource = computed(() =>
 
 // ==================== 海报分享（歌单/专辑直接分享，不摘录歌词） ====================
 const { showPosterModal, posterSubject, openPosterForSubject } = usePosterShare();
+const showAiPlaylistPanel = ref(false);
 
 const buildPosterSubject = (): PosterSubject => {
   const subtitle = isAlbum.value
@@ -685,6 +688,15 @@ const registerMusicListTopbar = () => {
     label: '分享',
     icon: 'ri-share-line',
     run: () => openPosterForSubject(buildPosterSubject())
+  });
+  registerMobileTopbarAction({
+    id: `${topbarActionPrefix}-ai-playlist`,
+    routePath: '/music-list/*',
+    label: 'AI 歌单',
+    icon: 'ri-magic-line',
+    run: () => {
+      showAiPlaylistPanel.value = true;
+    }
   });
   registerMobileTopbarAction({
     id: `${topbarActionPrefix}-sort`,

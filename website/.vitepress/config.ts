@@ -41,6 +41,7 @@ export default defineConfig({
         items: [
           { text: '安装与更新', link: '/guide/installation' },
           { text: '第一次使用', link: '/guide/getting-started' },
+          { text: '免费 AI 密钥领取', link: '/guide/free-api-keys' },
           { text: '常见问题', link: '/guide/faq' }
         ]
       },

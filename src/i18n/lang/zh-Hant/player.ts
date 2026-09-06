@@ -106,6 +106,7 @@ export default {
     }
   },
   // 播放器設定
+    smartEq: '智慧等化器',
   settings: {
     title: '播放設定',
     playbackSpeed: '播放速度',
