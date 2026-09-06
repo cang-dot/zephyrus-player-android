@@ -1,5 +1,10 @@
 <template>
-  <div class="eq-control p-6 rounded-lg bg-gray-100 dark:bg-gray-900 w-full max-w-[700px]">
+  <div class="eq-control p-4 rounded-2xl w-full" style="
+    background: color-mix(in srgb, var(--m-surface-alt, #f3f0eb) 86%, transparent);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  ">
     <div class="eq-header flex justify-between items-center mb-4">
       <h3 class="text-xl font-semibold text-gray-800 dark:text-gray-200">
         {{ t('player.eq.title') }}

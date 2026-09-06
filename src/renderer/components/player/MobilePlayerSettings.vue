@@ -616,7 +616,7 @@
                 >
                   <span class="control-section-title">
                     <i class="ri-equalizer-line"></i>
-                    {{ t('player.settings.smartEq') || '智能均衡器' }}
+                    {{ tr('player.settings.smartEq', '智能均衡器') }}
                   </span>
                   <i
                     class="ri-arrow-down-s-line control-section-chevron"
@@ -748,7 +748,6 @@
                           class="metaphor-model-select"
                           :options="metaphorModelOptions"
                           filterable
-                          tag
                           size="small"
                           placeholder="选择模型"
                           @update:value="onMetaphorModelChange"
@@ -1341,6 +1340,13 @@ function restoreEq() {
 
 function loadMetaphorModels() {
   const config = getMetaphorConfig();
+  if (config.provider === 'gateway' || !getProvider(config.provider)) {
+    // 旧网关配置迁移到智谱免费档
+    config.provider = 'zhipu';
+    config.model = config.model || 'glm-4-flash';
+    config.baseUrl = '';
+    saveMetaphorConfig(config);
+  }
   const provider = getProvider(config.provider);
   metaphorModelSelection.value = config.model || provider?.defaultModel || 'glm-4-flash';
 }

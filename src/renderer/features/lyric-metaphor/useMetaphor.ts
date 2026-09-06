@@ -12,6 +12,7 @@ const CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
 interface MetaphorConfig {
   provider: string;
   apiKey: string;
+  accessToken?: string;
   model: string;
   baseUrl: string;
 }
@@ -24,7 +25,18 @@ interface CacheEntry {
 export function getMetaphorConfig(): MetaphorConfig {
   try {
     const raw = localStorage.getItem(STORAGE);
-    if (raw) return JSON.parse(raw) as MetaphorConfig;
+    if (raw) {
+      const config = JSON.parse(raw) as MetaphorConfig;
+      // 旧网关配置迁移:云端网关已弃用,落到智谱免费档
+      if (config.provider === 'gateway' || config.provider === '') {
+        config.provider = 'zhipu';
+        if (!config.model || config.model === 'opencode-v4f') config.model = 'glm-4-flash';
+        config.baseUrl = '';
+        delete config.accessToken;
+        saveMetaphorConfig(config);
+      }
+      return config;
+    }
   } catch {
     // Ignore invalid legacy configuration and use the current defaults.
   }

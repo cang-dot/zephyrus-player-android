@@ -107,8 +107,8 @@ export default {
     }
   },
   // Playback settings
+    settings: {
     smartEq: 'Smart Equalizer',
-  settings: {
     title: 'Playback Settings',
     playbackSpeed: 'Playback Speed',
     playerStyle: 'Player Style'

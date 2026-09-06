@@ -107,8 +107,8 @@ export default {
     }
   },
   // プレイヤー設定
+    settings: {
     smartEq: 'スマートイコライザー',
-  settings: {
     title: '再生設定',
     playbackSpeed: '再生速度',
     playerStyle: 'プレイヤースタイル'
