@@ -2785,6 +2785,8 @@ onUnmounted(() => {
   will-change: grid-template-rows, opacity, transform;
   max-height: 0;
   overflow: hidden;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .control-section-reveal.expanded {
@@ -2797,6 +2799,7 @@ onUnmounted(() => {
 
 .control-section-body {
   min-height: 0;
+  min-width: 0;
   overflow: visible;
   padding: 0 14px 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);

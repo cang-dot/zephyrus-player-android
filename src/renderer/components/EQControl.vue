@@ -46,7 +46,7 @@
       >
     </div>
 
-    <div class="eq-presets mb-2 relative h-10">
+    <div class="eq-presets mb-2 relative h-10" style="max-width: 100%; overflow: hidden;">
       <n-scrollbar x-scrollable>
         <n-space :size="6" :wrap="false">
           <n-tag
@@ -87,7 +87,7 @@
           vertical
           :disabled="!isEnabled"
           @update:value="updateEQ(freq.toString(), $event)"
-          class="flex-1 my-3 min-h-[180px]"
+          class="eq-vslider flex-1 my-3"
         />
         <div
           class="gain-value font-medium text-center whitespace-nowrap my-1 h-4" style="color: var(--m-text-muted, rgba(255,255,255,0.55)); font-size: 10px;"
@@ -348,6 +348,19 @@ const formatFreq = (freq: number) => {
 :deep(.n-space) {
   flex-wrap: nowrap;
   padding: 4px 0;
+}
+
+.eq-slider {
+  overflow: hidden;
+}
+
+/* naive-ui 垂直滑杆根宽为 --n-rail-width-vertical + handle 补边,
+   不约束会在窄列内向外撑开;显式限宽并居中 */
+.eq-slider :deep(.n-slider.eq-vslider),
+.eq-slider :deep(.n-slider) {
+  width: 100% !important;
+  max-width: 36px;
+  margin-inline: auto;
 }
 
 :deep(.n-slider) {
