@@ -32,6 +32,26 @@
       <div v-if="!loading && !playlists.length" class="inline-playlist-state">
         {{ t('common.noData') }}
       </div>
+      <!-- 创建新歌单:任何页面通用入口 -->
+      <button v-if="!loading" type="button" class="inline-playlist-row create-row" @click="createAndAdd">
+        <span class="create-icon"><i class="ri-add-line" /></span>
+        <span>
+          <strong>{{ t('comp.playlistDrawer.createPlaylist') || '创建新歌单' }}</strong>
+          <small>{{ t('comp.playlistDrawer.createAndAdd') || '新建并添加这首歌' }}</small>
+        </span>
+      </button>
+      <div v-if="creating" class="inline-playlist-create">
+        <input
+          v-model="newPlaylistName"
+          type="text"
+          maxlength="40"
+          :placeholder="t('comp.playlistDrawer.namePlaceholder') || '给新歌单起个名字'"
+          @keyup.enter="confirmCreate"
+        />
+        <button type="button" :disabled="!newPlaylistName.trim() || createBusy" @click="confirmCreate">
+          {{ createBusy ? t('common.loading') : t('common.confirm') || '确定' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -41,7 +61,7 @@ import { NImage, useMessage } from 'naive-ui';
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { updatePlaylistTracks } from '@/api/music';
+import { createPlaylist, updatePlaylistTracks } from '@/api/music';
 import { getUserPlaylist } from '@/api/user';
 import { registerMobileBackLayer } from '@/services/mobileBackStack';
 import { useLocalPlaylistStore } from '@/store/modules/localPlaylist';
@@ -93,6 +113,42 @@ const toggle = async () => {
   const next = !props.expanded;
   emit('update:expanded', next);
   if (next) await loadPlaylists();
+};
+
+// ==================== 创建新歌单 ====================
+const creating = ref(false);
+const createBusy = ref(false);
+const newPlaylistName = ref('');
+
+const createAndAdd = () => {
+  creating.value = true;
+  newPlaylistName.value = '';
+};
+
+const confirmCreate = async () => {
+  const name = newPlaylistName.value.trim();
+  if (!name || createBusy.value) return;
+  createBusy.value = true;
+  try {
+    const response = await createPlaylist({ name, privacy: 0 });
+    const playlistId = response.data?.data?.id || response.data?.playlist?.id;
+    if (!playlistId) throw new Error(response.data?.message || '创建歌单失败');
+    playlists.value.unshift({
+      id: playlistId,
+      name,
+      trackCount: 0,
+      coverImgUrl: '',
+      picUrl: ''
+    });
+    creating.value = false;
+    newPlaylistName.value = '';
+    // 创建后直接把当前歌加入新歌单
+    await addToPlaylist({ id: playlistId, name });
+  } catch (error: any) {
+    message.error(error?.message || '创建歌单失败');
+  } finally {
+    createBusy.value = false;
+  }
 };
 
 const addToPlaylist = async (playlist: any) => {
@@ -268,6 +324,65 @@ onBeforeUnmount(() => unregisterBackLayer?.());
   place-items: center;
   color: var(--d-text-muted, #999);
   font-size: 12px;
+}
+
+/* 创建新歌单行:虚线描边卡,与列表行同圆角语言 */
+.create-row {
+  border: 1px dashed color-mix(in srgb, var(--d-text-muted, #999) 45%, transparent);
+  background: transparent;
+
+  .create-icon {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    place-items: center;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent-color, #888) 14%, transparent);
+
+    i {
+      color: var(--accent-color);
+      font-size: 20px;
+    }
+  }
+}
+
+.inline-playlist-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 4px 0 2px;
+
+  input {
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid color-mix(in srgb, var(--d-text-muted, #999) 40%, transparent);
+    border-radius: 12px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+
+    &:focus {
+      border-color: var(--accent-color, #888);
+    }
+  }
+
+  button {
+    padding: 0 16px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--accent-color, #888);
+    color: #141414;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+    }
+  }
 }
 
 .is-spinning {

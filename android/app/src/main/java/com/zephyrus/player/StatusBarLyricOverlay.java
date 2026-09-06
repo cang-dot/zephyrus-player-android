@@ -245,6 +245,7 @@ public final class StatusBarLyricOverlay {
                 lastSyncPositionMs = (long) positionMs;
                 lastSyncElapsedMs = SystemClock.elapsedRealtime();
                 playingFromSync = !state.optBoolean("paused", true);
+                startAlphaAnimation(playingFromSync ? ALPHA_PLAYING : ALPHA_PAUSED);
             }
             startTicker();
             boolean needsRender = !lyric.equals(nextLyric)
@@ -403,6 +404,48 @@ public final class StatusBarLyricOverlay {
         scheduleRemove();
     }
 
+    // 暂停时歌词渐隐:paused 由 JS 侧同步,渲染层据此对 lyricView 做透明度插值
+    private static final float ALPHA_PLAYING = 1f;
+    private static final float ALPHA_PAUSED = 0.25f;
+    private static final long ALPHA_STEP_MS = 40L;
+    private static final float ALPHA_STEP = 0.08f;
+    private float currentAlpha = ALPHA_PLAYING;
+    private Runnable alphaRunnable;
+
+    /** 暂停/恢复渐隐:40ms 一档向目标 alpha 逼近,可随时反向(中断友好) */
+    private void startAlphaAnimation(float target) {
+        if (Math.abs(currentAlpha - target) < 0.005f) {
+            currentAlpha = target;
+            applyAlpha();
+            return;
+        }
+        mainHandler.removeCallbacks(alphaRunnable);
+        alphaRunnable = new Runnable() {
+            @Override public void run() {
+                float delta = target - currentAlpha;
+                float step = Math.signum(delta) * Math.min(Math.abs(delta), ALPHA_STEP);
+                currentAlpha += step;
+                applyAlpha();
+                if (Math.abs(target - currentAlpha) >= 0.005f) {
+                    mainHandler.postDelayed(this, ALPHA_STEP_MS);
+                } else {
+                    currentAlpha = target;
+                    applyAlpha();
+                }
+            }
+        };
+        mainHandler.post(alphaRunnable);
+    }
+
+    private void applyAlpha() {
+        if (lyricView != null && attached) {
+            final float alpha = currentAlpha;
+            mainHandler.post(() -> {
+                if (lyricView != null) lyricView.setAlpha(alpha);
+            });
+        }
+    }
+
     private void scheduleRender() {
         mainHandler.removeCallbacks(renderRunnable);
         mainHandler.removeCallbacks(scrollRunnable);
@@ -432,6 +475,7 @@ public final class StatusBarLyricOverlay {
             if (lyricView == null) return;
             applyTypography();
             lyricView.setText(buildStyledLyric());
+            lyricView.setAlpha(currentAlpha);
             String bgKey = fillEnabled + "|" + borderEnabled + "|" + fillSource + "|" + fillColor
                     + "|" + borderSource + "|" + borderColor + "|" + surfaceOpacity
                     + "|" + themeColor;

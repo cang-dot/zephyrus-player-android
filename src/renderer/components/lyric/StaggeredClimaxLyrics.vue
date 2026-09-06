@@ -17,7 +17,7 @@
         :key="`${lineKey}:${placement.indexInRow}`"
         class="staggered-climax-word"
         :class="{ revealed: isRevealed(placement.word), active: isActive(placement.word) }"
-        :style="wordStyle(placement.indexInRow, row.row)"
+        :style="wordStyle(placement.indexInRow, row.row, placement.word)"
         >{{ placement.word.text }}</span
       >
     </div>
@@ -129,13 +129,17 @@ function isActive(word: IWordData) {
 function rowOffset(row: number) {
   return (row % 2 === 0 ? -1 : 1) * typography.value.offset;
 }
-function wordStyle(indexInRow: number, row: number) {
+function wordStyle(indexInRow: number, row: number, word: IWordData) {
   const skew = ((indexInRow + row) % 2 ? 1 : -1) * props.rotation;
+  // 逐字过渡时长按分词时长动态计算（25%，90-300ms）：快字不拖尾、慢字不瞬变
+  const wordMs = Number(word.duration) || 0;
+  const transitionMs = wordMs > 0 ? Math.min(Math.max(wordMs * 0.25, 90), 300) : 180;
   return {
     color: props.color,
     fontFamily: props.fontFamily,
     fontSize: `${typography.value.fontSize}px`,
-    '--word-rotation': `${skew}deg`
+    '--word-rotation': `${skew}deg`,
+    '--word-transition-duration': `${transitionMs}ms`
   };
 }
 </script>
@@ -175,9 +179,9 @@ function wordStyle(indexInRow: number, row: number) {
   line-height: 1.08;
   letter-spacing: 0.02em;
   transition:
-    opacity 180ms ease,
-    transform 180ms ease,
-    color 180ms ease;
+    opacity var(--word-transition-duration, 180ms) ease,
+    transform var(--word-transition-duration, 180ms) ease,
+    color var(--word-transition-duration, 180ms) ease;
 }
 .staggered-climax-word.revealed {
   opacity: 0.78;

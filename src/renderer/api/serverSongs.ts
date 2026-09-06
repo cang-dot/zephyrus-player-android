@@ -47,7 +47,7 @@ let cachedSongs: ServerSong[] | null = null;
 /**
  * 加载云端歌曲列表（带内存缓存）
  */
-async function loadServerSongs(): Promise<ServerSong[]> {
+export async function loadServerSongs(): Promise<ServerSong[]> {
   if (cachedSongs) return cachedSongs;
 
   try {

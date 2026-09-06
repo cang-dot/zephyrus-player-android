@@ -10,7 +10,7 @@
         v-for="token in visibleAuxiliaryTokens"
         :key="token.key"
         class="ttml-auxiliary-token"
-        :class="`slot-${token.slot}`"
+        :class="`slot-${token.slot}`" :style="auxiliaryTokenStyle(token)"
         >{{ token.text }}</span
       >
     </TransitionGroup>
@@ -65,6 +65,24 @@ const ttmlDropTokenStyle = computed(() => {
   const animationDuration = Math.min(120, Math.max(56, tokenDuration * 0.35));
   return { '--ttml-drop-duration': `${animationDuration}ms` };
 });
+// 背景/对唱词逐字进出场时长按分词时间动态计算：
+// 进入时长上限为字时长的 50%（80-220ms），离开上限为 25%（40-100ms），
+// 确保下一字出现前上一字已基本退场，避免快字相互覆盖（吞字）。
+const AUX_ENTER_MIN_MS = 80;
+const AUX_ENTER_MAX_MS = 220;
+const AUX_LEAVE_MIN_MS = 40;
+const AUX_LEAVE_MAX_MS = 100;
+
+function auxiliaryTokenStyle(token: WordAuxiliaryToken) {
+  const wordMs = Math.max(0, token.end - token.begin) * 1000;
+  if (!Number.isFinite(wordMs) || wordMs <= 0) return undefined;
+  const enterMs = Math.min(Math.max(wordMs * 0.5, AUX_ENTER_MIN_MS), AUX_ENTER_MAX_MS);
+  const leaveMs = Math.min(Math.max(wordMs * 0.25, AUX_LEAVE_MIN_MS), AUX_LEAVE_MAX_MS);
+  return {
+    '--aux-in-duration': `${enterMs}ms`,
+    '--aux-out-duration': `${leaveMs}ms`
+  };
+}
 </script>
 
 <style scoped>
@@ -160,10 +178,10 @@ const ttmlDropTokenStyle = computed(() => {
   opacity: 0;
 }
 .ttml-auxiliary-enter-active {
-  animation: ttml-aux-in 220ms ease-out;
+  animation: ttml-aux-in var(--aux-in-duration, 220ms) ease-out;
 }
 .ttml-auxiliary-leave-active {
-  transition: opacity 100ms linear;
+  transition: opacity var(--aux-out-duration, 100ms) linear;
 }
 .ttml-auxiliary-leave-to {
   opacity: 0;

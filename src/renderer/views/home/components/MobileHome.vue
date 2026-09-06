@@ -30,6 +30,23 @@
       </button>
     </section>
 
+    <!-- Zephyrus 云端曲库轮播胶囊:新歌即点即听 -->
+    <button
+      v-if="cloudSongs.length"
+      type="button"
+      class="cloud-marquee"
+      @click="openCloudLibrary"
+    >
+      <span class="cloud-marquee-cover" :style="{ backgroundImage: `url(${currentCloudCover})` }" />
+      <Transition name="cloud-marquee-text" mode="out-in">
+        <span :key="currentCloudIndex" class="cloud-marquee-copy">
+          <i class="ri-cloud-line" />
+          嘿，最近 Zephyrus 云新上了<b>{{ currentCloudName }}</b>，点击即听！
+        </span>
+      </Transition>
+      <i class="ri-arrow-right-s-line cloud-marquee-arrow" />
+    </button>
+
     <section class="daily-section">
       <header>
         <div>
@@ -54,10 +71,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { getPersonalFM, getPersonalizedPlaylist } from '@/api/home';
+import { loadServerSongs, serverSongToSongResult, type ServerSong } from '@/api/serverSongs';
 import SongItem from '@/components/common/SongItem.vue';
 import { playMusic } from '@/hooks/MusicHook';
 import { useIntelligenceModeStore } from '@/store/modules/intelligenceMode';
@@ -73,6 +91,29 @@ const playerCore = usePlayerCoreStore();
 const playlistStore = usePlaylistStore();
 const intelligenceStore = useIntelligenceModeStore();
 const fmLoading = ref(false);
+// ==================== 云端曲库轮播 ====================
+const cloudSongs = ref<ServerSong[]>([]);
+const currentCloudIndex = ref(0);
+let cloudTimer: ReturnType<typeof setInterval> | null = null;
+const currentCloudSong = computed(() => cloudSongs.value[currentCloudIndex.value] || null);
+const currentCloudName = computed(() => currentCloudSong.value?.name || '');
+const currentCloudCover = computed(() => currentCloudSong.value?.picUrl || '');
+
+const openCloudLibrary = async () => {
+  const song = currentCloudSong.value;
+  if (!song) return;
+  // 点击直接播放当前轮播曲;整个云曲库(而非仅轮播的5首)进播放列表
+  const all = await loadServerSongs();
+  const songs = all.map(serverSongToSongResult);
+  const index = songs.findIndex((item) => String(item.id) === String(song.id));
+  playlistStore.setPlayList(songs);
+  await playSong(songs[index >= 0 ? index : 0]);
+};
+
+const rotateCloud = () => {
+  if (!cloudSongs.value.length) return;
+  currentCloudIndex.value = (currentCloudIndex.value + 1) % cloudSongs.value.length;
+};
 const heroPlaylists = ref<any[]>([]);
 const dailySongs = computed(() => recommendStore.dailyRecommendSongs);
 const coverFor = (index: number) => {
@@ -149,12 +190,22 @@ async function playDailySongs() {
 }
 
 onMounted(async () => {
+  loadServerSongs()
+    .then((all) => {
+      cloudSongs.value = all.slice(-5).reverse();
+    })
+    .catch(() => {});
   await Promise.allSettled([
     recommendStore.refreshIfStale(),
     getPersonalizedPlaylist(8).then((response) => {
       heroPlaylists.value = response.data?.result || [];
     })
   ]);
+  cloudTimer = setInterval(rotateCloud, 5000);
+});
+
+onBeforeUnmount(() => {
+  if (cloudTimer) clearInterval(cloudTimer);
 });
 </script>
 
@@ -290,6 +341,96 @@ onMounted(async () => {
   .daily-section header button:active {
     transform: scale(0.97);
     transition: transform 120ms ease-out;
+  }
+}
+
+/* ==================== 云端曲库轮播胶囊 ==================== */
+.cloud-marquee {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-surface-alt, #f3f0eb) 86%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color 160ms ease;
+
+  &:active {
+    transform: scale(0.98);
+    border-color: color-mix(in srgb, var(--accent-color, #888) 40%, transparent);
+  }
+}
+
+.cloud-marquee-cover {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 50%;
+  background-color: rgba(var(--accent-color-rgb, 136, 136, 136), 0.14);
+  background-position: center;
+  background-size: cover;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+}
+
+.cloud-marquee-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--d-text-primary, inherit);
+
+  i {
+    flex: none;
+    color: var(--accent-color);
+  }
+
+  b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--accent-color);
+  }
+}
+
+.cloud-marquee-arrow {
+  flex: none;
+  color: var(--d-text-muted, #999);
+}
+
+.cloud-marquee-text-enter-active,
+.cloud-marquee-text-leave-active {
+  transition:
+    opacity 260ms ease,
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.cloud-marquee-text-enter-from {
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+.cloud-marquee-text-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud-marquee-text-enter-active,
+  .cloud-marquee-text-leave-active {
+    transition: opacity 120ms ease;
+    transform: none;
   }
 }
 </style>

@@ -321,6 +321,18 @@
         <i class="ri-settings-3-line action-icon" />
       </button>
 
+      <!-- 底部四个 TAB 时:加号胶囊,点开创建歌单 -->
+      <button
+        v-if="isMainTabPage"
+        key="create-playlist"
+        type="button"
+        class="topbar-pill topbar-action-pill topbar-create-pill"
+        :title="t('comp.playlistDrawer.createPlaylist') || '创建歌单'"
+        @click="createPlaylistVisible = true"
+      >
+        <i class="ri-add-line action-icon" />
+      </button>
+
       <!-- 头像 / 搜索按钮 -->
       <div
         v-else
@@ -336,6 +348,36 @@
             <i class="ri-user-3-line"></i>
           </div>
         </template>
+      </div>
+    </Transition>
+
+    <!-- 创建歌单弹层:毛玻璃圆角卡,与全局面板语言一致 -->
+    <Transition name="create-playlist-fade">
+      <div v-if="createPlaylistVisible" class="create-playlist-overlay" @click.self="createPlaylistVisible = false">
+        <div class="create-playlist-card no-toggle">
+          <header>
+            <h3>{{ t('comp.playlistDrawer.createPlaylist') || '创建歌单' }}</h3>
+            <button type="button" @click="createPlaylistVisible = false">
+              <i class="ri-close-line"></i>
+            </button>
+          </header>
+          <input
+            v-model="createPlaylistName"
+            type="text"
+            maxlength="40"
+            :placeholder="t('comp.playlistDrawer.namePlaceholder') || '给新歌单起个名字'"
+            @keyup.enter="submitCreatePlaylist"
+          />
+          <button
+            type="submit"
+            class="create-playlist-submit"
+            :disabled="!createPlaylistName.trim() || creatingPlaylist"
+            @click="submitCreatePlaylist"
+          >
+            {{ creatingPlaylist ? t('common.loading') : t('common.confirm') || '创建' }}
+          </button>
+          <p v-if="createPlaylistError" class="create-playlist-error">{{ createPlaylistError }}</p>
+        </div>
       </div>
     </Transition>
 
@@ -412,6 +454,7 @@ import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } fr
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
+import { createPlaylist } from '@/api/music';
 import { getSearchSuggestions } from '@/api/search';
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
@@ -443,6 +486,8 @@ const showBack = computed(() => route.meta.back === true);
 const isSearchPage = computed(
   () => route.path === '/mobile-search' || route.path === '/mobile-search-result'
 );
+// 底部四个 TAB(首页/歌单/发现/我的):顶栏右侧展示「创建歌单」加号
+const isMainTabPage = computed(() => ['/', '/list', '/discover', '/user'].includes(route.path));
 const isSettingsPage = computed(() => route.path === '/set');
 const showPageCapsule = computed(
   () => !isSearchPage.value && !['/', '/discover', '/user'].includes(route.path)
@@ -987,6 +1032,31 @@ const clearSettingsSearch = () => {
 
 const goToUser = () => router.push('/user');
 const goToSettings = () => router.push('/set');
+
+// ==================== 顶栏创建歌单 ====================
+const createPlaylistVisible = ref(false);
+const createPlaylistName = ref('');
+const creatingPlaylist = ref(false);
+const createPlaylistError = ref('');
+
+const submitCreatePlaylist = async () => {
+  const name = createPlaylistName.value.trim();
+  if (!name || creatingPlaylist.value) return;
+  creatingPlaylist.value = true;
+  createPlaylistError.value = '';
+  try {
+    const response = await createPlaylist({ name, privacy: 0 });
+    const playlistId = response.data?.data?.id || response.data?.playlist?.id;
+    if (!playlistId) throw new Error(response.data?.message || '创建歌单失败');
+    createPlaylistVisible.value = false;
+    createPlaylistName.value = '';
+    window.$message?.success(`已创建「${name}」`);
+  } catch (error: any) {
+    createPlaylistError.value = error?.message || '创建歌单失败';
+  } finally {
+    creatingPlaylist.value = false;
+  }
+};
 
 const onSearchInput = (e: Event) => {
   const value = (e.target as HTMLInputElement).value;
@@ -2522,5 +2592,126 @@ const handleSearchSubmit = () => {
 .topbar-pill-morph-leave-to {
   opacity: 0;
   transform: scale(0.72);
+}
+
+/* ==================== 创建歌单弹层 ==================== */
+.create-playlist-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.create-playlist-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 340px;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--m-surface-alt, #f3f0eb) 86%, transparent);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+}
+
+.create-playlist-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  button {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(128, 128, 128, 0.14);
+    color: inherit;
+    cursor: pointer;
+  }
+}
+
+.create-playlist-card input {
+  padding: 12px 14px;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 160ms ease;
+
+  &:focus {
+    border-color: var(--accent-color, #888);
+  }
+}
+
+.create-playlist-submit {
+  padding: 12px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--accent-color, #888);
+  color: #141414;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+.create-playlist-error {
+  margin: 0;
+  font-size: 12px;
+  color: #f87171;
+}
+
+.create-playlist-fade-enter-active,
+.create-playlist-fade-leave-active {
+  transition: opacity 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.create-playlist-fade-enter-active .create-playlist-card,
+.create-playlist-fade-leave-active .create-playlist-card {
+  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.create-playlist-fade-enter-from,
+.create-playlist-fade-leave-to {
+  opacity: 0;
+}
+
+.create-playlist-fade-enter-from .create-playlist-card {
+  transform: translateY(14px) scale(0.97);
+}
+
+.create-playlist-fade-leave-to .create-playlist-card {
+  transform: translateY(10px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .create-playlist-fade-enter-active,
+  .create-playlist-fade-leave-active {
+    transition: opacity 120ms ease;
+  }
 }
 </style>
