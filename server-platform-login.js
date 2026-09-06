@@ -22,7 +22,6 @@ const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
 const { decryptQrc } = require('qrc-decoder');
-const { createAiGatewayRouter } = require('./server-ai-gateway');
 const {
   createListenTogetherRouter,
   createListenTogetherMcpRouter
@@ -2881,7 +2880,7 @@ function createPlatformGatewayApp() {
   // `VITE_MUSIC_GATEWAY` reverse-proxy prefix; /mcp works for direct access.
   app.use('/platform/mcp', createListenTogetherMcpRouter());
   app.use('/mcp', createListenTogetherMcpRouter());
-  app.use('/v1', createAiGatewayRouter());
+  // AI 网关已弃用(BYOK:用户自带密钥客户端直连),不再挂载 /v1
   app.use((_req, res) => {
     res.status(404).json({ code: 404, msg: 'Gateway route not found' });
   });
