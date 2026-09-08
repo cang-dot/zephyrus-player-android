@@ -143,6 +143,29 @@
             </button>
           </div>
         </div>
+        <template v-if="(local.backgroundPreset || 'none') === 'aurora'">
+          <label class="range-row">
+            <span
+              >{{ tr('player.styleCustomization.auroraSpeedLabel', '极光速度') }}
+              {{ local.auroraSpeed ?? 0.8 }}</span
+            >
+            <input v-model.number="local.auroraSpeed" type="range" min="0.4" max="2" step="0.1" />
+          </label>
+          <div class="setting-row">
+            <span>{{ tr('player.styleCustomization.auroraPosition', '极光位置') }}</span>
+            <div class="segmented-control aurora-position-grid">
+              <button
+                v-for="option in auroraPositionOptions"
+                :key="option.value"
+                type="button"
+                :class="{ active: (local.auroraPosition || 'top') === option.value }"
+                @click="local.auroraPosition = option.value"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
+        </template>
       </template>
 
       <div v-if="local.useCustomBackground" class="nested-settings">
@@ -626,6 +649,16 @@ const backgroundPresetOptions = computed(() => [
   { value: 'aurora' as const, label: tr('player.styleCustomization.presetAurora', '极光') },
   { value: 'fluid' as const, label: tr('player.styleCustomization.presetFluid', '流体') }
 ]);
+const auroraPositionOptions = computed(() => [
+  { value: 'top' as const, label: tr('player.styleCustomization.posTop', '上') },
+  { value: 'top-right' as const, label: tr('player.styleCustomization.posTopRight', '右上') },
+  { value: 'right' as const, label: tr('player.styleCustomization.posRight', '右') },
+  { value: 'bottom-right' as const, label: tr('player.styleCustomization.posBottomRight', '右下') },
+  { value: 'bottom' as const, label: tr('player.styleCustomization.posBottom', '下') },
+  { value: 'bottom-left' as const, label: tr('player.styleCustomization.posBottomLeft', '左下') },
+  { value: 'left' as const, label: tr('player.styleCustomization.posLeft', '左') },
+  { value: 'top-left' as const, label: tr('player.styleCustomization.posTopLeft', '左上') }
+]);
 const colorLayers = computed(() => [
   { key: 'main' as const, label: tr('player.styleCustomization.mainLyric', '主歌词') },
   { key: 'auxiliary' as const, label: tr('player.styleCustomization.auxiliary', '背景 / 对唱词') },
@@ -766,6 +799,9 @@ function importFont() {
 }
 .segmented-control.three-options {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.segmented-control.aurora-position-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .segmented-control button {
   min-height: 32px;

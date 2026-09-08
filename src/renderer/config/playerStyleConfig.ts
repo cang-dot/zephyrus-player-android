@@ -24,10 +24,13 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     showTrackInfo: true,
     artworkSize: 100,
     artworkAlign: 'center',
-    backgroundPreset: 'none'
+    backgroundPreset: 'none',
+    auroraSpeed: 0.8,
+    auroraPosition: 'top'
   },
   stage: {
     auroraSpeed: 0.8,
+    auroraPosition: 'top',
     beatFlashIntensity: 0.5,
     effectLyricColor: true,
     effectWordDrop: false,

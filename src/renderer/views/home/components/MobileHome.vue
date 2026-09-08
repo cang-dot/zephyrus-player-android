@@ -41,7 +41,13 @@
       <Transition name="cloud-marquee-text" mode="out-in">
         <span :key="currentCloudIndex" class="cloud-marquee-copy">
           <i class="ri-cloud-line" />
-          嘿，最近 Zephyrus 云新上了<b>{{ currentCloudName }}</b>，点击即听！
+          <span class="cloud-marquee-lines">
+            <small>嘿，最近 Zephyrus 云新上了</small>
+            <span class="cloud-marquee-name">
+              <b>{{ currentCloudName }}</b>
+              <span class="cloud-marquee-suffix">，点击即听！</span>
+            </span>
+          </span>
         </span>
       </Transition>
       <i class="ri-arrow-right-s-line cloud-marquee-arrow" />
@@ -75,7 +81,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { getPersonalFM, getPersonalizedPlaylist } from '@/api/home';
-import { loadServerSongs, serverSongToSongResult, type ServerSong } from '@/api/serverSongs';
+import { loadServerSongs, type ServerSong } from '@/api/serverSongs';
 import SongItem from '@/components/common/SongItem.vue';
 import { playMusic } from '@/hooks/MusicHook';
 import { useIntelligenceModeStore } from '@/store/modules/intelligenceMode';
@@ -99,15 +105,9 @@ const currentCloudSong = computed(() => cloudSongs.value[currentCloudIndex.value
 const currentCloudName = computed(() => currentCloudSong.value?.name || '');
 const currentCloudCover = computed(() => currentCloudSong.value?.picUrl || '');
 
-const openCloudLibrary = async () => {
-  const song = currentCloudSong.value;
-  if (!song) return;
-  // 点击直接播放当前轮播曲;整个云曲库(而非仅轮播的5首)进播放列表
-  const all = await loadServerSongs();
-  const songs = all.map(serverSongToSongResult);
-  const index = songs.findIndex((item) => String(item.id) === String(song.id));
-  playlistStore.setPlayList(songs);
-  await playSong(songs[index >= 0 ? index : 0]);
+const openCloudLibrary = () => {
+  // 点击进入 Zephyrus 云歌曲列表（复用歌单页），由用户自行选择歌曲播放
+  router.push('/music-list/zephyrus-cloud?type=server-library');
 };
 
 const rotateCloud = () => {
@@ -385,22 +385,55 @@ onBeforeUnmount(() => {
   min-width: 0;
   flex: 1;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   overflow: hidden;
-  font-size: 13px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
   color: var(--d-text-primary, inherit);
 
-  i {
+  > i {
     flex: none;
+    font-size: 18px;
+    color: var(--accent-color);
+  }
+}
+
+/* 两行布局：上行提示语、下行歌名+后缀，避免手机窄屏下歌名被单行挤压截断 */
+.cloud-marquee-lines {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+
+  > small {
+    overflow: hidden;
+    font-size: 11px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--m-text-secondary, #777);
+  }
+}
+
+.cloud-marquee-name {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 14px;
+  line-height: 1.25;
+
+  b {
+    min-width: 0;
+    overflow: hidden;
+    font-weight: 650;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     color: var(--accent-color);
   }
 
-  b {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--accent-color);
+  .cloud-marquee-suffix {
+    flex: none;
+    font-size: 12px;
+    color: var(--m-text-secondary, #777);
   }
 }
 
@@ -431,6 +464,43 @@ onBeforeUnmount(() => {
   .cloud-marquee-text-leave-active {
     transition: opacity 120ms ease;
     transform: none;
+  }
+}
+
+/* ==================== 横屏左右布局 ==================== */
+/* 宽视口（宽高比 ≥4:3，覆盖手机横屏/平板横屏/电脑窗口）改双栏：
+   左列功能入口与云胶囊，右列每日推荐，避免上半部分组件横向拉伸过大。
+   旧条件 orientation:landscape + max-height:620px 过严，平板/电脑永不命中 */
+@media (min-aspect-ratio: 4/3) {
+  .mobile-home {
+    display: grid;
+    grid-template-columns: minmax(240px, 2fr) minmax(0, 3fr);
+    grid-template-rows: auto auto;
+    gap: 14px;
+    align-items: start;
+  }
+
+  .mode-grid {
+    grid-row: 1;
+    grid-column: 1;
+  }
+
+  .mode-card.fm {
+    min-height: 180px;
+  }
+
+  .cloud-marquee {
+    grid-row: 2;
+    grid-column: 1;
+    margin-top: 0;
+  }
+
+  .daily-section {
+    grid-row: 1 / 3;
+    grid-column: 2;
+    margin-top: 0;
+    max-height: calc(100vh - var(--mobile-topbar-inset, 0px) - 170px);
+    overflow-y: auto;
   }
 }
 </style>

@@ -18,6 +18,12 @@ export default {
   playlistDrawer: {
     title: '新增至播放清單',
     createPlaylist: '建立新播放清單',
+    namePlaceholder: '為新播放清單取個名字',
+    createAndAdd: '新建並新增這首歌',
+    descPlaceholder: '新增簡介（可選）',
+    coverPick: '選擇封面（可選）',
+    coverSelected: '已選擇封面',
+    coverRemove: '移除',
     cancelCreate: '取消建立',
     create: '建立',
     playlistName: '播放清單名稱',

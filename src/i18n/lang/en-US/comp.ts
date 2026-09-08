@@ -18,6 +18,12 @@ export default {
   playlistDrawer: {
     title: 'Add to playlist',
     createPlaylist: 'Create new playlist',
+    namePlaceholder: 'Name your new playlist',
+    createAndAdd: 'Create and add this song',
+    descPlaceholder: 'Add a description (optional)',
+    coverPick: 'Choose a cover (optional)',
+    coverSelected: 'Cover selected',
+    coverRemove: 'Remove',
     cancelCreate: 'Cancel create',
     create: 'Create',
     playlistName: 'Playlist name',

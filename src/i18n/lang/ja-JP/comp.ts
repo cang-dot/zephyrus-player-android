@@ -18,6 +18,12 @@ export default {
   playlistDrawer: {
     title: 'プレイリストに追加',
     createPlaylist: '新しいプレイリストを作成',
+    namePlaceholder: '新しいプレイリストの名前',
+    createAndAdd: '作成してこの曲を追加',
+    descPlaceholder: '説明を追加（任意）',
+    coverPick: 'カバーを選択（任意）',
+    coverSelected: 'カバーを選択済み',
+    coverRemove: '削除',
     cancelCreate: '作成をキャンセル',
     create: '作成',
     playlistName: 'プレイリスト名',

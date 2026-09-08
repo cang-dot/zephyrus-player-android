@@ -18,6 +18,12 @@ export default {
   playlistDrawer: {
     title: '플레이리스트에 추가',
     createPlaylist: '새 플레이리스트 만들기',
+    namePlaceholder: '새 플레이리스트 이름 입력',
+    createAndAdd: '만들고 이 곡 추가',
+    descPlaceholder: '설명 추가 (선택)',
+    coverPick: '표지 이미지 선택 (선택)',
+    coverSelected: '표지 이미지 선택됨',
+    coverRemove: '제거',
     cancelCreate: '만들기 취소',
     create: '만들기',
     playlistName: '플레이리스트 이름',

@@ -58,6 +58,8 @@ export interface PlayerStyleCustomConfig {
   effectKeyword?: boolean;
   effectStaggered?: boolean;
   auroraSpeed?: number;
+  /** 极光带出现的位置（8 方向），stage/default 样式可用 */
+  auroraPosition?: AuroraPosition;
   beatFlashIntensity?: number;
   newspaperFreq?: number;
   keywordSize?: number;
@@ -103,6 +105,17 @@ export interface PlayerStyleCustomConfig {
   backgroundPreset?: 'none' | 'aurora' | 'fluid';
   [key: string]: unknown;
 }
+
+/** 极光背景的 8 个方位 */
+export type AuroraPosition =
+  | 'top'
+  | 'top-right'
+  | 'right'
+  | 'bottom-right'
+  | 'bottom'
+  | 'bottom-left'
+  | 'left'
+  | 'top-left';
 
 export interface PlayerStyleEffects {
   crt: boolean;

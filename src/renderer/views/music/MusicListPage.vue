@@ -501,6 +501,27 @@ const fetchData = async () => {
       } else {
         throw new Error(t('common.loadFailed'));
       }
+    } else if (type === 'server-library') {
+      // Zephyrus 云端曲库：主页入口进入，展示全部云端歌曲供用户自行选择播放
+      const { loadServerSongs, serverSongToSongResult } = await import('@/api/serverSongs');
+      const all = await loadServerSongs();
+      const songs = all.map(serverSongToSongResult);
+      if (songs.length > 0) {
+        musicStore.setCurrentMusicList(
+          songs,
+          'Zephyrus 云',
+          {
+            id: 'zephyrus-cloud',
+            name: 'Zephyrus 云',
+            artist: '',
+            picUrl: songs[songs.length - 1].picUrl,
+            type: 'server-library'
+          },
+          false
+        );
+      } else {
+        throw new Error(t('common.loadFailed'));
+      }
     }
   } catch (error) {
     console.error('加载列表数据失败:', error);

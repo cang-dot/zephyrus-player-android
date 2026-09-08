@@ -18,6 +18,12 @@ export default {
   playlistDrawer: {
     title: '添加到歌单',
     createPlaylist: '创建新歌单',
+    namePlaceholder: '给新歌单起个名字',
+    createAndAdd: '新建并添加这首歌',
+    descPlaceholder: '添加简介（可选）',
+    coverPick: '选择封面（可选）',
+    coverSelected: '已选择封面',
+    coverRemove: '移除',
     cancelCreate: '取消创建',
     create: '创建',
     playlistName: '歌单名称',

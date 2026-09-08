@@ -28,7 +28,8 @@
           :color-stops="auroraColorStops"
           :amplitude="1"
           :blend="0.5"
-          :speed="0.6"
+          :speed="auroraSpeed"
+          :position="auroraPosition"
         />
         <liquid-ether
           v-else-if="backgroundPreset === 'fluid'"
@@ -97,6 +98,7 @@
             :back-closes="lyricsExpanded"
             @close="handleLyricsSurfaceClose"
             @interact="playerTransition.showControls()"
+            @generate-poster="handleGeneratePoster"
           />
           <button v-else type="button" class="empty-lyrics" @click.stop="toggleLyricsExpanded">
             {{ t('player.lrc.noLrc') }}
@@ -113,6 +115,12 @@
     :src="coverUrl"
     :title="playMusic?.name || ''"
   />
+
+  <poster-share-modal
+    v-model:visible="showPosterModal"
+    :lyrics="selectedLyrics"
+    :subject="posterSubject"
+  />
 </template>
 
 <script setup lang="ts">
@@ -122,9 +130,11 @@ import { useI18n } from 'vue-i18n';
 
 import Aurora from '@/components/Aurora.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
+import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
+import { usePosterShare } from '@/composables/usePosterShare';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
@@ -132,6 +142,7 @@ import { useTapToggle } from '@/composables/useTapToggle';
 import { artistList, lrcArray, playMusic, textColors } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
+import type { AuroraPosition } from '@/types/playerStyle';
 import { getImgUrl } from '@/utils';
 import { normalizeArtworkUrl, resolveArtworkSource } from '@/utils/artwork';
 import { getTextColors } from '@/utils/linearColor';
@@ -157,6 +168,8 @@ const playerStore = usePlayerStore();
 const playerTransition = useMobilePlayerTransition();
 const { handleTapToggle } = useTapToggle();
 const coverGesture = useCoverPreviewGesture(computed(() => coverUrl.value));
+// 歌词海报分享:默认样式此前缺少整条接线(emit 无人监听,点生成海报无反应)
+const { showPosterModal, selectedLyrics, posterSubject, handleGeneratePoster } = usePosterShare();
 
 function handleArtworkClick(event: MouseEvent) {
   coverGesture.consumeSuppressedClick(event);
@@ -184,6 +197,26 @@ const backgroundPreset = computed(() => {
     | 'none'
     | 'aurora'
     | 'fluid';
+});
+const auroraSpeed = computed(() => {
+  const value = Number(styleCustom.value.auroraSpeed);
+  return Number.isFinite(value) && value > 0 ? value : 0.8;
+});
+const AURORA_POSITIONS: readonly AuroraPosition[] = [
+  'top',
+  'top-right',
+  'right',
+  'bottom-right',
+  'bottom',
+  'bottom-left',
+  'left',
+  'top-left'
+];
+const auroraPosition = computed(() => {
+  const value = String(styleCustom.value.auroraPosition);
+  return AURORA_POSITIONS.includes(value as AuroraPosition)
+    ? (value as AuroraPosition)
+    : 'top';
 });
 const reduceMotion = ref(
   typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -610,8 +643,10 @@ onBeforeUnmount(() => {
     max(18px, var(--safe-area-inset-left, 0px));
 }
 
+/* 横屏摄像头在左侧,top inset 恒为 0:此前沿用竖屏的 inset-top 会把
+   封面与歌名整体下推。侧边避让已由 .player-content 的 inset-left/right 负责 */
 .landscape .artwork-zone {
-  padding-top: calc(var(--safe-area-inset-top, 0px) + 8px);
+  padding-top: 8px;
   padding-left: 24px;
   padding-right: 24px;
 }

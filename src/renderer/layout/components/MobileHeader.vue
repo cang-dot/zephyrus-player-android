@@ -8,6 +8,7 @@
       'has-back': showBack,
       'menu-expanded': topbarMenu.expanded.value,
       'filter-expanded': searchTypeExpanded,
+      'create-expanded': createPlaylistExpanded,
       'assist-expanded': showSearchAssist,
       'wide-detail-topbar': usesWideDetailTopbar,
       'legacy-content-topbar': usesLegacyContentTopbar,
@@ -321,17 +322,84 @@
         <i class="ri-settings-3-line action-icon" />
       </button>
 
-      <!-- 底部四个 TAB 时:加号胶囊,点开创建歌单 -->
-      <button
-        v-if="isMainTabPage"
+      <!-- 歌单页:加号胶囊,点击原地变形为创建歌单面板(锚点宽度归零,搜索框自动右延) -->
+      <div
+        v-else-if="route.path === '/list'"
         key="create-playlist"
-        type="button"
-        class="topbar-pill topbar-action-pill topbar-create-pill"
-        :title="t('comp.playlistDrawer.createPlaylist') || '创建歌单'"
-        @click="createPlaylistVisible = true"
+        ref="createPillAnchorRef"
+        class="topbar-create-anchor"
+        :class="{ expanded: createPlaylistExpanded }"
       >
-        <i class="ri-add-line action-icon" />
-      </button>
+        <button
+          type="button"
+          class="topbar-pill topbar-action-pill topbar-create-pill"
+          :title="t('comp.playlistDrawer.createPlaylist') || '创建歌单'"
+          :aria-expanded="createPlaylistExpanded"
+          @click="toggleCreatePlaylist"
+        >
+          <i class="ri-add-line action-icon" />
+        </button>
+
+        <div class="topbar-create-panel" :aria-hidden="!createPlaylistExpanded">
+          <div class="topbar-create-body">
+            <header>
+              <h3>{{ t('comp.playlistDrawer.createPlaylist') || '创建歌单' }}</h3>
+              <button type="button" :aria-label="t('common.close')" @click="closeCreatePlaylist">
+                <i class="ri-close-line" />
+              </button>
+            </header>
+            <input
+              v-model="createPlaylistName"
+              type="text"
+              maxlength="40"
+              :placeholder="t('comp.playlistDrawer.namePlaceholder') || '给新歌单起个名字'"
+              @keyup.enter="submitCreatePlaylist"
+            />
+            <textarea
+              v-model="createPlaylistDesc"
+              maxlength="1000"
+              :placeholder="t('comp.playlistDrawer.descPlaceholder') || '添加简介（可选）'"
+            ></textarea>
+            <div class="create-playlist-cover">
+              <button type="button" class="cover-picker" @click="createCoverInputRef?.click()">
+                <img v-if="createPlaylistCover" :src="createPlaylistCover.url" alt="" />
+                <i v-else class="ri-image-add-line"></i>
+              </button>
+              <div class="cover-meta">
+                <span>{{
+                  createPlaylistCover
+                    ? t('comp.playlistDrawer.coverSelected') || '已选择封面'
+                    : t('comp.playlistDrawer.coverPick') || '选择封面（可选）'
+                }}</span>
+                <button
+                  v-if="createPlaylistCover"
+                  type="button"
+                  class="cover-remove"
+                  @click="removeCreatePlaylistCover"
+                >
+                  {{ t('comp.playlistDrawer.coverRemove') || '移除' }}
+                </button>
+              </div>
+            </div>
+            <input
+              ref="createCoverInputRef"
+              class="create-playlist-cover-input"
+              type="file"
+              accept="image/*"
+              @change="onCreatePlaylistCoverChange"
+            />
+            <button
+              type="submit"
+              class="create-playlist-submit"
+              :disabled="!createPlaylistName.trim() || creatingPlaylist"
+              @click="submitCreatePlaylist"
+            >
+              {{ creatingPlaylist ? t('common.loading') : t('common.confirm') || '创建' }}
+            </button>
+            <p v-if="createPlaylistError" class="create-playlist-error">{{ createPlaylistError }}</p>
+          </div>
+        </div>
+      </div>
 
       <!-- 头像 / 搜索按钮 -->
       <div
@@ -348,36 +416,6 @@
             <i class="ri-user-3-line"></i>
           </div>
         </template>
-      </div>
-    </Transition>
-
-    <!-- 创建歌单弹层:毛玻璃圆角卡,与全局面板语言一致 -->
-    <Transition name="create-playlist-fade">
-      <div v-if="createPlaylistVisible" class="create-playlist-overlay" @click.self="createPlaylistVisible = false">
-        <div class="create-playlist-card no-toggle">
-          <header>
-            <h3>{{ t('comp.playlistDrawer.createPlaylist') || '创建歌单' }}</h3>
-            <button type="button" @click="createPlaylistVisible = false">
-              <i class="ri-close-line"></i>
-            </button>
-          </header>
-          <input
-            v-model="createPlaylistName"
-            type="text"
-            maxlength="40"
-            :placeholder="t('comp.playlistDrawer.namePlaceholder') || '给新歌单起个名字'"
-            @keyup.enter="submitCreatePlaylist"
-          />
-          <button
-            type="submit"
-            class="create-playlist-submit"
-            :disabled="!createPlaylistName.trim() || creatingPlaylist"
-            @click="submitCreatePlaylist"
-          >
-            {{ creatingPlaylist ? t('common.loading') : t('common.confirm') || '创建' }}
-          </button>
-          <p v-if="createPlaylistError" class="create-playlist-error">{{ createPlaylistError }}</p>
-        </div>
       </div>
     </Transition>
 
@@ -441,7 +479,7 @@
   </div>
 
   <div
-    v-if="topbarMenu.expanded.value || searchTypeExpanded || showSearchAssist"
+    v-if="topbarMenu.expanded.value || searchTypeExpanded || showSearchAssist || createPlaylistExpanded"
     class="morph-dismiss-layer"
     @pointerdown="closeFloatingMenus"
   />
@@ -454,12 +492,15 @@ import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } fr
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
-import { createPlaylist } from '@/api/music';
+import { createPlaylist, updatePlaylistCover, updatePlaylistDesc } from '@/api/music';
 import { getSearchSuggestions } from '@/api/search';
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
+import { onClickOutside } from '@vueuse/core';
+
 import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useMobileTopbarMenu } from '@/composables/useMobileTopbarMenu';
+import { registerMobileBackLayer } from '@/services/mobileBackStack';
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import { SEARCH_TYPES } from '@/const/bar-const';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
@@ -486,8 +527,6 @@ const showBack = computed(() => route.meta.back === true);
 const isSearchPage = computed(
   () => route.path === '/mobile-search' || route.path === '/mobile-search-result'
 );
-// 底部四个 TAB(首页/歌单/发现/我的):顶栏右侧展示「创建歌单」加号
-const isMainTabPage = computed(() => ['/', '/list', '/discover', '/user'].includes(route.path));
 const isSettingsPage = computed(() => route.path === '/set');
 const showPageCapsule = computed(
   () => !isSearchPage.value && !['/', '/discover', '/user'].includes(route.path)
@@ -847,6 +886,7 @@ const closeFloatingMenus = () => {
   searchTypeExpanded.value = false;
   expandedMorphActionId.value = null;
   closeSearchAssist();
+  if (createPlaylistExpanded.value) closeCreatePlaylist();
 };
 
 // ==================== 顶栏胶囊路由过渡 ====================
@@ -1033,11 +1073,110 @@ const clearSettingsSearch = () => {
 const goToUser = () => router.push('/user');
 const goToSettings = () => router.push('/set');
 
-// ==================== 顶栏创建歌单 ====================
-const createPlaylistVisible = ref(false);
+// ==================== 顶栏创建歌单(加号原地变形) ====================
+const createPlaylistExpanded = ref(false);
+const createPillAnchorRef = ref<HTMLElement | null>(null);
+let unregisterCreateBackLayer: (() => void) | undefined;
+
+const syncCreateBackLayer = () => {
+  if (createPlaylistExpanded.value) {
+    if (unregisterCreateBackLayer) return;
+    unregisterCreateBackLayer = registerMobileBackLayer({
+      id: 'topbar-create-playlist',
+      priority: 1090,
+      isActive: () => createPlaylistExpanded.value,
+      onBack: () => closeCreatePlaylist()
+    });
+    return;
+  }
+  unregisterCreateBackLayer?.();
+  unregisterCreateBackLayer = undefined;
+};
 const createPlaylistName = ref('');
+const createPlaylistDesc = ref('');
 const creatingPlaylist = ref(false);
 const createPlaylistError = ref('');
+const createCoverInputRef = ref<HTMLInputElement | null>(null);
+const createPlaylistCover = ref<{ blob: Blob; url: string; width: number; height: number } | null>(
+  null
+);
+
+function closeCreatePlaylist() {
+  createPlaylistExpanded.value = false;
+  syncCreateBackLayer();
+  resetCreatePlaylistDialog();
+}
+
+function toggleCreatePlaylist() {
+  if (createPlaylistExpanded.value) closeCreatePlaylist();
+  else {
+    createPlaylistExpanded.value = true;
+    syncCreateBackLayer();
+  }
+}
+
+function resetCreatePlaylistDialog() {
+  createPlaylistName.value = '';
+  createPlaylistDesc.value = '';
+  if (createPlaylistCover.value) URL.revokeObjectURL(createPlaylistCover.value.url);
+  createPlaylistCover.value = null;
+}
+
+// 读取图片并中心裁剪为正方形（网易云封面接口要求正方形图片）
+async function squareCropCoverFile(file: File) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error('image load failed'));
+      element.src = objectUrl;
+    });
+    const side = Math.min(image.naturalWidth, image.naturalHeight);
+    const canvas = document.createElement('canvas');
+    canvas.width = side;
+    canvas.height = side;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('canvas unavailable');
+    context.drawImage(
+      image,
+      (image.naturalWidth - side) / 2,
+      (image.naturalHeight - side) / 2,
+      side,
+      side,
+      0,
+      0,
+      side,
+      side
+    );
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.92)
+    );
+    if (!blob) throw new Error('canvas export failed');
+    return { blob, width: side, height: side };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function onCreatePlaylistCoverChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = ''; // 允许重复选择同一文件
+  if (!file) return;
+  try {
+    const cropped = await squareCropCoverFile(file);
+    if (createPlaylistCover.value) URL.revokeObjectURL(createPlaylistCover.value.url);
+    createPlaylistCover.value = { ...cropped, url: URL.createObjectURL(cropped.blob) };
+  } catch {
+    window.$message?.error('封面图片读取失败');
+  }
+}
+
+function removeCreatePlaylistCover() {
+  if (createPlaylistCover.value) URL.revokeObjectURL(createPlaylistCover.value.url);
+  createPlaylistCover.value = null;
+}
 
 const submitCreatePlaylist = async () => {
   const name = createPlaylistName.value.trim();
@@ -1048,9 +1187,35 @@ const submitCreatePlaylist = async () => {
     const response = await createPlaylist({ name, privacy: 0 });
     const playlistId = response.data?.data?.id || response.data?.playlist?.id;
     if (!playlistId) throw new Error(response.data?.message || '创建歌单失败');
-    createPlaylistVisible.value = false;
-    createPlaylistName.value = '';
-    window.$message?.success(`已创建「${name}」`);
+    // 简介与封面为可选追加项：失败不回滚已创建的歌单，仅在结果提示中说明
+    const followUpIssues: string[] = [];
+    const desc = createPlaylistDesc.value.trim();
+    if (desc) {
+      try {
+        const descResponse = await updatePlaylistDesc({ id: playlistId, desc });
+        if (descResponse.data?.code !== 200) throw new Error();
+      } catch {
+        followUpIssues.push('简介更新失败');
+      }
+    }
+    const cover = createPlaylistCover.value;
+    if (cover) {
+      try {
+        const coverResponse = await updatePlaylistCover({
+          id: playlistId,
+          imgFile: cover.blob,
+          imgSize: cover.blob.size,
+          imgWidth: cover.width,
+          imgHeight: cover.height
+        });
+        if (coverResponse.data?.code !== 200) throw new Error();
+      } catch {
+        followUpIssues.push('封面更新失败');
+      }
+    }
+    closeCreatePlaylist();
+    const resultSuffix = followUpIssues.length ? '（' + followUpIssues.join('、') + '）' : '';
+    window.$message?.success('已创建「' + name + '」' + resultSuffix);
   } catch (error: any) {
     createPlaylistError.value = error?.message || '创建歌单失败';
   } finally {
@@ -1127,6 +1292,10 @@ const onSettingsSearchReset = () => {
 };
 
 onMounted(() => {
+  // 创建歌单面板:点击锚点容器外部收起
+  onClickOutside(createPillAnchorRef, () => {
+    if (createPlaylistExpanded.value) closeCreatePlaylist();
+  });
   window.addEventListener('mobile-settings-search-results', onSettingsSearchResults);
   window.addEventListener('mobile-settings-search-reset', onSettingsSearchReset);
   window.addEventListener('resize', scheduleMorphMeasurement);
@@ -1149,6 +1318,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', scheduleMorphMeasurement);
   morphResizeObserver?.disconnect();
   morphResizeObserver = undefined;
+  unregisterCreateBackLayer?.();
 });
 
 watch(
@@ -2594,81 +2764,188 @@ const handleSearchSubmit = () => {
   transform: scale(0.72);
 }
 
-/* ==================== 创建歌单弹层 ==================== */
-.create-playlist-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 99999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.45);
-}
+/* ==================== 歌单页:加号原地变形为创建歌单面板 ==================== */
+/* 锚点承载变形:展开时宽度 40→0,flex:1 的搜索框自动吞掉空出的空间向右延长 */
+.topbar-create-anchor {
+  position: relative;
+  width: 40px;
+  min-width: 40px;
+  flex: 0 0 40px;
+  height: 40px;
+  pointer-events: auto;
+  transform-origin: right center;
+  transition:
+    width 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    min-width 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    flex-basis 360ms cubic-bezier(0.32, 0.72, 0, 1);
 
-.create-playlist-card {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-width: 340px;
-  gap: 12px;
-  padding: 20px;
-  border-radius: 24px;
-  background: color-mix(in srgb, var(--m-surface-alt, #f3f0eb) 86%, transparent);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
-}
-
-.create-playlist-card header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  h3 {
-    font-size: 16px;
-    font-weight: 700;
+  > .topbar-action-pill {
+    transition:
+      opacity 200ms ease,
+      transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
   }
 
-  button {
-    display: grid;
-    width: 30px;
-    height: 30px;
-    place-items: center;
-    border: 0;
-    border-radius: 50%;
-    background: rgba(128, 128, 128, 0.14);
+  &.expanded {
+    width: 0;
+    min-width: 0;
+    flex-basis: 0;
+
+    > .topbar-action-pill {
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.86);
+    }
+  }
+}
+
+/* 面板:右锚定展开(transform-origin 右上),grid-template-rows 0fr→1fr 高度自适应 */
+.topbar-create-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  grid-template-rows: 0fr;
+  width: min(calc(100vw - 92px), 340px);
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--m-glass-bg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  opacity: 0;
+  transform: scale(0.94);
+  transform-origin: top right;
+  pointer-events: none;
+  transition:
+    grid-template-rows 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 200ms ease,
+    transform 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 360ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  .topbar-create-anchor.expanded & {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    z-index: 4;
+  }
+}
+
+.topbar-create-body {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  overflow: hidden;
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    h3 {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    button {
+      display: grid;
+      width: 28px;
+      height: 28px;
+      place-items: center;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(128, 128, 128, 0.14);
+      color: inherit;
+      cursor: pointer;
+    }
+  }
+
+  input[type='text'],
+  textarea {
+    padding: 11px 13px;
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    border-radius: 13px;
+    background: transparent;
     color: inherit;
+    font: inherit;
+    font-size: 13.5px;
+    outline: none;
+    resize: none;
+    transition: border-color 160ms ease;
+
+    &:focus {
+      border-color: var(--accent-color, #888);
+    }
+  }
+
+  textarea {
+    min-height: 62px;
+  }
+}
+
+.create-playlist-cover {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  .cover-picker {
+    display: grid;
+    width: 52px;
+    height: 52px;
+    flex: 0 0 52px;
+    place-items: center;
+    overflow: hidden;
+    border: 1px dashed rgba(128, 128, 128, 0.45);
+    border-radius: 13px;
+    background: transparent;
+    color: var(--d-text-muted, #999);
+    cursor: pointer;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  .cover-meta {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--d-text-muted, #999);
+  }
+
+  .cover-remove {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--accent-color, #888);
+    font-size: 12px;
     cursor: pointer;
   }
 }
 
-.create-playlist-card input {
-  padding: 12px 14px;
-  border: 1px solid rgba(128, 128, 128, 0.35);
-  border-radius: 14px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 160ms ease;
-
-  &:focus {
-    border-color: var(--accent-color, #888);
-  }
+.create-playlist-cover-input {
+  display: none;
 }
 
 .create-playlist-submit {
-  padding: 12px;
+  padding: 11px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 13px;
   background: var(--accent-color, #888);
   color: #141414;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   &:disabled {
     opacity: 0.5;
@@ -2685,33 +2962,11 @@ const handleSearchSubmit = () => {
   color: #f87171;
 }
 
-.create-playlist-fade-enter-active,
-.create-playlist-fade-leave-active {
-  transition: opacity 220ms cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.create-playlist-fade-enter-active .create-playlist-card,
-.create-playlist-fade-leave-active .create-playlist-card {
-  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.create-playlist-fade-enter-from,
-.create-playlist-fade-leave-to {
-  opacity: 0;
-}
-
-.create-playlist-fade-enter-from .create-playlist-card {
-  transform: translateY(14px) scale(0.97);
-}
-
-.create-playlist-fade-leave-to .create-playlist-card {
-  transform: translateY(10px) scale(0.98);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .create-playlist-fade-enter-active,
-  .create-playlist-fade-leave-active {
-    transition: opacity 120ms ease;
+  .topbar-create-anchor,
+  .topbar-create-panel,
+  .topbar-create-anchor > .topbar-action-pill {
+    transition-duration: 100ms;
   }
 }
 </style>

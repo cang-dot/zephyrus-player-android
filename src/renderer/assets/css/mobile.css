@@ -32,10 +32,12 @@
     color-mix(in srgb, var(--m-surface) 58%, transparent);
   --m-glass-border: color-mix(in srgb, var(--accent-color) 24%, var(--m-white) 22%);
   --m-glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
 
-  /* ── 深色主题覆盖（封面取色注入，fallback 为硬编码值）── */
-  &.dark,
-  .dark & {
+/* ── 深色主题覆盖（封面取色注入，fallback 为硬编码值）── */
+/* 展平原生嵌套：老 WebView（Chrome<112）不支持 CSS nesting，嵌套解析失败会吞掉后续大量规则 */
+.mobile.dark,
+.dark .mobile {
     --m-bg: var(--cover-bg, #1a1a1a);
     --m-surface: var(--cover-surface, #252525);
     --m-surface-alt: var(--cover-surface-hover, #2a2a2a);
@@ -52,8 +54,9 @@
         rgba(var(--accent-color-rgb, 136, 136, 136), 0.14)
       ),
       color-mix(in srgb, var(--m-surface) 54%, transparent);
-  }
+}
 
+.mobile {
   /* ── 字体族 ── */
   --m-font-serif: 'Cormorant Garamond', 'Noto Serif SC', serif;
   --m-font-sans: 'Noto Sans SC', -apple-system, 'PingFang SC', sans-serif;
@@ -242,6 +245,42 @@
   background: color-mix(in srgb, var(--m-bg) 70%, transparent);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+/* ==================== 老旧浏览器兜底 ==================== */
+
+/* backdrop-filter 不可用时：玻璃材质换高不透明度实底，保证文字可读 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .mobile .m-material,
+  .mobile .m-material-header {
+    background: var(--m-surface);
+  }
+}
+
+/* color-mix 不可用时：--m-glass-* 令牌会整体失效（背景回落为透明），
+   重定义为纯 rgba 近似值（浅色/深色两套） */
+@supports not (color: color-mix(in srgb, #fff 50%, transparent)) {
+  .mobile {
+    --m-glass-bg: rgba(136, 136, 136, 0.12);
+    --m-glass-border: rgba(214, 214, 214, 0.9);
+  }
+
+  .mobile.dark,
+  .dark .mobile {
+    --m-glass-bg: rgba(38, 38, 38, 0.92);
+    --m-glass-border: rgba(58, 58, 58, 0.95);
+  }
+}
+
+/* animation 不可用时：入场动画的 opacity:0 初始态会永久隐藏内容，直接置为可见 */
+@supports not (animation-name: m-enter-fade) {
+  .mobile .enter-fade,
+  .mobile .enter-slide-up,
+  .mobile .enter-stagger {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
 }
 
 /* 滚动边缘渐变（替代硬边框） */

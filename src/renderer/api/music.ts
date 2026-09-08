@@ -333,6 +333,36 @@ export const createPlaylist = (params: { name: string; privacy: number }) => {
   return request.post('/playlist/create', params);
 };
 
+// 更新歌单简介
+export const updatePlaylistDesc = (params: { id: number; desc: string }) => {
+  return request.post('/playlist/desc/update', params);
+};
+
+// 更新歌单封面（multipart 上传：请求拦截器会向 POST data 注入 cookie 从而破坏 FormData，
+// 因此通过 params.noCookie 跳过注入，cookie 改由查询参数携带）
+export const updatePlaylistCover = (params: {
+  id: number;
+  imgFile: Blob;
+  imgSize: number;
+  imgWidth: number;
+  imgHeight: number;
+}) => {
+  const { id, imgFile, imgSize, imgWidth, imgHeight } = params;
+  const form = new FormData();
+  form.append('imgFile', imgFile, 'cover.jpg');
+  return request.post('/playlist/cover/update', form, {
+    params: {
+      id,
+      imgSize,
+      imgWidth,
+      imgHeight,
+      noCookie: true,
+      cookie: localStorage.getItem('token') || undefined
+    },
+    timeout: 30000
+  });
+};
+
 // 添加或删除歌单歌曲
 export const updatePlaylistTracks = (params: {
   op: 'add' | 'del';

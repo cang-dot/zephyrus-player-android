@@ -10,21 +10,38 @@
  * Props 控制颜色、振幅、混合度、速度
  */
 import { Color, Mesh, Program, Renderer, Triangle } from 'ogl';
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
+
+import type { AuroraPosition } from '@/types/playerStyle';
 
 interface Props {
   colorStops?: string[];
   amplitude?: number;
   blend?: number;
   speed?: number;
+  /** 极光带出现的位置（8 方向），默认 top */
+  position?: AuroraPosition;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   colorStops: () => ['#5227FF', '#7cff67', '#5227FF'],
   amplitude: 1.0,
   blend: 0.5,
-  speed: 1.0
+  speed: 1.0,
+  position: 'top' as AuroraPosition
 });
+
+/** 8 方位 → 旋转角：以屏幕中心为轴旋转 uv，把目标方位映射到「顶部」 */
+const POSITION_ANGLES: Record<AuroraPosition, number> = {
+  top: 0,
+  'top-right': Math.PI / 4,
+  right: Math.PI / 2,
+  'bottom-right': (Math.PI * 3) / 4,
+  bottom: Math.PI,
+  'bottom-left': -(Math.PI * 3) / 4,
+  left: -Math.PI / 2,
+  'top-left': -Math.PI / 4
+};
 
 const VERT = `#version 300 es
 in vec2 position;
@@ -41,6 +58,8 @@ uniform float uAmplitude;
 uniform vec3 uColorStops[3];
 uniform vec2 uResolution;
 uniform float uBlend;
+uniform float uAngle;
+uniform float uAspect;
 
 out vec4 fragColor;
 
@@ -110,17 +129,29 @@ struct ColorStop {
 void main() {
   vec2 uv = gl_FragCoord.xy / uResolution;
 
+  // 位置旋转：把指定方位（上下左右/四角）旋转到「顶部」，极光带随之出现在该方位。
+  // x 先做 aspect 校正，保证旋转角在非正方形屏幕上不变形。
+  vec2 centered = uv - 0.5;
+  centered.x *= uAspect;
+  float angleSin = sin(uAngle);
+  float angleCos = cos(uAngle);
+  vec2 rotated = vec2(
+    centered.x * angleCos - centered.y * angleSin,
+    centered.x * angleSin + centered.y * angleCos
+  );
+  vec2 ruv = rotated + 0.5;
+
   ColorStop colors[3];
   colors[0] = ColorStop(uColorStops[0], 0.0);
   colors[1] = ColorStop(uColorStops[1], 0.5);
   colors[2] = ColorStop(uColorStops[2], 1.0);
 
   vec3 rampColor;
-  COLOR_RAMP(colors, uv.x, rampColor);
+  COLOR_RAMP(colors, clamp(ruv.x, 0.0, 1.0), rampColor);
 
-  float height = snoise(vec2(uv.x * 2.0 + uTime * 0.1, uTime * 0.25)) * 0.5 * uAmplitude;
+  float height = snoise(vec2(ruv.x * 2.0 + uTime * 0.1, uTime * 0.25)) * 0.5 * uAmplitude;
   height = exp(height);
-  height = (uv.y * 2.0 - height + 0.2);
+  height = (ruv.y * 2.0 - height + 0.2);
   float intensity = 0.6 * height;
 
   float midPoint = 0.20;
@@ -175,7 +206,9 @@ onMounted(() => {
       uAmplitude: { value: props.amplitude },
       uColorStops: { value: colorStopsArray },
       uResolution: { value: [ctn.offsetWidth, ctn.offsetHeight] },
-      uBlend: { value: props.blend }
+      uBlend: { value: props.blend },
+      uAngle: { value: POSITION_ANGLES[props.position] ?? 0 },
+      uAspect: { value: ctn.offsetHeight > 0 ? ctn.offsetWidth / ctn.offsetHeight : 1 }
     }
   });
 
@@ -188,10 +221,12 @@ onMounted(() => {
     animateId = requestAnimationFrame(update);
     if (!program || !renderer || !mesh) return;
     const elapsed = (t - startTime) * 0.001;
-    program.uniforms.uTime.value = elapsed * props.speed * 0.1;
+    // 修正：原先再乘 0.1 使噪声时间慢 10 倍，极光视觉上近乎静止
+    program.uniforms.uTime.value = elapsed * props.speed;
     program.uniforms.uAmplitude.value = props.amplitude;
     program.uniforms.uBlend.value = props.blend;
     program.uniforms.uColorStops.value = props.colorStops.map(hexToRgb);
+    program.uniforms.uAngle.value = POSITION_ANGLES[props.position] ?? 0;
     renderer.render({ scene: mesh });
   };
   animateId = requestAnimationFrame(update);
@@ -202,6 +237,7 @@ onMounted(() => {
     const height = ctn.offsetHeight;
     renderer.setSize(width, height);
     program.uniforms.uResolution.value = [width, height];
+    program.uniforms.uAspect.value = height > 0 ? width / height : 1;
   };
   window.addEventListener('resize', resize);
   resize();
