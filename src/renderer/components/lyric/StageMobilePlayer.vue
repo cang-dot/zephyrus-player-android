@@ -167,7 +167,6 @@
  * - 下方翻译（clamp 14-18px, 300 weight）
  * - 音频响应：高潮时文字使用强调色
  */
-import tinycolor from 'tinycolor2';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import BeatFlashLayer from '@/components/lyric/BeatFlashLayer.vue';
@@ -185,12 +184,10 @@ import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
-import { artistList, nowTime, playMusic, sound } from '@/hooks/MusicHook';
+import { artistList, playMusic } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
-import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
-import { secondToMinute } from '@/utils';
 
 // ==================== Props ====================
 
@@ -206,7 +203,7 @@ const emit = defineEmits(['update:modelValue']);
 
 const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
-const { primaryColor, primaryColorRgb, averageColor } = useCoverColor();
+const { primaryColor, primaryColorRgb } = useCoverColor();
 
 const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
   onDoubleClick: () => {
@@ -246,7 +243,6 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 
 // 海报分享
 const { showPosterModal, selectedLyrics, posterSubject, handleGeneratePoster } = usePosterShare();
-const controlsRef = ref();
 const {
   config: styleCfg,
   effects,
@@ -295,14 +291,6 @@ const showPlayerSettings = computed({
 const isVisible = computed({
   get: () => props.modelValue,
   set: (v) => emit('update:modelValue', v)
-});
-
-const isPlaying = computed(() => playerStore.isPlay);
-const currentTime = computed(() => nowTime.value);
-const duration = computed(() => (playMusic.value?.dt || playMusic.value?.duration || 0) / 1000);
-const progressPercent = computed(() => {
-  if (!duration.value) return 0;
-  return (currentTime.value / duration.value) * 100;
 });
 
 // ==================== 歌曲信息 ====================
@@ -382,35 +370,8 @@ function close() {
   });
 }
 
-function handlePrev() {
-  playerStore.prevPlay();
-}
-
-function handleNext() {
-  playerStore.nextPlay();
-}
-
-function handlePlayPause() {
-  playerStore.setPlay(playMusic.value);
-}
-
 function openPlaylist() {
   playerStore.setPlayListDrawerVisible(true);
-}
-
-function handleSeek(e: MouseEvent) {
-  const target = e.currentTarget as HTMLElement;
-  const rect = target.getBoundingClientRect();
-  const percent = (e.clientX - rect.left) / rect.width;
-  const seekTime = percent * duration.value;
-  if (sound.value) {
-    audioService.seek(seekTime);
-    nowTime.value = seekTime;
-  }
-}
-
-function formatTime(seconds: number): string {
-  return secondToMinute(seconds);
 }
 </script>
 

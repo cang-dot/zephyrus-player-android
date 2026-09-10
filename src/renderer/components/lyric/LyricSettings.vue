@@ -331,8 +331,8 @@
               @click="addGradientColor"
               class="w-full py-2 px-4 rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2 text-white/90"
               :style="{ background: `${primaryColor}33` }"
-              @mouseenter="$event.target.style.background = `${primaryColor}4d`"
-              @mouseleave="$event.target.style.background = `${primaryColor}33`"
+              @mouseenter="($event.target as HTMLElement).style.background = `${primaryColor}4d`"
+              @mouseleave="($event.target as HTMLElement).style.background = `${primaryColor}33`"
             >
               <i class="ri-add-line"></i>{{ t('settings.lyricSettings.background.addColor') }}
             </button>
@@ -367,8 +367,8 @@
               @click="fileInput?.click()"
               class="w-full py-2 px-4 rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2 text-white/90"
               :style="{ background: `${primaryColor}33` }"
-              @mouseenter="$event.target.style.background = `${primaryColor}4d`"
-              @mouseleave="$event.target.style.background = `${primaryColor}33`"
+              @mouseenter="($event.target as HTMLElement).style.background = `${primaryColor}4d`"
+              @mouseleave="($event.target as HTMLElement).style.background = `${primaryColor}33`"
             >
               <i class="ri-image-add-line"></i
               >{{ t('settings.lyricSettings.background.imageUpload') }}
@@ -476,7 +476,7 @@ import {
 import SettingRenderer from './SettingRenderer.vue';
 
 const { t } = useI18n();
-const { primaryColor, primaryColorRgb } = useCoverColor();
+const { primaryColor } = useCoverColor();
 const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
 const emit = defineEmits(['themeChange']);
 const message = window.$message;
@@ -527,27 +527,10 @@ const showMiniPlayBar = computed({
   }
 });
 
-const intensityOptions = computed(() => [
-  { label: '柔和', value: 'soft' as const },
-  { label: '正常', value: 'normal' as const },
-  { label: '力量', value: 'power' as const }
-]);
-
-const gridDensityOptions = computed(() => [
-  { label: '8列', value: 8 },
-  { label: '12列', value: 12 },
-  { label: '20列', value: 20 }
-]);
-
 const systemFontOptions = ref<string[]>(['PingFang SC', 'Microsoft YaHei', 'SimHei']);
 
 const showFontDropdown = ref(false);
 const fontDropdownRef = ref<HTMLElement | null>(null);
-
-function selectFont(font: string) {
-  config.value.frenzyCustomFont = font;
-  showFontDropdown.value = false;
-}
 
 function handleClickOutside(e: MouseEvent) {
   if (fontDropdownRef.value && !fontDropdownRef.value.contains(e.target as Node)) {

@@ -91,8 +91,6 @@ const frenzyConfig = ref<
   frenzyKeywordCustomColor: '#ff0000'
 });
 
-const showRedKeywords = computed(() => frenzyConfig.value.frenzyShowRedKeywords !== false);
-
 // 强调字颜色（级联：始终红色 → 跟随封面取色 → 自定义）
 const keywordColor = computed(() => {
   if (frenzyConfig.value.frenzyShowRedKeywords !== false) return '#cc0000';

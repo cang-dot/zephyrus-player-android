@@ -326,6 +326,15 @@ export const usePlaylistStore = defineStore(
      * 添加到下一首播放
      */
     const addToNextPlay = (song: SongResult) => {
+      // 空队列走正常设置路径
+      if (playList.value.length === 0) {
+        setPlayList([song]);
+        return;
+      }
+
+      const playerCore = usePlayerCoreStore();
+      const { playMusic } = storeToRefs(playerCore);
+
       const list = [...playList.value];
       const currentIndex = playListIndex.value;
 
@@ -342,7 +351,17 @@ export const usePlaylistStore = defineStore(
       const insertIndex = playListIndex.value + 1;
       list.splice(insertIndex, 0, song);
 
-      setPlayList(list, true);
+      // 直接更新队列，不走 setPlayList：随机模式下 setPlayList 会重新洗牌，
+      // 把刚插到"下一首"位置的歌曲洗走，导致"下一首播放"完全失效
+      playList.value = list;
+
+      // 随机模式下同步原始列表（插到当前歌之后），切回顺序模式时保留本次插入
+      if (playMode.value === 2 && originalPlayList.value.length > 0) {
+        const original = originalPlayList.value.filter((item) => item.id !== song.id);
+        const originalCurrentIndex = original.findIndex((item) => item.id === playMusic.value?.id);
+        original.splice(Math.max(0, originalCurrentIndex + 1), 0, song);
+        originalPlayList.value = original;
+      }
     };
 
     /**
@@ -354,15 +373,36 @@ export const usePlaylistStore = defineStore(
 
       const playerCore = usePlayerCoreStore();
       const { playMusic } = storeToRefs(playerCore);
-
-      // 如果删除的是当前播放的歌曲，先切换到下一首
-      if (id === playMusic.value.id) {
-        nextPlay();
-      }
+      const wasCurrent = String(id) === String(playMusic.value?.id);
 
       const newPlayList = [...playList.value];
       newPlayList.splice(index, 1);
-      setPlayList(newPlayList);
+
+      if (newPlayList.length === 0) {
+        playList.value = [];
+        playListIndex.value = 0;
+        originalPlayList.value = [];
+        return;
+      }
+
+      // 直接更新队列而非 setPlayList：随机模式下 setPlayList 会重新洗牌，
+      // 删除一首歌导致整个队列顺序跳动
+      if (wasCurrent) {
+        // 删除当前播放歌：被删位置的下一首接管（nextPlay 按 +1 取歌，先回退一位）
+        playListIndex.value = (index - 1 + newPlayList.length) % newPlayList.length;
+        playList.value = newPlayList;
+        nextPlay();
+      } else {
+        if (index < playListIndex.value) {
+          playListIndex.value = Math.max(0, playListIndex.value - 1);
+        }
+        playList.value = newPlayList;
+      }
+
+      // 随机模式下同步原始列表，切回顺序模式时不残留已删除歌曲
+      if (originalPlayList.value.length > 0) {
+        originalPlayList.value = originalPlayList.value.filter((item) => item.id !== id);
+      }
     };
 
     /**
@@ -423,10 +463,7 @@ export const usePlaylistStore = defineStore(
      * @param singleTrackRetryCount 单曲重试次数（同一首歌的重试）
      */
     let nextPlayEpoch = 0;
-    const _nextPlay = async (
-      singleTrackRetryCount: number = 0,
-      epoch: number = nextPlayEpoch
-    ) => {
+    const _nextPlay = async (singleTrackRetryCount: number = 0, epoch: number = nextPlayEpoch) => {
       try {
         if (epoch !== nextPlayEpoch) return;
         if (playList.value.length === 0) {

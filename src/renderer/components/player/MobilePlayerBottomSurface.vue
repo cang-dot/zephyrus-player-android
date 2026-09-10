@@ -326,10 +326,6 @@ const openSettings = () => {
   playerTransition.setSurfaceMode('settings');
 };
 
-const closePlayer = () => {
-  playerTransition.close(0, () => playerStore.setMusicFull(false));
-};
-
 const closePanel = () => {
   if (surfaceMode.value === 'playlist') playerStore.setPlayListDrawerVisible(false);
   playerTransition.setSurfaceMode('controls');

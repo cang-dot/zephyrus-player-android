@@ -23,7 +23,12 @@ async function initJieba(): Promise<void> {
   if (jiebaReady) return;
 
   try {
-    const jieba = await import('jieba-wasm');
+    // jieba-wasm 的 nodejs 入口类型声明为模块命名空间，实际 default 是可调用的
+    // 初始化函数，这里收窄到实际用到的形状
+    const jieba = (await import('jieba-wasm')) as unknown as {
+      default?: () => Promise<void> | void;
+      [key: string]: unknown;
+    };
     jiebaModule = jieba;
     // 等待 WASM 加载完成
     if (typeof jieba.default === 'function') {
@@ -85,9 +90,7 @@ function splitWithSegmenter(text: string): string[] {
       .filter((w) => w.trim().length > 0);
   } catch {
     // 降级：中文按字拆分，英文按空格
-    return text
-      .split(/(?<=[\u4e00-\u9fff])|(?=[\u4e00-\u9fff])|\s+/)
-      .filter(Boolean);
+    return text.split(/(?<=[\u4e00-\u9fff])|(?=[\u4e00-\u9fff])|\s+/).filter(Boolean);
   }
 }
 
@@ -129,7 +132,9 @@ export function isWordByWordLyric(lyric: any[]): boolean {
  * @param lyricLine - 单行歌词对象
  * @returns 词组数组 [{text, startTime, duration}]
  */
-export function getWordByWordGroups(lyricLine: any): Array<{ text: string; startTime: number; duration: number }> {
+export function getWordByWordGroups(
+  lyricLine: any
+): Array<{ text: string; startTime: number; duration: number }> {
   if (!lyricLine || !lyricLine.words) return [];
 
   const groups: Array<{ text: string; startTime: number; duration: number }> = [];

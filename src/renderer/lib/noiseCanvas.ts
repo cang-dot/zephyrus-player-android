@@ -18,7 +18,7 @@ export function drawNoise(
   width: number,
   height: number,
   intensity: number = 0.5,
-  color: string = '#000000'
+  _color: string = '#000000'
 ): void {
   const imageData = ctx.createImageData(width, height);
   const data = imageData.data;
@@ -26,7 +26,7 @@ export function drawNoise(
 
   for (let i = 0; i < data.length; i += 4) {
     const noise = Math.random() * density;
-    data[i] = 0;     // R
+    data[i] = 0; // R
     data[i + 1] = 0; // G
     data[i + 2] = 0; // B
     // alpha 通道：随机决定是否绘制噪点

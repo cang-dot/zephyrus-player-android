@@ -172,11 +172,6 @@ const mirrorResults = ref<
   { name: string; url: string; ok: boolean; latencyMs: number; speed: number; error?: string }[]
 >([]);
 
-const isCustomMirror = computed(() => {
-  const val = (setData.value.githubMirror as string) || '';
-  return val !== '' && !MIRROR_PRESETS.some((m) => m.value === val && m.value !== '__custom__');
-});
-
 const mirrorSelectValue = computed({
   get: () => {
     const val = (setData.value.githubMirror as string) || '';

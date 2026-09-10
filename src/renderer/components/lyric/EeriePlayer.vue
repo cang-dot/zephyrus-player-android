@@ -91,7 +91,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch
 
 import newspaperManifest from '@/assets/textures/newspaper/manifest.json';
 import { useTapToggle } from '@/composables/useTapToggle';
-import { lrcArray, nowIndex, playMusic } from '@/hooks/MusicHook';
+import { lrcArray, nowIndex } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drawCracks } from '@/lib/crackRenderer';
 import { startVHSAnimation } from '@/lib/vhsEffect';

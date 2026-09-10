@@ -154,7 +154,6 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
-import { usePlayerStore } from '@/store/modules/player';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import { getImgUrl, isMobile } from '@/utils';
 
@@ -175,8 +174,6 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
 }>();
-
-const playerStore = usePlayerStore();
 
 // ==================== 可见性控制 ====================
 

@@ -88,11 +88,6 @@ const router = useRouter();
 const albums = ref<any[]>([]);
 const loading = ref(true);
 
-const displayCount = computed(() => {
-  if (isMobile.value) return 6;
-  return props.columns * props.rows;
-});
-
 const displayAlbums = computed(() => albums.value);
 
 const gridItems = computed(() => {

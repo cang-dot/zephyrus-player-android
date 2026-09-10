@@ -69,10 +69,10 @@ class ClimaxDetector {
   private downstreamNode: GainNode | null = null;
 
   /** 频域数据缓冲区 */
-  private frequencyData: Uint8Array = new Uint8Array(0);
+  private frequencyData: Uint8Array<ArrayBuffer> = new Uint8Array(0);
 
   /** 时域数据缓冲区（用于 RMS 计算） */
-  private timeDomainData: Uint8Array = new Uint8Array(0);
+  private timeDomainData: Uint8Array<ArrayBuffer> = new Uint8Array(0);
 
   /** 滚动能量历史（用于计算动态平均值） */
   private energyHistory: number[] = [];
@@ -98,9 +98,9 @@ class ClimaxDetector {
 
   /** 频段划分：低频、中频、高频的分界点（Hz） */
   private static readonly BAND_RANGES = {
-    low: { start: 0, end: 0.25 },     // 0~25% 频段为低频
-    mid: { start: 0.25, end: 0.65 },  // 25~65% 频段为中频
-    high: { start: 0.65, end: 1.0 }   // 65~100% 频段为高频
+    low: { start: 0, end: 0.25 }, // 0~25% 频段为低频
+    mid: { start: 0.25, end: 0.65 }, // 25~65% 频段为中频
+    high: { start: 0.65, end: 1.0 } // 65~100% 频段为高频
   };
 
   constructor(config?: ClimaxDetectorConfig) {
@@ -150,7 +150,6 @@ class ClimaxDetector {
     // 存储下游 GainNode 引用（用于后续可能的断开/重连）
     // 当前实现中 analyserNode 仅作为旁路监听，不插入主路径
     this.downstreamNode = null;
-
   }
 
   /**
@@ -162,7 +161,7 @@ class ClimaxDetector {
     if (this.analyserNode && this.upstreamNode) {
       try {
         this.upstreamNode.disconnect(this.analyserNode);
-      } catch (e) {
+      } catch {
         // 忽略已断开的错误
       }
     }
@@ -171,7 +170,6 @@ class ClimaxDetector {
     this.upstreamNode = null;
     this.downstreamNode = null;
     this.context = null;
-
   }
 
   /**
@@ -195,7 +193,6 @@ class ClimaxDetector {
     this.lastClimaxTime = 0;
     this.energyHistory = [];
     this.analysisLoop();
-
   }
 
   /**
@@ -238,7 +235,6 @@ class ClimaxDetector {
     this.isClimax = false;
     this.energyLevel = 0;
     this.spectrumCoverage = 0;
-
   }
 
   /**
@@ -312,7 +308,11 @@ class ClimaxDetector {
       const start = Math.floor((index * sourceLength) / binCount);
       const end = Math.max(start + 1, Math.floor(((index + 1) * sourceLength) / binCount));
       let total = 0;
-      for (let sourceIndex = start; sourceIndex < end && sourceIndex < sourceLength; sourceIndex++) {
+      for (
+        let sourceIndex = start;
+        sourceIndex < end && sourceIndex < sourceLength;
+        sourceIndex++
+      ) {
         total += this.frequencyData[sourceIndex];
       }
       snapshot[index] = total / ((end - start) * 255);
@@ -472,7 +472,9 @@ class ClimaxDetector {
     // 高频区域
     const highStart = Math.floor(totalBins * ClimaxDetector.BAND_RANGES.high.start);
     const highEnd = Math.floor(totalBins * ClimaxDetector.BAND_RANGES.high.end);
-    if (this.isBandActive(frequencyData, highStart, highEnd, silentThreshold, activeRatioThreshold)) {
+    if (
+      this.isBandActive(frequencyData, highStart, highEnd, silentThreshold, activeRatioThreshold)
+    ) {
       activeBands++;
     }
 

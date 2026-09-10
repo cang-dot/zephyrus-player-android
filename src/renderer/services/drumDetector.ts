@@ -85,7 +85,7 @@ class DrumDetector {
   private upstreamNode: AudioNode | null = null;
 
   /** 频域数据缓冲区 */
-  private frequencyData: Uint8Array = new Uint8Array(0);
+  private frequencyData: Uint8Array<ArrayBuffer> = new Uint8Array(0);
   /** 上一帧的频域数据（用于计算频谱通量） */
   private prevFrequencyData: Float32Array = new Float32Array(0);
 
@@ -119,7 +119,7 @@ class DrumDetector {
       analysisInterval: config?.analysisInterval ?? 1,
       minBeatIntervalMs: config?.minBeatIntervalMs ?? 250,
       maxBeatIntervalMs: config?.maxBeatIntervalMs ?? 1500,
-      bpmWindowSize: config?.bpmWindowSize ?? 12,
+      bpmWindowSize: config?.bpmWindowSize ?? 12
     };
   }
 
@@ -140,7 +140,6 @@ class DrumDetector {
     this.prevFrequencyData = new Float32Array(this.analyserNode.frequencyBinCount);
 
     this.upstreamNode.connect(this.analyserNode);
-
   }
 
   /**
@@ -150,13 +149,16 @@ class DrumDetector {
     this.stop();
 
     if (this.analyserNode && this.upstreamNode) {
-      try { this.upstreamNode.disconnect(this.analyserNode); } catch {}
+      try {
+        this.upstreamNode.disconnect(this.analyserNode);
+      } catch {
+        /* 忽略：节点已断开时可安全跳过 */
+      }
     }
 
     this.analyserNode = null;
     this.upstreamNode = null;
     this.context = null;
-
   }
 
   /**
@@ -202,10 +204,7 @@ class DrumDetector {
    * 注入一帧外部频段数据(low/mid/high 均 0~1),可选原生精确 BPM。
    * 三频段合成伪频谱帧后走与 AnalyserNode 路径相同的通量/低频/鼓点判定。
    */
-  public ingestBands(
-    bands: { low: number; mid: number; high: number },
-    nativeBpm?: number
-  ): void {
+  public ingestBands(bands: { low: number; mid: number; high: number }, nativeBpm?: number): void {
     if (!this.running || !this.externalMode) return;
     const data = this.frequencyData;
     if (data.length === 0) return;
@@ -308,7 +307,10 @@ class DrumDetector {
       // 计算间隔（用于 BPM 估算）
       if (this.lastBeatTime > 0) {
         const interval = now - this.lastBeatTime;
-        if (interval >= this.config.minBeatIntervalMs && interval <= this.config.maxBeatIntervalMs) {
+        if (
+          interval >= this.config.minBeatIntervalMs &&
+          interval <= this.config.maxBeatIntervalMs
+        ) {
           this.beatIntervals.push(interval);
           if (this.beatIntervals.length > this.config.bpmWindowSize) {
             this.beatIntervals.shift();
@@ -327,11 +329,13 @@ class DrumDetector {
         flux: spectralFlux,
         kickEnergy,
         isStrong,
-        timestamp: now,
+        timestamp: now
       };
 
       this.beatCallbacks.forEach((cb) => {
-        try { cb(info); } catch (e) {
+        try {
+          cb(info);
+        } catch (e) {
           console.error('[DrumDetector] 回调出错:', e);
         }
       });
@@ -416,9 +420,7 @@ class DrumDetector {
     // 取中位数
     const sorted = [...intervals].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
-    const medianMs = sorted.length % 2 === 0
-      ? (sorted[mid - 1] + sorted[mid]) / 2
-      : sorted[mid];
+    const medianMs = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 
     // ms → BPM
     return Math.round(60000 / medianMs);
@@ -473,7 +475,7 @@ export const drumDetector = new DrumDetector({
   analysisInterval: 1,
   minBeatIntervalMs: 250,
   maxBeatIntervalMs: 1500,
-  bpmWindowSize: 12,
+  bpmWindowSize: 12
 });
 
 export default drumDetector;

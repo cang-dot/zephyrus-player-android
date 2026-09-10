@@ -149,7 +149,7 @@ function isSettingVisible(item: SettingItem): boolean {
 }
 
 function isOptionVisible(
-  item: SettingItem,
+  _item: SettingItem,
   opt: {
     showWhen?: {
       key: string;

@@ -12,15 +12,15 @@
 
 // 频段定义
 export const BAND_SPLITPOINTS = {
-  lowMid: 250,     // 低频/中频分界
-  midHigh: 4000    // 中频/高频分界
+  lowMid: 250, // 低频/中频分界
+  midHigh: 4000 // 中频/高频分界
 };
 
 // 各频段淡出时机（0~1，相对于过渡时长的比例）
 export const BAND_FADE_TIMING = {
-  low:  { fadeOutStart: 0.7, fadeInStart: 0.8 },  // 低频：70% 淡出，80% 淡入
-  mid:  { fadeOutStart: 0.2, fadeInStart: 0.3 },  // 中频：20% 淡出（早），30% 淡入
-  high: { fadeOutStart: 0.5, fadeInStart: 0.5 },  // 高频：50% 淡出，50% 淡入
+  low: { fadeOutStart: 0.7, fadeInStart: 0.8 }, // 低频：70% 淡出，80% 淡入
+  mid: { fadeOutStart: 0.2, fadeInStart: 0.3 }, // 中频：20% 淡出（早），30% 淡入
+  high: { fadeOutStart: 0.5, fadeInStart: 0.5 } // 高频：50% 淡出，50% 淡入
 };
 
 /** 频段分裂器：为指定 source 创建 3 路滤波器链 */
@@ -52,10 +52,7 @@ export interface BandSplitChain {
  * @param source 输入节点（AudioBufferSourceNode 或 GainNode）
  * @returns 分裂链描述
  */
-export function createBandSplitChain(
-  ctx: AudioContext,
-  source: AudioNode
-): BandSplitChain {
+export function createBandSplitChain(ctx: AudioContext, source: AudioNode): BandSplitChain {
   // 低频：lowpass 250Hz
   const lowFilter = ctx.createBiquadFilter();
   lowFilter.type = 'lowpass';
@@ -107,7 +104,7 @@ export function createBandSplitChain(
 
   return {
     low: { filter: lowFilter, gain: lowGain },
-    mid: { filter: midFilterHigh, gain: midGain },  // 返回最后一个滤波器作为代表
+    mid: { filter: midFilterHigh, gain: midGain }, // 返回最后一个滤波器作为代表
     high: { filter: highFilter, gain: highGain },
     output
   };
@@ -159,14 +156,14 @@ export function destroyBandSplitChain(
  * @param volumeScale 音量缩放（0~1），各频段起始/目标值会乘以该系数
  */
 export function applyBandSplitCrossfade(
-  ctx: AudioContext,
+  _ctx: AudioContext,
   chainOut: BandSplitChain,
   chainIn: BandSplitChain,
   startTime: number,
   duration: number,
   volumeScale: number = 1
 ): void {
-  const tau = duration / 3;  // 时间常数
+  const tau = duration / 3; // 时间常数
   const v = Math.max(0, Math.min(1, volumeScale));
 
   // === 淡出歌曲 A ===
@@ -176,11 +173,23 @@ export function applyBandSplitCrossfade(
   chainOut.high.gain.setValueAtTime(v, startTime);
 
   // 低频：在过渡段 70% 处开始衰减
-  chainOut.low.gain.setTargetAtTime(0, startTime + duration * BAND_FADE_TIMING.low.fadeOutStart, tau);
+  chainOut.low.gain.setTargetAtTime(
+    0,
+    startTime + duration * BAND_FADE_TIMING.low.fadeOutStart,
+    tau
+  );
   // 中频：在过渡段 20% 处开始衰减（早淡出，避免人声打架）
-  chainOut.mid.gain.setTargetAtTime(0, startTime + duration * BAND_FADE_TIMING.mid.fadeOutStart, tau);
+  chainOut.mid.gain.setTargetAtTime(
+    0,
+    startTime + duration * BAND_FADE_TIMING.mid.fadeOutStart,
+    tau
+  );
   // 高频：在过渡段 50% 处衰减
-  chainOut.high.gain.setTargetAtTime(0, startTime + duration * BAND_FADE_TIMING.high.fadeOutStart, tau);
+  chainOut.high.gain.setTargetAtTime(
+    0,
+    startTime + duration * BAND_FADE_TIMING.high.fadeOutStart,
+    tau
+  );
 
   // === 淡入歌曲 B ===
   // 初始值设为 0
@@ -191,7 +200,11 @@ export function applyBandSplitCrossfade(
   // 中频先入（30% 处）
   chainIn.mid.gain.setTargetAtTime(v, startTime + duration * BAND_FADE_TIMING.mid.fadeInStart, tau);
   // 高频中入（50% 处）
-  chainIn.high.gain.setTargetAtTime(v, startTime + duration * BAND_FADE_TIMING.high.fadeInStart, tau);
+  chainIn.high.gain.setTargetAtTime(
+    v,
+    startTime + duration * BAND_FADE_TIMING.high.fadeInStart,
+    tau
+  );
   // 低频最后入（80% 处，保留节奏感）
   chainIn.low.gain.setTargetAtTime(v, startTime + duration * BAND_FADE_TIMING.low.fadeInStart, tau);
 

@@ -45,7 +45,7 @@
  *
  * 白色背景 + 轻微故障效果 + 黑色可拉伸文字 + 红色正常文字 + 无 GSAP 动效
  */
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, type CSSProperties, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useStyleContext } from '@/playerStyles/useStyleContext';
 import { drumDetector } from '@/services/drumDetector';
@@ -256,8 +256,6 @@ watch(
   }
 );
 
-watch(crtIntensity, (val) => {});
-
 // ==================== 高潮过渡闪光 ====================
 
 const climaxFlashOpacity = ref(0);
@@ -265,7 +263,7 @@ const climaxFlashHue = ref(0); // 色偏角度（红/绿/蓝偏移）
 let flashTimer: ReturnType<typeof setTimeout> | null = null;
 let flashTimer2: ReturnType<typeof setTimeout> | null = null;
 
-const climaxFlashStyle = computed(() => ({
+const climaxFlashStyle = computed<CSSProperties>(() => ({
   opacity: climaxFlashOpacity.value,
   filter: `hue-rotate(${climaxFlashHue.value}deg)`,
   mixBlendMode: 'overlay'

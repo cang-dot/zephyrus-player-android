@@ -655,7 +655,7 @@
                     >
                       还原调音前设置
                     </button>
-                    <EQControl :key="eqPanelKey" />
+                    <eq-control :key="eqPanelKey" />
                   </div>
                 </div>
               </section>
@@ -1202,7 +1202,7 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { storeToRefs } from 'pinia';
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, type CSSProperties, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
@@ -1217,18 +1217,17 @@ import { searchServerSongs } from '@/api/serverSongs';
 import InlinePlaylistPicker from '@/components/common/InlinePlaylistPicker.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import SongMetadataEditor from '@/components/common/SongMetadataEditor.vue';
+// 绑定名用 EqControl：Vue 的 kebab-case 解析为 camelize+capitalize，
+// 保留 EQControl 会导致 <eq-control> 解析失败
+import EqControl from '@/components/EQControl.vue';
 import PhotosensitivityWarning from '@/components/lyric/PhotosensitivityWarning.vue';
 import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
 import ListenTogetherSettings from '@/components/settings/ListenTogetherSettings.vue';
-import EQControl from '@/components/EQControl.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
+import { snapshotEqSettings, tuneEqForCurrentSong } from '@/features/ai/eqTuner';
 import { getProvider } from '@/features/ai/providers';
-import {
-  snapshotEqSettings,
-  tuneEqForCurrentSong
-} from '@/features/ai/eqTuner';
 import {
   getMetaphorConfig,
   saveMetaphorConfig,
@@ -1286,14 +1285,24 @@ const metaphorModelOptions = computed(() => {
   const config = getMetaphorConfig();
   const provider = getProvider(config.provider);
   const options = (provider?.models || []).map((model) => ({
-    label: model.free ? `${model.label}（免费）` : model.badge ? `${model.label}（${model.badge}）` : model.label,
+    label: model.free
+      ? `${model.label}（免费）`
+      : model.badge
+        ? `${model.label}（${model.badge}）`
+        : model.label,
     value: model.id
   }));
-  if (metaphorModelSelection.value && !options.some((o) => o.value === metaphorModelSelection.value)) {
+  if (
+    metaphorModelSelection.value &&
+    !options.some((o) => o.value === metaphorModelSelection.value)
+  ) {
     options.unshift({ label: metaphorModelSelection.value, value: metaphorModelSelection.value });
   }
   if (!options.length) {
-    options.push({ label: metaphorModelSelection.value || '默认', value: metaphorModelSelection.value });
+    options.push({
+      label: metaphorModelSelection.value || '默认',
+      value: metaphorModelSelection.value
+    });
   }
   return options;
 });
@@ -1402,7 +1411,7 @@ let settingsTabAxis: 'none' | 'x' | 'y' = 'none';
 let settingsTabSamples: Array<{ x: number; time: number }> = [];
 
 const settingsTabIndex = (tab: 'song' | 'control') => (tab === 'song' ? 0 : 1);
-const getSettingsTabPageStyle = (tab: 'song' | 'control') => {
+const getSettingsTabPageStyle = (tab: 'song' | 'control'): CSSProperties => {
   const pageDelta = settingsTabIndex(tab) - settingsTabIndex(activeTab.value);
   return {
     paddingBottom: 'calc(24px + var(--safe-area-inset-bottom, 0px))',

@@ -94,7 +94,6 @@
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { getStrokes, loadDictionary } from '@/lib/hanziStrokes';
-import { useStyleEngineStore } from '@/store/modules/styleEngine';
 
 const props = defineProps<{
   char: string;
@@ -105,8 +104,6 @@ const props = defineProps<{
   /** 鼓点峰值 0-1（由父组件传入，持续 ~120ms） */
   beatSpike?: number;
 }>();
-
-const styleEngine = useStyleEngineStore();
 
 const viewBoxSize = 1024; // makemeahanzi 坐标系
 const uid = Math.random().toString(36).slice(2, 9);

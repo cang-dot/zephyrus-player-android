@@ -54,7 +54,10 @@ export class LocalAudioPlayer {
         );
         if (!result) throw new Error('文件读取失败');
         const uint8 = result as Uint8Array;
-        arrayBuffer = uint8.buffer.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength);
+        // Uint8Array.buffer 的静态类型是 ArrayBufferLike，此处实际来自 ipcRenderer 的
+        // 普通 ArrayBuffer，收窄一次避免后续切片出现 SharedArrayBuffer 分支
+        const binary = uint8.buffer as ArrayBuffer;
+        arrayBuffer = binary.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength);
       } else if (!this._url.startsWith('local://')) {
         const response = await fetch(this._url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -87,7 +90,11 @@ export class LocalAudioPlayer {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             arrayBuffer = await response.arrayBuffer();
           } finally {
-            try { androidNative.deleteTempFile(tempPath); } catch {}
+            try {
+              androidNative.deleteTempFile(tempPath);
+            } catch {
+              /* 忽略：该清理/解析失败不影响主流程 */
+            }
           }
         } else if (typeof androidNative.copyToCacheDir === 'function') {
           // Sync fallback (blocks JS thread)
@@ -103,7 +110,11 @@ export class LocalAudioPlayer {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             arrayBuffer = await response.arrayBuffer();
           } finally {
-            try { androidNative.deleteTempFile(tempPath); } catch {}
+            try {
+              androidNative.deleteTempFile(tempPath);
+            } catch {
+              /* 忽略：该清理/解析失败不影响主流程 */
+            }
           }
         } else {
           // Last resort: base64 + fetch data URL
@@ -209,7 +220,11 @@ export class LocalAudioPlayer {
     this._position = 0;
     this._isPlaying = false;
     this._playState = 'unloaded';
-    try { this._inputNode.disconnect(); } catch {}
+    try {
+      this._inputNode.disconnect();
+    } catch {
+      /* 忽略：该清理/解析失败不影响主流程 */
+    }
     this._events.clear();
   }
 
@@ -267,8 +282,14 @@ export class LocalAudioPlayer {
       try {
         this._source.onended = null;
         this._source.stop();
-      } catch {}
-      try { this._source.disconnect(); } catch {}
+      } catch {
+        /* 忽略：该清理/解析失败不影响主流程 */
+      }
+      try {
+        this._source.disconnect();
+      } catch {
+        /* 忽略：该清理/解析失败不影响主流程 */
+      }
       this._source = null;
     }
   }

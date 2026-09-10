@@ -16,6 +16,7 @@ export default {
   hide: '隱藏',
   confirm: '確認',
   cancel: '取消',
+  close: '關閉',
   clear: '清除',
   configure: '設定',
   open: '開啟',

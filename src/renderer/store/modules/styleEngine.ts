@@ -8,10 +8,10 @@
 import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 
-import type { KeywordLine } from '@/api/keywords';
-import { isAndroidNative } from '@/services/androidNative';
+import type { KeywordLine, KeywordWord } from '@/api/keywords';
 import { nowTime } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
+import { isAndroidNative } from '@/services/androidNative';
 import { climaxDetector } from '@/services/climaxDetector';
 import { type BeatInfo, drumDetector } from '@/services/drumDetector';
 import { NativeAudioPlayer } from '@/services/nativeAudioPlayer';
@@ -41,7 +41,7 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
 
   // ==================== 社区数据（重点词） ====================
   const keywordLines = ref<KeywordLine[]>([]);
-  const currentLineKeywords = ref<{ wordIndex: number; text: string; emphasis: string }[]>([]);
+  const currentLineKeywords = ref<KeywordWord[]>([]);
   const currentLineIndex = ref<number>(-1);
 
   // ==================== 封面颜色 ====================

@@ -72,6 +72,15 @@
     <!-- 操作插槽 -->
     <template #operating>
       <div class="song-item-operating">
+        <button
+          v-if="canRemove"
+          class="song-item-operating-remove"
+          type="button"
+          :aria-label="'移除'"
+          @click.stop="$emit('remove-song', item.id)"
+        >
+          <i class="ri-close-line"></i>
+        </button>
         <button class="song-item-operating-menu" type="button" @click.stop="onMenuClick">
           <i class="ri-more-2-fill"></i>
         </button>
@@ -193,6 +202,38 @@ const onMenuClick = (event: MouseEvent) => baseItem.value?.openItemMenu(event);
       &:hover {
         background: var(--d-surface-active);
         color: var(--accent-color);
+      }
+    }
+
+    // 从播放队列移除单首（canRemove 时显示，仅播放列表抽屉使用）
+    &-remove {
+      cursor: pointer;
+      border: 0;
+      border-radius: 9999px;
+      background: transparent;
+      color: var(--d-text-secondary);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 32px;
+      height: 32px;
+      transition:
+        background-color 150ms ease,
+        transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+
+      &:active {
+        transform: scale(0.96);
+      }
+
+      i {
+        font-size: 1.25rem;
+        color: currentColor;
+        transition: color 150ms ease;
+      }
+
+      &:hover {
+        background: var(--d-surface-active);
+        color: var(--d-text-primary);
       }
     }
   }

@@ -158,7 +158,6 @@ import {
   type Component,
   computed,
   defineAsyncComponent,
-  nextTick,
   onBeforeUnmount,
   onMounted,
   provide,
@@ -260,12 +259,6 @@ const playerMorphing = computed(() =>
   ['dragging', 'opening', 'closing'].includes(playerTransition.state.value)
 );
 const playerTransitionStartedWithMenu = ref(false);
-const playerOverlayActive = computed(
-  () =>
-    playerStore.musicFull ||
-    playerTransition.state.value !== 'idle' ||
-    playerTransition.progress.value > 0.02
-);
 // Destroying the route tree on the same frame that the player settles open can
 // block Android WebView for seconds. content-visibility releases its rendering
 // work while keeping the already-created page available for a fast close.

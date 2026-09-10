@@ -16,10 +16,7 @@
  * @param direction 'in' 淡入 | 'out' 淡出
  * @returns Float32Array 曲线
  */
-export function equalPowerCurve(
-  samples: number,
-  direction: 'in' | 'out'
-): Float32Array {
+export function equalPowerCurve(samples: number, direction: 'in' | 'out'): Float32Array {
   const curve = new Float32Array(samples);
   for (let i = 0; i < samples; i++) {
     const t = i / (samples - 1);
@@ -45,7 +42,7 @@ export function equalPowerCurve(
  *                    用于与全局音量保持一致，避免过渡段音量跳变
  */
 export function applyEqualPowerCrossfade(
-  ctx: AudioContext,
+  _ctx: AudioContext,
   gainOut: GainNode,
   gainIn: GainNode,
   startTime: number,
@@ -82,7 +79,7 @@ export function applyEqualPowerCrossfade(
  * 总功率在中间会有凹陷（~3dB），但实现最简单
  */
 export function applyLinearCrossfade(
-  ctx: AudioContext,
+  _ctx: AudioContext,
   gainOut: GainNode,
   gainIn: GainNode,
   startTime: number,

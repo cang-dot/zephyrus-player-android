@@ -1,7 +1,5 @@
-import { computed } from 'vue';
-
 import type { KeywordWord } from '@/api/keywords';
-import { lrcArray, lrcTimeArray, nowIndex,nowTime } from '@/hooks/MusicHook';
+import { lrcArray, nowIndex, nowTime } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { useClimaxStore } from '@/store/modules/climax';
 import { usePlayerStore } from '@/store/modules/player';
@@ -15,7 +13,9 @@ function readConfig(): Record<string, any> {
   try {
     const saved = localStorage.getItem('music-full-config');
     if (saved) return { ...DEFAULT_LYRIC_CONFIG, ...JSON.parse(saved) };
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return { ...DEFAULT_LYRIC_CONFIG };
 }
 

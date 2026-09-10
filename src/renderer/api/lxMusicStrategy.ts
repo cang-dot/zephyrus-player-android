@@ -7,7 +7,7 @@
 import { getLxMusicRunner, initLxMusicRunner } from '@/services/LxMusicSourceRunner';
 import { useSettingsStore } from '@/store';
 import type { LxMusicInfo, LxQuality, LxSourceKey } from '@/types/lxMusic';
-import { LX_SOURCE_NAMES, QUALITY_TO_LX } from '@/types/lxMusic';
+import { QUALITY_TO_LX } from '@/types/lxMusic';
 import type { SongResult } from '@/types/music';
 
 import type { MusicParseResult } from './musicParser';
@@ -26,7 +26,6 @@ const resolveAudioUrl = async (url: string): Promise<string> => {
       // 看起来像直接的音频 URL，直接返回
       return url;
     }
-
 
     // 尝试获取真实 URL
     const response = await fetch(url, {
@@ -187,7 +186,6 @@ export class LxMusicStrategy {
         return null;
       }
 
-
       // 获取或初始化执行器
       let runner = getLxMusicRunner();
       if (!runner || !runner.isInitialized()) {
@@ -210,7 +208,6 @@ export class LxMusicStrategy {
         return null;
       }
 
-
       // 转换歌曲信息
       const lxMusicInfo = convertToLxMusicInfo(data);
 
@@ -225,7 +222,6 @@ export class LxMusicStrategy {
         return null;
       }
 
-
       // 解析可能是 API 端点的 URL
       const resolvedUrl = await resolveAudioUrl(rawUrl);
 
@@ -233,7 +229,6 @@ export class LxMusicStrategy {
         CacheManager.addFailedCache(id, this.name);
         return null;
       }
-
 
       return {
         data: {

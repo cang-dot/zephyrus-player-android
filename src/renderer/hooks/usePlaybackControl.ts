@@ -4,7 +4,6 @@
 import { computed } from 'vue';
 
 import { playMusic } from '@/hooks/MusicHook';
-import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 
 export function usePlaybackControl() {

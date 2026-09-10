@@ -67,12 +67,13 @@ function loadPlayerStyle() {
 }
 loadPlayerStyle();
 
-const updatePlayerStyle = (val: string) => {
-  currentPlayerStyle.value = val;
+const updatePlayerStyle = (val: string | number | boolean) => {
+  const style = String(val);
+  currentPlayerStyle.value = style;
   try {
     const saved = localStorage.getItem('music-full-config');
     const config = saved ? JSON.parse(saved) : {};
-    config.playerStyle = val;
+    config.playerStyle = style;
     localStorage.setItem('music-full-config', JSON.stringify(config));
     // 触发更新事件
     window.dispatchEvent(new CustomEvent('music-full-config-updated'));

@@ -16,6 +16,7 @@ export default {
   hide: '숨기기',
   confirm: '확인',
   cancel: '취소',
+  close: '닫기',
   clear: '비우기',
   configure: '구성',
   open: '열기',

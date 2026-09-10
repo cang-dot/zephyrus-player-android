@@ -110,7 +110,6 @@ function autocorrelateBPM(
   sampleRate: number
 ): { bpm: number; confidence: number; beatOffset: number } {
   const hopDuration = hopSize / sampleRate; // 每帧时间间隔（秒）
-  const minLag = Math.round(MIN_BPM / 60 / hopDuration); // 最小 lag（对应最大间隔 = 最低 BPM）
   // 注意：lag 越大 → 间隔越大 → BPM 越低
   // 所以 minLag 对应 MAX_BPM，maxLag 对应 MIN_BPM
   const lowLag = Math.round(60 / MAX_BPM / hopDuration);

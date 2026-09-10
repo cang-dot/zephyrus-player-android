@@ -125,28 +125,16 @@ import gsap from 'gsap';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import Aurora from '@/components/Aurora.vue';
-import {
-  allTime,
-  artistList,
-  lrcArray,
-  nowIndex,
-  nowTime,
-  playMusic,
-  setAudioTime
-} from '@/hooks/MusicHook';
-import { useStyleContext } from '@/playerStyles/useStyleContext';
+import { artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
 import { drumDetector } from '@/services/drumDetector';
 import { useClimaxStore } from '@/store/modules/climax';
 import { usePlayerStore } from '@/store/modules/player';
-import { useStyleEngineStore } from '@/store/modules/styleEngine';
-import { DEFAULT_LYRIC_CONFIG } from '@/types/lyric';
-import type { ILyricText, IWordData } from '@/types/music';
+import type { ILyricText } from '@/types/music';
 import { getImgUrl, isMobile } from '@/utils';
 import { AnimationSelector } from '@/utils/animationSelector';
 // 舞台动画预设库
 import { normalAnimations, powerAnimations, softAnimations } from '@/utils/stageAnimations';
 
-import LyricSettings from './LyricSettings.vue';
 import PlayerControls from './PlayerControls.vue';
 
 // 从 localStorage 读取动画强度设置
@@ -157,7 +145,10 @@ const animationIntensity = computed<'soft' | 'normal' | 'power'>(() => {
       const config = JSON.parse(saved);
       return config.animationIntensity || 'normal';
     }
-  } catch {}
+  } catch {
+    /* 忽略：该清理/解析失败不影响主流程 */
+  }
+
   return 'normal';
 });
 
@@ -169,7 +160,10 @@ const stageBeatFlashEnabled = computed(() => {
       const config = JSON.parse(saved);
       return config.stageBeatFlash !== false;
     }
-  } catch {}
+  } catch {
+    /* 忽略：该清理/解析失败不影响主流程 */
+  }
+
   return true;
 });
 
@@ -180,7 +174,10 @@ const stageFlashIntensity = computed(() => {
       const config = JSON.parse(saved);
       return config.stageFlashIntensity ?? 0.5;
     }
-  } catch {}
+  } catch {
+    /* 忽略：该清理/解析失败不影响主流程 */
+  }
+
   return 0.5;
 });
 
@@ -223,7 +220,6 @@ const isVisible = computed({
 });
 
 const currentLine = computed<ILyricText | undefined>(() => lrcArray.value[nowIndex.value]);
-const currentLineKey = computed(() => `${nowIndex.value}-${currentLine.value?.text}`);
 
 // 背景词：查找当前歌词的下一行 isBG 为 true 的歌词
 const backgroundLine = computed(() => {
@@ -312,11 +308,8 @@ const isInClimax = computed(() => {
 });
 
 // 高潮时增强歌词动画
-const climaxAnimationBoost = computed(() => (isInClimax.value ? 1.5 : 1));
 
 // ==================== 鼓点闪白 ====================
-
-const styleEngine = useStyleEngineStore();
 
 const beatSpike = ref(0);
 let spikeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -412,7 +405,9 @@ watch(
       const warmB = Math.min(255, Math.round(b * 0.8 + 40));
       accentColor.value = `rgb(${warmR}, ${warmG}, ${warmB})`;
       accentColorRgb.value = `${warmR}, ${warmG}, ${warmB}`;
-    } catch {}
+    } catch {
+      /* 忽略：该清理/解析失败不影响主流程 */
+    }
   },
   { immediate: true }
 );
@@ -477,7 +472,7 @@ let animationCycleId = 0;
 // ==================== 歌词动画触发 ====================
 
 // 切歌时清空歌词显示并加载高潮数据
-let prevSongId: string | undefined;
+let prevSongId: string | number | undefined;
 watch(
   () => playMusic.value?.id,
   (newId) => {
@@ -683,7 +678,9 @@ function applyEnterAnimation(
       try {
         const tl = animFn(el, { duration: 0.7 });
         currentTimeline = tl;
-      } catch {}
+      } catch {
+        /* 忽略：该清理/解析失败不影响主流程 */
+      }
     }
   });
 }

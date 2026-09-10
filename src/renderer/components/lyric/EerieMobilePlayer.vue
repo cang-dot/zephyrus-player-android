@@ -189,15 +189,12 @@ import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
-import { nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { drawCracks } from '@/lib/crackRenderer';
 import { startVHSAnimation } from '@/lib/vhsEffect';
-import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
-import { secondToMinute } from '@/utils';
 import { getClimaxWordCandidates, setCurrentSongId } from '@/utils/emotionalDetector';
 
 // ==================== 署名类歌词检测（参考 SmartMixService）====================
@@ -358,7 +355,6 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 
 // 海报分享
 const { showPosterModal, selectedLyrics, posterSubject, handleGeneratePoster } = usePosterShare();
-const controlsRef = ref();
 const {
   config: styleCfg,
   effects,
@@ -381,12 +377,6 @@ const isVisible = computed({
   get: () => props.modelValue,
   set: (v) => emit('update:modelValue', v)
 });
-const isPlaying = computed(() => playerStore.isPlay);
-const currentTime = computed(() => nowTime.value);
-const duration = computed(() => (playMusic.value?.dt || playMusic.value?.duration || 0) / 1000);
-const progressPercent = computed(() =>
-  duration.value ? (currentTime.value / duration.value) * 100 : 0
-);
 const isInClimax = computed(() => styleEngine.isInClimax);
 const showWordDrop = computed(
   () =>
@@ -684,29 +674,8 @@ function close() {
     playerStore.setMusicFull(false);
   });
 }
-function handlePrev() {
-  playerStore.prevPlay();
-}
-function handleNext() {
-  playerStore.nextPlay();
-}
-function handlePlayPause() {
-  playerStore.setPlay(playMusic.value);
-}
 function openPlaylist() {
   playerStore.setPlayListDrawerVisible(true);
-}
-function handleSeek(e: MouseEvent) {
-  const target = e.currentTarget as HTMLElement;
-  const rect = target.getBoundingClientRect();
-  const seekTime = ((e.clientX - rect.left) / rect.width) * duration.value;
-  if (sound.value) {
-    audioService.seek(seekTime);
-    nowTime.value = seekTime;
-  }
-}
-function formatTime(s: number): string {
-  return secondToMinute(s);
 }
 
 onBeforeUnmount(() => {

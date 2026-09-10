@@ -1081,7 +1081,6 @@ function resolveTracksCardPayload(
   if (hasLyrics || subject.kind === 'song') return null;
   const tracks = subject.tracks || [];
   if (!tracks.length) return null;
-  const full = Boolean(config.longImage && config.showFullContent);
   const style: 'compact' | 'detailed' =
     config.trackListStyle === 'detailed' ? 'detailed' : 'compact';
   const hardMax = style === 'detailed' ? TRACK_LIMIT_DETAILED : TRACK_LIMIT_FULL;

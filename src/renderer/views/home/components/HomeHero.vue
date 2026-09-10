@@ -319,7 +319,6 @@ const fmCardBg = ref('var(--accent-color)');
 
 const isLoggedIn = computed(() => !!userStore.user);
 const dayRecommendSongs = computed(() => recommendStore.dailyRecommendSongs);
-const dayRecommendCover = computed(() => dayRecommendSongs.value[0]?.al?.picUrl || '');
 
 const fmCurrentCover = computed(
   () => fmCurrentSong.value?.album?.picUrl || fmCurrentSong.value?.al?.picUrl || ''
@@ -331,7 +330,6 @@ const fmCurrentArtist = computed(() => {
   return artists?.map((a: any) => a.name).join(' / ') || '';
 });
 
-const isCookieUser = computed(() => !!userStore.user && userStore.loginType === 'cookie');
 const activeMode = computed(() =>
   intelligenceModeStore.isIntelligenceMode ? 'intelligence' : 'fm'
 );
@@ -632,14 +630,6 @@ const playDayRecommend = async () => {
     await playerCore.handlePlayMusic(songs[0], true);
   } catch (error) {
     console.error('Failed to play daily recommend:', error);
-  }
-};
-
-const switchMode = (key: string) => {
-  if (key === 'intelligence') {
-    intelligenceModeStore.playIntelligenceMode();
-  } else {
-    intelligenceModeStore.clearIntelligenceMode();
   }
 };
 

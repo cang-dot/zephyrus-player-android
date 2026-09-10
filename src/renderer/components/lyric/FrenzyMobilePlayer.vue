@@ -190,13 +190,10 @@ import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
-import { artistList, nowTime, playMusic, sound } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
-import { audioService } from '@/services/audioService';
 import { drumDetector } from '@/services/drumDetector';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
-import { secondToMinute } from '@/utils';
 
 // ==================== Props ====================
 
@@ -251,7 +248,6 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 
 // 海报分享
 const { showPosterModal, selectedLyrics, posterSubject, handleGeneratePoster } = usePosterShare();
-const controlsRef = ref();
 const {
   config: styleCfg,
   effects,
@@ -435,13 +431,6 @@ const isVisible = computed({
   set: (v) => emit('update:modelValue', v)
 });
 
-const isPlaying = computed(() => playerStore.isPlay);
-const currentTime = computed(() => nowTime.value);
-const duration = computed(() => (playMusic.value?.dt || playMusic.value?.duration || 0) / 1000);
-const progressPercent = computed(() => {
-  if (!duration.value) return 0;
-  return (currentTime.value / duration.value) * 100;
-});
 const frenzyFontFamily = computed(
   () => selectedFontFamily.value || "var(--m-font-art, 'Inter', sans-serif)"
 );
@@ -542,34 +531,8 @@ function close() {
   });
 }
 
-function handlePrev() {
-  playerStore.prevPlay();
-}
-
-function handleNext() {
-  playerStore.nextPlay();
-}
-
-function handlePlayPause() {
-  playerStore.setPlay(playMusic.value);
-}
 function openPlaylist() {
   playerStore.setPlayListDrawerVisible(true);
-}
-
-function handleSeek(e: MouseEvent) {
-  const target = e.currentTarget as HTMLElement;
-  const rect = target.getBoundingClientRect();
-  const percent = (e.clientX - rect.left) / rect.width;
-  const seekTime = percent * duration.value;
-  if (sound.value) {
-    audioService.seek(seekTime);
-    nowTime.value = seekTime;
-  }
-}
-
-function formatTime(seconds: number): string {
-  return secondToMinute(seconds);
 }
 </script>
 

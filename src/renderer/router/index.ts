@@ -4,24 +4,6 @@ import AppLayout from '@/layout/AppLayout.vue';
 import homeRouter from '@/router/home';
 import { isBareMobileLaunch, readMobileStartupTarget } from '@/router/mobileStartup';
 import otherRouter from '@/router/other';
-import { useSettingsStore } from '@/store/modules/settings';
-
-import { useUserStore } from '../store/modules/user';
-
-function getUserId(): string | null {
-  const userStore = useUserStore();
-  return userStore.user?.userId?.toString() || null;
-}
-
-// 由于 Vue Router 守卫在创建前不能直接使用组合式 API
-// 我们创建一个辅助函数来获取 store 实例
-let _settingsStore: ReturnType<typeof useSettingsStore> | null = null;
-const getSettingsStore = () => {
-  if (!_settingsStore) {
-    _settingsStore = useSettingsStore();
-  }
-  return _settingsStore;
-};
 
 const loginRouter = {
   path: '/login',
@@ -67,8 +49,6 @@ router.beforeEach((to, _, next) => {
     }
   }
 
-  const settingsStore = getSettingsStore();
-
   // 迷你模式为 Electron 桌面遗留（移动端永不触发），/mini 路由已随 MiniLayout 移除
   if (to.path === '/mini') {
     next('/');
@@ -80,12 +60,9 @@ router.beforeEach((to, _, next) => {
 });
 
 // 添加全局后置钩子，记录页面访问
-router.afterEach((to) => {
-  const pageName = to.name?.toString() || to.path;
+router.afterEach((_to) => {
   // 使用setTimeout避免阻塞路由导航
-  setTimeout(() => {
-    const userId = getUserId();
-  }, 100);
+  setTimeout(() => {}, 100);
 });
 
 export default router;

@@ -129,14 +129,12 @@ import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
-import { lrcArray, nowIndex, nowTime, playMusic, sound } from '@/hooks/MusicHook';
+import { lrcArray, nowIndex } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { getStrokes, loadDictionary } from '@/lib/hanziStrokes';
-import { audioService } from '@/services/audioService';
 import { drumDetector } from '@/services/drumDetector';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
-import { secondToMinute } from '@/utils';
 import { setCurrentSongId } from '@/utils/emotionalDetector';
 
 import NeonStrokeChar from './NeonStrokeChar.vue';
@@ -188,7 +186,6 @@ const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd }
 
 // 海报分享
 const { showPosterModal, selectedLyrics, posterSubject, handleGeneratePoster } = usePosterShare();
-const controlsRef = ref();
 const {
   config: styleCfg,
   styleVars,
@@ -209,12 +206,6 @@ const isVisible = computed({
   get: () => props.modelValue,
   set: (v) => emit('update:modelValue', v)
 });
-const isPlaying = computed(() => playerStore.isPlay);
-const currentTime = computed(() => nowTime.value);
-const duration = computed(() => (playMusic.value?.dt || playMusic.value?.duration || 0) / 1000);
-const progressPercent = computed(() =>
-  duration.value ? (currentTime.value / duration.value) * 100 : 0
-);
 
 const neonColor = computed(() =>
   isCustom.value ? climaxColors.value.main : primaryColor.value || '#c9a96e'
@@ -309,29 +300,8 @@ function close() {
     playerStore.setMusicFull(false);
   });
 }
-function handlePrev() {
-  playerStore.prevPlay();
-}
-function handleNext() {
-  playerStore.nextPlay();
-}
-function handlePlayPause() {
-  playerStore.setPlay(playMusic.value);
-}
 function openPlaylist() {
   playerStore.setPlayListDrawerVisible(true);
-}
-function handleSeek(e: MouseEvent) {
-  const target = e.currentTarget as HTMLElement;
-  const rect = target.getBoundingClientRect();
-  const seekTime = ((e.clientX - rect.left) / rect.width) * duration.value;
-  if (sound.value) {
-    audioService.seek(seekTime);
-    nowTime.value = seekTime;
-  }
-}
-function formatTime(s: number): string {
-  return secondToMinute(s);
 }
 </script>
 

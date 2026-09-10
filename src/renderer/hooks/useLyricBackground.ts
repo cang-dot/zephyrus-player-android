@@ -4,7 +4,7 @@
 import { ref, watch } from 'vue';
 
 import { playMusic } from '@/hooks/MusicHook';
-import { getImgUrl, getTextColors } from '@/utils';
+import { getTextColors } from '@/utils';
 
 export function useLyricBackground(options?: { isDark?: boolean }) {
   const currentBackground = ref('#000');

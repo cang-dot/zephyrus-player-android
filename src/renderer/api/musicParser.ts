@@ -617,7 +617,9 @@ class CrossPlatformStrategy implements MusicSourceStrategy {
     return null;
   }
 
-  async parse(id: number, data: SongResult, quality = '999'): Promise<MusicParseResult | null> {
+  // `_id` 保留在签名中以匹配 MusicSourceStrategy 的位置参数契约（调用方传 id），
+  // 该实现本身不使用 id，前缀下划线标记为有意未使用
+  async parse(_id: number, data: SongResult, quality = '999'): Promise<MusicParseResult | null> {
     // 仅处理跨平台歌曲
     if (!isCrossPlatformSong(data)) {
       return null;
@@ -760,8 +762,6 @@ export class MusicParser {
    * @returns 解析结果
    */
   static async parseMusic(id: number, data: SongResult): Promise<MusicParseResult> {
-    const startTime = performance.now();
-
     try {
       // ==================== 跨平台歌曲专用路径 ====================
       // 跨平台歌曲（platform + platformId）直接通过 GD 音乐台获取 URL，
@@ -807,7 +807,6 @@ export class MusicParser {
       // 检查缓存（传入音源配置用于验证缓存有效性）
       const cachedResult = await CacheManager.getCachedMusicUrl(id, musicSources);
       if (cachedResult) {
-        const endTime = performance.now();
         return cachedResult;
       }
 
@@ -843,8 +842,6 @@ export class MusicParser {
         try {
           const result = await strategy.parse(id, data, quality, musicSources);
           if (result?.data?.data?.url) {
-            const endTime = performance.now();
-
             // 缓存成功结果（包含音源配置）
             await CacheManager.setCachedMusicUrl(id, result, musicSources);
 
@@ -873,7 +870,6 @@ export class MusicParser {
       return result;
     } catch (apiError) {
       console.error('API请求也失败了:', apiError);
-      const endTime = performance.now();
       return {
         data: {
           code: 500,

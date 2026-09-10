@@ -134,8 +134,8 @@ import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
-import { usePosterShare } from '@/composables/usePosterShare';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
+import { usePosterShare } from '@/composables/usePosterShare';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
@@ -214,9 +214,7 @@ const AURORA_POSITIONS: readonly AuroraPosition[] = [
 ];
 const auroraPosition = computed(() => {
   const value = String(styleCustom.value.auroraPosition);
-  return AURORA_POSITIONS.includes(value as AuroraPosition)
-    ? (value as AuroraPosition)
-    : 'top';
+  return AURORA_POSITIONS.includes(value as AuroraPosition) ? (value as AuroraPosition) : 'top';
 });
 const reduceMotion = ref(
   typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -271,7 +269,6 @@ const {
   style: lyricsSwipeStyle,
   overlayStyle: lyricsOverlayStyle,
   underlayStyle: lyricsUnderlayStyle,
-  backdropStyle: lyricsBackdropStyle,
   previewing: lyricsSwipePreview,
   onPointerDown: onLyricsSwipePointerDown,
   onPointerMove: onLyricsSwipePointerMove,
@@ -394,11 +391,6 @@ function toggleLyricsExpanded() {
 
 function handleLyricsSurfaceClose() {
   if (lyricsExpanded.value) setLyricsExpanded(false);
-}
-
-function handleBack() {
-  if (lyricsExpanded.value) setLyricsExpanded(false);
-  else closePlayer();
 }
 
 const { onTouchStart, onTouchEnd } = useSwipeClose({

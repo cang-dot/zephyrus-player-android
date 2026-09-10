@@ -396,7 +396,9 @@
             >
               {{ creatingPlaylist ? t('common.loading') : t('common.confirm') || '创建' }}
             </button>
-            <p v-if="createPlaylistError" class="create-playlist-error">{{ createPlaylistError }}</p>
+            <p v-if="createPlaylistError" class="create-playlist-error">
+              {{ createPlaylistError }}
+            </p>
           </div>
         </div>
       </div>
@@ -479,7 +481,7 @@
   </div>
 
   <div
-    v-if="topbarMenu.expanded.value || searchTypeExpanded || showSearchAssist || createPlaylistExpanded"
+    v-if="topbarMenu.expanded.value || searchTypeExpanded || showSearchAssist"
     class="morph-dismiss-layer"
     @pointerdown="closeFloatingMenus"
   />
@@ -487,6 +489,7 @@
 
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core';
+import { onClickOutside } from '@vueuse/core';
 import type { CSSProperties } from 'vue';
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -495,14 +498,12 @@ import { useRoute, useRouter } from 'vue-router';
 import { createPlaylist, updatePlaylistCover, updatePlaylistDesc } from '@/api/music';
 import { getSearchSuggestions } from '@/api/search';
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
-import { onClickOutside } from '@vueuse/core';
-
 import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useMobileTopbarMenu } from '@/composables/useMobileTopbarMenu';
-import { registerMobileBackLayer } from '@/services/mobileBackStack';
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import { SEARCH_TYPES } from '@/const/bar-const';
+import { registerMobileBackLayer } from '@/services/mobileBackStack';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSearchStore } from '@/store/modules/search';
@@ -1114,6 +1115,32 @@ function toggleCreatePlaylist() {
     syncCreateBackLayer();
   }
 }
+
+// 外部点击关闭：morph-dismiss-layer 是全屏 fixed 遮罩（z-index 299），
+// 会盖在顶栏（z-index 100）内的创建面板之上，导致点击面板任何位置都先触发
+// 遮罩的关闭逻辑（表现为"点击穿透、面板秒关"）。因此创建面板不走遮罩，
+// 改用 document 捕获阶段监听：点击锚点（胶囊+面板）之外的区域才关闭。
+const onCreatePlaylistOutsidePointerDown = (event: PointerEvent) => {
+  const anchor = createPillAnchorRef.value;
+  if (!anchor || anchor.contains(event.target as Node)) return;
+  closeCreatePlaylist();
+};
+
+watch(
+  createPlaylistExpanded,
+  (expanded) => {
+    if (expanded) {
+      document.addEventListener('pointerdown', onCreatePlaylistOutsidePointerDown, true);
+    } else {
+      document.removeEventListener('pointerdown', onCreatePlaylistOutsidePointerDown, true);
+    }
+  },
+  { immediate: true }
+);
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onCreatePlaylistOutsidePointerDown, true);
+});
 
 function resetCreatePlaylistDialog() {
   createPlaylistName.value = '';
@@ -2192,7 +2219,21 @@ const handleSearchSubmit = () => {
     max-height 380ms cubic-bezier(0.32, 0.72, 0, 1),
     border-radius 380ms cubic-bezier(0.32, 0.72, 0, 1),
     box-shadow 260ms ease,
-    flex 240ms cubic-bezier(0.32, 0.72, 0, 1);
+    flex 240ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 220ms ease,
+    min-width 240ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* 创建歌单面板展开时收缩消失让位（面板从右侧覆盖顶栏区域），
+     关闭后恢复；避免面板与搜索框视觉重叠 */
+  .floating-topbar.create-expanded & {
+    flex: 0 0 0px;
+    min-width: 0;
+    /* 搜索框归零后，auto margin 吸收剩余空间把创建锚点推回右缘，
+       否则锚点被挤到左侧导致面板向左溢出屏幕 */
+    margin-right: auto;
+    opacity: 0;
+    pointer-events: none;
+  }
 
   &.assist-expanded {
     z-index: 310;

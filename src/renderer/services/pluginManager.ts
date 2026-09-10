@@ -2,7 +2,14 @@ import { reactive } from 'vue';
 
 import type { InstalledPlugin, PluginStoreItem } from '@/types/plugin';
 
-export type InstallStatus = 'idle' | 'preparing' | 'requesting' | 'downloading' | 'installing' | 'done' | 'error';
+export type InstallStatus =
+  | 'idle'
+  | 'preparing'
+  | 'requesting'
+  | 'downloading'
+  | 'installing'
+  | 'done'
+  | 'error';
 
 export interface InstallProgress {
   status: InstallStatus;
@@ -15,6 +22,7 @@ class PluginManager {
   public loading = reactive({ registry: false, installing: '' });
   public error = reactive({ registry: '' });
   public installProgress = reactive<Record<string, InstallProgress>>({});
+  /** onInstallProgress 的退订函数（构造时注册监听，需要在销毁时调用） */
   private removeProgressListener: (() => void) | null = null;
 
   constructor() {
@@ -74,7 +82,9 @@ class PluginManager {
     try {
       const items = await window.api.plugin.getInstalled();
       Object.assign(this.installed, items);
-    } catch {}
+    } catch {
+      /* 忽略：该清理/解析失败不影响主流程 */
+    }
   }
 
   async install(item: PluginStoreItem): Promise<void> {

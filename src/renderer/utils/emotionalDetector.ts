@@ -6,18 +6,55 @@
  * 2. jieba 高频词分析 → 临时字典 → 跨歌曲计数 → 长效字典
  */
 
-import { isVerbOrNoun,splitLyrics, splitLyricsWithTags } from './wordSplitter';
+import { isVerbOrNoun, splitLyrics, splitLyricsWithTags } from './wordSplitter';
 
 /** 内置情感词典 */
 const DEFAULT_EMOTIONAL_WORDS = new Set([
   // 负面情绪
-  '病', '痛', '死', '伤', '泪', '哭', '碎', '裂', '恨', '怒', '疯', '狂', '悲', '苦', '毒', '血',
+  '病',
+  '痛',
+  '死',
+  '伤',
+  '泪',
+  '哭',
+  '碎',
+  '裂',
+  '恨',
+  '怒',
+  '疯',
+  '狂',
+  '悲',
+  '苦',
+  '毒',
+  '血',
   // 正面情绪
-  '爱', '恋', '想', '梦', '光', '火', '燃', '飞', '醉',
+  '爱',
+  '恋',
+  '想',
+  '梦',
+  '光',
+  '火',
+  '燃',
+  '飞',
+  '醉',
   // 程度词
-  '最', '太', '极', '超', '绝', '万', '千', '百',
+  '最',
+  '太',
+  '极',
+  '超',
+  '绝',
+  '万',
+  '千',
+  '百',
   // 动作词
-  '杀', '砍', '撕', '打', '砸', '摔', '撞', '炸',
+  '杀',
+  '砍',
+  '撕',
+  '打',
+  '砸',
+  '摔',
+  '撞',
+  '炸'
 ]);
 
 /** 高频词最低出现次数（单首歌曲内） */
@@ -47,13 +84,17 @@ function loadLongTermDict(): void {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_FREQ);
     if (saved) longTermDict = new Set(JSON.parse(saved));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 function saveLongTermDict(): void {
   try {
     localStorage.setItem(STORAGE_KEY_FREQ, JSON.stringify([...longTermDict]));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 function loadSongWordCounts(): void {
@@ -63,7 +104,9 @@ function loadSongWordCounts(): void {
       const obj = JSON.parse(saved) as Record<string, string[]>;
       songWordCounts = new Map(Object.entries(obj).map(([k, v]) => [k, new Set(v)]));
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 function saveSongWordCounts(): void {
@@ -71,7 +114,9 @@ function saveSongWordCounts(): void {
     const obj: Record<string, string[]> = {};
     for (const [k, v] of songWordCounts) obj[k] = [...v];
     localStorage.setItem(STORAGE_KEY_SONG_COUNT, JSON.stringify(obj));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 // 初始化加载
@@ -141,14 +186,6 @@ export function analyzeLyricsForHighFreqWords(lyrics: Array<{ text: string }>): 
 /**
  * 获取完整情感词集（内置 + 用户自定义 + 长效字典）
  */
-function getFullDict(customDict?: string[]): Set<string> {
-  const result = new Set<string>(DEFAULT_EMOTIONAL_WORDS);
-  for (const w of longTermDict) result.add(w);
-  if (customDict) {
-    for (const w of customDict) result.add(w);
-  }
-  return result;
-}
 
 /** 检测结果 */
 export interface EmotionalDetectionResult {
@@ -172,7 +209,7 @@ export interface EmotionalDetectionResult {
  */
 export function detectEmotionalWords(
   text: string,
-  customDict?: string[]
+  _customDict?: string[]
 ): EmotionalDetectionResult {
   if (!text) {
     return { fullText: '', blackText: '', redWords: [] };
@@ -194,7 +231,9 @@ export function detectEmotionalWords(
 
   // 检查词是否包含内置字典中的单字
   const builtInSingleChars = new Set<string>();
-  for (const w of DEFAULT_EMOTIONAL_WORDS) { if (w.length === 1) builtInSingleChars.add(w); }
+  for (const w of DEFAULT_EMOTIONAL_WORDS) {
+    if (w.length === 1) builtInSingleChars.add(w);
+  }
 
   function containsBuiltInChar(word: string): boolean {
     for (const ch of builtInSingleChars) {
@@ -222,21 +261,27 @@ export function detectEmotionalWords(
   // 优先级3：长效字典多字词
   if (!hit) {
     const longTermMulti = new Set<string>();
-    for (const w of longTermDict) { if (w.length >= 2) longTermMulti.add(w); }
+    for (const w of longTermDict) {
+      if (w.length >= 2) longTermMulti.add(w);
+    }
     hit = findFirst(longTermMulti, 2);
   }
 
   // 优先级4：临时字典单字
   if (!hit) {
     const tempSingle = new Set<string>();
-    for (const w of tempDict) { if (w.length === 1) tempSingle.add(w); }
+    for (const w of tempDict) {
+      if (w.length === 1) tempSingle.add(w);
+    }
     hit = findFirst(tempSingle);
   }
 
   // 优先级5：长效字典单字
   if (!hit) {
     const longTermSingle = new Set<string>();
-    for (const w of longTermDict) { if (w.length === 1) longTermSingle.add(w); }
+    for (const w of longTermDict) {
+      if (w.length === 1) longTermSingle.add(w);
+    }
     hit = findFirst(longTermSingle);
   }
 
@@ -277,10 +322,7 @@ export function detectEmotionalWords(
  * @param customDict - 用户自定义情感词典（可选）
  * @returns 按优先级排序的候选词数组（已去重）
  */
-export function getEmotionalWordCandidates(
-  text: string,
-  customDict?: string[]
-): string[] {
+export function getEmotionalWordCandidates(text: string, _customDict?: string[]): string[] {
   if (!text) return [];
 
   const candidates: string[] = [];
@@ -377,10 +419,7 @@ export function getEmotionalWordCandidates(
  * @param customDict - 用户自定义情感词典（可选）
  * @returns 按优先级排序的候选词数组（已去重）
  */
-export function getClimaxWordCandidates(
-  text: string,
-  customDict?: string[]
-): string[] {
+export function getClimaxWordCandidates(text: string, customDict?: string[]): string[] {
   if (!text) return [];
 
   const candidates: string[] = [];
