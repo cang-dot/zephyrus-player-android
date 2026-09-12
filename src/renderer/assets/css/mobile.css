@@ -54,6 +54,10 @@
         rgba(var(--accent-color-rgb, 136, 136, 136), 0.14)
       ),
       color-mix(in srgb, var(--m-surface) 54%, transparent);
+    /* 深色下玻璃描边去掉白成分(继承浅色的 accent+白各半配方会形成刺眼亮边),
+       改为比背景微亮的 accent 低透明描边;阴影同步去掉顶部 inset 白线 */
+    --m-glass-border: color-mix(in srgb, var(--accent-color) 28%, transparent);
+    --m-glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
 }
 
 .mobile {

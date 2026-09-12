@@ -1629,8 +1629,8 @@ const handleSearchSubmit = () => {
   background: var(--m-glass-bg);
   backdrop-filter: blur(24px) saturate(170%);
   -webkit-backdrop-filter: blur(24px) saturate(170%);
-  border: 1px solid color-mix(in srgb, var(--m-white, #fff) 25%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   cursor: pointer;
   pointer-events: auto;
   transition:

@@ -287,7 +287,7 @@ onBeforeUnmount(() => {
   border: 1px solid color-mix(in srgb, var(--accent-color, #777) 22%, transparent);
   border-radius: 30px;
   background: color-mix(in srgb, var(--m-surface, #fff) 91%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 
   header {
     display: flex;
