@@ -255,6 +255,9 @@ let chartSize = 0;
 let starFieldSeed = 1;
 let starSpeed = 1;
 let lastStarFrameAt = 0;
+let starTintMix = 0.08; // 封面色占比:平时 8%,高潮渐强至 32%
+let vividTints: Array<[number, number, number]> = [];
+let vividTintMix = -1;
 const STAR_BASE_SPEED = 0.055;
 
 function seededRandom(): number {
@@ -458,17 +461,35 @@ function drawStarField(context: CanvasRenderingContext2D, size: number, dt: numb
   const now = performance.now();
   const segments = 8;
 
+  // 高潮效果:封面取色占比 8% -> 32% 渐强,并对采样色提饱和(更鲜艳)
+  const targetMix = styleEngine.isInClimax ? 0.32 : 0.08;
+  starTintMix += (targetMix - starTintMix) * Math.min(1, dt * 3);
+  if (vividTintMix !== starTintMix || vividTints.length !== starTints.length) {
+    vividTints = starTints.map((tint) => {
+      const lum = 0.299 * tint[0] + 0.587 * tint[1] + 0.114 * tint[2];
+      const punch = 1 + starTintMix * 1.6; // 混合越深,色域扩得越开
+      const clamp = (v: number) => Math.min(255, Math.max(0, Math.round(v)));
+      return [
+        clamp(lum + (tint[0] - lum) * punch),
+        clamp(lum + (tint[1] - lum) * punch),
+        clamp(lum + (tint[2] - lum) * punch)
+      ] as [number, number, number];
+    });
+    vividTintMix = starTintMix;
+  }
+
   for (const star of trailStars) {
     star.angle += STAR_BASE_SPEED * star.speed * starSpeed * dt;
     const orbitRadius = star.orbit * maxRadius;
     const twinkle = 0.78 + 0.22 * Math.sin(now * 0.0016 + star.twinkle);
     const alpha = star.alpha * twinkle;
     const head = star.angle;
-    const tint = star.tint >= 0 ? starTints[star.tint] : null;
-    // 白 92% + 封面采样色 8%
-    const red = tint ? Math.round(255 * 0.92 + tint[0] * 0.08) : 255;
-    const green = tint ? Math.round(255 * 0.92 + tint[1] * 0.08) : 255;
-    const blue = tint ? Math.round(255 * 0.92 + tint[2] * 0.08) : 255;
+    const tint = star.tint >= 0 ? vividTints[star.tint] : null;
+    // 白 + 封面采样色:平时 92/8,高潮渐变至 68/32 且采样色更鲜艳
+    const whitePart = 1 - starTintMix;
+    const red = tint ? Math.round(255 * whitePart + tint[0] * starTintMix) : 255;
+    const green = tint ? Math.round(255 * whitePart + tint[1] * starTintMix) : 255;
+    const blue = tint ? Math.round(255 * whitePart + tint[2] * starTintMix) : 255;
 
     let x = center + Math.cos(head) * orbitRadius;
     let y = center + Math.sin(head) * orbitRadius;
@@ -486,7 +507,7 @@ function drawStarField(context: CanvasRenderingContext2D, size: number, dt: numb
       x = nextX;
       y = nextY;
     }
-    context.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(3)})`;
+    context.fillStyle = `rgba(${red}, ${green}, ${blue}, ${alpha.toFixed(3)})`;
     context.beginPath();
     context.arc(x, y, star.magnitude * 0.9, 0, Math.PI * 2);
     context.fill();
