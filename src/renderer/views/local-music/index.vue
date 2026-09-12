@@ -29,6 +29,15 @@
           <i class="ri-upload-2-line" />
           导入音乐文件
         </button>
+        <button
+          v-if="sessionFiles.size > 0"
+          class="web-import-btn web-import-btn--ghost"
+          :disabled="reparseBusy"
+          @click="reparseSessionFiles"
+        >
+          <i :class="reparseBusy ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'" />
+          {{ reparseBusy ? `重新解析中 ${reparseProgress}/${sessionFiles.size}` : '重新解析元数据' }}
+        </button>
         <input
           ref="audioFileInput"
           type="file"
@@ -517,9 +526,23 @@ const sessionFiles = ref<Set<string>>(new Set());
 
 const AUDIO_EXT_RE = /\.(mp3|flac|wav|ogg|m4a|aac|opus|wma|ape)$/i;
 
-/** 把本地文件加入列表并返回 SongResult(会话级 blob URL,ID3 元数据解析) */
+// 会话条目 id → 原始 File 映射:供「重新解析」再次读取(刷新后失效)
+const sessionFileRefs = new Map<string, File>();
+
+/** 把本地文件加入列表并返回 SongResult(会话级 blob URL,全格式元数据解析) */
 async function importAudioFile(file: File): Promise<SongResult | null> {
   if (!AUDIO_EXT_RE.test(file.name)) return null;
+  const entry = await buildSessionEntry(file);
+  await localMusicStore.applyEntryMetadata(JSON.stringify(entry));
+  sessionFiles.value.add(entry.id);
+  sessionFileRefs.set(entry.id, file);
+  const song = toSongResult(entry);
+  // blob 直链:绕过 playerCore 的 local:// 改写,网页版可直接播放
+  song.playMusicUrl = entry.fileUrl;
+  return song;
+}
+
+async function buildSessionEntry(file: File) {
   const meta = await parseAudioFileMetadata(file);
   const filePath = `web-session://${file.name}`;
   const entry: any = {
@@ -530,18 +553,41 @@ async function importAudioFile(file: File): Promise<SongResult | null> {
     album: meta.album,
     duration: meta.duration,
     cover: meta.cover,
-    lyrics: null,
+    lyrics: meta.lyrics,
     fileSize: file.size,
     modifiedTime: file.lastModified,
     fileUrl: URL.createObjectURL(file),
     isSession: true
   };
-  await localMusicStore.applyEntryMetadata(JSON.stringify(entry));
-  sessionFiles.value.add(entry.id);
-  const song = toSongResult(entry);
-  // blob 直链:绕过 playerCore 的 local:// 改写,网页版可直接播放
-  song.playMusicUrl = entry.fileUrl;
-  return song;
+  return entry;
+}
+
+// ── 重新解析:对会话条目用当前版本解析器重建元数据(旧导入的补歌词/封面) ──
+const reparseBusy = ref(false);
+const reparseProgress = ref(0);
+async function reparseSessionFiles() {
+  if (reparseBusy.value) return;
+  const ids = [...sessionFiles.value].filter((id) => sessionFileRefs.has(id));
+  if (!ids.length) {
+    message.warning('本会话没有可重新解析的文件(刷新后需重新导入)');
+    return;
+  }
+  reparseBusy.value = true;
+  reparseProgress.value = 0;
+  try {
+    for (const id of ids) {
+      const file = sessionFileRefs.get(id)!;
+      const entry = await buildSessionEntry(file);
+      entry.id = id;
+      entry.fileUrl =
+        localMusicStore.musicList.find((it: any) => it.id === id)?.fileUrl || entry.fileUrl;
+      await localMusicStore.applyEntryMetadata(JSON.stringify(entry));
+      reparseProgress.value++;
+    }
+    message.success(`已重新解析 ${ids.length} 个文件`);
+  } finally {
+    reparseBusy.value = false;
+  }
 }
 
 const onDragOver = (e: DragEvent) => {
@@ -1502,6 +1548,15 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   font-weight: 600;
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+}
+
+.web-import-btn--ghost {
+  background: transparent;
+}
+
+.web-import-btn--ghost:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .web-import-btn:active {

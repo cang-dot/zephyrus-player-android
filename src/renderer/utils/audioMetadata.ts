@@ -13,6 +13,8 @@ export interface AudioFileMetadata {
   duration: number;
   /** 封面 object URL(仅浏览器会话内有效) */
   cover: string | null;
+  /** 内嵌歌词(LRC 文本优先;无时间戳歌词原样存放) */
+  lyrics: string | null;
 }
 
 function syncsafe(b: Uint8Array, o: number): number {
@@ -72,7 +74,8 @@ export async function parseAudioFileMetadata(file: File): Promise<AudioFileMetad
     artist: fallback.artist,
     album: '',
     duration: 0,
-    cover: null
+    cover: null,
+    lyrics: null
   };
 
   try {
@@ -122,6 +125,8 @@ async function parseId3v2(file: File, meta: AudioFileMetadata): Promise<void> {
           if (id === 'TIT2') meta.title = decodeText(data.subarray(1), data[0]) || meta.title;
           else if (id === 'TPE1') meta.artist = decodeText(data.subarray(1), data[0]) || meta.artist;
           else if (id === 'TALB') meta.album = decodeText(data.subarray(1), data[0]) || meta.album;
+          else if (id === 'USLT' && !meta.lyrics) meta.lyrics = parseUslt(data) || meta.lyrics;
+          else if (id === 'SYLT' && !meta.lyrics) meta.lyrics = parseSylt(data) || meta.lyrics;
           else if (id === 'APIC' && !meta.cover) {
             const encoding = data[0];
             let p = 1;
@@ -170,6 +175,9 @@ function applyVorbisComments(bytes: Uint8Array, meta: AudioFileMetadata): void {
     if (key === 'TITLE') meta.title = value || meta.title;
     else if (key === 'ARTIST') meta.artist = meta.artist || value;
     else if (key === 'ALBUM') meta.album = meta.album || value;
+    else if (['LYRICS', 'UNSYNCEDLYRICS', 'SYNCEDLYRICS'].includes(key) && !meta.lyrics) {
+      meta.lyrics = normalizeSyncedLyrics(value);
+    }
     else if ((key === 'METADATA_BLOCK_PICTURE' || key === 'COVERART') && !meta.cover) {
       try {
         if (key === 'COVERART') {
@@ -244,11 +252,12 @@ async function parseOggVorbis(file: File, meta: AudioFileMetadata): Promise<void
 
 // ─────────────────────────── iTunes MP4 ilst(m4a) ───────────────────────────
 
-const MP4_KEY_MAP: Record<string, 'title' | 'artist' | 'album' | 'covr'> = {
+const MP4_KEY_MAP: Record<string, 'title' | 'artist' | 'album' | 'covr' | 'lyrics'> = {
   '©nam': 'title',
   '©ART': 'artist',
   '©alb': 'album',
-  covr: 'covr'
+  covr: 'covr',
+  '©lyr': 'lyrics'
 };
 
 /** MP4:遍历 moov.udta.meta.ilst,取 ©nam/©ART/©alb/covr */
@@ -288,6 +297,8 @@ async function parseMp4Ilst(file: File, meta: AudioFileMetadata): Promise<void> 
               meta.artist = new TextDecoder('utf-8').decode(payload);
             else if (mapped === 'album' && !meta.album)
               meta.album = new TextDecoder('utf-8').decode(payload);
+            else if (mapped === 'lyrics' && !meta.lyrics)
+              meta.lyrics = normalizeSyncedLyrics(new TextDecoder('utf-8').decode(payload));
             else if (mapped === 'covr' && !meta.cover && payload.length > 128) {
               const typeCode = view.getUint32(d + 8) & 0xffffff;
               const mime = typeCode === 14 ? 'image/png' : 'image/jpeg';
@@ -299,5 +310,104 @@ async function parseMp4Ilst(file: File, meta: AudioFileMetadata): Promise<void> 
       }
       o += size;
     }
+  }
+}
+
+// ─────────────────────────── 内嵌歌词提取 ───────────────────────────
+
+/** 把「[mm:ss.xx] 文本」列表归一为标准 LRC;无时间戳则原样返回 */
+function normalizeSyncedLyrics(raw: string): string | null {
+  const text = (raw || '').trim();
+  if (!text) return null;
+  if (text.includes('[mm:ss') || /\[\d{2,3}:\d{2}(:\d{2})?(\.\d{1,3})?\]/.test(text)) return text;
+  return text;
+}
+
+/** 4 字节 syncsafe 整数 */
+function readSyncsafe4(bytes: Uint8Array, o: number): number {
+  return ((bytes[o] & 0x7f) << 21) | ((bytes[o + 1] & 0x7f) << 14) | ((bytes[o + 2] & 0x7f) << 7) | (bytes[o + 3] & 0x7f);
+}
+
+/** 文本解码(按 ID3 编码字节);off 起读至首个终止符 */
+function decodeId3Text(bytes: Uint8Array, encoding: number, off: number): string {
+  let end = bytes.length;
+  if (encoding === 1 || encoding === 2) {
+    for (let i = off; i + 1 < bytes.length; i += 2) {
+      if (bytes[i] === 0 && bytes[i + 1] === 0) {
+        end = i;
+        break;
+      }
+    }
+    return decodeText(bytes.subarray(off, end), encoding);
+  }
+  for (let i = off; i < bytes.length; i++) {
+    if (bytes[i] === 0) {
+      end = i;
+      break;
+    }
+  }
+  return decodeText(bytes.subarray(off, end), encoding);
+}
+
+/** ID3v2 USLT:编码(1) 语言(3) 内容描述(终止串) 歌词文本 */
+function parseUslt(data: Uint8Array): string | null {
+  try {
+    const encoding = data[0];
+    let o = 4; // encoding + 3 字节语言
+    // 跳过内容描述终止串
+    if (encoding === 1 || encoding === 2) {
+      while (o + 1 < data.length && !(data[o] === 0 && data[o + 1] === 0)) o += 2;
+      o += 2;
+    } else {
+      while (o < data.length && data[o] !== 0) o++;
+      o++;
+    }
+    const text = decodeId3Text(data, encoding, o);
+    return normalizeSyncedLyrics(text);
+  } catch {
+    return null;
+  }
+}
+
+/** ID3v2 SYLT:同步歌词帧 → LRC(时间戳取自前两个 syncsafe 字段之一,按规范在描述串后) */
+function parseSylt(data: Uint8Array): string | null {
+  try {
+    const encoding = data[0];
+    let o = 4; // encoding + 语言
+    // 时间戳格式字节(1) + 内容类型字节(1) + 内容描述终止串
+    o += 2;
+    if (encoding === 1 || encoding === 2) {
+      while (o + 1 < data.length && !(data[o] === 0 && data[o + 1] === 0)) o += 2;
+      o += 2;
+    } else {
+      while (o < data.length && data[o] !== 0) o++;
+      o++;
+    }
+    // 逐条:终止串 + 4 字节时间戳(ms)
+    const lines: string[] = [];
+    for (;;) {
+      let start = o;
+      if (encoding === 1 || encoding === 2) {
+        while (start + 1 < data.length && !(data[start] === 0 && data[start + 1] === 0)) start += 2;
+        if (start + 1 >= data.length) break;
+      } else {
+        while (start < data.length && data[start] !== 0) start++;
+        if (start >= data.length) break;
+      }
+      const text = decodeId3Text(data, encoding, o);
+      const stampOff = encoding === 1 || encoding === 2 ? start + 2 : start + 1;
+      if (stampOff + 4 > data.length) break;
+      const ms = readSyncsafe4(data, stampOff);
+      const total = Math.floor(ms / 10);
+      const mm = String(Math.floor(total / 6000)).padStart(2, '0');
+      const ss = String(Math.floor((total % 6000) / 100)).padStart(2, '0');
+      const cs = String(total % 100).padStart(2, '0');
+      lines.push(`[${mm}:${ss}.${cs}]${text}`);
+      o = stampOff + 4;
+      if (lines.length > 2000) break;
+    }
+    return lines.length ? lines.join('\n') : null;
+  } catch {
+    return null;
   }
 }
