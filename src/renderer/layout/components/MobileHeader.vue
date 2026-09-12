@@ -1443,6 +1443,10 @@ const handleSearchSubmit = () => {
 </script>
 
 <style lang="scss" scoped>
+/* 全局动画 token(与 MobileLayout 等组件一致) */
+$spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+$spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
+$collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
 .floating-topbar {
   position: fixed;
   top: 0;
@@ -2009,15 +2013,19 @@ const handleSearchSubmit = () => {
   overflow: hidden;
   padding: 0 6px;
   transition:
-    max-height 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity 180ms ease,
-    padding 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    max-height 240ms $collapse,
+    opacity 140ms ease,
+    padding 240ms $collapse;
 }
 
 .topbar-search-pill.filter-expanded .search-filter-content {
   max-height: 420px;
   opacity: 1;
   padding: 6px;
+  transition:
+    max-height 380ms $spring-smooth,
+    opacity 220ms ease 60ms,
+    padding 380ms $spring-smooth;
 }
 
 .search-filter-grid {
@@ -2665,8 +2673,9 @@ const handleSearchSubmit = () => {
   opacity: 1;
   transform: translate3d(0, 0, 0);
   transition:
-    opacity 180ms ease 70ms,
-    transform 300ms cubic-bezier(0.32, 0.72, 0, 1) 40ms;
+    opacity 200ms ease 60ms,
+    transform 360ms $spring-smooth 40ms,
+    max-height 380ms $spring-smooth;
 }
 
 .search-assist-panel[aria-hidden='true'] {
@@ -2675,7 +2684,10 @@ const handleSearchSubmit = () => {
   opacity: 0;
   pointer-events: none;
   transform: translate3d(0, -8px, 0);
-  transition-delay: 0ms;
+  transition:
+    opacity 140ms ease,
+    transform 220ms $collapse,
+    max-height 240ms $collapse;
 }
 
 .search-assist-header {
