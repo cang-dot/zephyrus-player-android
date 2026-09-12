@@ -1440,6 +1440,11 @@ const handleSearchSubmit = () => {
     z-index: 100150;
   }
 
+.floating-topbar.is-search {
+  /* 搜索框有 max-width 上限后,剩余空隙均匀分布,返回/搜索钮保持贴边 */
+  justify-content: space-between;
+}
+
   &.player-surface-active > .topbar-back,
   &.player-surface-active > .topbar-morph-anchor,
   &.player-surface-active > .topbar-search-pill,
@@ -2235,6 +2240,8 @@ const handleSearchSubmit = () => {
   height: auto;
   min-height: 40px;
   min-width: 72px;
+  /* 宽屏(平板/桌面网页)下搜索框不再拉满整行 */
+  max-width: 340px;
   max-height: 40px;
   align-self: flex-start;
   flex-direction: column;

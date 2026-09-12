@@ -33,7 +33,36 @@
             <span class="hot-rank" :class="{ top: index < 3 }">{{ index + 1 }}</span>
             <span class="hot-word">{{ item.searchWord }}</span>
             <span v-if="item.iconUrl" class="hot-icon">
-              <img :src="item.iconUrl" alt="" />
+              <!-- 接口图片替换为随强调色染色的 SVG:5=爆,1=上升 -->
+              <svg
+                v-if="item.iconType === 5"
+                class="hot-svg"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <text
+                  x="12"
+                  y="17.5"
+                  text-anchor="middle"
+                  font-size="15"
+                  font-weight="700"
+                  fill="currentColor"
+                >
+                  爆
+                </text>
+              </svg>
+              <svg
+                v-else-if="item.iconType === 1"
+                class="hot-svg"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  fill="currentColor"
+                  d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.59 5.58L20 12l-8-8-8 8z"
+                />
+              </svg>
+              <img v-else :src="item.iconUrl" alt="" />
             </span>
           </div>
         </div>
@@ -221,5 +250,11 @@ onMounted(() => {
   img {
     @apply h-4;
   }
+
+.hot-svg {
+  width: 15px;
+  height: 15px;
+  color: var(--accent-color, #888);
+}
 }
 </style>
