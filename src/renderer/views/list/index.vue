@@ -60,16 +60,18 @@
             </div>
           </div>
           <div class="cover-text">
-            <p class="cover-name">{{ item.alt }}</p>
-            <span v-if="item.isLocal" class="cover-type-badge local">
-              <i class="ri-folder-music-line" />
-              本地 · 歌曲
-            </span>
-            <span v-else class="cover-type-badge" :class="item.type">
-              <platform-logo :platform="item.platform" :size="13" />
-              {{ platformName(item.platform) }} ·
-              {{ item.type === 'album' ? 'Album' : 'Playlist' }}
-            </span>
+            <p class="cover-name">
+              {{ item.alt }}
+              <platform-logo
+                class="cover-name-logo"
+                :platform="item.isLocal ? 'local' : item.platform"
+                :size="12"
+                color="var(--cover-text-muted, var(--m-text-muted, #9a9590))"
+              />
+            </p>
+            <span class="cover-kind">{{
+              item.isLocal ? '本地歌曲' : item.type === 'album' ? '专辑' : '歌单'
+            }}</span>
           </div>
         </div>
       </div>
@@ -547,27 +549,20 @@ const handleItemClick = (item: any) => {
   overflow: hidden;
 }
 
-.cover-type-badge {
+.cover-name-logo {
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 4px;
+  vertical-align: -1px;
+  margin-left: 2px;
+}
+
+/* 类型小字:比名字淡一级,无胶囊底 */
+.cover-kind {
+  display: block;
+  margin-top: 3px;
   font-size: 10px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 9999px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-
-  &.playlist {
-    background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.12);
-    color: var(--accent-color, #888);
-  }
-
-  &.album {
-    background: rgba(99, 102, 241, 0.12);
-    color: #6366f1;
-  }
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
 }
 
 .empty-state {

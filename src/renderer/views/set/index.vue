@@ -178,11 +178,11 @@ const navSections = computed(() => {
     }));
 });
 
-const currentSection = ref('basic');
+const currentSection = ref('appearance');
 
 const applyRouteTarget = () => {
   if (!router.currentRoute.value.query.section) return;
-  currentSection.value = 'basic';
+  currentSection.value = 'appearance';
   const focus = String(router.currentRoute.value.query.focus || '');
   if (focus) {
     nextTick(() =>

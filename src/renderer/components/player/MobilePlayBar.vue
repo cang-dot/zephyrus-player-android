@@ -8,6 +8,7 @@
       playerTransition.state.value === 'opening' || playerTransition.state.value === 'closing'
         ? 'player-transitioning'
         : '',
+      playerTransition.state.value === 'dragging' ? 'player-transitioning' : '',
       miniUsesMenuAnchor ? 'is-menu-show' : 'is-menu-hide',
       idleCollapsed && !playerStore.musicFull ? 'idle-collapsed' : '',
       playlistSurfaceMounted && !playerStore.musicFull ? 'playlist-mounted' : '',
@@ -92,7 +93,7 @@
 
 <script lang="ts" setup>
 import type { CSSProperties, Ref } from 'vue';
-import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
@@ -224,16 +225,14 @@ const onMiniSongInfoClick = () => {
     miniLongPressTriggered = false;
     return;
   }
-  // 收起态点击一律忽略:防误触(打开走长按/上滑),避免点击展开与打开手势打架
-  if (miniPointerStartedCollapsed || idleCollapsed.value) {
-    miniPointerStartedCollapsed = false;
-    return;
-  }
+  // 收起态点击封面/信息 = 直接打开播放界面(退出后由 openMusicFull 不重置收起态保证还原)
+  miniPointerStartedCollapsed = false;
+  idleCollapsed.value = false;
   setMusicFull();
 };
 
 const onMiniCoverClick = () => {
-  if (idleCollapsed.value) return;
+  idleCollapsed.value = false;
   setMusicFull();
 };
 
@@ -283,16 +282,57 @@ const miniSwipeStyle = computed(() => ({
   '--mini-swipe-glow-x': `${miniSwipeOffset.value * 0.7}px`,
   '--mini-swipe-glow-opacity': String(miniSwipeProgress.value * 0.32)
 }));
-// 转场期迷你行原地不动,与大封面/大标题(p=0 起精确覆盖迷你行位置)交叉淡化:
-// 封面与歌名作为同一元素连续变形飞向全屏布局,不再飞向底部控制区交接。
-// 淡出窗口与全屏层 reveal(--player-surface-reveal 起点 0.035)同步。
+// 当前播放器样式是否 default:决定迷你信息行的 morph 目标
+// default → 中心大封面/大标题接管;其余样式 → 底部控制区信息行接管
+const playerStyleIsDefault = ref(true);
+const refreshPlayerStyle = () => {
+  try {
+    const raw = localStorage.getItem('music-full-config');
+    playerStyleIsDefault.value = ((raw ? JSON.parse(raw).playerStyle : 'default') || 'default') === 'default';
+  } catch {
+    playerStyleIsDefault.value = true;
+  }
+};
+refreshPlayerStyle();
+onMounted(() => window.addEventListener('music-full-config-updated', refreshPlayerStyle));
+onBeforeUnmount(() => window.removeEventListener('music-full-config-updated', refreshPlayerStyle));
+
+// 转场期迷你行 morph:
+// default:原地不动,与大封面/大标题(p=0 起精确覆盖迷你行位置)交叉淡化——
+//          淡出窗口与全屏层 reveal(--player-surface-reveal 起点 0.035)同步;
+// 其余样式:飞向底部控制区信息行落点,0.86-0.98 与接管行(零位移)同窗交叉,
+//          观感即同一元素变形重排,无接力感。
 const miniSongInfoStyle = computed(() => {
   const progress = playerTransition.progress.value;
   if (progress <= 0.001) return {} as CSSProperties;
+  if (playerStyleIsDefault.value) {
+    return {
+      opacity: String(1 - Math.min(1, Math.max(0, (progress - 0.035) / 0.265))),
+      pointerEvents: 'none' as const,
+      zIndex: 4
+    } as CSSProperties;
+  }
+  const source = playerTransition.identitySourceRect.value;
+  const safeBottom = Number.parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom') || '0'
+  );
+  const landscape = window.matchMedia('(orientation: landscape)').matches;
+  const controlHeight = landscape ? 96 : 168;
+  const targetLeft = 30;
+  const targetTop = window.innerHeight - safeBottom - 14 - controlHeight + 12;
+  const translateX = source ? (targetLeft - source.left) * progress : 0;
+  const translateY = source ? (targetTop - source.top) * progress : -progress * 82;
+  const handoff = Math.min(1, Math.max(0, (progress - 0.86) / 0.12));
   return {
-    opacity: String(1 - Math.min(1, Math.max(0, (progress - 0.035) / 0.265))),
-    pointerEvents: 'none' as const,
-    zIndex: 4
+    '--identity-progress': String(progress),
+    '--identity-cover-size': `${40 + progress * 4}px`,
+    '--identity-cover-radius': `${20 - progress * 10}px`,
+    '--identity-cover-border': `${4 * (1 - progress)}px`,
+    opacity: String(1 - handoff),
+    transform: `translate3d(${translateX}px, ${translateY}px, 0)`,
+    transformOrigin: 'left center',
+    zIndex: 4,
+    pointerEvents: 'none' as const
   } as CSSProperties;
 });
 const miniPlaybackControlsStyle = computed<CSSProperties>(() => ({
@@ -347,15 +387,6 @@ const onMiniPointerDown = (event: PointerEvent) => {
   verticalSamples = [{ y: event.clientY, time: performance.now() }];
   miniLongPressTriggered = false;
   capturePlayerTransitionOrigin();
-  if (idleCollapsed.value) {
-    miniLongPressTimer = setTimeout(() => {
-      if (!miniPointerActive || miniSwipeAxis.value !== 'none') return;
-      miniLongPressTriggered = true;
-      setMiniClickSuppressed();
-      openMusicFull(1.1);
-      if (navigator.vibrate) navigator.vibrate(8);
-    }, 520);
-  }
 };
 
 const onMiniPointerMove = (event: PointerEvent) => {
@@ -489,14 +520,10 @@ const onMiniPointerUp = (event: PointerEvent) => {
     (shouldShowMobileMenu.value || deltaY < 0);
   if (commit) switchTrackWithAnimation(deltaX < 0 ? 'left' : 'right');
   else if (verticalCommit && miniPointerStartedCollapsed && deltaY < 0) {
-    // 收起态上滑:先弹性拉伸回迷你条(封面滑到最左、信息控件展开),
-    // 拉伸大体到位后由全屏 morph 接管完成打开
+    // 收起态上滑 = 展开为展开态底栏(弹性拉伸,封面滑到最左、信息控件展开)
     idleCollapsed.value = false;
     if (navigator.vibrate) navigator.vibrate(8);
     finishMiniSwipeAnimation();
-    window.setTimeout(() => {
-      if (!playerStore.musicFull && !idleCollapsed.value) openMusicFull(1.0);
-    }, 380);
   } else if (verticalCommit && !miniPointerStartedCollapsed && deltaY < 0) {
     idleCollapsed.value = false;
     const velocity =
@@ -929,6 +956,11 @@ watch(
     .mini-song-info {
       @apply flex items-center flex-1 min-w-0 cursor-pointer;
       transition: flex 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+      .player-transitioning &.play-bar-mini .mini-song-cover,
+      &.player-transitioning .mini-song-cover {
+        transition: none !important;
+      }
 
       .mini-song-cover {
         width: var(--identity-cover-size, 40px);

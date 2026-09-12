@@ -119,6 +119,7 @@
               :key="item.path"
               :to="menuTarget(item.path)"
               :data-path="item.path"
+              draggable="false"
               class="glow-nav-item"
               :class="{ active: isActive(item.path), picking: pickPath === item.path }"
               @click="prepareMenuTransition(item.path)"
@@ -1444,6 +1445,9 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* 单个导航项 — 纯图标，选中时才显示文字 */
 .glow-nav-item {
+    -webkit-touch-callout: none;
+    user-select: none;
+    -webkit-user-drag: none;
   position: relative;
   display: flex;
   align-items: center;
