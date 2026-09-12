@@ -93,8 +93,24 @@
         </button>
       </label>
 
-      <!-- 星盘专属:歌词文本块每块行数 -->
+      <!-- 星盘专属:圆盘位置 + 歌词文本块每块行数 -->
       <template v-if="styleKey === 'starChart'">
+        <div class="setting-row">
+          <span>圆盘位置(边缘位露出一半)</span>
+        </div>
+        <div class="star-position-grid">
+          <button
+            v-for="pos in starPositionOptions"
+            :key="pos.value"
+            type="button"
+            class="star-position-cell"
+            :class="{ active: (local.starChartPosition || 'center') === pos.value }"
+            :aria-label="pos.label"
+            @click="local.starChartPosition = pos.value"
+          >
+            <i class="ri-record-circle-line" />
+          </button>
+        </div>
         <label class="range-row">
           <span>歌词文本块行数 {{ local.starBlockLines ?? 4 }}</span>
           <input v-model.number="local.starBlockLines" type="range" min="2" max="6" step="1" />
@@ -673,6 +689,18 @@ const artworkAlignOptions = computed(() => [
   { value: 'center' as const, label: tr('player.styleCustomization.alignCenter', '中') },
   { value: 'end' as const, label: tr('player.styleCustomization.alignEnd', '右') }
 ]);
+
+const starPositionOptions = [
+  { value: 'top-left', label: '左上' },
+  { value: 'top', label: '上' },
+  { value: 'top-right', label: '右上' },
+  { value: 'left', label: '左' },
+  { value: 'center', label: '中间' },
+  { value: 'right', label: '右' },
+  { value: 'bottom-left', label: '左下' },
+  { value: 'bottom', label: '下' },
+  { value: 'bottom-right', label: '右下' }
+];
 const backgroundPresetOptions = computed(() => [
   { value: 'none' as const, label: tr('player.styleCustomization.presetNone', '无') },
   { value: 'aurora' as const, label: tr('player.styleCustomization.presetAurora', '极光') },
@@ -980,5 +1008,36 @@ input[type='checkbox'] {
   .toggle-switch span {
     transition: none;
   }
+}
+
+/* 星盘:圆盘位置九宫格 */
+.star-position-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 4px 0 14px;
+  padding: 0 4px;
+}
+
+.star-position-cell {
+  display: grid;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 18px;
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.star-position-cell.active {
+  border-color: rgba(var(--accent-color-rgb, 136, 136, 136), 0.5);
+  background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.14);
+  color: var(--accent-color, #fff);
 }
 </style>
