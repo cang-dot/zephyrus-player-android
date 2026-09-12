@@ -387,6 +387,8 @@ const infoTransitionStyle = computed(() => {
   return {
     transform: `translate3d(${dx * (1 - progress)}px, ${dy * (1 - progress)}px, 0) scale(${scale + (1 - scale) * progress})`,
     transformOrigin: 'left center',
+    // 重排进度:0=与迷你行相同的单行形态,1=全屏两行形态(收起时反向播放)
+    '--morph-p': String(progress),
     willChange: 'transform'
   };
 });
@@ -548,7 +550,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
   font-size: clamp(20px, 2.8vh, 26px);
   font-weight: 700;
-  color: var(--player-ink, #fff);
+  /* 展开中:从迷你行文字色渐变到全屏墨色(重排进度的前半程完成变色) */
+  color: color-mix(
+    in srgb,
+    var(--m-text-primary, #2c2c2c) calc((1 - var(--morph-p, 1)) * 100%),
+    var(--player-ink, #fff)
+  );
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -556,9 +563,16 @@ onBeforeUnmount(() => {
 .artwork-info-artist {
   overflow: hidden;
   font-size: 14px;
-  color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.62);
+  color: color-mix(
+    in srgb,
+    var(--m-text-muted, #9a9590) calc((1 - var(--morph-p, 1)) * 100%),
+    rgba(var(--player-ink-rgb, 255, 255, 255), 0.62)
+  );
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* 单行⇄两行重排:p=0 时升入歌名行形成单行,p=1 落回两行排布 */
+  transform: translateY(calc((1 - var(--morph-p, 1)) * -22px));
+  opacity: clamp(0, calc(var(--morph-p, 1) * 1.6 - 0.12), 1);
 }
 
 .background-preset-layer {
