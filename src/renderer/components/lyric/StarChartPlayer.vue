@@ -4,11 +4,14 @@
       <div
         v-if="isVisible"
         class="star-chart-player player-style-surface"
-        :class="{
-          'player-style-customized': isCustom,
-          'player-style-custom-font': customFontActive,
-          'player-style-custom-background': customBackgroundActive
-        }"
+        :class="[
+          {
+            'player-style-customized': isCustom,
+            'player-style-custom-font': customFontActive,
+            'player-style-custom-background': customBackgroundActive
+          },
+          `star-position-${starPosition}`
+        ]"
         :style="{
           ...styleVars,
           '--accent-color': accentColor,
@@ -51,10 +54,7 @@
             v-show="!showFullLyrics || lyricsSwipePreview"
             ref="chartFrame"
             class="chart-shell"
-            :class="[
-              { 'is-playing': isPlaying, 'is-climax': styleEngine.isInClimax },
-              `star-position-${starPosition}`
-            ]"
+            :class="{ 'is-playing': isPlaying, 'is-climax': styleEngine.isInClimax }"
             :style="lyricsUnderlayStyle"
           >
             <div
@@ -67,38 +67,19 @@
             >
               <canvas ref="chartCanvas" class="chart-canvas" />
             </div>
-
-            <button
-              :key="lyricBlockStart"
-              type="button"
-              class="lyric-block no-toggle"
-              aria-label="打开滚动歌词"
-              @click.stop="openLyricsAnimated"
-            >
-              <span
-                v-for="(line, i) in lyricBlockLines"
-                :key="`l${i}`"
-                class="lyric-block-line"
-                >{{ line }}</span
-              >
-              <span
-                v-for="(line, i) in lyricBlockTranslations"
-                :key="`t${i}`"
-                class="lyric-block-line lyric-block-translation"
-                >{{ line }}</span
-              >
-            </button>
           </main>
         </transition>
 
+        <!-- 歌词文本块:独立于星盘定位(竖屏恒居中,横屏按星盘位置自动落位) -->
         <button
           v-show="!showFullLyrics || lyricsSwipePreview"
+          :key="`portrait-${lyricBlockStart}`"
           type="button"
-          class="landscape-lyric lyric-block no-toggle"
+          class="lyric-block no-toggle"
           aria-label="打开滚动歌词"
           @click.stop="openLyricsAnimated"
-          :style="lyricsUnderlayStyle"
         >
+          <span class="lyric-block-canvas">
             <span
               v-for="(line, i) in lyricBlockLines"
               :key="`l${i}`"
@@ -110,7 +91,32 @@
               :key="`t${i}`"
               class="lyric-block-line lyric-block-translation"
               >{{ line }}</span
-          >
+            >
+          </span>
+        </button>
+
+        <button
+          v-show="!showFullLyrics || lyricsSwipePreview"
+          type="button"
+          class="landscape-lyric lyric-block no-toggle"
+          aria-label="打开滚动歌词"
+          @click.stop="openLyricsAnimated"
+          :style="lyricsUnderlayStyle"
+        >
+          <span class="lyric-block-canvas">
+            <span
+              v-for="(line, i) in lyricBlockLines"
+              :key="`l${i}`"
+              class="lyric-block-line"
+              >{{ line }}</span
+            >
+            <span
+              v-for="(line, i) in lyricBlockTranslations"
+              :key="`t${i}`"
+              class="lyric-block-line lyric-block-translation"
+              >{{ line }}</span
+            >
+          </span>
         </button>
 
         <div
@@ -127,7 +133,7 @@
           <mobile-scrolling-lyrics
             class="scrolling-lyrics-content"
             :back-closes="showFullLyrics"
-            :active="showFullLyrics || lyricsSwipePreview"
+            :active="true"
             @close="closeLyricsAnimated"
             @interact="showControls"
             @generatePoster="handleGeneratePoster"
@@ -615,31 +621,31 @@ onBeforeUnmount(() => {
   transition: transform 460ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.star-position-top {
+.star-position-top .chart-shell {
   --star-pos-y: -50%;
 }
-.star-position-bottom {
+.star-position-bottom .chart-shell {
   --star-pos-y: 50%;
 }
-.star-position-left {
+.star-position-left .chart-shell {
   --star-pos-x: -50%;
 }
-.star-position-right {
+.star-position-right .chart-shell {
   --star-pos-x: 50%;
 }
-.star-position-top-left {
+.star-position-top-left .chart-shell {
   --star-pos-x: -50%;
   --star-pos-y: -50%;
 }
-.star-position-top-right {
+.star-position-top-right .chart-shell {
   --star-pos-x: 50%;
   --star-pos-y: -50%;
 }
-.star-position-bottom-left {
+.star-position-bottom-left .chart-shell {
   --star-pos-x: -50%;
   --star-pos-y: 50%;
 }
-.star-position-bottom-right {
+.star-position-bottom-right .chart-shell {
   --star-pos-x: 50%;
   --star-pos-y: 50%;
 }
@@ -667,18 +673,27 @@ onBeforeUnmount(() => {
 }
 
 .lyric-block {
-  position: relative;
+  /* 竖屏:全屏居中,独立于星盘位置 */
+  position: absolute;
+  inset: 0;
   z-index: 3;
-  height: min(44dvh, 400px);
-  max-width: 76%;
-  padding: 26px 30px;
+  display: grid;
+  place-items: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 96px) 20px
+    calc(var(--mobile-dock-content-inset, 132px) + 24px);
   color: inherit;
   border: 0;
   background: transparent;
   cursor: pointer;
+}
+
+.lyric-block-canvas {
   /* 竖排右起:块级子元素自然从右向左成列(不能用 flex——其主轴随书写模式翻转为纵向) */
   writing-mode: vertical-rl;
   text-align: justify;
+  height: min(44dvh, 400px);
+  max-width: 100%;
+  padding: 26px 30px;
 }
 
 .landscape-lyric {
@@ -705,7 +720,7 @@ onBeforeUnmount(() => {
 }
 
 .lyric-block-line:not(:first-child) {
-  margin-top: 14px;
+  margin-right: 14px;
 }
 
 .lyric-block-translation {
@@ -894,10 +909,43 @@ onBeforeUnmount(() => {
   }
 
   .landscape-lyric.lyric-block {
+    position: absolute;
     display: block;
+    inset: auto;
+    right: clamp(28px, 6vw, 90px);
+    top: 50%;
+    transform: translateY(-50%);
     width: min(30vw, 380px);
+    padding: 0;
+  }
+
+  /* 星盘在右半 → 歌词移到左半 */
+  .star-position-right .landscape-lyric.lyric-block,
+  .star-position-top-right .landscape-lyric.lyric-block,
+  .star-position-bottom-right .landscape-lyric.lyric-block {
+    right: auto;
+    left: clamp(28px, 6vw, 90px);
+  }
+
+  /* 星盘在上 → 歌词落下;星盘在下 → 歌词升起 */
+  .star-position-top .landscape-lyric.lyric-block,
+  .star-position-top-left .landscape-lyric.lyric-block,
+  .star-position-top-right .landscape-lyric.lyric-block {
+    top: auto;
+    bottom: clamp(28px, 9dvh, 140px);
+    transform: none;
+  }
+
+  .star-position-bottom .landscape-lyric.lyric-block,
+  .star-position-bottom-left .landscape-lyric.lyric-block,
+  .star-position-bottom-right .landscape-lyric.lyric-block {
+    top: clamp(28px, 9dvh, 140px);
+    transform: none;
+  }
+
+  .landscape-lyric .lyric-block-canvas {
     height: auto;
-    max-height: 64dvh;
+    max-height: 62dvh;
     padding: 20px 24px;
   }
 
