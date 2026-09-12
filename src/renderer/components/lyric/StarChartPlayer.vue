@@ -847,6 +847,7 @@ onBeforeUnmount(() => {
   }
 
   .landscape-lyric.lyric-block {
+    display: block;
     width: min(30vw, 380px);
     height: auto;
     max-height: 64dvh;
