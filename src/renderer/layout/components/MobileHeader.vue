@@ -149,7 +149,8 @@
       class="topbar-pill topbar-search-pill"
       :class="{
         'search-circle': usesWideDetailTopbar,
-        'assist-expanded': showSearchAssist
+        'assist-expanded': showSearchAssist,
+        'filter-expanded': isSearchPage && searchTypeExpanded
       }"
       :style="searchPillStyle"
       @click="!isSearchPage && !isSettingsPage && openSearch()"
@@ -179,6 +180,74 @@
           class="ri-close-circle-fill clear-icon"
           @click.stop="isSettingsPage ? clearSettingsSearch() : clearSearch()"
         ></i>
+        <button
+          v-if="isSearchPage"
+          type="button"
+          class="search-inline-filter"
+          :class="{ expanded: searchTypeExpanded }"
+          @click.stop="toggleSearchTypeMenu"
+        >
+          <span>{{ activeSearchTypeLabel }}</span>
+          <template v-if="activeSearchPlatform">
+            <i class="search-filter-dot">·</i>
+            <platform-logo :platform="activeSearchPlatform" :size="14" />
+          </template>
+          <i class="ri-arrow-down-s-line" />
+        </button>
+      </div>
+
+      <!-- 筛选面板:容器内第二行,展开时容器向下拉伸(与搜索建议同一容器变形) -->
+      <div
+        v-if="isSearchPage"
+        class="morph-content search-filter-content"
+        :class="{ expanded: searchTypeExpanded }"
+        @click.stop
+      >
+        <div class="search-filter-grid">
+          <section class="search-filter-column">
+            <p class="search-filter-heading">搜索类型</p>
+            <div class="morph-group search-filter-options">
+              <button
+                v-for="type in searchTypes"
+                :key="type.key"
+                type="button"
+                :class="{ active: Number(type.key) === Number(searchStore.searchType) }"
+                @click.stop="selectSearchType(type.key)"
+              >
+                <span>{{ type.label }}</span>
+                <i
+                  v-if="Number(type.key) === Number(searchStore.searchType)"
+                  class="ri-check-line"
+                />
+              </button>
+            </div>
+          </section>
+          <section class="search-filter-column">
+            <p class="search-filter-heading">来源</p>
+            <div class="morph-group search-filter-options search-source-options">
+              <button
+                v-for="source in searchStore.searchSourceOptions"
+                :key="source.key"
+                type="button"
+                class="search-source-option"
+                :class="{ active: source.key === searchStore.searchSource }"
+                @click.stop="selectSearchSource(source.key)"
+              >
+                <platform-logo
+                  v-if="platformForSearchSource(source.key)"
+                  :platform="platformForSearchSource(source.key)"
+                  :size="16"
+                />
+                <i v-else class="ri-apps-2-line" />
+                <span
+                  >{{ source.label
+                  }}<small v-if="source.count != null"> {{ source.count }}</small></span
+                >
+                <i v-if="source.key === searchStore.searchSource" class="ri-check-line" />
+              </button>
+            </div>
+          </section>
+        </div>
       </div>
 
       <div class="search-assist-panel" :aria-hidden="!showSearchAssist" @click.stop>
@@ -255,69 +324,7 @@
       </div>
     </section>
 
-    <div v-if="isSearchPage" class="topbar-morph-anchor topbar-search-morph-anchor">
-      <section
-        class="topbar-pill topbar-morph topbar-search-morph"
-        :class="{ expanded: searchTypeExpanded }"
-        @pointerdown.stop
-      >
-        <header class="morph-trigger search-filter-trigger" @click.stop="toggleSearchTypeMenu">
-          <span>{{ activeSearchTypeLabel }}</span>
-          <template v-if="activeSearchPlatform">
-            <i class="search-filter-dot">·</i>
-            <platform-logo :platform="activeSearchPlatform" :size="14" />
-          </template>
-          <i class="ri-arrow-down-s-line" />
-        </header>
-        <div class="morph-content search-filter-content" @click.stop>
-          <div class="search-filter-grid">
-            <section class="search-filter-column">
-              <p class="search-filter-heading">搜索类型</p>
-              <div class="morph-group search-filter-options">
-                <button
-                  v-for="type in searchTypes"
-                  :key="type.key"
-                  type="button"
-                  :class="{ active: Number(type.key) === Number(searchStore.searchType) }"
-                  @click.stop="selectSearchType(type.key)"
-                >
-                  <span>{{ type.label }}</span>
-                  <i
-                    v-if="Number(type.key) === Number(searchStore.searchType)"
-                    class="ri-check-line"
-                  />
-                </button>
-              </div>
-            </section>
-            <section class="search-filter-column">
-              <p class="search-filter-heading">来源</p>
-              <div class="morph-group search-filter-options search-source-options">
-                <button
-                  v-for="source in searchStore.searchSourceOptions"
-                  :key="source.key"
-                  type="button"
-                  class="search-source-option"
-                  :class="{ active: source.key === searchStore.searchSource }"
-                  @click.stop="selectSearchSource(source.key)"
-                >
-                  <platform-logo
-                    v-if="platformForSearchSource(source.key)"
-                    :platform="platformForSearchSource(source.key)"
-                    :size="16"
-                  />
-                  <i v-else class="ri-apps-2-line" />
-                  <span
-                    >{{ source.label
-                    }}<small v-if="source.count != null"> {{ source.count }}</small></span
-                  >
-                  <i v-if="source.key === searchStore.searchSource" class="ri-check-line" />
-                </button>
-              </div>
-            </section>
-          </div>
-        </div>
-      </section>
-    </div>
+
 
     <!-- 右侧动作胶囊随路由切换：缩回再展开的形变过渡 -->
     <Transition name="topbar-pill-morph" mode="out-in">
@@ -547,6 +554,16 @@ const usesWideDetailTopbar = computed(
 );
 const usesLegacyContentTopbar = computed(() => showPageCapsule.value);
 const isSearchResultPage = computed(() => route.path === '/mobile-search-result');
+
+// 从除搜索结果页之外的页面进入搜索页:清空上一次缓存的搜索词
+watch(
+  () => route.path,
+  (to, from) => {
+    if (to === '/mobile-search' && from !== '/mobile-search-result') {
+      searchStore.setSearchValue('');
+    }
+  }
+);
 const searchTypes = computed(() =>
   SEARCH_TYPES.map((type) => ({ key: type.key, label: t(type.label) }))
 );
@@ -745,7 +762,10 @@ const settingsAssistItems = ref<SettingsAssistItem[]>([]);
 const searchHistory = ref<string[]>([]);
 const suggestions = ref<string[]>([]);
 const suggestionsLoading = ref(false);
-const showingHistory = computed(() => !searchStore.searchValue.trim());
+// 搜索历史只在结果页(回改关键词)展示;纯搜索页保持干净
+const showingHistory = computed(
+  () => isSearchResultPage.value && !searchStore.searchValue.trim()
+);
 const assistItems = computed(() =>
   showingHistory.value ? searchHistory.value : suggestions.value
 );
@@ -1441,8 +1461,10 @@ const handleSearchSubmit = () => {
   }
 
 .floating-topbar.is-search {
-  /* 搜索框有 max-width 上限后,剩余空隙均匀分布,返回/搜索钮保持贴边 */
+  /* 搜索框有 max-width 上限后,剩余空隙均匀分布,返回/搜索钮保持贴边;
+     筛选面板向下拉伸时按钮顶部对齐输入行,不被遮挡 */
   justify-content: space-between;
+  align-items: flex-start;
 }
 
   &.player-surface-active > .topbar-back,
@@ -1960,6 +1982,31 @@ const handleSearchSubmit = () => {
   }
 }
 
+.search-inline-filter {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  margin-left: 2px;
+  padding: 6px 10px;
+  border: 0;
+  border-left: 1px solid var(--cover-border, rgba(128, 128, 128, 0.18));
+  border-radius: 0;
+  background: transparent;
+  color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  i {
+    font-size: 13px;
+  }
+
+  &.expanded {
+    color: var(--accent-color, #888);
+  }
+}
+
 .search-filter-content {
   display: grid;
   max-height: none;
@@ -1971,7 +2018,7 @@ const handleSearchSubmit = () => {
     opacity 180ms ease,
     padding 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
 
-  .topbar-search-morph.expanded & {
+  .topbar-search-pill.filter-expanded & {
     max-height: none;
     grid-template-rows: 1fr;
     overflow: hidden;
@@ -2273,6 +2320,14 @@ const handleSearchSubmit = () => {
   &.assist-expanded {
     z-index: 310;
     max-height: min(52dvh, 460px);
+    border-radius: 20px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+  }
+
+  /* 筛选面板展开:同一容器向下拉伸,不覆盖返回/搜索按钮 */
+  &.filter-expanded {
+    z-index: 310;
+    max-height: min(56dvh, 500px);
     border-radius: 20px;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
   }

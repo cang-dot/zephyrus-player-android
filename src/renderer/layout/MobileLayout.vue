@@ -907,6 +907,7 @@ const navGlow = reactive({
 let navGlowHideTimer: ReturnType<typeof setTimeout> | undefined;
 let navGlowNavLeft = 0;
 let navGlowNavTop = 0;
+let navGlowNavWidth = 0;
 
 const navGlowFloatStyle = computed(() => ({
   width: `${navGlow.w}px`,
@@ -921,6 +922,7 @@ function showNavGlowAt(clientX: number, clientY: number, itemEl: HTMLElement | n
   const navRect = nav.getBoundingClientRect();
   navGlowNavLeft = navRect.left;
   navGlowNavTop = navRect.top;
+  navGlowNavWidth = navRect.width;
   const rect = itemEl
     ? itemEl.getBoundingClientRect()
     : { left: clientX - 32, top: clientY - 20, width: 64, height: 40 };
@@ -1041,9 +1043,11 @@ const onNavPointerMove = (event: PointerEvent) => {
     }
   }
   event.preventDefault();
-  // 辉光放大并横向完全跟手;y 轴锁定在起始项中心线高度
+  // 辉光放大并横向完全跟手;y 轴锁定在起始项中心线高度;越界停在底栏边缘
   navGlow.enlarged = true;
   navGlow.x = event.clientX - navGlowNavLeft;
+  const halfGlow = navGlow.w / 2 + 6;
+  navGlow.x = Math.min(Math.max(navGlow.x, halfGlow), Math.max(halfGlow, navGlowNavWidth - halfGlow));
   pickPath.value = navNearestItemPath(event.clientX, event.clientY);
 };
 
