@@ -912,12 +912,14 @@ const onNavPointerMove = (event: PointerEvent) => {
   if (event.pointerId !== navPickPointerId) return;
   const dx = event.clientX - navPickStartX;
   const dy = event.clientY - navPickStartY;
-  if (!navAxisLocked && Math.max(Math.abs(dx), Math.abs(dy)) >= 8) {
+  if (!navAxisLocked && Math.max(Math.abs(dx), Math.abs(dy)) >= 14) {
     navAxisLocked = true;
-    if (Math.abs(dy) > Math.abs(dx)) {
-      // 纵向意图:取消预览,把纵向手势交回 Dock(上滑打开播放界面)
+    if (Math.abs(dy) > Math.abs(dx) * 1.2) {
+      // 明确的纵向意图才取消预览,交回 Dock(上滑打开播放界面);
+      // 放行 click 抑制——按下时的自然下坠不该吞掉本次点击
       navPicking = false;
       navPickPath.value = '';
+      navSuppressClick = false;
       return;
     }
     const host = event.currentTarget as HTMLElement;
@@ -947,6 +949,9 @@ const onNavPointerRelease = (event: PointerEvent) => {
     if (target && !isActive(target)) {
       prepareMenuTransition(target);
       router.push(target);
+    } else if (!target) {
+      // 手指落在项与项的空隙:放行默认行为
+      navSuppressClick = false;
     }
   }
 };
