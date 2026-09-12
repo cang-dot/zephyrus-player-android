@@ -93,6 +93,14 @@
         </button>
       </label>
 
+      <!-- 星盘专属:歌词文本块每块行数 -->
+      <template v-if="styleKey === 'starChart'">
+        <label class="range-row">
+          <span>歌词文本块行数 {{ local.starBlockLines ?? 4 }}</span>
+          <input v-model.number="local.starBlockLines" type="range" min="2" max="6" step="1" />
+        </label>
+      </template>
+
       <!-- 默认样式专属:封面/歌名作者/背景预设 -->
       <template v-if="styleKey === 'default'">
         <label class="setting-row">

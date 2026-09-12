@@ -38,7 +38,10 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     effectWordDrop: false,
     effectStaggered: false
   },
-  starChart: {},
+  starChart: {
+    builtinFontId: 'ma-shan-zheng',
+    starBlockLines: 4
+  },
   frenzy: {
     giantSize: 80,
     effectCrt: true,
@@ -259,6 +262,13 @@ export function resolvePlayerStyleConfig(
   if (!['none', 'aurora', 'fluid'].includes(String(config.backgroundPreset))) {
     config.backgroundPreset = 'none';
   }
+  config.starBlockLines = Math.min(
+    6,
+    Math.max(
+      2,
+      Math.round(Number.isFinite(Number(config.starBlockLines)) ? Number(config.starBlockLines) : 4)
+    )
+  );
   if (!['solid', 'gradient', 'image'].includes(config.backgroundMode)) {
     config.backgroundMode = defaults.backgroundMode;
   }
