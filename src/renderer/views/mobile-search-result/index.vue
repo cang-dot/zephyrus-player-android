@@ -19,11 +19,14 @@
         <!-- 歌曲搜索 -->
         <template v-if="searchType === SEARCH_TYPE.MUSIC">
           <div v-for="item in filteredResults" :key="item.id" class="song-item-wrapper">
-            <span
-              v-if="getSourceLabel(item.id)"
-              class="source-badge"
-              :style="getSourceBadgeStyle(item.id)"
-            >
+            <platform-logo
+              v-if="sourceLabelPlatform(item.id)"
+              class="source-mark"
+              :platform="sourceLabelPlatform(item.id)"
+              :size="14"
+              color="var(--cover-text-muted, #9a9590)"
+            />
+            <span v-else-if="getSourceLabel(item.id)" class="source-mark source-mark--text">
               {{ getSourceLabel(item.id) }}
             </span>
             <song-item :item="item" :is-next="true" @play="handlePlay" />
@@ -91,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
@@ -161,12 +165,22 @@ function getSourceLabel(songId: string | number): string | null {
   return SOURCE_LABEL_CONFIG[label]?.text || null;
 }
 
-function getSourceBadgeStyle(songId: string | number): Record<string, string> {
+// 来源标签 → 平台 logo;无对应 SVG 的来源回退灰色文字徽章
+const SOURCE_LABEL_PLATFORM: Record<string, string> = {
+  netease: 'netease',
+  'netease-vip': 'netease',
+  'cross-qq': 'qq',
+  'cross-kugou': 'kugou',
+  'cross-joox': 'joox',
+  'cross-spotify': 'spotify',
+  server: 'server',
+  local: 'local'
+};
+
+function sourceLabelPlatform(songId: string | number): string {
+  sourceLabelVersion.value;
   const label = getCachedLabel(String(songId));
-  if (!label) return {};
-  const cfg = SOURCE_LABEL_CONFIG[label];
-  if (!cfg) return {};
-  return { color: cfg.color, background: cfg.bg };
+  return (label && SOURCE_LABEL_PLATFORM[label]) || '';
 }
 
 const sourceFilterOptions = computed(() => {
@@ -655,8 +669,14 @@ onMounted(() => {
   @apply relative;
 }
 
-.source-badge {
-  @apply absolute right-12 top-2 z-10 px-1.5 py-0.5 rounded text-[10px] font-medium pointer-events-none;
+.source-mark {
+  @apply absolute right-12 top-2.5 z-10 pointer-events-none;
+}
+
+.source-mark--text {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--cover-text-muted, #9a9590);
 }
 
 .result-list {

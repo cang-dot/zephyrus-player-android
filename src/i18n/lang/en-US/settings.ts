@@ -6,6 +6,10 @@ export default {
   sections: {
     basic: 'Basic Settings',
     interface: 'Interface Settings',
+    appearance: 'Appearance',
+    lyrics: 'Lyrics & Status Bar',
+    ai: 'AI Services',
+    advanced: 'Advanced',
     playback: 'Playback Settings',
     application: 'Application Settings',
     network: 'Network Settings',

@@ -145,6 +145,8 @@ export default {
     styleDefaultFont: 'Style Default',
     fontWeight: 'Font Weight',
     importFont: 'Import Font',
+    showArtwork: 'Show artwork',
+    showLyricsZone: 'Show lyrics area',
     showTrackInfo: 'Show track name & artist under artwork',
     artworkSize: 'Artwork Size',
     artworkAlign: 'Artwork Alignment',

@@ -18,6 +18,13 @@
       <div class="glow-tab-content">
         <i v-if="tab.icon" class="glow-tab-icon" :class="tab.icon" />
         <span class="glow-tab-label">{{ tab.label }}</span>
+        <platform-logo
+          v-if="tab.platform"
+          class="glow-tab-logo"
+          :platform="tab.platform"
+          :size="13"
+          :color="String(modelValue) === String(tab.key) ? 'var(--accent-color, #888)' : 'var(--cover-text-muted, #9a9590)'"
+        />
       </div>
     </button>
   </div>
@@ -41,11 +48,14 @@ import {
   registerMobileTopbarGroup,
   unregisterMobileTopbarGroup
 } from '@/composables/useMobileTopbarMenu';
+import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import { isMobile } from '@/utils';
 export interface GlowTabItem {
   key: string | number;
   label: string;
   icon?: string;
+  /** 平台标识:有值时在 label 后渲染对应平台 SVG logo */
+  platform?: string;
 }
 
 const props = withDefaults(

@@ -13,11 +13,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+import allLogo from '@/assets/platforms/all.svg?url';
 import jooxLogo from '@/assets/platforms/joox.svg?url';
 import kugouLogo from '@/assets/platforms/kugou.svg?url';
+import localLogo from '@/assets/platforms/local.svg?url';
 import neteaseLogo from '@/assets/platforms/netease-music.svg?url';
 import qqMusicLogo from '@/assets/platforms/qqmusic.svg?url';
 import spotifyLogo from '@/assets/platforms/spotify.svg?url';
+import zephyrusCloudLogo from '@/assets/platforms/zephyrus-cloud.svg?url';
 
 const props = withDefaults(
   defineProps<{
@@ -34,11 +37,14 @@ const props = withDefaults(
 );
 
 const assets: Record<string, string> = {
+  all: allLogo,
   joox: jooxLogo,
+  local: localLogo,
   netease: neteaseLogo,
   qq: qqMusicLogo,
   kugou: kugouLogo,
-  spotify: spotifyLogo
+  spotify: spotifyLogo,
+  server: zephyrusCloudLogo
 };
 const assetUrl = computed(() => assets[props.platform]);
 const logoStyle = computed(() => ({

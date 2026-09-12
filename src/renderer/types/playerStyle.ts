@@ -95,8 +95,12 @@ export interface PlayerStyleCustomConfig {
   errorFluidPower?: number;
   /** 「错误」样式：歌词装饰符号（!…!）开关 */
   errorDecorMarks?: boolean;
+  /** 默认样式：显示大封面 */
+  showArtwork?: boolean;
   /** 默认样式：封面下方显示歌名与作者（不影响底部控制栏） */
   showTrackInfo?: boolean;
+  /** 默认样式：显示歌词区域 */
+  showLyricsZone?: boolean;
   /** 默认样式：封面大小 60-100（占可用空间的百分比） */
   artworkSize?: number;
   /** 默认样式：封面块对齐 */

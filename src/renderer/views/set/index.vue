@@ -37,14 +37,23 @@
 
         <!-- Normal mode -->
         <template v-else>
-          <div v-show="currentSection === 'basic'" class="animate-fade-in">
-            <basic-tab />
-          </div>
-          <div v-show="currentSection === 'interface'" class="animate-fade-in">
-            <interface-tab />
+          <div v-show="currentSection === 'appearance'" class="animate-fade-in">
+            <appearance-tab />
           </div>
           <div v-show="currentSection === 'playback'" class="animate-fade-in">
             <playback-tab />
+          </div>
+          <div v-show="currentSection === 'lyrics'" class="animate-fade-in">
+            <lyrics-tab />
+          </div>
+          <div v-show="currentSection === 'ai'" class="animate-fade-in">
+            <ai-tab />
+          </div>
+          <div v-show="currentSection === 'advanced'" class="animate-fade-in">
+            <advanced-tab />
+          </div>
+          <div v-show="currentSection === 'about'" class="animate-fade-in">
+            <about-tab />
           </div>
           <div v-show="currentSection === 'application'" class="animate-fade-in">
             <application-tab />
@@ -54,12 +63,6 @@
           </div>
           <div v-show="currentSection === 'system'" class="animate-fade-in">
             <system-tab />
-          </div>
-          <div v-show="currentSection === 'keepAlive'" class="animate-fade-in">
-            <keep-alive-tab />
-          </div>
-          <div v-show="currentSection === 'about'" class="animate-fade-in">
-            <about-tab />
           </div>
         </template>
 
@@ -90,10 +93,11 @@ import { createDefaultAppUpdateState } from '../../../shared/appUpdate';
 import { SETTINGS_DATA_KEY, SETTINGS_DIALOG_KEY, SETTINGS_MESSAGE_KEY } from './keys';
 import { MOBILE_SETTING_SEARCH_DEFINITIONS } from './mobileSettingSearch';
 import AboutTab from './tabs/AboutTab.vue';
+import AdvancedTab from './tabs/AdvancedTab.vue';
+import AiTab from './tabs/AiTab.vue';
+import AppearanceTab from './tabs/AppearanceTab.vue';
 import ApplicationTab from './tabs/ApplicationTab.vue';
-import BasicTab from './tabs/BasicTab.vue';
-import InterfaceTab from './tabs/InterfaceTab.vue';
-import KeepAliveTab from './tabs/KeepAliveTab.vue';
+import LyricsTab from './tabs/LyricsTab.vue';
 import NetworkTab from './tabs/NetworkTab.vue';
 import PlaybackTab from './tabs/PlaybackTab.vue';
 import SystemTab from './tabs/SystemTab.vue';
@@ -154,14 +158,15 @@ type SettingSectionConfig = {
 };
 
 const settingSections: SettingSectionConfig[] = [
-  { id: 'basic' },
-  { id: 'interface' },
+  { id: 'appearance' },
   { id: 'playback' },
+  { id: 'lyrics' },
+  { id: 'ai' },
+  { id: 'advanced' },
+  { id: 'about' },
   { id: 'application', electron: true },
   { id: 'network', electron: true },
-  { id: 'system', electron: true },
-  { id: 'keepAlive' },
-  { id: 'about' }
+  { id: 'system', electron: true }
 ];
 
 const navSections = computed(() => {
@@ -173,11 +178,11 @@ const navSections = computed(() => {
     }));
 });
 
-const currentSection = ref('basic');
+const currentSection = ref('appearance');
 
 const applyRouteTarget = () => {
-  if (router.currentRoute.value.query.section !== 'basic') return;
-  currentSection.value = 'basic';
+  if (!router.currentRoute.value.query.section) return;
+  currentSection.value = 'appearance';
   const focus = String(router.currentRoute.value.query.focus || '');
   if (focus) {
     nextTick(() =>

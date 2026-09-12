@@ -65,7 +65,13 @@
       </n-scrollbar>
     </div>
 
+    <button v-if="isEnabled" type="button" class="eq-advanced-toggle" @click="showManualEq = !showManualEq">
+      <span>手动调音(10 段)</span>
+      <i :class="showManualEq ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" />
+    </button>
+
     <div
+      v-show="showManualEq && isEnabled"
       class="eq-sliders flex justify-between items-end gap-0.5 rounded-xl p-2 h-[300px] w-full"
       style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.06);"
     >
@@ -114,6 +120,7 @@ const eqValues = ref<{ [key: string]: number }>({});
 const isEnabled = ref(audioService.isEQEnabled());
 const currentPreset = ref(audioService.getCurrentPreset() || 'flat');
 const isAdaptiveEnabled = ref(audioService.isAdaptiveEQEnabled());
+const showManualEq = ref(false);
 const adaptiveIntensity = ref(audioService.getAdaptiveEQIntensity());
 
 // 预设配置
@@ -328,6 +335,21 @@ const formatFreq = (freq: number) => {
 </script>
 
 <style lang="scss" scoped>
+.eq-advanced-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 4px 0 8px;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--m-text-secondary, rgba(255, 255, 255, 0.72));
+  font-size: 13px;
+  cursor: pointer;
+}
+
 :deep(.n-scrollbar) {
   margin-left: -0.5rem;
   margin-right: -0.5rem;

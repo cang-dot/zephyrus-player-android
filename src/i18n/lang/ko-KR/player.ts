@@ -145,6 +145,8 @@ export default {
     styleDefaultFont: '스타일 기본값',
     fontWeight: '글꼴 굵기',
     importFont: '글꼴 가져오기',
+    showArtwork: '커버 표시',
+    showLyricsZone: '가사 영역 표시',
     showTrackInfo: '커버 아래 곡명·아티스트 표시',
     artworkSize: '커버 크기',
     artworkAlign: '커버 정렬',

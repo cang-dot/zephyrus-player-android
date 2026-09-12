@@ -192,11 +192,14 @@ const controlsShown = computed(
 // ==================== 控件下移贴底（default 样式共享容器路径） ====================
 
 const surfacePinned = ref(false);
+// default 样式:共享底面信息行收成按钮行,控制面高度同步收窄(与 ControlsArea 一致)
+const defaultStyleSurface = ref(false);
 const refreshSurfacePinned = () => {
   try {
     const raw = localStorage.getItem('music-full-config');
     const cfg = raw ? JSON.parse(raw) : {};
     surfacePinned.value = cfg.alwaysShowPlayerControls === true;
+    defaultStyleSurface.value = (cfg.playerStyle || 'default') === 'default';
   } catch {
     surfacePinned.value = false;
   }
@@ -268,7 +271,13 @@ const surfaceStyle = computed<CSSProperties>(() => {
   const sheet = sheetProgress.value;
   const playerProgress = lyricSelection.active.value ? 1 : playerTransition.progress.value;
   const landscape = isLandscape.value;
-  const controlHeight = lyricSelection.active.value ? 88 : landscape ? 96 : 168;
+  const controlHeight = lyricSelection.active.value
+    ? 88
+    : landscape
+      ? 96
+      : defaultStyleSurface.value
+        ? 150
+        : 168;
   const basePanelHeight = landscape
     ? viewportHeight.value - 28
     : Math.min(viewportHeight.value * 0.68, 560);

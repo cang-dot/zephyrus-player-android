@@ -136,204 +136,6 @@
                 </div>
               </section>
 
-              <!-- 手动标记高潮段落 -->
-              <section
-                class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('climax') }"
-              >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('climax')"
-                  aria-controls="control-section-climax"
-                  @click="toggleControlSection('climax')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-fire-line mr-1"></i>
-                    高潮段落标记
-                  </span>
-                  <span class="control-section-summary">{{ manualClimaxSegments.length }} 段</span>
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('climax') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('climax') }"
-                  :aria-hidden="!isControlSectionExpanded('climax')"
-                  :inert="!isControlSectionExpanded('climax')"
-                >
-                  <div id="control-section-climax" class="control-section-body">
-                    <!-- 当前播放时间显示 -->
-                    <div class="flex items-center justify-between mb-2 px-1">
-                      <span class="text-xs text-white/50">在时间轴上拖动以标记高潮段落</span>
-                      <span class="text-xs font-mono text-white/60"
-                        >{{ formatTime(currentPlayTime) }} / {{ formatTime(songDuration) }}</span
-                      >
-                    </div>
-
-                    <!-- 时间轴 -->
-                    <div class="climax-timeline-wrapper">
-                      <!-- 时间刻度 -->
-                      <div class="climax-time-scale">
-                        <span
-                          v-for="mark in climaxTimeMarks"
-                          :key="mark"
-                          class="climax-time-mark"
-                          :style="{ left: (mark / songDuration) * 100 + '%' }"
-                          >{{ formatTime(mark) }}</span
-                        >
-                      </div>
-
-                      <!-- 时间轴主体 -->
-                      <div
-                        class="climax-timeline"
-                        ref="climaxTimelineRef"
-                        @touchstart.passive="onTimelineTouchStart"
-                        @touchmove.passive="onTimelineTouchMove"
-                        @touchend="onTimelineTouchEnd"
-                      >
-                        <!-- 已有段落 -->
-                        <div
-                          v-for="(seg, i) in manualClimaxSegments"
-                          :key="'seg-' + i"
-                          class="climax-region"
-                          :class="{
-                            'climax-region-active':
-                              currentPlayTime >= seg.start && currentPlayTime <= seg.end
-                          }"
-                          :style="getClimaxRegionStyle(seg)"
-                        >
-                          <!-- 左侧拖拽手柄 -->
-                          <div
-                            class="climax-handle left"
-                            @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'start')"
-                            @touchmove.stop.prevent="onEdgeTouchMove"
-                            @touchend.stop="onEdgeTouchEnd"
-                          ></div>
-                          <!-- 中间内容 -->
-                          <div class="climax-region-content">
-                            <span class="climax-region-label"
-                              >{{ formatTime(seg.start) }} - {{ formatTime(seg.end) }}</span
-                            >
-                            <button
-                              type="button"
-                              class="climax-region-remove"
-                              aria-label="删除高潮段落"
-                              @click.stop="removeClimaxSegment(i)"
-                            >
-                              <i class="ri-close-line"></i>
-                            </button>
-                          </div>
-                          <!-- 右侧拖拽手柄 -->
-                          <div
-                            class="climax-handle right"
-                            @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'end')"
-                            @touchmove.stop.prevent="onEdgeTouchMove"
-                            @touchend.stop="onEdgeTouchEnd"
-                          ></div>
-                        </div>
-
-                        <!-- 拖拽预览选区 -->
-                        <div
-                          v-if="isClimaxDragging"
-                          class="climax-preview"
-                          :style="getClimaxPreviewStyle()"
-                        ></div>
-
-                        <!-- 当前播放位置 -->
-                        <div
-                          class="climax-playhead"
-                          :style="{ left: (currentPlayTime / songDuration) * 100 + '%' }"
-                        ></div>
-                      </div>
-                    </div>
-
-                    <!-- 操作按钮 -->
-                    <div class="flex gap-2 mt-3">
-                      <button
-                        v-if="manualClimaxSegments.length > 0"
-                        @click="clearAllClimaxSegments"
-                        class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
-                      >
-                        <i class="ri-eraser-line mr-1"></i>清空全部
-                      </button>
-                      <button
-                        @click="seekToPlayhead"
-                        class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
-                      >
-                        <i class="ri-music-2-line mr-1"></i>跳到播放位置
-                      </button>
-                      <button
-                        @click="queryCloudClimax"
-                        :disabled="cloudClimaxLoading"
-                        class="flex-1 py-2 rounded-xl text-sm bg-[var(--accent-color)]/20 text-[var(--accent-color)] active:scale-95 transition-transform disabled:opacity-50"
-                      >
-                        <i v-if="cloudClimaxLoading" class="ri-loader-4-line animate-spin mr-1"></i>
-                        <i v-else class="ri-cloud-line mr-1"></i>
-                        {{ cloudClimaxLoading ? '查询中...' : '查询云端' }}
-                      </button>
-                      <button
-                        @click="uploadManualClimax"
-                        :disabled="
-                          manualClimaxSegments.length === 0 ||
-                          uploadingClimax ||
-                          isLocalSong(playMusic)
-                        "
-                        class="flex-1 py-2 rounded-xl text-sm bg-emerald-400/15 text-emerald-300 active:scale-95 transition-transform disabled:opacity-40"
-                      >
-                        <i v-if="uploadingClimax" class="ri-loader-4-line animate-spin mr-1"></i>
-                        <i v-else class="ri-upload-cloud-2-line mr-1"></i>
-                        {{ uploadingClimax ? '上传中...' : '上传服务器' }}
-                      </button>
-                    </div>
-
-                    <!-- 云端查询结果 -->
-                    <div v-if="cloudClimaxResults.length > 0" class="mt-3 space-y-2">
-                      <div class="text-xs text-white/50 px-1">
-                        找到 {{ cloudClimaxResults.length }} 条云端高潮数据，点击覆盖到本地
-                      </div>
-                      <div
-                        v-for="(result, i) in cloudClimaxResults"
-                        :key="'cloud-' + i"
-                        @click="applyCloudClimax(result)"
-                        class="flex items-center gap-3 p-3 rounded-xl bg-white/5 active:bg-white/10 transition-colors"
-                      >
-                        <i class="ri-cloud-line text-white/40 text-lg flex-shrink-0"></i>
-                        <div class="flex-1 min-w-0">
-                          <div class="text-sm text-white/80 truncate">{{ result.songName }}</div>
-                          <div class="text-xs text-white/40 truncate">
-                            {{ result.artist || '未知艺术家' }} · {{ result.segments.length }}段 ·
-                            贡献者:
-                            {{ result.contributor || '云端' }}
-                          </div>
-                        </div>
-                        <i class="ri-download-2-line text-[var(--accent-color)] flex-shrink-0"></i>
-                      </div>
-                    </div>
-
-                    <!-- 云端查询无结果 -->
-                    <div
-                      v-if="cloudClimaxSearched && cloudClimaxResults.length === 0"
-                      class="mt-3 flex flex-col items-center justify-center py-3 text-white/30"
-                    >
-                      <i class="ri-cloud-off-line text-3xl mb-1"></i>
-                      <p class="text-xs">未找到同名歌曲的云端高潮数据</p>
-                    </div>
-
-                    <!-- 空状态提示 -->
-                    <div
-                      v-if="manualClimaxSegments.length === 0 && !cloudClimaxSearched"
-                      class="flex flex-col items-center justify-center py-3 text-white/30"
-                    >
-                      <i class="ri-fire-line text-3xl mb-1"></i>
-                      <p class="text-xs">在时间轴上左右拖动来创建高潮段落</p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
               <!-- 歌词设置 -->
               <section
                 class="control-settings-section"
@@ -840,6 +642,180 @@
                 </div>
               </section>
 
+              <!-- 定时关闭 -->
+              <section
+                class="control-settings-section"
+                :class="{ expanded: isControlSectionExpanded('sleepTimer') }"
+              >
+                <button
+                  type="button"
+                  class="control-section-header"
+                  :aria-expanded="isControlSectionExpanded('sleepTimer')"
+                  aria-controls="control-section-sleep-timer"
+                  @click="toggleControlSection('sleepTimer')"
+                >
+                  <span class="control-section-title">
+                    <i class="ri-timer-line"></i>
+                    {{ t('player.sleepTimer.title') }}
+                  </span>
+                  <span v-if="hasTimerActive" class="control-section-summary accent">
+                    {{ timerStatusText }}
+                  </span>
+                  <i
+                    class="ri-arrow-down-s-line control-section-chevron"
+                    :class="{ expanded: isControlSectionExpanded('sleepTimer') }"
+                  ></i>
+                </button>
+                <div
+                  class="control-section-reveal"
+                  :class="{ expanded: isControlSectionExpanded('sleepTimer') }"
+                  :aria-hidden="!isControlSectionExpanded('sleepTimer')"
+                  :inert="!isControlSectionExpanded('sleepTimer')"
+                >
+                  <div id="control-section-sleep-timer" class="control-section-body">
+                    <!-- 已激活状态 -->
+                    <div v-if="hasTimerActive" class="space-y-3">
+                      <div
+                        class="p-4 rounded-2xl bg-[var(--accent-color)]/15 border border-[var(--accent-color)]/30"
+                      >
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-3">
+                            <i class="ri-timer-line text-[var(--accent-color-light)] text-xl"></i>
+                            <span class="text-[var(--accent-color-light)]">
+                              {{ timerDisplayText }}
+                            </span>
+                          </div>
+                          <button
+                            @click="cancelTimer"
+                            class="px-3 py-1 rounded-full text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                          >
+                            {{ t('player.sleepTimer.cancel') }}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 未激活状态 - 设置选项 -->
+                    <div v-else class="space-y-4">
+                      <!-- 按时间 -->
+                      <div>
+                        <p class="text-xs text-white/50 mb-2">
+                          {{ t('player.sleepTimer.timeMode') }}
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                          <button
+                            v-for="minutes in [15, 30, 60, 90]"
+                            :key="minutes"
+                            @click="setTimeTimer(minutes)"
+                            class="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
+                          >
+                            {{ minutes }}{{ t('player.sleepTimer.minutes') }}
+                          </button>
+                        </div>
+                        <!-- 自定义时间 -->
+                        <div class="flex items-center gap-2 mt-3">
+                          <div
+                            class="flex items-center flex-1 bg-white/10 rounded-full overflow-hidden"
+                          >
+                            <button
+                              @click="decreaseMinutes"
+                              class="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20"
+                            >
+                              <i class="ri-subtract-line text-lg"></i>
+                            </button>
+                            <input
+                              v-model="customMinutes"
+                              type="text"
+                              inputmode="numeric"
+                              pattern="[0-9]*"
+                              placeholder="分钟"
+                              class="flex-1 px-2 py-2 text-sm text-center bg-transparent text-white/80 border-0 outline-none placeholder-white/40"
+                              @input="handleMinutesInput"
+                            />
+                            <button
+                              @click="increaseMinutes"
+                              class="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20"
+                            >
+                              <i class="ri-add-line text-lg"></i>
+                            </button>
+                          </div>
+                          <button
+                            @click="setCustomTimeTimer"
+                            :disabled="!customMinutes || Number(customMinutes) < 1"
+                            class="px-4 py-2 rounded-full text-sm font-medium bg-[var(--accent-color)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {{ t('player.sleepTimer.set') }}
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- 按歌曲数 -->
+                      <div>
+                        <p class="text-xs text-white/50 mb-2">
+                          {{ t('player.sleepTimer.songsMode') }}
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                          <button
+                            v-for="songs in [1, 3, 5, 10]"
+                            :key="songs"
+                            @click="setSongsTimer(songs)"
+                            class="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
+                          >
+                            {{ songs }}{{ t('player.sleepTimer.songs') }}
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- 播放列表结束 -->
+                      <button
+                        @click="setPlaylistEndTimer"
+                        class="w-full py-3 rounded-2xl text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
+                      >
+                        {{ t('player.sleepTimer.playlistEnd') }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- 一起听 -->
+              <section
+                class="control-settings-section"
+                :class="{ expanded: isControlSectionExpanded('listenTogether') }"
+              >
+                <button
+                  type="button"
+                  class="control-section-header"
+                  :aria-expanded="isControlSectionExpanded('listenTogether')"
+                  aria-controls="control-section-listen-together"
+                  @click="toggleControlSection('listenTogether')"
+                >
+                  <span class="control-section-title">
+                    <i class="ri-headphone-line mr-1"></i>
+                    一起听
+                  </span>
+                  <span
+                    v-if="listenTogetherStore.status === 'active'"
+                    class="control-section-summary accent"
+                    >{{ listenTogetherStore.roomCode }}</span
+                  >
+                  <i
+                    class="ri-arrow-down-s-line control-section-chevron"
+                    :class="{ expanded: isControlSectionExpanded('listenTogether') }"
+                  ></i>
+                </button>
+                <div
+                  class="control-section-reveal"
+                  :class="{ expanded: isControlSectionExpanded('listenTogether') }"
+                  :aria-hidden="!isControlSectionExpanded('listenTogether')"
+                  :inert="!isControlSectionExpanded('listenTogether')"
+                >
+                  <div id="control-section-listen-together" class="control-section-body">
+                    <listen-together-settings />
+                  </div>
+                </div>
+              </section>
+
               <!-- 分享功能 -->
               <section
                 class="control-settings-section"
@@ -988,175 +964,199 @@
                 </div>
               </section>
 
-              <!-- 一起听 -->
+              <!-- 手动标记高潮段落 -->
               <section
                 class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('listenTogether') }"
+                :class="{ expanded: isControlSectionExpanded('climax') }"
               >
                 <button
                   type="button"
                   class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('listenTogether')"
-                  aria-controls="control-section-listen-together"
-                  @click="toggleControlSection('listenTogether')"
+                  :aria-expanded="isControlSectionExpanded('climax')"
+                  aria-controls="control-section-climax"
+                  @click="toggleControlSection('climax')"
                 >
                   <span class="control-section-title">
-                    <i class="ri-headphone-line mr-1"></i>
-                    一起听
+                    <i class="ri-fire-line mr-1"></i>
+                    高潮段落标记
                   </span>
-                  <span
-                    v-if="listenTogetherStore.status === 'active'"
-                    class="control-section-summary accent"
-                    >{{ listenTogetherStore.roomCode }}</span
-                  >
+                  <span class="control-section-summary">{{ manualClimaxSegments.length }} 段</span>
                   <i
                     class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('listenTogether') }"
+                    :class="{ expanded: isControlSectionExpanded('climax') }"
                   ></i>
                 </button>
                 <div
                   class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('listenTogether') }"
-                  :aria-hidden="!isControlSectionExpanded('listenTogether')"
-                  :inert="!isControlSectionExpanded('listenTogether')"
+                  :class="{ expanded: isControlSectionExpanded('climax') }"
+                  :aria-hidden="!isControlSectionExpanded('climax')"
+                  :inert="!isControlSectionExpanded('climax')"
                 >
-                  <div id="control-section-listen-together" class="control-section-body">
-                    <listen-together-settings />
-                  </div>
-                </div>
-              </section>
-
-              <!-- 定时关闭 -->
-              <section
-                class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('sleepTimer') }"
-              >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('sleepTimer')"
-                  aria-controls="control-section-sleep-timer"
-                  @click="toggleControlSection('sleepTimer')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-timer-line"></i>
-                    {{ t('player.sleepTimer.title') }}
-                  </span>
-                  <span v-if="hasTimerActive" class="control-section-summary accent">
-                    {{ timerStatusText }}
-                  </span>
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('sleepTimer') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('sleepTimer') }"
-                  :aria-hidden="!isControlSectionExpanded('sleepTimer')"
-                  :inert="!isControlSectionExpanded('sleepTimer')"
-                >
-                  <div id="control-section-sleep-timer" class="control-section-body">
-                    <!-- 已激活状态 -->
-                    <div v-if="hasTimerActive" class="space-y-3">
-                      <div
-                        class="p-4 rounded-2xl bg-[var(--accent-color)]/15 border border-[var(--accent-color)]/30"
+                  <div id="control-section-climax" class="control-section-body">
+                    <!-- 当前播放时间显示 -->
+                    <div class="flex items-center justify-between mb-2 px-1">
+                      <span class="text-xs text-white/50">在时间轴上拖动以标记高潮段落</span>
+                      <span class="text-xs font-mono text-white/60"
+                        >{{ formatTime(currentPlayTime) }} / {{ formatTime(songDuration) }}</span
                       >
-                        <div class="flex items-center justify-between">
-                          <div class="flex items-center gap-3">
-                            <i class="ri-timer-line text-[var(--accent-color-light)] text-xl"></i>
-                            <span class="text-[var(--accent-color-light)]">
-                              {{ timerDisplayText }}
-                            </span>
+                    </div>
+
+                    <!-- 时间轴 -->
+                    <div class="climax-timeline-wrapper">
+                      <!-- 时间刻度 -->
+                      <div class="climax-time-scale">
+                        <span
+                          v-for="mark in climaxTimeMarks"
+                          :key="mark"
+                          class="climax-time-mark"
+                          :style="{ left: (mark / songDuration) * 100 + '%' }"
+                          >{{ formatTime(mark) }}</span
+                        >
+                      </div>
+
+                      <!-- 时间轴主体 -->
+                      <div
+                        class="climax-timeline"
+                        ref="climaxTimelineRef"
+                        @touchstart.passive="onTimelineTouchStart"
+                        @touchmove.passive="onTimelineTouchMove"
+                        @touchend="onTimelineTouchEnd"
+                      >
+                        <!-- 已有段落 -->
+                        <div
+                          v-for="(seg, i) in manualClimaxSegments"
+                          :key="'seg-' + i"
+                          class="climax-region"
+                          :class="{
+                            'climax-region-active':
+                              currentPlayTime >= seg.start && currentPlayTime <= seg.end
+                          }"
+                          :style="getClimaxRegionStyle(seg)"
+                        >
+                          <!-- 左侧拖拽手柄 -->
+                          <div
+                            class="climax-handle left"
+                            @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'start')"
+                            @touchmove.stop.prevent="onEdgeTouchMove"
+                            @touchend.stop="onEdgeTouchEnd"
+                          ></div>
+                          <!-- 中间内容 -->
+                          <div class="climax-region-content">
+                            <span class="climax-region-label"
+                              >{{ formatTime(seg.start) }} - {{ formatTime(seg.end) }}</span
+                            >
+                            <button
+                              type="button"
+                              class="climax-region-remove"
+                              aria-label="删除高潮段落"
+                              @click.stop="removeClimaxSegment(i)"
+                            >
+                              <i class="ri-close-line"></i>
+                            </button>
                           </div>
-                          <button
-                            @click="cancelTimer"
-                            class="px-3 py-1 rounded-full text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                          >
-                            {{ t('player.sleepTimer.cancel') }}
-                          </button>
+                          <!-- 右侧拖拽手柄 -->
+                          <div
+                            class="climax-handle right"
+                            @touchstart.stop.prevent="onEdgeTouchStart($event, i, 'end')"
+                            @touchmove.stop.prevent="onEdgeTouchMove"
+                            @touchend.stop="onEdgeTouchEnd"
+                          ></div>
                         </div>
+
+                        <!-- 拖拽预览选区 -->
+                        <div
+                          v-if="isClimaxDragging"
+                          class="climax-preview"
+                          :style="getClimaxPreviewStyle()"
+                        ></div>
+
+                        <!-- 当前播放位置 -->
+                        <div
+                          class="climax-playhead"
+                          :style="{ left: (currentPlayTime / songDuration) * 100 + '%' }"
+                        ></div>
                       </div>
                     </div>
 
-                    <!-- 未激活状态 - 设置选项 -->
-                    <div v-else class="space-y-4">
-                      <!-- 按时间 -->
-                      <div>
-                        <p class="text-xs text-white/50 mb-2">
-                          {{ t('player.sleepTimer.timeMode') }}
-                        </p>
-                        <div class="flex flex-wrap gap-2">
-                          <button
-                            v-for="minutes in [15, 30, 60, 90]"
-                            :key="minutes"
-                            @click="setTimeTimer(minutes)"
-                            class="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
-                          >
-                            {{ minutes }}{{ t('player.sleepTimer.minutes') }}
-                          </button>
-                        </div>
-                        <!-- 自定义时间 -->
-                        <div class="flex items-center gap-2 mt-3">
-                          <div
-                            class="flex items-center flex-1 bg-white/10 rounded-full overflow-hidden"
-                          >
-                            <button
-                              @click="decreaseMinutes"
-                              class="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20"
-                            >
-                              <i class="ri-subtract-line text-lg"></i>
-                            </button>
-                            <input
-                              v-model="customMinutes"
-                              type="text"
-                              inputmode="numeric"
-                              pattern="[0-9]*"
-                              placeholder="分钟"
-                              class="flex-1 px-2 py-2 text-sm text-center bg-transparent text-white/80 border-0 outline-none placeholder-white/40"
-                              @input="handleMinutesInput"
-                            />
-                            <button
-                              @click="increaseMinutes"
-                              class="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 active:bg-white/20"
-                            >
-                              <i class="ri-add-line text-lg"></i>
-                            </button>
-                          </div>
-                          <button
-                            @click="setCustomTimeTimer"
-                            :disabled="!customMinutes || Number(customMinutes) < 1"
-                            class="px-4 py-2 rounded-full text-sm font-medium bg-[var(--accent-color)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {{ t('player.sleepTimer.set') }}
-                          </button>
-                        </div>
-                      </div>
-
-                      <!-- 按歌曲数 -->
-                      <div>
-                        <p class="text-xs text-white/50 mb-2">
-                          {{ t('player.sleepTimer.songsMode') }}
-                        </p>
-                        <div class="flex flex-wrap gap-2">
-                          <button
-                            v-for="songs in [1, 3, 5, 10]"
-                            :key="songs"
-                            @click="setSongsTimer(songs)"
-                            class="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
-                          >
-                            {{ songs }}{{ t('player.sleepTimer.songs') }}
-                          </button>
-                        </div>
-                      </div>
-
-                      <!-- 播放列表结束 -->
+                    <!-- 操作按钮 -->
+                    <div class="flex gap-2 mt-3">
                       <button
-                        @click="setPlaylistEndTimer"
-                        class="w-full py-3 rounded-2xl text-sm font-medium bg-white/10 text-white/70 hover:bg-white/15"
+                        v-if="manualClimaxSegments.length > 0"
+                        @click="clearAllClimaxSegments"
+                        class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
                       >
-                        {{ t('player.sleepTimer.playlistEnd') }}
+                        <i class="ri-eraser-line mr-1"></i>清空全部
                       </button>
+                      <button
+                        @click="seekToPlayhead"
+                        class="flex-1 py-2 rounded-xl text-sm bg-white/10 text-white/60 active:scale-95 transition-transform"
+                      >
+                        <i class="ri-music-2-line mr-1"></i>跳到播放位置
+                      </button>
+                      <button
+                        @click="queryCloudClimax"
+                        :disabled="cloudClimaxLoading"
+                        class="flex-1 py-2 rounded-xl text-sm bg-[var(--accent-color)]/20 text-[var(--accent-color)] active:scale-95 transition-transform disabled:opacity-50"
+                      >
+                        <i v-if="cloudClimaxLoading" class="ri-loader-4-line animate-spin mr-1"></i>
+                        <i v-else class="ri-cloud-line mr-1"></i>
+                        {{ cloudClimaxLoading ? '查询中...' : '查询云端' }}
+                      </button>
+                      <button
+                        @click="uploadManualClimax"
+                        :disabled="
+                          manualClimaxSegments.length === 0 ||
+                          uploadingClimax ||
+                          isLocalSong(playMusic)
+                        "
+                        class="flex-1 py-2 rounded-xl text-sm bg-emerald-400/15 text-emerald-300 active:scale-95 transition-transform disabled:opacity-40"
+                      >
+                        <i v-if="uploadingClimax" class="ri-loader-4-line animate-spin mr-1"></i>
+                        <i v-else class="ri-upload-cloud-2-line mr-1"></i>
+                        {{ uploadingClimax ? '上传中...' : '上传服务器' }}
+                      </button>
+                    </div>
+
+                    <!-- 云端查询结果 -->
+                    <div v-if="cloudClimaxResults.length > 0" class="mt-3 space-y-2">
+                      <div class="text-xs text-white/50 px-1">
+                        找到 {{ cloudClimaxResults.length }} 条云端高潮数据，点击覆盖到本地
+                      </div>
+                      <div
+                        v-for="(result, i) in cloudClimaxResults"
+                        :key="'cloud-' + i"
+                        @click="applyCloudClimax(result)"
+                        class="flex items-center gap-3 p-3 rounded-xl bg-white/5 active:bg-white/10 transition-colors"
+                      >
+                        <i class="ri-cloud-line text-white/40 text-lg flex-shrink-0"></i>
+                        <div class="flex-1 min-w-0">
+                          <div class="text-sm text-white/80 truncate">{{ result.songName }}</div>
+                          <div class="text-xs text-white/40 truncate">
+                            {{ result.artist || '未知艺术家' }} · {{ result.segments.length }}段 ·
+                            贡献者:
+                            {{ result.contributor || '云端' }}
+                          </div>
+                        </div>
+                        <i class="ri-download-2-line text-[var(--accent-color)] flex-shrink-0"></i>
+                      </div>
+                    </div>
+
+                    <!-- 云端查询无结果 -->
+                    <div
+                      v-if="cloudClimaxSearched && cloudClimaxResults.length === 0"
+                      class="mt-3 flex flex-col items-center justify-center py-3 text-white/30"
+                    >
+                      <i class="ri-cloud-off-line text-3xl mb-1"></i>
+                      <p class="text-xs">未找到同名歌曲的云端高潮数据</p>
+                    </div>
+
+                    <!-- 空状态提示 -->
+                    <div
+                      v-if="manualClimaxSegments.length === 0 && !cloudClimaxSearched"
+                      class="flex flex-col items-center justify-center py-3 text-white/30"
+                    >
+                      <i class="ri-fire-line text-3xl mb-1"></i>
+                      <p class="text-xs">在时间轴上左右拖动来创建高潮段落</p>
                     </div>
                   </div>
                 </div>

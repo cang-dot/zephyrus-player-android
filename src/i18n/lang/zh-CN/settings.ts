@@ -6,6 +6,10 @@ export default {
   sections: {
     basic: '基础设置',
     interface: '界面设置',
+    appearance: '外观',
+    lyrics: '歌词与状态栏',
+    ai: 'AI 服务',
+    advanced: '高级',
     playback: '播放设置',
     application: '应用设置',
     network: '网络设置',

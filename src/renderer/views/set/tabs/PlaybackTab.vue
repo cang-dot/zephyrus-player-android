@@ -13,17 +13,9 @@
       </setting-item>
 
       <setting-item
-        v-if="!isElectron"
-        item-id="status-bar-lyrics"
-        mode="expandable"
-        :title="t('settings.lyricSettings.statusBarLyrics')"
-        :description="t('settings.lyricSettings.statusBarLyricsDescription')"
+        v-if="isElectron"
+        :title="t('settings.playback.musicSources')"
       >
-        <template #value>{{ statusBarLyricsEnabled ? t('common.on') : t('common.off') }}</template>
-        <status-bar-lyric-settings @update:enabled="statusBarLyricsEnabled = $event" />
-      </setting-item>
-
-      <setting-item v-if="isElectron" :title="t('settings.playback.musicSources')">
         <template #description>
           <div class="flex items-center gap-2">
             <n-switch v-model:value="setData.enableMusicUnblock">
@@ -85,14 +77,8 @@
       </setting-item>
     </setting-section>
 
-    <setting-section title="一起听">
-      <setting-item
-        title="一起听"
-        description="与好友或 AI 共享实时播放进度，进度/切歌/暂停自动同步"
-      >
-        <listen-together-settings />
-      </setting-item>
-    </setting-section>
+    <!-- 后台保活（原独立分区,并入播放设置） -->
+    <keep-alive-tab />
 
     <music-source-settings
       v-if="isElectron"
@@ -107,14 +93,12 @@ import { computed, inject, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import AudioDeviceSettings from '@/components/settings/AudioDeviceSettings.vue';
-import ListenTogetherSettings from '@/components/settings/ListenTogetherSettings.vue';
 import MusicSourceSettings from '@/components/settings/MusicSourceSettings.vue';
 import SmartMixSettings from '@/components/settings/SmartMixSettings.vue';
-import { readStatusBarLyricConfig } from '@/services/androidNative';
 import { type Platform } from '@/types/music';
 import { isElectron } from '@/utils';
 
-import StatusBarLyricSettings from '../components/StatusBarLyricSettings.vue';
+import KeepAliveTab from './KeepAliveTab.vue';
 import { SETTINGS_DATA_KEY } from '../keys';
 import SBtn from '../SBtn.vue';
 import SettingItem from '../SettingItem.vue';
@@ -128,8 +112,6 @@ const setData = inject(SETTINGS_DATA_KEY)!;
 const platform = window.electron ? window.electron.ipcRenderer.sendSync('get-platform') : 'web';
 
 const showMusicSourcesModal = ref(false);
-
-const statusBarLyricsEnabled = ref(readStatusBarLyricConfig().enabled);
 
 const qualityOptions = computed(() => [
   { label: t('settings.playback.qualityOptions.standard'), value: 'standard' },

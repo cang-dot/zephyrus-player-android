@@ -21,7 +21,9 @@ export const SMOKE_DEFAULT_LYRIC_COLOR = STYLE_LYRIC_COLORS.smoke;
 
 const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unknown>> = {
   default: {
+    showArtwork: true,
     showTrackInfo: true,
+    showLyricsZone: true,
     artworkSize: 100,
     artworkAlign: 'center',
     backgroundPreset: 'none',
@@ -244,7 +246,9 @@ export function resolvePlayerStyleConfig(
   );
   config.errorDecorMarks = config.errorDecorMarks === true;
   // 默认样式:封面/歌名作者/背景预设
+  config.showArtwork = config.showArtwork !== false;
   config.showTrackInfo = config.showTrackInfo !== false;
+  config.showLyricsZone = config.showLyricsZone !== false;
   config.artworkSize = Math.min(
     100,
     Math.max(60, Number.isFinite(Number(config.artworkSize)) ? Number(config.artworkSize) : 100)

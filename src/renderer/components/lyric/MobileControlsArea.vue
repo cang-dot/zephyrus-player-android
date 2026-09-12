@@ -17,8 +17,12 @@
     @touchend.stop
     @mousedown.stop="emitInteract"
   >
-    <div class="player-info-row">
+    <div
+      class="player-info-row"
+      :class="{ 'info-compact': defaultStyleCompact }"
+    >
       <div
+        v-if="!defaultStyleCompact"
         class="player-info-main"
         :style="infoSwipeStyle"
         @pointerdown="onInfoPointerDown"
@@ -327,11 +331,14 @@ const rootRef = ref<HTMLElement | null>(null);
 const isLandscape = useMediaQuery('(orientation: landscape)');
 
 const controlsPinned = ref(false);
+// default 样式(仅共享底面):歌曲信息只保留大封面下方一处,信息行收成收藏/更多按钮行
+const defaultStyleCompact = ref(false);
 const refreshPinned = () => {
   try {
     const raw = localStorage.getItem('music-full-config');
     const cfg = raw ? JSON.parse(raw) : {};
     controlsPinned.value = cfg.alwaysShowPlayerControls === true;
+    defaultStyleCompact.value = props.sharedSurface === true && (cfg.playerStyle || 'default') === 'default';
   } catch {
     controlsPinned.value = false;
   }
@@ -759,6 +766,26 @@ const handleThumbTouchEnd = () => {
   }
 }
 
+.player-info-row,
+.progress-container,
+.control-buttons {
+  /* 控制面内容随整层统一揭示(单一窗口,无分段接力) */
+  opacity: clamp(0, calc((var(--player-open-progress, 1) - 0.3) * 2.5), 1);
+  transform: translate3d(0, calc((1 - var(--player-open-progress, 1)) * 14px), 0);
+}
+
+/* 非 default 样式:信息行由迷你栏歌曲信息飞行接管(0.86 起零位移淡入,与迷你行同窗交叉) */
+.player-info-row {
+  opacity: clamp(0, calc((var(--player-open-progress, 1) - 0.86) * 8), 1);
+  transform: none;
+}
+
+/* default 样式:信息行已收成按钮行,随统一揭示窗 */
+body.default-player-active .player-info-row {
+  opacity: clamp(0, calc((var(--player-open-progress, 1) - 0.3) * 2.5), 1);
+  transform: translate3d(0, calc((1 - var(--player-open-progress, 1)) * 14px), 0);
+}
+
 .player-info-row {
   display: flex;
   min-height: 48px;
@@ -766,8 +793,13 @@ const handleThumbTouchEnd = () => {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
-  opacity: clamp(0, calc((var(--player-open-progress, 0) - 0.88) * 9), 1);
-  transform: translate3d(0, calc((1 - var(--player-open-progress, 0)) * 16px), 0);
+}
+
+/* default 样式共享底面:去掉信息主体后整行右对齐收窄,只留收藏/更多 */
+.player-info-row.info-compact {
+  justify-content: flex-end;
+  min-height: 36px;
+  margin-bottom: 6px;
 }
 
 .player-info-main {
@@ -850,8 +882,6 @@ const handleThumbTouchEnd = () => {
   min-width: 0;
   gap: 3px;
   text-align: left;
-  transform: translate3d(0, calc((1 - var(--player-open-progress, 0)) * 10px), 0);
-  transition: transform 180ms ease;
 }
 
 .player-info-copy strong,
@@ -905,7 +935,6 @@ const handleThumbTouchEnd = () => {
 .progress-container {
   position: relative;
   margin-bottom: 10px;
-  opacity: clamp(0, calc((var(--player-open-progress, 1) - 0.34) * 2.8), 1);
 }
 
 /* 进度条悬停预览 tooltip（桌面端 pointer:fine 专属） */
@@ -1126,8 +1155,6 @@ const handleThumbTouchEnd = () => {
   justify-items: center;
   gap: 0;
   width: 100%;
-  opacity: clamp(0, calc((var(--player-open-progress, 1) - 0.46) * 3), 1);
-  transform: translate3d(0, calc((1 - var(--player-open-progress, 1)) * 12px), 0);
 }
 
 .side-button {

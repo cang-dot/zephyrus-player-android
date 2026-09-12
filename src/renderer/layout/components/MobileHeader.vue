@@ -95,6 +95,12 @@
               >
                 <i v-if="option.icon" :class="option.icon" />
                 <span>{{ option.label }}</span>
+                <platform-logo
+                  v-if="option.platform"
+                  :platform="option.platform"
+                  :size="13"
+                  :color="String(option.key) === String(group.value) ? 'var(--accent-color, #888)' : 'var(--cover-text-muted, #9a9590)'"
+                />
                 <i v-if="String(option.key) === String(group.value)" class="ri-check-line" />
               </button>
             </div>
@@ -257,6 +263,10 @@
       >
         <header class="morph-trigger search-filter-trigger" @click.stop="toggleSearchTypeMenu">
           <span>{{ activeSearchTypeLabel }}</span>
+          <template v-if="activeSearchPlatform">
+            <i class="search-filter-dot">·</i>
+            <platform-logo :platform="activeSearchPlatform" :size="14" />
+          </template>
           <i class="ri-arrow-down-s-line" />
         </header>
         <div class="morph-content search-filter-content" @click.stop>
@@ -745,6 +755,13 @@ const activeSearchTypeLabel = computed(
     searchTypes.value[0]?.label ||
     ''
 );
+
+// 筛选胶囊:{搜索内容} · {来源平台 logo};全部显示九宫格 logo
+const activeSearchPlatform = computed(() => {
+  const source = searchStore.searchSource;
+  if (!source) return '';
+  return platformForSearchSource(source);
+});
 const HISTORY_KEY = 'mobile_search_history';
 let suggestionRequestId = 0;
 let morphResizeObserver: ResizeObserver | undefined;
@@ -1300,6 +1317,7 @@ const platformForSearchSource = (source: string) => {
   if (source === 'cross-joox') return 'joox';
   if (source === 'cross-kugou') return 'kugou';
   if (source === 'cross-spotify') return 'spotify';
+  if (source === 'server' || source === 'local' || source === 'all') return source;
   return '';
 };
 
@@ -1716,9 +1734,9 @@ const handleSearchSubmit = () => {
   top: 0;
   right: 0;
   left: auto;
-  width: 72px;
-  min-width: 72px;
-  max-width: 72px;
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
   max-height: none;
   transform-origin: top right;
 
@@ -1965,9 +1983,17 @@ const handleSearchSubmit = () => {
 }
 
 .search-filter-trigger {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   min-height: 40px;
-  padding-inline: 10px;
+  padding-inline: 7px;
   font-size: 12px;
+
+  .search-filter-dot {
+    font-style: normal;
+    opacity: 0.55;
+  }
 
   i {
     font-size: 13px;

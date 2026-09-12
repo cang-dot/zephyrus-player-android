@@ -55,13 +55,20 @@
         <i class="ri-loader-4-line"></i>
       </div>
 
-      <main class="player-content">
+      <main
+        class="player-content"
+        :class="{
+          'no-artwork-zone': !showArtwork && !showTrackInfo,
+          'no-lyrics-zone': !showLyricsZone
+        }"
+      >
         <div
-          v-if="!lyricsExpanded || lyricsSwipePreview"
+          v-if="(!lyricsExpanded || lyricsSwipePreview) && (showArtwork || showTrackInfo)"
           class="artwork-zone"
           :style="[lyricsUnderlayStyle, artworkZoneStyle]"
         >
           <div
+            v-if="showArtwork"
             class="artwork-preview-trigger"
             @click.capture="handleArtworkClick"
             @pointerdown="coverGesture.onPointerDown"
@@ -78,7 +85,12 @@
               :style="[artworkTransitionStyle, artworkFrameStyle]"
             />
           </div>
-          <div v-if="showTrackInfo" class="artwork-info">
+          <div
+            v-if="showTrackInfo"
+            ref="artworkInfoRef"
+            class="artwork-info"
+            :style="infoTransitionStyle"
+          >
             <strong class="artwork-info-name">{{ playMusic?.name || 'Zephyrus' }}</strong>
             <span v-if="artistText" class="artwork-info-artist">{{ artistText }}</span>
           </div>
@@ -87,7 +99,10 @@
         <div
           v-if="!config.hideLyrics"
           class="lyrics-zone"
-          :class="{ expanded: lyricsExpanded || lyricsSwipePreview }"
+          :class="{
+            expanded: lyricsExpanded || lyricsSwipePreview,
+            'zone-hidden': !showLyricsZone && !(lyricsExpanded || lyricsSwipePreview)
+          }"
           :style="lyricsSwipePreview ? lyricsOverlayStyle : undefined"
           @dblclick.stop="toggleLyricsExpanded"
         >
@@ -180,7 +195,9 @@ const { styleVars, customBackgroundActive, background, backgroundColor } =
 const { config: styleCustom } = useStyleCustomConfig('default');
 
 // ── 默认样式自定义项(封面大小/对齐、歌名作者、背景预设) ──
+const showArtwork = computed(() => styleCustom.value.showArtwork !== false);
 const showTrackInfo = computed(() => styleCustom.value.showTrackInfo !== false);
+const showLyricsZone = computed(() => styleCustom.value.showLyricsZone !== false);
 const artworkSize = computed(() =>
   Math.min(100, Math.max(60, Number(styleCustom.value.artworkSize) || 88))
 );
@@ -352,6 +369,29 @@ const artworkTransitionStyle = computed(() => {
     willChange: 'transform'
   };
 });
+const artworkInfoRef = ref<HTMLElement | null>(null);
+// 大标题从迷你栏歌曲信息行位置 FLIP 反演入场:p=0(及 reveal 起点附近)精确
+// 覆盖迷你文字,与大封面共同构成"同一元素变形"的连续路径,随弹簧飞向目标位
+const infoTransitionStyle = computed(() => {
+  const source = playerTransition.identitySourceRect.value;
+  const progress = playerTransition.progress.value;
+  const el = artworkInfoRef.value;
+  if (!source || !el || progress >= 0.999) return {};
+  const target = el.getBoundingClientRect();
+  if (!target.width || !target.height) return {};
+  // 迷你行由 40px 方形封面撑高,文字起点在封面右侧(40px + 间距)
+  const textLeft = source.left + source.height + 12;
+  const scale = Math.min(1, (source.height * 0.62) / Math.max(1, target.height));
+  const dx = textLeft - target.left;
+  const dy = source.top + source.height / 2 - (target.top + target.height / 2);
+  return {
+    transform: `translate3d(${dx * (1 - progress)}px, ${dy * (1 - progress)}px, 0) scale(${scale + (1 - scale) * progress})`,
+    transformOrigin: 'left center',
+    // 重排进度:0=与迷你行相同的单行形态,1=全屏两行形态(收起时反向播放)
+    '--morph-p': String(progress),
+    willChange: 'transform'
+  };
+});
 
 const isVisible = computed({
   get: () => props.modelValue !== false,
@@ -510,7 +550,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
   font-size: clamp(20px, 2.8vh, 26px);
   font-weight: 700;
-  color: var(--player-ink, #fff);
+  /* 展开中:从迷你行文字色渐变到全屏墨色(重排进度的前半程完成变色) */
+  color: color-mix(
+    in srgb,
+    var(--m-text-primary, #2c2c2c) calc((1 - var(--morph-p, 1)) * 100%),
+    var(--player-ink, #fff)
+  );
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -518,9 +563,16 @@ onBeforeUnmount(() => {
 .artwork-info-artist {
   overflow: hidden;
   font-size: 14px;
-  color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.62);
+  color: color-mix(
+    in srgb,
+    var(--m-text-muted, #9a9590) calc((1 - var(--morph-p, 1)) * 100%),
+    rgba(var(--player-ink-rgb, 255, 255, 255), 0.62)
+  );
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* 单行⇄两行重排:p=0 时升入歌名行形成单行,p=1 落回两行排布 */
+  transform: translateY(calc((1 - var(--morph-p, 1)) * -22px));
+  opacity: clamp(0, calc(var(--morph-p, 1) * 1.6 - 0.12), 1);
 }
 
 .background-preset-layer {
@@ -551,6 +603,11 @@ onBeforeUnmount(() => {
   grid-column: 1 / -1;
 }
 
+/* 关闭「显示歌词区域」只收起主界面歌词区,手势唤起的滚动歌词页不受影响 */
+.lyrics-zone.zone-hidden {
+  display: none;
+}
+
 .default-scrolling-lyrics {
   width: 100%;
   height: 100%;
@@ -571,6 +628,12 @@ onBeforeUnmount(() => {
   grid-template-rows: minmax(0, 1fr);
 }
 
+/* 封面区或歌词区被显示开关关闭后,剩余区域独占整列高度 */
+.player-content.no-artwork-zone,
+.player-content.no-lyrics-zone {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .lyrics-expanded .artwork-zone {
   opacity: 0;
   transform: translate3d(0, -18px, 0) scale(0.98);
@@ -578,7 +641,8 @@ onBeforeUnmount(() => {
 }
 
 .shared-controls-spacer {
-  height: calc(168px + var(--safe-area-inset-bottom, 0px));
+  /* default 样式底面信息行收成按钮行,占位与 BottomSurface 的 controlHeight(150)一致 */
+  height: calc(150px + var(--safe-area-inset-bottom, 0px));
   transition: height 350ms cubic-bezier(0.32, 0.72, 0, 1);
   pointer-events: none;
 }
