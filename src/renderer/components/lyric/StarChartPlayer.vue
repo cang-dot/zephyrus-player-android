@@ -16,6 +16,8 @@
           ...styleVars,
           '--accent-color': accentColor,
           '--accent-color-rgb': accentColorRgb,
+          '--star-disc-scale': String(discScale),
+          '--star-text-scale': String(textScale),
           ...lyricsSwipeStyle
         }"
         @click="handleTapToggle"
@@ -311,6 +313,14 @@ function openCoverPreview() {
 }
 // ── 楷体文本块歌词:按 N 行切块,整块竖排右起展示 ──
 const { config: starStyleCustom } = useStyleCustomConfig('starChart');
+const discScale = computed(() => {
+  const value = Number(starStyleCustom.value.starDiscSize);
+  return Number.isFinite(value) && value > 0 ? Math.min(1.3, Math.max(0.5, value / 100)) : 1;
+});
+const textScale = computed(() => {
+  const value = Number(starStyleCustom.value.starTextSize);
+  return Number.isFinite(value) && value > 0 ? Math.min(2, Math.max(0.6, value / 100)) : 1;
+});
 const STAR_POSITIONS = [
   'center',
   'top',
@@ -610,7 +620,7 @@ onBeforeUnmount(() => {
 
 .chart-shell {
   position: relative;
-  width: min(78vw, 560px);
+  width: calc(min(78vw, 560px) * var(--star-disc-scale, 1));
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -707,7 +717,7 @@ onBeforeUnmount(() => {
 .lyric-block-line {
   display: block;
   font-family: var(--player-style-font-family, 'ZephyrusMaShanZheng', 'Noto Serif SC', 'STKai', 'KaiTi', serif);
-  font-size: clamp(19px, 2.7dvh, 24px);
+  font-size: calc(clamp(19px, 2.7dvh, 24px) * var(--star-text-scale, 1));
   font-weight: 500;
   line-height: 2.05;
   letter-spacing: 0.16em;
@@ -808,6 +818,8 @@ onBeforeUnmount(() => {
 }
 
 .scrolling-lyrics-overlay {
+  position: absolute;
+  inset: 0;
   z-index: 50;
 }
 
@@ -900,7 +912,7 @@ onBeforeUnmount(() => {
     left: var(--star-anchor-x, 50%);
     top: var(--star-anchor-y, 50%);
     transform: translate(-50%, -50%);
-    width: min(82vh, 680px);
+    width: calc(min(82vh, 680px) * var(--star-disc-scale, 1));
     transition:
       left 460ms cubic-bezier(0.32, 0.72, 0, 1),
       top 460ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -955,12 +967,20 @@ onBeforeUnmount(() => {
     padding: 0;
   }
 
-  /* 星盘右(右上/右下)→ 歌词左 */
-  .star-position-right .landscape-lyric.lyric-block,
-  .star-position-top-right .landscape-lyric.lyric-block,
-  .star-position-bottom-right .landscape-lyric.lyric-block {
+  /* 星盘右 → 歌词左 */
+  .star-position-right .landscape-lyric.lyric-block {
     right: auto;
     left: clamp(28px, 6vw, 90px);
+  }
+
+  /* 角位置 → 歌词居中 */
+  .star-position-top-left .landscape-lyric.lyric-block,
+  .star-position-top-right .landscape-lyric.lyric-block,
+  .star-position-bottom-left .landscape-lyric.lyric-block,
+  .star-position-bottom-right .landscape-lyric.lyric-block {
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
   }
 
   /* 星盘上/下/中 → 歌词居中 */
@@ -979,7 +999,7 @@ onBeforeUnmount(() => {
   }
 
   .landscape-lyric .lyric-block-line {
-    font-size: clamp(17px, 2.2vw, 22px);
+    font-size: calc(clamp(17px, 2.2vw, 22px) * var(--star-text-scale, 1));
   }
 }
 

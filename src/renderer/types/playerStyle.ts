@@ -103,6 +103,10 @@ export interface PlayerStyleCustomConfig {
   showLyricsZone?: boolean;
   /** 星盘样式：歌词文本块每块行数 2-6 */
   starBlockLines?: number;
+  /** 星盘样式：圆盘大小百分比 50-130 */
+  starDiscSize?: number;
+  /** 星盘样式：歌词文本大小百分比 60-200 */
+  starTextSize?: number;
   /** 星盘样式：圆盘九宫格位置（边缘位露出一半） */
   starChartPosition?: string;
   /** 默认样式：封面大小 60-100（占可用空间的百分比） */
