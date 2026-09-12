@@ -1,0 +1,41 @@
+export default {
+  hub: {
+    title: '分享',
+    image: '圖片分享',
+    video: '影片分享',
+    imageDesc: '選擇歌詞或歌曲資訊，生成精美海報',
+    videoDesc: '直接匯出目前播放器樣式在選定時間段內的效果展示影片，無需手動錄製',
+    posterLyrics: '選擇歌詞生成海報',
+    posterInfo: '用歌曲資訊生成海報'
+  },
+  video: {
+    unsupported: '目前裝置不支援影片匯出（需要 WebCodecs 編碼能力）',
+    ratio: '畫面比例',
+    segment: '時間段',
+    presetCurrent: '從目前位置',
+    presetHead: '從頭開始',
+    presetClimax: '副歌片段',
+    startPoint: '起點',
+    duration: '時長',
+    quality: '清晰度',
+    watermark: '加入浮水印與 QR Code',
+    pauseHint: '匯出期間將暫停播放，完成後可繼續播放',
+    export: '開始匯出',
+    cancelExport: '取消匯出',
+    stagePreparing: '準備中…',
+    stageAudio: '擷取音訊…',
+    stageRendering: '繪製畫面…',
+    stageFinalizing: '封裝影片…',
+    stageDone: '匯出完成',
+    stageCanceled: '已取消',
+    stageError: '匯出失敗',
+    frameUnit: '影格',
+    save: '儲存到相簿',
+    share: '分享',
+    again: '重新匯出',
+    seconds: ' 秒',
+    saved: '已儲存到相簿',
+    saveFailed: '儲存失敗，請重試',
+    shared: '已開啟分享面板'
+  }
+};

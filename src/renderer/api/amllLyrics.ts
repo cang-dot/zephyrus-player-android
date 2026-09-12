@@ -3,7 +3,7 @@
 import { parseTtml, type TtmlLyric } from '@/services/ttmlParser';
 import type { SongResult } from '@/types/music';
 
-export type AmllPlatform = 'netease' | 'qq' | 'spotify' | 'appleMusic';
+export type AmllPlatform = 'netease' | 'qq' | 'spotify' | 'appleMusic' | 'server';
 
 export interface AmllSongSource {
   platform: AmllPlatform;
@@ -39,7 +39,8 @@ const PLATFORM_FOLDERS: Record<AmllPlatform, string> = {
   netease: 'ncm-lyrics',
   qq: 'qq-lyrics',
   spotify: 'spotify-lyrics',
-  appleMusic: 'am-lyrics'
+  appleMusic: 'am-lyrics',
+  server: 'server-lyrics'
 };
 
 let dbInstance: IDBDatabase | null = null;
@@ -52,6 +53,8 @@ function normalizePlatform(platform?: string): AmllPlatform | null {
   if (value === 'apple' || value === 'applemusic' || value === 'apple_music' || value === 'am') {
     return 'appleMusic';
   }
+  // Zephyrus 云端歌曲：TTML 源是 songs.json 里的 lyricsUrl 直链
+  if (value === 'server') return 'server';
   return null;
 }
 
@@ -163,9 +166,17 @@ function cacheKeyFor(source: AmllSongSource): string {
   return `v3:${scope}:${source.platform}:${source.songId}`;
 }
 
+
+/** 内容嗅探:是否为 TTML XML(供直链歌词判断格式) */
+function isTtmlContent(content: string): boolean {
+  const head = content.trimStart().slice(0, 400).toLowerCase();
+  return head.startsWith('<?xml') || head.includes('<tt ') || head.includes('<tt>') || head.includes('xmlns=');
+}
+
 export async function getAmllLyric(
   songId: string | number,
-  platform: string = 'netease'
+  platform: string = 'netease',
+  directUrl?: string
 ): Promise<TtmlLyric | null> {
   const normalized = normalizePlatform(platform);
   if (!normalized) return null;
@@ -173,6 +184,18 @@ export async function getAmllLyric(
   const cacheKey = cacheKeyFor(source);
   const cached = await getCached(cacheKey);
   if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) return cached.lyric;
+
+  // server 平台：TTML 源是 songs.json 里的 lyricsUrl 直链（不走 AMLL DB 端点）
+  if (normalized === 'server') {
+    if (!directUrl) return null;
+    const xml = await fetchText(directUrl, FALLBACK_SOURCE_TIMEOUT_MS);
+    if (!xml || !isTtmlContent(xml)) return null;
+    const parsed = parseTtml(xml);
+    if (!parsed || parsed.lines.length === 0) return null;
+    parsed.source = directUrl;
+    await setCached(cacheKey, parsed);
+    return parsed;
+  }
 
   const endpoints = sourceUrls(source);
   const ownedEndpoint = ZEPHYRUS_DB_BASE ? endpoints.shift() : undefined;
@@ -206,10 +229,13 @@ export async function getAmllLyric(
 }
 
 export async function getAmllLyricForSong(
-  song: Pick<SongResult, 'id' | 'platform' | 'platformId'>
+  song: Pick<SongResult, 'id' | 'platform' | 'platformId' | 'lyricsUrl'>
 ): Promise<TtmlLyric | null> {
   const source = resolveAmllSource(song);
-  return source ? getAmllLyric(source.songId, source.platform) : null;
+  if (!source) return null;
+  const directUrl =
+    source.platform === 'server' ? (song as { lyricsUrl?: string }).lyricsUrl : undefined;
+  return getAmllLyric(source.songId, source.platform, directUrl);
 }
 
 export function preloadAmllLyric(song: Pick<SongResult, 'id' | 'platform' | 'platformId'>): void {

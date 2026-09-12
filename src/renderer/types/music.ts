@@ -75,6 +75,7 @@ export interface SongResult {
   count: number;
   playMusicUrl?: string;
   externalUrl?: string;
+  lyricsUrl?: string;
   playLoading?: boolean;
   lyric?: ILyric;
   backgroundColor?: string;

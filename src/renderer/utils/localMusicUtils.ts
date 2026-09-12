@@ -371,12 +371,16 @@ export function parseLyricContent(content: string, filePath?: string): ILyric | 
   if (!content) return null;
 
   try {
-    const isTtml = filePath?.toLowerCase().endsWith('.ttml');
+    // TTML 内容嗅探防御:TTML 是 XML,用 LRC 解析器只会产出无时间轴的垃圾行。
+    // 真正的 TTML 解析走 parseTtml + AMLL 链路(playerCore 对 server 平台已分叉)
+    const head = content.trimStart().slice(0, 400).toLowerCase();
+    const isTtml =
+      filePath?.toLowerCase().endsWith('.ttml') ||
+      head.startsWith('<?xml') ||
+      head.startsWith('<tt ') ||
+      head.startsWith('<tt>');
     if (isTtml) {
-      // TTML 格式：使用 parseLyrics 解析
-      const { lyrics, times } = parseYrcLyrics(content);
-      if (lyrics.length === 0) return null;
-      return { lrcTimeArray: times, lrcArray: lyrics, hasWordByWord: false };
+      return null;
     }
 
     // LRC/TXT 格式：使用 parseYrcLyrics 解析

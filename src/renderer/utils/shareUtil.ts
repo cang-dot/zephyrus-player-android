@@ -123,18 +123,132 @@ export async function shareCanvasImage(canvas: HTMLCanvasElement): Promise<boole
  * 下载 Blob 为文件（Web 降级方案）
  */
 export function downloadBlob(blob: Blob): boolean {
+  return downloadBlobAs(blob, `zephyrus_poster_${Date.now()}.png`);
+}
+
+/** 指定文件名的下载（Web 降级方案） */
+export function downloadBlobAs(blob: Blob, fileName: string): boolean {
   try {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `zephyrus_poster_${Date.now()}.png`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     return true;
   } catch (e) {
     console.error('[ShareUtil] 下载失败:', e);
+    return false;
+  }
+}
+
+// ==================== 视频（效果展示视频） ====================
+
+/** Blob → base64（去掉 dataURL 前缀） */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? '');
+      resolve(result.includes(',') ? result.split(',')[1] : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** 生成分享视频文件名 */
+function videoFileName(extension: string): string {
+  return `zephyrus_share_${Date.now()}.${extension}`;
+}
+
+/**
+ * 保存视频到系统相册
+ * - Android 原生：Filesystem 写入 + MediaStore 扫描通知
+ * - Web：触发下载
+ */
+export async function saveVideoToGallery(blob: Blob, extension: string): Promise<boolean> {
+  const fileName = videoFileName(extension);
+  try {
+    if (isNative()) {
+      try {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const base64 = await blobToBase64(blob);
+        try {
+          await Filesystem.writeFile({
+            path: fileName,
+            data: base64,
+            directory: Directory.ExternalStorage
+          });
+        } catch {
+          // 外部存储不可写时退回文档目录
+          await Filesystem.writeFile({
+            path: fileName,
+            data: base64,
+            directory: Directory.Documents
+          });
+        }
+        const native = (window as any).AndroidNative;
+        if (native?.scanMediaFile) native.scanMediaFile(fileName);
+        return true;
+      } catch (e) {
+        console.warn('[ShareUtil] 视频保存失败，降级到下载:', e);
+        return downloadBlobAs(blob, fileName);
+      }
+    }
+    return downloadBlobAs(blob, fileName);
+  } catch (e) {
+    console.error('[ShareUtil] 保存视频失败:', e);
+    return false;
+  }
+}
+
+/**
+ * 通过系统分享面板分享视频
+ */
+export async function shareVideoFile(
+  blob: Blob,
+  extension: string,
+  mimeType: string
+): Promise<boolean> {
+  const fileName = videoFileName(extension);
+  try {
+    if (isNative()) {
+      try {
+        const { Share } = await import('@capacitor/share');
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const base64 = await blobToBase64(blob);
+        const fileResult = await Filesystem.writeFile({
+          path: fileName,
+          data: base64,
+          directory: Directory.Cache
+        });
+        await Share.share({
+          title: 'Zephyrus Player',
+          text: '分享播放器效果视频',
+          url: fileResult.uri
+        });
+        return true;
+      } catch (e) {
+        console.warn('[ShareUtil] 视频分享失败，降级到下载:', e);
+        return downloadBlobAs(blob, fileName);
+      }
+    }
+
+    const file = new File([blob], fileName, { type: mimeType });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title: 'Zephyrus Player',
+        text: '分享播放器效果视频',
+        files: [file]
+      });
+      return true;
+    }
+    return downloadBlobAs(blob, fileName);
+  } catch (e) {
+    console.error('[ShareUtil] 分享视频失败:', e);
     return false;
   }
 }

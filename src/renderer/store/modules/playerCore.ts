@@ -293,9 +293,14 @@ export const usePlayerCoreStore = defineStore(
             try {
               const { getServerSongDetail } = await import('@/api/serverSongs');
               const detail = await getServerSongDetail(music.platformId);
+              // TTML 歌词(逐字):交给 AMLL 链路(amllStore.watch(currentSong) 自动
+              // 经 server 平台的 lyricsUrl 直链加载),不写入 music.lyric
+              if (detail.lyricsUrl?.toLowerCase().endsWith('.ttml')) {
+                return { lrcTimeArray: [], lrcArray: [], hasWordByWord: false };
+              }
               if (detail.lyricsText) {
                 const { parseLyricContent } = await import('@/utils/localMusicUtils');
-                const parsed = parseLyricContent(detail.lyricsText);
+                const parsed = parseLyricContent(detail.lyricsText, detail.lyricsUrl);
                 if (parsed && parsed.lrcTimeArray.length > 0) {
                   return parsed;
                 }

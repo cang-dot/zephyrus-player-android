@@ -3,7 +3,7 @@
     <n-scrollbar ref="scrollbarRef" class="flex-1 min-h-0" @scroll="handleScroll">
       <div class="music-list-content">
         <page-loading-placeholder
-          v-if="loading"
+          v-if="loading || !dataMatchesRoute"
           variant="music-list"
           :label="t('common.loading')"
         />
@@ -542,6 +542,25 @@ watch(
   { immediate: true }
 );
 const isDailyRecommend = computed(() => route.query.type === 'dailyRecommend');
+
+/**
+ * 当前 store 数据是否属于本路由。
+ * 通用模板页共用一份全局 store，打开新列表时若 store 尚未被新数据覆盖，
+ * 任何直接读 store 的展示都会闪出上一次的列表——因此渲染前必须先校验归属，
+ * 不匹配时一律走骨架屏，而不是展示上一个列表的数据。
+ */
+const dataMatchesRoute = computed(() => {
+  if (isDailyRecommend.value) return true;
+  const id = route.params.id;
+  if (!id) return true;
+  if (musicStore.currentListInfo?.id?.toString() !== String(id)) return false;
+  // 跨平台来源必须同源（netease/qq/kugou 同 id 也可能互不相同）
+  const sourceContext = routeSourceContext.value;
+  if (sourceContext && !isSameMusicListSource(musicStore.currentListInfo?._sourceContext, sourceContext)) {
+    return false;
+  }
+  return Boolean(musicStore.currentMusicList && musicStore.currentMusicList.length > 0);
+});
 const isAlbum = computed(() => route.query.type === 'album' || route.query.type === 'server-album');
 
 const name = computed(() => {

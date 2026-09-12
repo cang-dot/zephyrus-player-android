@@ -239,6 +239,10 @@ export interface LyricConfig {
   shareScreenshotQRCode: boolean; // 截图自动添加二维码（默认关闭）
   shareDefaultPosterLayout: 'torn-paper' | 'immersive'; // 默认海报布局
   shareDefaultFontId: string; // 默认字体 ID
+  // 视频分享默认偏好（打开视频分享面板时应用，面板内修改会写回）
+  shareDefaultVideoRatio: '16:9' | '9:16' | '3:4' | '4:3';
+  shareDefaultVideoQuality: '720p' | '1080p';
+  shareDefaultVideoWatermark: boolean;
 }
 
 export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
@@ -315,7 +319,10 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   // 分享功能默认值
   shareScreenshotQRCode: false,
   shareDefaultPosterLayout: 'torn-paper',
-  shareDefaultFontId: 'hengshan-maoxing'
+  shareDefaultFontId: 'hengshan-maoxing',
+  shareDefaultVideoRatio: '9:16',
+  shareDefaultVideoQuality: '1080p',
+  shareDefaultVideoWatermark: true
 };
 
 export interface ILyric {

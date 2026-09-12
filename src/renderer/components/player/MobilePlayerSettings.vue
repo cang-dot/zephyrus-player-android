@@ -868,6 +868,12 @@
                   :inert="!isControlSectionExpanded('sharing')"
                 >
                   <div id="control-section-sharing" class="control-section-body">
+                    <!-- 图片分享 -->
+                    <div class="share-group-label">
+                      <i class="ri-image-line"></i>
+                      <span>图片分享</span>
+                    </div>
+
                     <!-- 截图自动添加二维码 -->
                     <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
                       <div>
@@ -905,11 +911,78 @@
                     </div>
 
                     <!-- 长按歌词提示 -->
-                    <div class="p-3 rounded-2xl bg-white/5">
+                    <div class="p-3 rounded-2xl bg-white/5 mb-2">
                       <div class="flex items-center gap-2 text-xs text-white/50">
                         <i class="ri-information-line"></i>
                         <span>在歌词页面长按歌词可进入多选模式，生成精美海报</span>
                       </div>
+                    </div>
+
+                    <!-- 视频分享 -->
+                    <div class="share-group-label">
+                      <i class="ri-film-line"></i>
+                      <span>视频分享</span>
+                    </div>
+
+                    <!-- 默认画面比例 -->
+                    <div class="p-3 rounded-2xl bg-white/5 mb-2">
+                      <div class="text-sm text-white/80 mb-2">默认画面比例</div>
+                      <div class="grid grid-cols-4 gap-2">
+                        <button
+                          v-for="opt in videoRatioOptions"
+                          :key="opt.key"
+                          @click="setShareDefaultVideoRatio(opt.key)"
+                          class="flex flex-col items-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-colors"
+                          :class="
+                            lyricConfig.shareDefaultVideoRatio === opt.key
+                              ? 'bg-[var(--accent-color)] text-white'
+                              : 'bg-white/10 text-white/60'
+                          "
+                        >
+                          <span
+                            class="block rounded-[3px] bg-current opacity-80"
+                            :style="videoRatioPreviewStyle(opt.ratio)"
+                          ></span>
+                          {{ opt.label }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- 默认清晰度 -->
+                    <div class="p-3 rounded-2xl bg-white/5 mb-2">
+                      <div class="text-sm text-white/80 mb-2">默认清晰度</div>
+                      <div class="flex gap-2">
+                        <button
+                          v-for="tier in videoQualityTiers"
+                          :key="tier"
+                          @click="setShareDefaultVideoQuality(tier)"
+                          class="px-3 py-2 rounded-xl text-xs font-medium transition-colors"
+                          :class="
+                            lyricConfig.shareDefaultVideoQuality === tier
+                              ? 'bg-[var(--accent-color)] text-white'
+                              : 'bg-white/10 text-white/60'
+                          "
+                        >
+                          {{ tier }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- 默认水印开关 -->
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5">
+                      <div>
+                        <div class="text-sm text-white/80">默认添加水印</div>
+                        <div class="text-xs text-white/40 mt-1">
+                          导出视频时叠加水印与歌曲深链二维码
+                        </div>
+                      </div>
+                      <button
+                        class="share-toggle-switch"
+                        :class="{ on: lyricConfig.shareDefaultVideoWatermark }"
+                        @click="toggleShareDefaultVideoWatermark"
+                      >
+                        <span class="share-toggle-knob"></span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1168,7 +1241,7 @@
                     back-layer-id="player-settings-playlist-picker"
                     @update:expanded="settingsPlaylistExpanded = $event"
                   />
-                  <button class="song-setting-action" @click="shareCurrentSong">
+                  <button class="song-setting-action" @click="openShareHub">
                     <i class="ri-share-forward-line"></i><span>分享歌曲</span>
                   </button>
                   <button class="song-setting-action" @click="toggleCurrentFavorite">
@@ -1189,7 +1262,18 @@
       </div>
     </Transition>
     <song-metadata-editor v-model:show="metadataEditorShow" :song="currentSong!" />
-    <poster-share-modal v-model:visible="showPosterModal" :lyrics="[]" :subject="posterSubject" />
+    <poster-share-modal
+      v-model:visible="showPosterModal"
+      :lyrics="shareLyrics"
+      :subject="posterSubject"
+    />
+    <share-hub-modal
+      v-model:visible="showShareHub"
+      :style-key="currentPlayerStyle"
+      :song-title="currentSong?.name || ''"
+      :artist="currentArtistText"
+      @open-poster="handleOpenPoster"
+    />
     <photosensitivity-warning
       v-model:visible="photosensitivityVisible"
       @confirm="handlePhotosensitivityConfirm"
@@ -1224,6 +1308,7 @@ import PhotosensitivityWarning from '@/components/lyric/PhotosensitivityWarning.
 import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
 import ListenTogetherSettings from '@/components/settings/ListenTogetherSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import ShareHubModal from '@/components/share/ShareHubModal.vue';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
 import { snapshotEqSettings, tuneEqForCurrentSong } from '@/features/ai/eqTuner';
@@ -1546,8 +1631,31 @@ const currentIsFavorite = computed(() => {
   );
 });
 
-// ==================== 分享歌曲海报（歌曲信息模式） ====================
-const { showPosterModal, posterSubject, openPosterForSubject } = usePosterShare();
+// ==================== 分享（图片海报 / 效果展示视频） ====================
+const { showPosterModal, posterSubject, openPosterForSubject, handleGeneratePoster } =
+  usePosterShare();
+const showShareHub = ref(false);
+
+/** 当前歌词（前 20 句），供海报的「歌词摘录」模式使用 */
+const shareLyrics = computed(() =>
+  lrcArray.value.slice(0, 20).map((line, index) => ({ index, text: line.text }))
+);
+
+/** 打开分享中心（图片分享 / 视频分享两个板块） */
+function openShareHub() {
+  if (!currentSong.value) return;
+  showShareHub.value = true;
+}
+
+/** 分享中心里选中了图片分享的某种方式 */
+function handleOpenPoster(kind: 'lyrics' | 'info') {
+  showShareHub.value = false;
+  if (kind === 'info') {
+    shareCurrentSong();
+  } else {
+    handleGeneratePoster(shareLyrics.value);
+  }
+}
 
 function shareCurrentSong() {
   const song = currentSong.value;
@@ -2413,6 +2521,38 @@ function setShareDefaultLayout(layout: 'torn-paper' | 'immersive') {
   persistLyricConfig(lyricConfig.value);
 }
 
+const videoRatioOptions = [
+  { key: '16:9' as const, label: '16:9', ratio: 16 / 9 },
+  { key: '9:16' as const, label: '9:16', ratio: 9 / 16 },
+  { key: '3:4' as const, label: '3:4', ratio: 3 / 4 },
+  { key: '4:3' as const, label: '4:3', ratio: 4 / 3 }
+];
+const videoQualityTiers = ['720p', '1080p'] as const;
+
+/** 比例预览小矩形：在 22×14 的盒内按比例取形 */
+function videoRatioPreviewStyle(ratio: number): Record<string, string> {
+  const boxWidth = 22;
+  const boxHeight = 14;
+  const width = ratio >= 1 ? boxWidth : boxWidth * ratio;
+  const height = ratio >= 1 ? boxHeight / ratio : boxHeight;
+  return { width: `${width.toFixed(1)}px`, height: `${height.toFixed(1)}px` };
+}
+
+function setShareDefaultVideoRatio(ratio: LyricConfig['shareDefaultVideoRatio']) {
+  lyricConfig.value.shareDefaultVideoRatio = ratio;
+  persistLyricConfig(lyricConfig.value);
+}
+
+function setShareDefaultVideoQuality(quality: LyricConfig['shareDefaultVideoQuality']) {
+  lyricConfig.value.shareDefaultVideoQuality = quality;
+  persistLyricConfig(lyricConfig.value);
+}
+
+function toggleShareDefaultVideoWatermark() {
+  lyricConfig.value.shareDefaultVideoWatermark = !lyricConfig.value.shareDefaultVideoWatermark;
+  persistLyricConfig(lyricConfig.value);
+}
+
 // Props & Emits
 const props = withDefaults(
   defineProps<{
@@ -2580,6 +2720,16 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 「分享设置」内的分组小标题 */
+.share-group-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
 .player-settings-overlay {
   z-index: 100200 !important;
   background: rgba(0, 0, 0, 0.2);

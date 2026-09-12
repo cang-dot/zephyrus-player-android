@@ -312,6 +312,7 @@ export function serverSongToSongResult(song: ServerSong): SongResult {
     platform: 'server',
     platformId: song.id,
     playMusicUrl: song.audioUrl,
+    lyricsUrl: song.lyricsUrl,
     source: 'netease'
   };
 }
@@ -321,7 +322,7 @@ export function serverSongToSongResult(song: ServerSong): SongResult {
  */
 export async function getServerSongDetail(
   songId: string
-): Promise<ServerSong & { lyricsText?: string }> {
+): Promise<ServerSong & { lyricsText?: string; lyricsUrl?: string }> {
   const all = await loadServerSongs();
   const song = all.find((s) => s.id === songId);
   if (!song) throw new Error(`Song not found: ${songId}`);
@@ -342,6 +343,7 @@ export async function getServerSongDetail(
   return {
     ...song,
     lyricsText,
+    lyricsUrl: song.lyricsUrl,
     // 高潮时段只信任 songs.json 中人工标注的 climax 字段，
     // 不再根据 LRC 重复句推断额外的副歌时段。
     climax: normalizeClimaxSegments(song.climax, song.duration)

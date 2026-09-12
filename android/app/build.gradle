@@ -30,8 +30,9 @@ android {
         applicationId "com.zephyrus.player"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+        // 本地调试用回退值；正式发布由 CI 通过 -PtestVersionCode / -PtestVersionName 注入
         versionCode((project.findProperty("testVersionCode") ?: 9) as int)
-        versionName((project.findProperty("testVersionName") ?: "1.3.0") as String)
+        versionName((project.findProperty("testVersionName") ?: "1.3.5") as String)
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

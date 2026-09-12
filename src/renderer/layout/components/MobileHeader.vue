@@ -1426,7 +1426,9 @@ const handleSearchSubmit = () => {
   &.player-surface-active > .topbar-morph-anchor,
   &.player-surface-active > .topbar-search-pill,
   &.player-surface-active > .topbar-search-morph-anchor,
-  &.player-surface-active > .topbar-action-pill {
+  &.player-surface-active > .topbar-action-pill,
+  // 创建歌单的「+」按钮也要随播放界面展开淡出，否则会以顶栏层级悬浮在播放器上
+  &.player-surface-active > .topbar-create-anchor {
     opacity: calc(1 - var(--player-header-progress, 0));
     transform: none;
     pointer-events: none;

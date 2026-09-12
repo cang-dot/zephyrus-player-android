@@ -1,0 +1,41 @@
+export default {
+  hub: {
+    title: '分享',
+    image: '图片分享',
+    video: '视频分享',
+    imageDesc: '选择歌词或歌曲信息，生成精美海报',
+    videoDesc: '直接导出当前播放器样式在选定时间段内的效果展示视频，无需手动录制',
+    posterLyrics: '选择歌词生成海报',
+    posterInfo: '用歌曲信息生成海报'
+  },
+  video: {
+    unsupported: '当前设备不支持视频导出（需要 WebCodecs 编码能力）',
+    ratio: '画面比例',
+    segment: '时间段',
+    presetCurrent: '从当前位置',
+    presetHead: '从头开始',
+    presetClimax: '副歌片段',
+    startPoint: '起点',
+    duration: '时长',
+    quality: '清晰度',
+    watermark: '添加水印与二维码',
+    pauseHint: '导出期间将暂停播放，完成后可继续播放',
+    export: '开始导出',
+    cancelExport: '取消导出',
+    stagePreparing: '准备中…',
+    stageAudio: '提取音频…',
+    stageRendering: '渲染画面…',
+    stageFinalizing: '封装视频…',
+    stageDone: '导出完成',
+    stageCanceled: '已取消',
+    stageError: '导出失败',
+    frameUnit: '帧',
+    save: '保存到相册',
+    share: '分享',
+    again: '重新导出',
+    seconds: ' 秒',
+    saved: '已保存到相册',
+    saveFailed: '保存失败，请重试',
+    shared: '已打开分享面板'
+  }
+};
