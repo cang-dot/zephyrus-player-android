@@ -112,6 +112,14 @@
           </button>
         </div>
         <label class="range-row">
+          <span>圆盘大小 {{ local.starDiscSize ?? 100 }}%</span>
+          <input v-model.number="local.starDiscSize" type="range" min="50" max="130" step="5" />
+        </label>
+        <label class="range-row">
+          <span>文本大小 {{ local.starTextSize ?? 100 }}%</span>
+          <input v-model.number="local.starTextSize" type="range" min="60" max="200" step="5" />
+        </label>
+        <label class="range-row">
           <span>歌词文本块行数 {{ local.starBlockLines ?? 4 }}</span>
           <input v-model.number="local.starBlockLines" type="range" min="2" max="6" step="1" />
         </label>
