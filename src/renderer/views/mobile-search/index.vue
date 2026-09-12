@@ -62,7 +62,18 @@
                   d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.59 5.58L20 12l-8-8-8 8z"
                 />
               </svg>
-              <img v-else :src="item.iconUrl" alt="" />
+              <svg v-else class="hot-svg" viewBox="0 0 24 24" aria-hidden="true">
+                <text
+                  x="12"
+                  y="17.5"
+                  text-anchor="middle"
+                  font-size="15"
+                  font-weight="700"
+                  fill="currentColor"
+                >
+                  爆
+                </text>
+              </svg>
             </span>
           </div>
         </div>
@@ -238,7 +249,7 @@ onMounted(() => {
   color: var(--m-text-muted, #9a9590);
 
   &.top {
-    @apply text-red-500;
+    color: var(--accent-color, #888);
   }
 }
 
