@@ -120,6 +120,8 @@
               :to="menuTarget(item.path)"
               :data-path="item.path"
               draggable="false"
+              @dragstart.prevent
+              @contextmenu.prevent
               class="glow-nav-item"
               :class="{ active: isActive(item.path), picking: pickPath === item.path }"
               @click="prepareMenuTransition(item.path)"
@@ -876,14 +878,15 @@ const onDockClickCapture = (event: MouseEvent) => {
   suppressDockClick = false;
 };
 
-// ── 底栏辉光跟手横滑选页:按住图标后横向滑动,辉光随手指悬停预览目标项
-//    (呈现该项的打开态样式但不切页),松手辉光收拢并切换到对应页面。 ──
+// ── 底栏辉光跟手横滑选页:按住图标辉光立即扩大,横拖时辉光跟手预览目标项
+//    (不切页),松手提交;普通轻点完全交给 router-link 原生行为。 ──
 const pickPath = ref('');
 let navPickPointerId: number | null = null;
 let navPickStartX = 0;
 let navPickStartY = 0;
-let navPicking = false;
+let navDragging = false;
 let navSuppressClick = false;
+let navSuppressResetFrame = 0;
 
 const navItemPathFromPoint = (x: number, y: number): string => {
   const el = document
@@ -892,36 +895,69 @@ const navItemPathFromPoint = (x: number, y: number): string => {
   return el?.dataset.path || '';
 };
 
-let navAxisLocked = false;
+/** 横拖时选「离手指最近的一项」:图标与项之间的间隙不丢预览 */
+const navNearestItemPath = (x: number, y: number): string => {
+  const items = Array.from(
+    document.querySelectorAll<HTMLElement>('.mobile-glow-nav .glow-nav-item')
+  );
+  let best = '';
+  let bestDist = Infinity;
+  for (const item of items) {
+    const rect = item.getBoundingClientRect();
+    const cx = Math.min(Math.max(x, rect.left), rect.right);
+    const cy = Math.min(Math.max(y, rect.top), rect.bottom);
+    const dist = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = item.dataset.path || '';
+    }
+  }
+  return best;
+};
+
+const releaseNavSuppress = () => {
+  if (!navSuppressClick) return;
+  navSuppressClick = false;
+  if (navSuppressResetFrame) {
+    cancelAnimationFrame(navSuppressResetFrame);
+    navSuppressResetFrame = 0;
+  }
+};
+
+const scheduleNavSuppressReset = () => {
+  if (navSuppressResetFrame) cancelAnimationFrame(navSuppressResetFrame);
+  // WebView 可能不派发合成 click:一帧后自动解除抑制,不污染下一次点击
+  navSuppressResetFrame = requestAnimationFrame(() => {
+    navSuppressResetFrame = 0;
+    navSuppressClick = false;
+  });
+};
 
 const onNavPointerDown = (event: PointerEvent) => {
   if (!event.isPrimary || playerStore.musicFull) return;
-  // 阻断 WebView 把按住演化成长按菜单/链接拖拽(click 合成不受影响)
-  event.preventDefault();
   navPickPointerId = event.pointerId;
   navPickStartX = event.clientX;
   navPickStartY = event.clientY;
-  navPicking = true;
-  navAxisLocked = false;
-  navSuppressClick = true;
-  // 按住即辉光扩大,预览按住的项
-  navPickPath.value = navItemPathFromPoint(event.clientX, event.clientY);
+  navDragging = false;
+  // 按住即辉光扩大,预览按住的项;click 保持放行,轻点仍走 router-link
+  pickPath.value = navItemPathFromPoint(event.clientX, event.clientY);
 };
 
 const onNavPointerMove = (event: PointerEvent) => {
   if (event.pointerId !== navPickPointerId) return;
   const dx = event.clientX - navPickStartX;
   const dy = event.clientY - navPickStartY;
-  if (!navAxisLocked && Math.max(Math.abs(dx), Math.abs(dy)) >= 14) {
-    navAxisLocked = true;
+  if (!navDragging) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 14) return;
     if (Math.abs(dy) > Math.abs(dx) * 1.2) {
-      // 明确的纵向意图才取消预览,交回 Dock(上滑打开播放界面);
-      // 放行 click 抑制——按下时的自然下坠不该吞掉本次点击
-      navPicking = false;
-      navPickPath.value = '';
-      navSuppressClick = false;
+      // 纵向意图:取消预览,交回 Dock(上滑打开播放界面);click 不拦
+      navPickPointerId = null;
+      pickPath.value = '';
       return;
     }
+    // 明确横向:进入拖选,拦下合成 click,改由 pointerup 提交
+    navDragging = true;
+    navSuppressClick = true;
     const host = event.currentTarget as HTMLElement;
     if (!host.hasPointerCapture(event.pointerId)) {
       try {
@@ -931,43 +967,43 @@ const onNavPointerMove = (event: PointerEvent) => {
       }
     }
   }
-  if (!navPicking || !navAxisLocked) return;
   event.preventDefault();
-  // 辉光跟手:悬停到哪个图标就预览哪个项(不切页)
-  navPickPath.value = navItemPathFromPoint(event.clientX, event.clientY);
+  pickPath.value = navNearestItemPath(event.clientX, event.clientY);
 };
 
 const onNavPointerRelease = (event: PointerEvent) => {
   if (event.pointerId !== navPickPointerId) return;
   const host = event.currentTarget as HTMLElement;
   if (host.hasPointerCapture(event.pointerId)) host.releasePointerCapture(event.pointerId);
-  const target = navPickPath.value;
   navPickPointerId = null;
-  if (navPicking) {
-    navPicking = false;
-    navPickPath.value = '';
+  if (navDragging) {
+    navDragging = false;
+    const target = pickPath.value;
+    pickPath.value = '';
     if (target && !isActive(target)) {
       prepareMenuTransition(target);
-      router.push(target);
-    } else if (!target) {
-      // 手指落在项与项的空隙:放行默认行为
-      navSuppressClick = false;
+      router.push(menuTarget(target));
     }
+    scheduleNavSuppressReset();
+  } else {
+    // 未进入拖选:清预览,放行 router-link 原生 click
+    pickPath.value = '';
   }
 };
 
 const onNavPointerUp = (event: PointerEvent) => onNavPointerRelease(event);
 const onNavPointerCancel = (event: PointerEvent) => {
   if (event.pointerId !== navPickPointerId) return;
-  navAxisLocked = false;
-  onNavPointerRelease(event);
+  navPickPointerId = null;
+  navDragging = false;
+  pickPath.value = '';
 };
 
 const onNavClickCapture = (event: MouseEvent) => {
   if (!navSuppressClick) return;
   event.preventDefault();
   event.stopPropagation();
-  navSuppressClick = false;
+  releaseNavSuppress();
 };
 
 // 提供是否有安全区域
@@ -1519,6 +1555,17 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 .glow-nav-item.active .glow-item-radial {
   opacity: 1;
   transform: scale(1.1);
+}
+
+/* 按住/横拖预览态:辉光比 active 更大,松手收拢 */
+.glow-nav-item.picking .glow-item-radial {
+  opacity: 1;
+  transform: scale(1.18);
+}
+
+.glow-nav-item.picking .glow-item-icon {
+  color: var(--accent-color, #fff);
+  transform: scale(1.12);
 }
 
 /* 内容容器 */
