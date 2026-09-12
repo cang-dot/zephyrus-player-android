@@ -1724,6 +1724,22 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   transform: scale(1.05);
 }
 
+/* 拖动悬停的名称脱离文档流悬浮在图标右侧:弹出/收回不推移任何布局 */
+.mobile-glow-nav.nav-dragging .glow-item-label {
+  position: absolute;
+  left: calc(100% - 2px);
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  max-width: none;
+  /* 玻璃辉光上的文字:主文字色保证对比,略升字重与字距提升可读性 */
+  color: var(--cover-text-primary, var(--m-text-primary, #2c2c2c));
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
 /* 内容容器 */
 .glow-item-content {
   position: relative;
