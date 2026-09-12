@@ -232,7 +232,9 @@ watch(
 const chromeVisibility = computed(() => {
   if (lyricSelection.active.value) return 1;
   const transitionState = playerTransition.state.value;
-  const progressReveal = Math.min(1, Math.max(0, playerTransition.progress.value / 0.08));
+  // 非 default 样式:底板稍晚浮现(0.28),给「迷你信息重排为信息行」留出可感知的时序
+  const revealDenominator = defaultStyleSurface.value ? 0.08 : 0.28;
+  const progressReveal = Math.min(1, Math.max(0, playerTransition.progress.value / revealDenominator));
   if (
     transitionState === 'dragging' ||
     transitionState === 'opening' ||

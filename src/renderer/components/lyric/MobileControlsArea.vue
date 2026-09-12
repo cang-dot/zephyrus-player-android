@@ -774,10 +774,14 @@ const handleThumbTouchEnd = () => {
   transform: translate3d(0, calc((1 - var(--player-open-progress, 1)) * 14px), 0);
 }
 
-/* 非 default 样式:信息行由迷你栏歌曲信息飞行接管(0.86 起零位移淡入,与迷你行同窗交叉) */
+/* 非 default 样式:信息行由迷你栏歌曲信息飞行接管(0.86 起随交叉窗上浮 12px) */
 .player-info-row {
   opacity: clamp(0, calc((var(--player-open-progress, 1) - 0.86) * 8), 1);
-  transform: none;
+  transform: translate3d(
+    0,
+    calc((1 - clamp(0, (var(--player-open-progress, 1) - 0.86) * 8, 1)) * 12px),
+    0
+  );
 }
 
 /* default 样式:信息行已收成按钮行,随统一揭示窗 */

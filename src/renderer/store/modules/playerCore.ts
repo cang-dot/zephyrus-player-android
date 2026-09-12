@@ -374,7 +374,12 @@ export const usePlayerCoreStore = defineStore(
         updatedPlayMusic.lyric = lyrics;
 
         // 本地歌曲：确保 URL 正确编码（统一格式：local:///编码后的路径）
-        if (isLocalSong(updatedPlayMusic) && updatedPlayMusic.playMusicUrl) {
+        // 仅对已是 local:// 的来源改写;网页会话条目的 blob: URL 原样保留
+        if (
+          isLocalSong(updatedPlayMusic) &&
+          updatedPlayMusic.playMusicUrl &&
+          updatedPlayMusic.playMusicUrl.startsWith('local://')
+        ) {
           const rawPath = updatedPlayMusic.playMusicUrl.replace('local:///', '');
           // 先解码，再重新编码，确保格式一致
           let decodedPath: string;
