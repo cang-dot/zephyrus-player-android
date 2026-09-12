@@ -2,10 +2,15 @@ package com.zephyrus.player;
 
 import android.content.ClipboardManager;
 import android.content.ClipData;
+import android.content.ContentResolver;
+
+import androidx.annotation.Nullable;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.WindowManager;
 import android.graphics.Color;
 import android.webkit.WebView;
@@ -32,6 +37,7 @@ public class MainActivity extends BridgeActivity {
     private String lastClipboardContent = "";
     // 标记是否已通过 deep link intent 处理过（避免与剪贴板重复）
     private boolean deepLinkHandled = false;
+    private String pendingExternalAudioPath;
     private boolean backEvaluationPending = false;
     private String pendingSpotifyCallback;
     private String lastSpotifyCallback;
@@ -110,7 +116,25 @@ public class MainActivity extends BridgeActivity {
         startMusicPlaybackService();
 
         // 处理通过 deep link 启动时的初始 Intent
+        if (handleExternalAudioIntent(getIntent())) return;
         if (handleDeepLink(getIntent())) {
+            deepLinkHandled = true;
+        }
+        // WebView 就绪后重放冷启动竞态挂起的外部音频
+        if (pendingExternalAudioPath != null) {
+            final String path = pendingExternalAudioPath;
+            pendingExternalAudioPath = null;
+            dispatchExternalAudioToWeb(path);
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // 外部音频(系统"打开方式")优先于深链判断:content:// URI 不属于深链
+        if (handleExternalAudioIntent(intent)) return;
+        setIntent(intent);
+        if (handleDeepLink(intent)) {
             deepLinkHandled = true;
         }
     }
@@ -194,6 +218,84 @@ public class MainActivity extends BridgeActivity {
      * 将 URL 传递给 WebView，由前端 JS 解析并播放对应歌曲
      * @return true 表示成功处理了 deep link
      */
+    /** 判定 Intent 是否为系统"打开方式"投递的本地音频(content:// 或 file://) */
+    private boolean isAudioViewIntent(Intent intent) {
+        if (intent == null || intent.getAction() != Intent.ACTION_VIEW) return false;
+        Uri data = intent.getData();
+        if (data == null) return false;
+        String scheme = data.getScheme();
+        return ContentResolver.SCHEME_CONTENT.equals(scheme)
+                || ContentResolver.SCHEME_FILE.equals(scheme);
+    }
+
+    /**
+     * 外部音频:系统"打开方式"用 Zephyrus 打开本地音频文件。
+     * 把 content:// 复制进应用缓存(规避一次性 URI 权限失效),
+     * 读取元数据后交给前端入列并自动播放。
+     */
+    private boolean handleExternalAudioIntent(Intent intent) {
+        if (!isAudioViewIntent(intent)) return false;
+        Uri data = intent.getData();
+        if (data == null) return false;
+
+        // 复制到缓存目录,规避 ACTION_VIEW 授予的一次性读权限在重启后失效
+        String cachePath;
+        try {
+            String name = data.getLastPathSegment();
+            if (name == null) name = "external_audio";
+            String ext = "";
+            int dot = name.lastIndexOf('.');
+            if (dot > 0) ext = name.substring(dot);
+            cachePath = copyUriToCache(data, "external_" + System.currentTimeMillis() + ext);
+        } catch (Exception e) {
+            Log.e("ExternalAudio", "复制外部音频失败", e);
+            return true;
+        }
+        if (cachePath == null) return true;
+
+        dispatchExternalAudioToWeb(cachePath);
+        return true;
+    }
+
+    /**
+     * 把外部音频路径投递给前端处理器。带重试:冷启动时 Vue 可能尚未挂载
+     * window.__externalAudioOpened(evaluateJavascript 返回 "null"),延迟重试直至就绪。
+     */
+    private void dispatchExternalAudioToWeb(String path) {
+        WebView webView = bridge.getWebView();
+        if (webView == null) {
+            pendingExternalAudioPath = path;
+            return;
+        }
+        final String js = "(window.__externalAudioOpened ? window.__externalAudioOpened("
+                + JSONObject.quote(path) + ") : null)";
+        webView.evaluateJavascript(js, result -> {
+            if (result == null || "null".equals(result)) {
+                new Handler(Looper.getMainLooper())
+                        .postDelayed(() -> dispatchExternalAudioToWeb(path), 800);
+            }
+        });
+    }
+
+    @Nullable
+    private String copyUriToCache(Uri uri, String fileName) {
+        try {
+            java.io.File dir = new java.io.File(getCacheDir(), "external_audio");
+            if (!dir.exists()) dir.mkdirs();
+            java.io.File out = new java.io.File(dir, fileName);
+            try (java.io.InputStream in = getContentResolver().openInputStream(uri);
+                 java.io.FileOutputStream outStream = new java.io.FileOutputStream(out)) {
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = in.read(buffer)) > 0) outStream.write(buffer, 0, read);
+            }
+            return out.getAbsolutePath();
+        } catch (Exception e) {
+            Log.e("ExternalAudio", "copyUriToCache failed", e);
+            return null;
+        }
+    }
+
     private boolean handleDeepLink(Intent intent) {
         if (intent == null) return false;
         Uri data = intent.getData();
@@ -369,15 +471,6 @@ public class MainActivity extends BridgeActivity {
             }
         } catch (Exception e) {
             Log.w("ZephyrusClipboard", "Failed to read clipboard", e);
-        }
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        if (handleDeepLink(intent)) {
-            deepLinkHandled = true;
         }
     }
 

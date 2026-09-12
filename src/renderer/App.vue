@@ -35,6 +35,7 @@ import SharedSongCard from '@/components/common/SharedSongCard.vue';
 import SplashScreen from '@/components/splash/SplashScreen.vue';
 import TrafficWarningDrawer from '@/components/TrafficWarningDrawer.vue';
 import { setSmartAudioInstance, useSmartAudio } from '@/composables/useSmartAudio';
+import { registerExternalAudioHandler } from '@/services/externalAudio';
 import { registerBuiltinFeatures } from '@/features/register';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
@@ -278,6 +279,7 @@ if (isAndroidNative()) {
 let focusTrapObserver: MutationObserver | null = null;
 
 onMounted(async () => {
+  registerExternalAudioHandler();
   playerStore.setIsPlay(false);
 
   // 注册 SharedSongCard 引用到 deepLink 模块

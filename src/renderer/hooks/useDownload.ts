@@ -8,7 +8,14 @@ import { getSongUrl } from '@/store/modules/player';
 import type { SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
 
+import { isServerSongResult } from '@/api/serverSongs';
+import { Capacitor } from '@capacitor/core';
+
 const ipcRenderer = isElectron ? window.electron.ipcRenderer : null;
+const isNativePlatform = () => Capacitor.isNativePlatform();
+// 供 UI 消费的下载进度(文件名 → 0-100)
+// 供 UI 消费的下载进度(文件名 → 0-100)
+export const mobileDownloadProgress = ref<Record<string, number>>({});
 
 // 全局下载管理（闭包模式）
 const createDownloadManager = () => {
@@ -156,6 +163,89 @@ export const useDownload = () => {
    * @param song 歌曲信息
    * @returns Promise<void>
    */
+
+
+/**
+ * 移动端/网页版直链下载:
+ * - Capacitor(安卓):fetch 流式分块写入 Download 目录,带进度
+ * - 网页:触发浏览器下载(<a download>)
+ * 云歌曲(platform='server')直链固定不过期,跳过 getSongUrl 的多策略解析
+ * (此前 server 歌曲丢 playMusicUrl 会落入跨平台解析链,卡几分钟)
+ */
+async function downloadMobileDirect(song: SongResult): Promise<void> {
+  let url = song.playMusicUrl;
+  if (!url && isServerSongResult(song)) {
+    // playMusicUrl 缺失时从云端曲库查表兜底
+    const { getServerSongDetail } = await import('@/api/serverSongs');
+    const detail = await getServerSongDetail(String(song.platformId));
+    url = detail.audioUrl;
+  }
+  if (!url) throw new Error(t('songItem.message.getUrlFailed'));
+
+  const artistNames = (song.ar || song.artists)?.map((a) => a.name).join(',');
+  const ext = url.includes('.flac') ? 'flac' : 'mp3';
+  const filename = `${song.name} - ${artistNames}.${ext}`;
+
+  // 网页:浏览器下载
+  if (!isNativePlatform()) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    message.success(t('browserDownloadStarted') || '已开始下载');
+    return;
+  }
+
+  // Capacitor:流式下载到 Download 目录
+  const { Filesystem, Directory } = await import('@capacitor/filesystem');
+  mobileDownloadProgress.value[filename] = 0;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const total = Number(response.headers.get('content-length') || 0);
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('stream unavailable');
+
+    const chunks: BlobPart[] = [];
+    let loaded = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value as BlobPart);
+      loaded += value.length;
+      if (total) mobileDownloadProgress.value[filename] = Math.round((loaded / total) * 100);
+    }
+    const blob = new Blob(chunks);
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader2 = new FileReader();
+      reader2.onload = () => {
+        const result = String(reader2.result ?? '');
+        resolve(result.includes(',') ? result.split(',')[1] : result);
+      };
+      reader2.onerror = () => reject(reader2.error);
+      reader2.readAsDataURL(blob);
+    });
+    try {
+      await Filesystem.writeFile({
+        path: `Download/${filename}`,
+        data: base64,
+        directory: Directory.ExternalStorage,
+        recursive: true
+      });
+      message.success(`已下载到 Download/${filename}`);
+    } catch {
+      // ExternalStorage 不可写时退回文档目录
+      await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Documents });
+      message.success(`已下载到 Documents/${filename}`);
+    }
+  } finally {
+    delete mobileDownloadProgress.value[filename];
+  }
+}
+
   const downloadMusic = async (song: SongResult) => {
     if (isDownloading.value) {
       message.warning(t('songItem.message.downloading'));
@@ -164,6 +254,14 @@ export const useDownload = () => {
 
     try {
       isDownloading.value = true;
+
+      // 云端歌曲:直链固定不过期,跳过多策略解析(此前会卡进跨平台解析链数分钟);
+      // 安卓/网页走真实下载(Capacitor Filesystem / 浏览器下载)
+      if (isServerSongResult(song)) {
+        isDownloading.value = false;
+        await downloadMobileDirect(song);
+        return;
+      }
 
       const musicUrl = (await getSongUrl(song.id as number, cloneDeep(song), true)) as any;
       if (!musicUrl) {
@@ -344,7 +442,8 @@ export const useDownload = () => {
     isDownloading,
     downloadMusic,
     downloadLyric,
-    batchDownloadMusic
+    batchDownloadMusic,
+    mobileDownloadProgress
   };
 };
 

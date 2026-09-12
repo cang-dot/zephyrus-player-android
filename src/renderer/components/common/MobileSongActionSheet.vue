@@ -87,6 +87,11 @@
               <i class="ri-share-forward-line"></i>
               <span>分享歌曲</span>
             </button>
+            <button class="sheet-action-btn" :class="{ 'downloading': isDownloadingSong }" @click="handleDownload">
+              <i v-if="isDownloadingSong" class="ri-loader-4-line is-spinning"></i>
+              <i v-else class="ri-download-2-line"></i>
+              <span>{{ isDownloadingSong ? downloadProgressText : '下载歌曲' }}</span>
+            </button>
             <button class="sheet-action-btn" @click="handleAction('favorite')">
               <i
                 :class="[
@@ -137,6 +142,7 @@ import type { PosterSubject } from '@/types/share';
 import { getImgUrl } from '@/utils';
 import { formatAudioSegments } from '@/utils/audioFormat';
 
+import { useDownload } from '@/hooks/useDownload';
 import InlinePlaylistPicker from './InlinePlaylistPicker.vue';
 import SongMetadataEditor from './SongMetadataEditor.vue';
 
@@ -169,6 +175,22 @@ const artistNames = computed(() => {
   }
   return String(artists || '');
 });
+
+// ==================== 下载(云歌曲/所有来源移动端入口) ====================
+const { downloadMusic, mobileDownloadProgress } = useDownload();
+
+const downloadProgressText = computed(() => {
+  const entries = Object.entries(mobileDownloadProgress.value);
+  if (!entries.length) return '准备下载…';
+  return `下载中 ${entries[0][1]}%`;
+});
+
+const isDownloadingSong = computed(() => Object.keys(mobileDownloadProgress.value).length > 0);
+
+const handleDownload = () => {
+  if (isDownloadingSong.value) return;
+  void downloadMusic(props.item as SongResult);
+};
 
 const firstArtistId = computed(() => {
   const artists = props.item.ar || props.item.artists || [];
@@ -341,6 +363,21 @@ const handleAction = (action: string) => {
 </script>
 
 <style lang="scss" scoped>
+.sheet-action-btn.is-spinning .ri-loader-4-line {
+  animation: sheet-spin 900ms linear infinite;
+}
+
+@keyframes sheet-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sheet-action-btn.downloading {
+  opacity: 0.7;
+  cursor: default;
+}
+
 .mobile-sheet-overlay {
   position: fixed;
   inset: 0;

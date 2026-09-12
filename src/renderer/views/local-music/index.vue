@@ -1,5 +1,11 @@
 <template>
-  <div class="local-music-page" :class="{ 'is-embedded': embedded }">
+  <div
+    class="local-music-page"
+    :class="{ 'is-embedded': embedded, 'drop-target': dropActive }"
+    @dragover.prevent="onDragOver"
+    @dragleave.self="dropActive = false"
+    @drop.prevent="onDrop"
+  >
     <!-- ==================== 移动端（Capacitor） ==================== -->
     <div
       v-if="isMobileNative"
@@ -212,6 +218,24 @@
               >
                 <i class="ri-folder-add-line text-lg" />
               </button>
+
+              <button
+                v-if="isWebBrowser"
+                class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-all"
+                :title="t('localMusic.importFiles') || '导入音频文件'"
+                @click="audioFileInput?.click()"
+              >
+                <i class="ri-music-add-line text-lg" />
+              </button>
+              <input
+                v-if="isWebBrowser"
+                ref="audioFileInput"
+                type="file"
+                accept="audio/*"
+                multiple
+                hidden
+                @change="onAudioFilePick"
+              />
 
               <button
                 class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-all"
@@ -484,6 +508,77 @@ const { confirmPlaylistReplace } = usePlaylistConfirm();
 
 // ==================== Platform detection ====================
 const isMobileNative = !isElectron;
+// ==================== 网页版:本地音频文件导入 + 拖拽 ====================
+// 会话级能力(blob URL 刷新失效):条目入 IndexedDB 但标记 fileUrl,
+// 播放走 blob URL;刷新后这些条目自动清除
+const isWebBrowser = isElectron === false && !(window as any).AndroidNative && typeof window !== 'undefined';
+const dropActive = ref(false);
+const audioFileInput = ref<HTMLInputElement | null>(null);
+const sessionFiles = ref<Set<string>>(new Set());
+
+const AUDIO_EXT_RE = /\.(mp3|flac|wav|ogg|m4a|aac|opus|wma|ape)$/i;
+
+/** 把本地文件加入列表并返回 SongResult(会话级 blob URL) */
+async function importAudioFile(file: File): Promise<SongResult | null> {
+  if (!AUDIO_EXT_RE.test(file.name)) return null;
+  const filePath = `web-session://${file.name}`;
+  const entry: any = {
+    id: `web_${file.name}_${file.size}`,
+    filePath,
+    title: file.name.replace(/\.[^.]+$/, ''),
+    artist: '',
+    album: '',
+    duration: 0,
+    cover: null,
+    lyrics: null,
+    fileSize: file.size,
+    modifiedTime: file.lastModified,
+    fileUrl: URL.createObjectURL(file),
+    isSession: true
+  };
+  await localMusicStore.applyEntryMetadata(JSON.stringify(entry));
+  sessionFiles.value.add(entry.id);
+  return toSongResult(entry);
+}
+
+const onDragOver = (e: DragEvent) => {
+  if (!isWebBrowser) return;
+  dropActive.value = true;
+  e.dataTransfer && (e.dataTransfer.dropEffect = 'copy');
+};
+
+const onDrop = async (e: DragEvent) => {
+  dropActive.value = false;
+  if (!isWebBrowser) return;
+  const files = [...(e.dataTransfer?.files || [])].filter((f) => AUDIO_EXT_RE.test(f.name));
+  if (!files.length) return;
+  const imported: SongResult[] = [];
+  for (const file of files) {
+    const song = await importAudioFile(file);
+    if (song) imported.push(song);
+  }
+  if (imported.length) {
+    message.success(`已导入 ${imported.length} 个音频文件`);
+    playerStore.setPlayList(imported);
+    void playerStore.setPlay(imported[0]);
+  }
+};
+
+const onAudioFilePick = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const files = [...(input.files || [])].filter((f) => AUDIO_EXT_RE.test(f.name));
+  input.value = '';
+  const imported: SongResult[] = [];
+  for (const file of files) {
+    const song = await importAudioFile(file);
+    if (song) imported.push(song);
+  }
+  if (imported.length) {
+    message.success(`已导入 ${imported.length} 个音频文件`);
+    playerStore.setPlayList(imported);
+    void playerStore.setPlay(imported[0]);
+  }
+};
 const { embedded } = withDefaults(defineProps<{ embedded?: boolean }>(), {
   embedded: false
 });
@@ -583,7 +678,15 @@ const filteredList = computed<LocalMusicEntry[]>(() => {
 const displayedList = computed<LocalMusicEntry[]>(() => filteredList.value);
 
 const displayedSongResults = computed<SongResult[]>(() => {
-  return displayedList.value.map(toSongResult);
+  return displayedList.value.map((entry: any) => {
+    const song = toSongResult(entry);
+    // 网页版会话导入条目:blob URL 仅本会话有效
+    if (entry.isSession && entry.fileUrl) {
+      song.playMusicUrl = entry.fileUrl;
+      song.expiredAt = Date.now() + 365 * 24 * 3600 * 1000;
+    }
+    return song;
+  });
 });
 
 const artistList = computed<{ name: string; count: number }[]>(() => {
@@ -1353,5 +1456,16 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   .folder-sheet {
     transform: translateY(100%);
   }
+}
+
+.local-music-page.drop-target::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  border: 3px dashed var(--accent-color, #888);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--accent-color, #888) 8%, transparent);
+  pointer-events: none;
 }
 </style>
