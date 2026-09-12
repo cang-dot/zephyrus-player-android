@@ -1,5 +1,11 @@
 export interface MobileSettingSearchDefinition {
-  tabId: 'basic' | 'interface' | 'playback' | 'keepAlive' | 'about';
+  tabId:
+    | 'appearance'
+    | 'playback'
+    | 'lyrics'
+    | 'ai'
+    | 'advanced'
+    | 'about';
   titleKey?: string;
   descKey?: string;
   title?: string;
@@ -10,39 +16,19 @@ export interface MobileSettingSearchDefinition {
 
 export const MOBILE_SETTING_SEARCH_DEFINITIONS: readonly MobileSettingSearchDefinition[] = [
   {
-    tabId: 'basic',
+    tabId: 'appearance',
     titleKey: 'settings.basic.themeMode',
     descKey: 'settings.basic.themeModeDesc'
   },
   {
-    tabId: 'basic',
+    tabId: 'appearance',
     titleKey: 'settings.basic.language',
     descKey: 'settings.basic.languageDesc'
   },
   {
-    tabId: 'basic',
-    titleKey: 'settings.translationEngine',
-    descKey: 'settings.translationEngine'
-  },
-  {
-    tabId: 'basic',
-    titleKey: 'settings.basic.tokenManagement',
-    descKey: 'settings.basic.tokenManagementDesc'
-  },
-  {
-    tabId: 'basic',
-    titleKey: 'settings.basic.animation',
-    descKey: 'settings.basic.animationDesc'
-  },
-  {
-    tabId: 'interface',
+    tabId: 'appearance',
     titleKey: 'settings.interface.defaultPage',
     descKey: 'settings.interface.defaultPageDesc'
-  },
-  {
-    tabId: 'interface',
-    title: '播放器样式',
-    desc: '选择全屏播放界面的视觉样式'
   },
   {
     tabId: 'playback',
@@ -56,73 +42,93 @@ export const MOBILE_SETTING_SEARCH_DEFINITIONS: readonly MobileSettingSearchDefi
   },
   {
     tabId: 'playback',
+    title: '智能过渡',
+    desc: '在歌曲尾部衔接下一首，减少切歌停顿'
+  },
+  {
+    tabId: 'playback',
+    titleKey: 'settings.keepAlive.audioFocus',
+    descKey: 'settings.keepAlive.audioFocusDesc'
+  },
+  {
+    tabId: 'playback',
+    titleKey: 'settings.keepAlive.batteryOptimization',
+    descKey: 'settings.keepAlive.batteryOptimizationDesc'
+  },
+  {
+    tabId: 'playback',
+    titleKey: 'settings.keepAlive.autoStart',
+    descKey: 'settings.keepAlive.autoStartDesc'
+  },
+  {
+    tabId: 'playback',
+    titleKey: 'settings.keepAlive.notification',
+    descKey: 'settings.keepAlive.notificationDesc'
+  },
+  {
+    tabId: 'playback',
+    titleKey: 'settings.keepAlive.displayOverOtherApps',
+    descKey: 'settings.keepAlive.displayOverOtherAppsDesc'
+  },
+  {
+    tabId: 'lyrics',
     titleKey: 'settings.lyricSettings.statusBarLyrics',
     descKey: 'settings.lyricSettings.statusBarLyricsDescription'
   },
   {
-    tabId: 'playback',
+    tabId: 'lyrics',
     title: '逐字显示',
     desc: '逐字或整句显示状态栏歌词',
     targetId: 'status-bar-lyrics'
   },
   {
-    tabId: 'playback',
+    tabId: 'lyrics',
     title: '状态栏歌词位置',
     desc: '分别调整横屏与竖屏悬浮位置',
     targetId: 'status-bar-lyrics'
   },
   {
-    tabId: 'playback',
+    tabId: 'lyrics',
     title: '状态栏歌词字体',
     desc: '选择内置字体或导入 TTF/OTF',
     targetId: 'status-bar-lyrics'
   },
   {
-    tabId: 'playback',
+    tabId: 'lyrics',
     title: '状态栏歌词字号和字重',
     desc: '调整悬浮歌词大小与粗细',
     targetId: 'status-bar-lyrics'
   },
   {
-    tabId: 'playback',
+    tabId: 'lyrics',
     title: '状态栏歌词配色',
     desc: '设置已唱、当前、未唱和表面颜色',
     targetId: 'status-bar-lyrics'
   },
   {
-    tabId: 'playback',
-    title: '智能过渡',
-    desc: '在歌曲尾部衔接下一首，减少切歌停顿'
+    tabId: 'ai',
+    title: '歌词隐喻分析',
+    desc: '配置你自己的 AI 服务密钥,解读歌词隐喻'
   },
   {
-    tabId: 'keepAlive',
-    titleKey: 'settings.keepAlive.audioFocus',
-    descKey: 'settings.keepAlive.audioFocusDesc'
+    tabId: 'ai',
+    title: 'AI 服务商',
+    desc: '配置 API 密钥与模型'
   },
   {
-    tabId: 'keepAlive',
-    titleKey: 'settings.keepAlive.batteryOptimization',
-    descKey: 'settings.keepAlive.batteryOptimizationDesc'
+    tabId: 'advanced',
+    titleKey: 'settings.translationEngine',
+    descKey: 'settings.translationEngine'
   },
   {
-    tabId: 'keepAlive',
-    titleKey: 'settings.keepAlive.autoStart',
-    descKey: 'settings.keepAlive.autoStartDesc'
+    tabId: 'advanced',
+    titleKey: 'settings.basic.tokenManagement',
+    descKey: 'settings.basic.tokenManagementDesc'
   },
   {
-    tabId: 'keepAlive',
-    titleKey: 'settings.keepAlive.notification',
-    descKey: 'settings.keepAlive.notificationDesc'
-  },
-  {
-    tabId: 'keepAlive',
-    titleKey: 'settings.keepAlive.displayOverOtherApps',
-    descKey: 'settings.keepAlive.displayOverOtherAppsDesc'
-  },
-  {
-    tabId: 'keepAlive',
-    titleKey: 'settings.keepAlive.appDetails',
-    descKey: 'settings.keepAlive.appDetailsDesc'
+    tabId: 'advanced',
+    titleKey: 'settings.basic.animation',
+    descKey: 'settings.basic.animationDesc'
   },
   {
     tabId: 'about',

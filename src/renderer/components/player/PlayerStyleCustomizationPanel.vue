@@ -96,6 +96,19 @@
       <!-- 默认样式专属:封面/歌名作者/背景预设 -->
       <template v-if="styleKey === 'default'">
         <label class="setting-row">
+          <span>{{ tr('player.styleCustomization.showArtwork', '显示封面') }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: local.showArtwork !== false }"
+            role="switch"
+            :aria-checked="local.showArtwork !== false"
+            @click.prevent="local.showArtwork = local.showArtwork === false"
+          >
+            <span></span>
+          </button>
+        </label>
+        <label class="setting-row">
           <span>{{ tr('player.styleCustomization.showTrackInfo', '封面下方显示歌名与作者') }}</span>
           <button
             type="button"
@@ -104,6 +117,19 @@
             role="switch"
             :aria-checked="local.showTrackInfo !== false"
             @click.prevent="local.showTrackInfo = local.showTrackInfo === false"
+          >
+            <span></span>
+          </button>
+        </label>
+        <label class="setting-row">
+          <span>{{ tr('player.styleCustomization.showLyricsZone', '显示歌词区域') }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: local.showLyricsZone !== false }"
+            role="switch"
+            :aria-checked="local.showLyricsZone !== false"
+            @click.prevent="local.showLyricsZone = local.showLyricsZone === false"
           >
             <span></span>
           </button>
@@ -298,38 +324,23 @@
           <span>{{ tr('player.styleCustomization.lyricRecolor', '歌词变色') }}</span>
           <input v-model="local.effectLyricColor" type="checkbox" />
         </label>
-        <label v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)" class="setting-row">
-          <span>{{ tr('player.styleCustomization.staggered', '错落') }}</span>
-          <input
-            :checked="local.effectStaggered === true"
-            type="checkbox"
-            @change="setStaggeredEffect($event)"
-          />
-        </label>
-        <label v-if="styleKey === 'eerie' || styleKey === 'smoke'" class="setting-row">
-          <span>{{ tr('player.styleCustomization.keyword', '重点字') }}</span>
-          <input
-            :checked="local.effectKeyword === true"
-            type="checkbox"
-            @change="setEerieEffect('keyword', $event)"
-          />
-        </label>
-        <label
-          v-if="
-            styleKey === 'frenzy' ||
-            styleKey === 'eerie' ||
-            styleKey === 'stage' ||
-            styleKey === 'smoke'
-          "
+        <div
+          v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)"
           class="setting-row"
         >
-          <span>{{ tr('player.styleCustomization.wordDrop', '逐字砸下') }}</span>
-          <input
-            :checked="local.effectWordDrop === true"
-            type="checkbox"
-            @change="styleKey === 'eerie' ? setEerieEffect('drop', $event) : setWordDrop($event)"
-          />
-        </label>
+          <span>{{ tr('player.styleCustomization.effectMode', '歌词字效') }}</span>
+          <div class="segmented-control three-options">
+            <button
+              v-for="mode in effectModeOptions"
+              :key="mode.value"
+              type="button"
+              :class="{ active: effectMode === mode.value }"
+              @click="setEffectMode(mode.value)"
+            >
+              {{ mode.label }}
+            </button>
+          </div>
+        </div>
       </template>
 
       <label v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)" class="setting-row">
@@ -365,9 +376,17 @@
         </button>
       </label>
 
-      <div v-if="hasStyleSpecificSettings" class="section-label">
-        {{ tr('player.styleCustomization.styleEffects', '样式参数') }}
-      </div>
+      <div v-if="hasStyleSpecificSettings" class="advanced-params">
+        <button
+          type="button"
+          class="advanced-params-toggle"
+          :aria-expanded="showAdvancedParams"
+          @click="showAdvancedParams = !showAdvancedParams"
+        >
+          <span>{{ tr('player.styleCustomization.styleEffects', '样式参数') }}</span>
+          <i :class="showAdvancedParams ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"></i>
+        </button>
+        <div v-show="showAdvancedParams" class="advanced-params-body">
       <label v-if="styleKey === 'stage'" class="range-row">
         <span>Aurora {{ local.auroraSpeed }}</span>
         <input v-model.number="local.auroraSpeed" type="range" min="0.4" max="2" step="0.1" />
@@ -576,6 +595,8 @@
             step="0.01"
         /></label>
       </template>
+        </div>
+      </div>
     </div>
   </section>
 </template>
@@ -694,35 +715,36 @@ function checked(event: Event): boolean {
   return (event.target as HTMLInputElement).checked;
 }
 
-function setEerieEffect(effect: 'keyword' | 'drop', event: Event) {
-  const enabled = checked(event);
-  if (effect === 'keyword') {
-    local.value.effectKeyword = enabled;
-    if (enabled) {
-      local.value.effectWordDrop = false;
-      local.value.effectStaggered = false;
-    }
-  } else {
-    local.value.effectWordDrop = enabled;
-    if (enabled) {
-      local.value.effectKeyword = false;
-      local.value.effectStaggered = false;
-    }
+const showAdvancedParams = ref(false);
+
+const effectModeOptions = computed(() => {
+  const options: Array<{ value: string; label: string }> = [
+    { value: 'none', label: tr('player.styleCustomization.effectNone', '无') }
+  ];
+  if (['frenzy', 'eerie', 'stage', 'smoke'].includes(props.styleKey)) {
+    options.push({ value: 'drop', label: tr('player.styleCustomization.wordDrop', '逐字砸下') });
+    options.push({ value: 'staggered', label: tr('player.styleCustomization.staggered', '错落') });
   }
-}
+  if (['eerie', 'smoke'].includes(props.styleKey)) {
+    options.push({ value: 'keyword', label: tr('player.styleCustomization.keyword', '重点字') });
+  }
+  return options;
+});
 
-function setWordDrop(event: Event) {
-  const enabled = checked(event);
-  local.value.effectWordDrop = enabled;
-  if (enabled) local.value.effectStaggered = false;
-}
+const effectMode = computed(() =>
+  local.value.effectWordDrop
+    ? 'drop'
+    : local.value.effectStaggered
+      ? 'staggered'
+      : local.value.effectKeyword
+        ? 'keyword'
+        : 'none'
+);
 
-function setStaggeredEffect(event: Event) {
-  const enabled = checked(event);
-  local.value.effectStaggered = enabled;
-  if (!enabled) return;
-  local.value.effectWordDrop = false;
-  if (props.styleKey === 'eerie') local.value.effectKeyword = false;
+function setEffectMode(mode: string) {
+  local.value.effectWordDrop = mode === 'drop';
+  local.value.effectStaggered = mode === 'staggered';
+  local.value.effectKeyword = mode === 'keyword';
 }
 
 function importBackground(event: Event) {
@@ -820,6 +842,20 @@ function importFont() {
   gap: 12px;
   margin-top: 16px;
 }
+.advanced-params-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .section-label {
   margin-top: 6px;
   padding-top: 10px;

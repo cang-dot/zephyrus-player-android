@@ -50,10 +50,10 @@
           @pointerup.stop="cancelCoverLongPress"
           @pointercancel.stop="cancelCoverLongPress"
         />
-        <div ref="miniSongTextRef" class="mini-song-text">
+        <div class="mini-song-text">
           <span class="mini-song-title">{{ playMusic.name }}</span>
           <span class="mini-song-separator">-</span>
-          <span ref="miniSongArtistRef" class="mini-song-artist">
+          <span class="mini-song-artist">
             <template v-for="(artists, artistsindex) in artistList" :key="artistsindex">
               {{ artists.name }}{{ artistsindex < artistList.length - 1 ? ' / ' : '' }}
             </template>
@@ -119,9 +119,6 @@ const emit = defineEmits<{
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
 const idleCollapsed = ref(false);
-const miniSongTextRef = ref<HTMLElement | null>(null);
-const miniSongArtistRef = ref<HTMLElement | null>(null);
-const miniArtistOffset = ref(0);
 const playerTransition = useMobilePlayerTransition();
 const miniUsesMenuAnchor = computed(
   () =>
@@ -198,7 +195,6 @@ const openMusicFull = async (initialVelocity = 0) => {
   playerOpenFrame = 0;
   idleCollapsed.value = false;
   transitionStartedWithMenu.value = shouldShowMobileMenu.value;
-  captureMiniIdentityLayout();
   capturePlayerTransitionOrigin();
   playerTransition.setDragging(Math.max(0.016, playerTransition.progress.value));
   playerStore.setMusicFull(true);
@@ -284,30 +280,16 @@ const miniSwipeStyle = computed(() => ({
   '--mini-swipe-glow-x': `${miniSwipeOffset.value * 0.7}px`,
   '--mini-swipe-glow-opacity': String(miniSwipeProgress.value * 0.32)
 }));
+// 转场期迷你行原地不动,与大封面/大标题(p=0 起精确覆盖迷你行位置)交叉淡化:
+// 封面与歌名作为同一元素连续变形飞向全屏布局,不再飞向底部控制区交接。
+// 淡出窗口与全屏层 reveal(--player-surface-reveal 起点 0.035)同步。
 const miniSongInfoStyle = computed(() => {
   const progress = playerTransition.progress.value;
-  const source = playerTransition.identitySourceRect.value;
-  const safeBottom = Number.parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom') || '0'
-  );
-  const controlHeight = window.matchMedia('(orientation: landscape)').matches ? 154 : 168;
-  const targetLeft = 30;
-  const targetTop = window.innerHeight - safeBottom - 14 - controlHeight + 12;
-  const translateX = source ? (targetLeft - source.left) * progress : 0;
-  const translateY = source ? (targetTop - source.top) * progress : -progress * 82;
-  const handoff = Math.min(1, Math.max(0, (progress - 0.86) / 0.12));
+  if (progress <= 0.001) return {} as CSSProperties;
   return {
-    '--identity-cover-size': `${40 + progress * 4}px`,
-    '--identity-cover-radius': `${20 - progress * 10}px`,
-    '--identity-cover-border': `${4 * (1 - progress)}px`,
-    '--identity-progress': String(progress),
-    '--identity-artist-shift-x': `${-miniArtistOffset.value * progress}px`,
-    '--identity-artist-shift-y': `${progress * 17}px`,
-    opacity: String(1 - handoff),
-    transform: `translate3d(${translateX}px, ${translateY}px, 0)`,
-    transformOrigin: 'left center',
-    zIndex: 4,
-    pointerEvents: progress > 0.1 ? ('none' as const) : undefined
+    opacity: String(1 - Math.min(1, Math.max(0, (progress - 0.035) / 0.265))),
+    pointerEvents: 'none' as const,
+    zIndex: 4
   } as CSSProperties;
 });
 const miniPlaybackControlsStyle = computed<CSSProperties>(() => ({
@@ -324,13 +306,6 @@ let miniPointerId: number | null = null;
 let verticalSamples: Array<{ y: number; time: number }> = [];
 let miniSwipeTimer: ReturnType<typeof setTimeout> | undefined;
 let miniClickTimer: ReturnType<typeof setTimeout> | undefined;
-
-const captureMiniIdentityLayout = () => {
-  const textRect = miniSongTextRef.value?.getBoundingClientRect();
-  const artistRect = miniSongArtistRef.value?.getBoundingClientRect();
-  if (!textRect || !artistRect) return;
-  miniArtistOffset.value = Math.max(0, artistRect.left - textRect.left);
-};
 
 const setMiniClickSuppressed = () => {
   suppressMiniClick.value = true;
@@ -368,7 +343,6 @@ const onMiniPointerDown = (event: PointerEvent) => {
   miniPointerStartedCollapsed = idleCollapsed.value;
   verticalSamples = [{ y: event.clientY, time: performance.now() }];
   miniLongPressTriggered = false;
-  captureMiniIdentityLayout();
   capturePlayerTransitionOrigin();
   if (idleCollapsed.value) {
     miniLongPressTimer = setTimeout(() => {

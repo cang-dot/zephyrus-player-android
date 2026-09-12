@@ -6,6 +6,10 @@ export default {
   sections: {
     basic: '基本設定',
     interface: 'インターフェース設定',
+    appearance: '外観',
+    lyrics: '歌詞とステータスバー',
+    ai: 'AI サービス',
+    advanced: '詳細設定',
     playback: '再生設定',
     application: 'アプリケーション設定',
     network: 'ネットワーク設定',

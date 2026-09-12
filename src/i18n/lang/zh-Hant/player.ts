@@ -143,6 +143,8 @@ export default {
     styleDefaultFont: '樣式預設',
     fontWeight: '字體粗細',
     importFont: '匯入字體',
+    showArtwork: '顯示封面',
+    showLyricsZone: '顯示歌詞區域',
     showTrackInfo: '封面下方顯示歌名與作者',
     artworkSize: '封面大小',
     artworkAlign: '封面對齊',

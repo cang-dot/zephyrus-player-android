@@ -55,13 +55,20 @@
         <i class="ri-loader-4-line"></i>
       </div>
 
-      <main class="player-content">
+      <main
+        class="player-content"
+        :class="{
+          'no-artwork-zone': !showArtwork && !showTrackInfo,
+          'no-lyrics-zone': !showLyricsZone
+        }"
+      >
         <div
-          v-if="!lyricsExpanded || lyricsSwipePreview"
+          v-if="(!lyricsExpanded || lyricsSwipePreview) && (showArtwork || showTrackInfo)"
           class="artwork-zone"
           :style="[lyricsUnderlayStyle, artworkZoneStyle]"
         >
           <div
+            v-if="showArtwork"
             class="artwork-preview-trigger"
             @click.capture="handleArtworkClick"
             @pointerdown="coverGesture.onPointerDown"
@@ -78,14 +85,19 @@
               :style="[artworkTransitionStyle, artworkFrameStyle]"
             />
           </div>
-          <div v-if="showTrackInfo" class="artwork-info">
+          <div
+            v-if="showTrackInfo"
+            ref="artworkInfoRef"
+            class="artwork-info"
+            :style="infoTransitionStyle"
+          >
             <strong class="artwork-info-name">{{ playMusic?.name || 'Zephyrus' }}</strong>
             <span v-if="artistText" class="artwork-info-artist">{{ artistText }}</span>
           </div>
         </div>
 
         <div
-          v-if="!config.hideLyrics"
+          v-if="!config.hideLyrics && showLyricsZone"
           class="lyrics-zone"
           :class="{ expanded: lyricsExpanded || lyricsSwipePreview }"
           :style="lyricsSwipePreview ? lyricsOverlayStyle : undefined"
@@ -180,7 +192,9 @@ const { styleVars, customBackgroundActive, background, backgroundColor } =
 const { config: styleCustom } = useStyleCustomConfig('default');
 
 // ── 默认样式自定义项(封面大小/对齐、歌名作者、背景预设) ──
+const showArtwork = computed(() => styleCustom.value.showArtwork !== false);
 const showTrackInfo = computed(() => styleCustom.value.showTrackInfo !== false);
+const showLyricsZone = computed(() => styleCustom.value.showLyricsZone !== false);
 const artworkSize = computed(() =>
   Math.min(100, Math.max(60, Number(styleCustom.value.artworkSize) || 88))
 );
@@ -349,6 +363,27 @@ const artworkTransitionStyle = computed(() => {
   return {
     transform: `translate3d(${(sourceX - targetX) * (1 - progress)}px, ${(sourceY - targetY) * (1 - progress)}px, 0) scale(${scale + (1 - scale) * progress})`,
     transformOrigin: 'center center',
+    willChange: 'transform'
+  };
+});
+const artworkInfoRef = ref<HTMLElement | null>(null);
+// 大标题从迷你栏歌曲信息行位置 FLIP 反演入场:p=0(及 reveal 起点附近)精确
+// 覆盖迷你文字,与大封面共同构成"同一元素变形"的连续路径,随弹簧飞向目标位
+const infoTransitionStyle = computed(() => {
+  const source = playerTransition.identitySourceRect.value;
+  const progress = playerTransition.progress.value;
+  const el = artworkInfoRef.value;
+  if (!source || !el || progress >= 0.999) return {};
+  const target = el.getBoundingClientRect();
+  if (!target.width || !target.height) return {};
+  // 迷你行由 40px 方形封面撑高,文字起点在封面右侧(40px + 间距)
+  const textLeft = source.left + source.height + 12;
+  const scale = Math.min(1, (source.height * 0.62) / Math.max(1, target.height));
+  const dx = textLeft - target.left;
+  const dy = source.top + source.height / 2 - (target.top + target.height / 2);
+  return {
+    transform: `translate3d(${dx * (1 - progress)}px, ${dy * (1 - progress)}px, 0) scale(${scale + (1 - scale) * progress})`,
+    transformOrigin: 'left center',
     willChange: 'transform'
   };
 });
@@ -571,6 +606,12 @@ onBeforeUnmount(() => {
   grid-template-rows: minmax(0, 1fr);
 }
 
+/* 封面区或歌词区被显示开关关闭后,剩余区域独占整列高度 */
+.player-content.no-artwork-zone,
+.player-content.no-lyrics-zone {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .lyrics-expanded .artwork-zone {
   opacity: 0;
   transform: translate3d(0, -18px, 0) scale(0.98);
@@ -578,7 +619,8 @@ onBeforeUnmount(() => {
 }
 
 .shared-controls-spacer {
-  height: calc(168px + var(--safe-area-inset-bottom, 0px));
+  /* default 样式底面信息行收成按钮行,占位与 BottomSurface 的 controlHeight(150)一致 */
+  height: calc(150px + var(--safe-area-inset-bottom, 0px));
   transition: height 350ms cubic-bezier(0.32, 0.72, 0, 1);
   pointer-events: none;
 }

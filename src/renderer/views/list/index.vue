@@ -355,29 +355,20 @@ const handleItemClick = (item: any) => {
 </script>
 
 <style lang="scss" scoped>
+/* 与主页/发现/我的页一致:min-height 流式内容,滚动统一交由 .pager-page */
 .list-page {
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   position: relative;
-  overflow: hidden;
   background: var(--cover-bg, var(--m-bg, var(--bg-color, #f5f1eb)));
 }
 
 .list-scroll {
   width: 100%;
-  height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
   padding-top: var(--mobile-topbar-inset);
   padding-bottom: calc(
     var(--mobile-dock-content-inset, 132px) + var(--safe-area-inset-bottom, 0px) + 180px
   );
-  &::-webkit-scrollbar {
-    display: none;
-  }
 }
 
 .playlist-source-tabs {

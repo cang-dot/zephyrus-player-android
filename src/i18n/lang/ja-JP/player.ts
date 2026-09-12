@@ -145,6 +145,8 @@ export default {
     styleDefaultFont: 'スタイル標準',
     fontWeight: 'フォントの太さ',
     importFont: 'フォントを読み込む',
+    showArtwork: 'カバーを表示',
+    showLyricsZone: '歌詞エリアを表示',
     showTrackInfo: 'カバー下に曲名とアーティストを表示',
     artworkSize: 'カバーサイズ',
     artworkAlign: 'カバーの配置',
