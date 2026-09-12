@@ -124,7 +124,10 @@
               @dragstart.prevent
               @contextmenu.prevent
               class="glow-nav-item"
-              :class="{ active: isActive(item.path) }"
+              :class="{
+                active: isActive(item.path),
+                'hover-pick': navGlow.enlarged && pickPath === item.path
+              }"
               @click="prepareMenuTransition(item.path)"
             >
               <div
@@ -1036,10 +1039,9 @@ const onNavPointerMove = (event: PointerEvent) => {
     }
   }
   event.preventDefault();
-  // 辉光放大并完全跟手;离开原项范围后原项自然回到未选中态
+  // 辉光放大并横向完全跟手;y 轴锁定在起始项中心线高度
   navGlow.enlarged = true;
   navGlow.x = event.clientX - navGlowNavLeft;
-  navGlow.y = event.clientY - navGlowNavTop;
   pickPath.value = navNearestItemPath(event.clientX, event.clientY);
 };
 
@@ -1679,6 +1681,12 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 .mobile-glow-nav.nav-dragging .glow-item-label {
   display: none;
+}
+
+/* 拖动中辉光悬停到的项:复用 hover 动画(轻微放大+颜色加深) */
+.mobile-glow-nav.nav-dragging .glow-nav-item.hover-pick .glow-item-icon {
+  color: var(--cover-text-primary, rgba(255, 255, 255, 0.8));
+  transform: scale(1.05);
 }
 
 /* 内容容器 */
