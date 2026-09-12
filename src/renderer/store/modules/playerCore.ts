@@ -746,6 +746,9 @@ export const usePlayerCoreStore = defineStore(
       playAudio,
       handlePause,
       checkPlaybackState,
+      markUserPlayIntent: (value: boolean) => {
+        userPlayIntent.value = value;
+      },
       reparseCurrentSong,
       initializePlayState,
       refreshAudioDevices,

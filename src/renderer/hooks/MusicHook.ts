@@ -640,14 +640,46 @@ const setupAudioListeners = () => {
   };
 };
 
-export const play = () => {
+export const play = async () => {
   const currentSound = audioService.getCurrentSound();
-  if (currentSound) {
-    audioService.cancelSeekRecovery();
-    currentSound.play();
-    // 在播放时也进行状态检测，防止URL已过期导致无声
-    getPlayerStore().checkPlaybackState(getPlayerStore().playMusic);
+  const store = getPlayerStore();
+  if (!currentSound) return;
+
+  audioService.cancelSeekRecovery();
+
+  // 播放前对账:查原生真实播放状态。后台期间 service 被杀/播放器进 error 态时,
+  // JS 镜像仍是"暂停可恢复",直接 resume 会静默失效——走完整重建(刷新 URL)
+  const token = (currentSound as any).token as string | undefined;
+  const nativeState = token
+    ? (window.AndroidNative?.nativeAudioGetPlaybackState as
+        | ((t: string) => string)
+        | undefined)?.(token)
+    : undefined;
+  let nativeJson: { state?: string; playing?: boolean } | null = null;
+  try {
+    nativeJson = nativeState ? JSON.parse(nativeState) : null;
+  } catch {
+    nativeJson = null;
   }
+
+  const nativeBroken =
+    !nativeJson ||
+    nativeJson.state === 'unloaded' ||
+    nativeJson.state === 'error' ||
+    (nativeJson.playing === false && nativeJson.state === 'idle');
+
+  if (nativeBroken) {
+    // 完整重建:新 token + 新 prepare,恢复 URL 过期等后台劣化
+    await store.handlePlayMusic(store.playMusic, true);
+    return;
+  }
+
+  currentSound.play();
+  // 在播放时也进行状态检测，防止URL已过期导致无声
+  store.checkPlaybackState(store.playMusic);
+  // 布防重试门槛:恢复播放即视为用户意图,checkPlaybackState 的静默失败
+  // 重试此前被 handlePause 置 false 的 userPlayIntent 卡死
+  store.markUserPlayIntent(true);
 };
 
 export const pause = () => {

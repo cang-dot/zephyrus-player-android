@@ -124,10 +124,22 @@ export class NativeAudioPlayer {
   }
 
   private handleNativeEvent(payload: NativeAudioEvent): void {
+    // 状态对账:progress 事件(100ms 一次,暂停时也发)携带原生真实 playing,
+    // 与 JS 镜像比对——后台期间焦点抢占/系统暂停产生的事件可能丢失,镜像脱节后
+    // 播放/暂停按钮会按过期状态路由。不一致时补发对应事件,audioService 的
+    // 监听会把 playerStore.isPlay 校正回真实值。必须在更新镜像前捕获旧值。
+    const nativePlaying = typeof payload.playing === 'boolean' ? payload.playing : null;
+    const wasPlaying = this.isPlaying;
+
     if (typeof payload.positionMs === 'number') this.position = payload.positionMs / 1000;
     if (typeof payload.durationMs === 'number') this.totalDuration = payload.durationMs / 1000;
-    if (typeof payload.playing === 'boolean') this.isPlaying = payload.playing;
+    if (nativePlaying !== null) this.isPlaying = nativePlaying;
     if (payload.state) this.playState = payload.state as typeof this.playState;
+
+    // 仅 progress 做对账;离散事件(play/pause/end)本身就是真实变更
+    if (payload.event === 'progress' && nativePlaying !== null && nativePlaying !== wasPlaying) {
+      this.emit(nativePlaying ? 'play' : 'pause');
+    }
 
     switch (payload.event) {
       case 'load':

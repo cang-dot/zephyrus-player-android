@@ -51,7 +51,6 @@ public final class NativeAudioEngine {
     private boolean resumeAfterFocusGain;
     private boolean keepAudioFocus;
     private float focusMultiplier = 1f;
-    private final Runnable reclaimAudioFocusRunnable = this::reclaimAudioFocus;
     @Nullable private volatile Slot current;
     @Nullable private volatile Slot pending;
     private float masterVolume = 1f;
@@ -116,7 +115,6 @@ public final class NativeAudioEngine {
             keepAudioFocus = enabled;
             if (enabled && current != null && current.player.isPlaying()) requestAudioFocus();
             if (!enabled) {
-                handler.removeCallbacks(reclaimAudioFocusRunnable);
                 if (focusMultiplier != 1f) {
                     focusMultiplier = 1f;
                     updateSlotVolumes();
@@ -170,7 +168,12 @@ public final class NativeAudioEngine {
     public void play(String token) {
         handler.post(() -> {
             Slot slot = slots.get(token);
-            if (slot == null) return;
+            if (slot == null) {
+                // service 重建/释放后 token 失效:此前静默 no-op,JS 状态永不修复。
+                // 发 error 让调用方走完整重建路径
+                emitError(token, new IllegalStateException("playback session expired"));
+                return;
+            }
             if (current != slot) {
                 Slot previous = current;
                 if (previous != null) {
@@ -198,6 +201,13 @@ public final class NativeAudioEngine {
         if (!requestAudioFocus()) {
             emitError(slot.token, new IllegalStateException("无法获得音频焦点"));
             return;
+        }
+        // 播放器进 IDLE/ENDED(如暂停中流 URL 过期触发 onPlayerError)后
+        // play() 是 no-op 且永不自愈,需重新 prepare 挂回 MediaItem;
+        // 若 URL 已过期,prepare 后会触发 onPlayerError,由 JS 侧看门狗刷新 URL 重建
+        int playbackState = slot.player.getPlaybackState();
+        if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
+            slot.player.prepare();
         }
         slot.player.setVolume(0f);
         slot.player.play();
@@ -546,7 +556,6 @@ public final class NativeAudioEngine {
     private void handleAudioFocusChange(int change) {
         handler.post(() -> {
             if (change == AudioManager.AUDIOFOCUS_GAIN) {
-                handler.removeCallbacks(reclaimAudioFocusRunnable);
                 hasAudioFocus = true;
                 focusMultiplier = 1f;
                 updateSlotVolumes();
@@ -564,11 +573,12 @@ public final class NativeAudioEngine {
             }
             hasAudioFocus = false;
             if (keepAudioFocus) {
-                // 后台保活：视频/录音类应用抢焦点时不暂停播放，
-                // 稍后重新申请焦点，夺回媒体通知与锁屏控制权。
+                // 后台保活：其它应用(如抖音)请求焦点时不暂停、也不抢回焦点——
+                // 反复 requestAudioFocus 会触发对方 app 的焦点丢失响应，强制其降声/暂停。
+                // 两个 app 同时出声、音量一致；焦点的重新协商留给用户在 Zephyrus
+                // 内的主动播放操作(startSlot 会重新 requestAudioFocus)。
                 focusMultiplier = 1f;
                 resumeAfterFocusGain = false;
-                scheduleAudioFocusReclaim();
                 return;
             }
             resumeAfterFocusGain = change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT &&
@@ -580,22 +590,6 @@ public final class NativeAudioEngine {
                 resumeAfterFocusGain = false;
             }
         });
-    }
-
-    private void scheduleAudioFocusReclaim() {
-        handler.removeCallbacks(reclaimAudioFocusRunnable);
-        handler.postDelayed(reclaimAudioFocusRunnable, 400);
-    }
-
-    private void reclaimAudioFocus() {
-        if (released || !keepAudioFocus || hasAudioFocus) return;
-        boolean playing = (current != null && current.player.isPlaying()) ||
-                (pending != null && pending.player.isPlaying());
-        if (!playing) return;
-        requestAudioFocus();
-        if (!hasAudioFocus) {
-            handler.postDelayed(reclaimAudioFocusRunnable, 1200);
-        }
     }
 
     private void updateSlotVolumes() {
