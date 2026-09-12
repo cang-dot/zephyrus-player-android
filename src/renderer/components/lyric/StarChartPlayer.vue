@@ -891,17 +891,53 @@ onBeforeUnmount(() => {
 
 @media (orientation: landscape) {
   .star-chart-player {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: clamp(28px, 8vw, 140px);
-    padding: 0 clamp(28px, 8vw, 140px);
+    display: block;
   }
 
+  /* 横屏九宫格:圆盘中心锚到对应边/角(left/top 百分比),边缘位露出一半 */
   .chart-shell {
+    position: absolute;
+    left: var(--star-anchor-x, 50%);
+    top: var(--star-anchor-y, 50%);
+    transform: translate(-50%, -50%);
     width: min(82vh, 680px);
-    flex: 0 0 min(82vh, 680px);
-    transform: translateY(0);
+    transition:
+      left 460ms cubic-bezier(0.32, 0.72, 0, 1),
+      top 460ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .star-position-left .chart-shell {
+    --star-anchor-x: 0%;
+  }
+  .star-position-right .chart-shell {
+    --star-anchor-x: 100%;
+  }
+  .star-position-top .chart-shell {
+    --star-anchor-y: 0%;
+  }
+  .star-position-bottom .chart-shell {
+    --star-anchor-y: 100%;
+  }
+  .star-position-top-left .chart-shell {
+    --star-anchor-x: 0%;
+    --star-anchor-y: 0%;
+  }
+  .star-position-top-right .chart-shell {
+    --star-anchor-x: 100%;
+    --star-anchor-y: 0%;
+  }
+  .star-position-bottom-left .chart-shell {
+    --star-anchor-x: 0%;
+    --star-anchor-y: 100%;
+  }
+  .star-position-bottom-right .chart-shell {
+    --star-anchor-x: 100%;
+    --star-anchor-y: 100%;
+  }
+
+  /* 横屏下隐藏竖屏居中块(只保留定位块) */
+  .lyric-block:not(.landscape-lyric) {
+    display: none;
   }
 
   .chart-shell .lyric-block {
@@ -919,7 +955,7 @@ onBeforeUnmount(() => {
     padding: 0;
   }
 
-  /* 星盘在右半 → 歌词移到左半 */
+  /* 星盘右(右上/右下)→ 歌词左 */
   .star-position-right .landscape-lyric.lyric-block,
   .star-position-top-right .landscape-lyric.lyric-block,
   .star-position-bottom-right .landscape-lyric.lyric-block {
@@ -927,20 +963,13 @@ onBeforeUnmount(() => {
     left: clamp(28px, 6vw, 90px);
   }
 
-  /* 星盘在上 → 歌词落下;星盘在下 → 歌词升起 */
+  /* 星盘上/下/中 → 歌词居中 */
+  .star-position-center .landscape-lyric.lyric-block,
   .star-position-top .landscape-lyric.lyric-block,
-  .star-position-top-left .landscape-lyric.lyric-block,
-  .star-position-top-right .landscape-lyric.lyric-block {
-    top: auto;
-    bottom: clamp(28px, 9dvh, 140px);
-    transform: none;
-  }
-
-  .star-position-bottom .landscape-lyric.lyric-block,
-  .star-position-bottom-left .landscape-lyric.lyric-block,
-  .star-position-bottom-right .landscape-lyric.lyric-block {
-    top: clamp(28px, 9dvh, 140px);
-    transform: none;
+  .star-position-bottom .landscape-lyric.lyric-block {
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
   }
 
   .landscape-lyric .lyric-block-canvas {
