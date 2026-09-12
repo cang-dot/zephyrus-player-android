@@ -1086,6 +1086,43 @@ const onNavClickCapture = (event: MouseEvent) => {
   releaseNavSuppress();
 };
 
+// 轻点切页:辉光从旧项中心滑向新项中心,到位后收拢,与拖选共用同一浮层
+watch(
+  () => route.path,
+  (newPath, oldPath) => {
+    if (playerStore.musicFull || navDragging || !oldPath || newPath === oldPath) return;
+    const nav = document.querySelector<HTMLElement>('.mobile-glow-nav');
+    if (!nav) return;
+    const oldEl = nav.querySelector(`[data-path="${CSS.escape(oldPath)}"]`);
+    const newEl = nav.querySelector(`[data-path="${CSS.escape(newPath)}"]`);
+    if (!oldEl || !newEl) return;
+    const navRect = nav.getBoundingClientRect();
+    const o = oldEl.getBoundingClientRect();
+    const n = newEl.getBoundingClientRect();
+    navGlowNavLeft = navRect.left;
+    navGlowNavTop = navRect.top;
+    if (navGlowHideTimer) {
+      clearTimeout(navGlowHideTimer);
+      navGlowHideTimer = undefined;
+    }
+    navGlow.visible = true;
+    navGlow.closing = false;
+    navGlow.enlarged = false;
+    navGlow.w = o.width;
+    navGlow.h = o.height;
+    navGlow.x = o.left + o.width / 2 - navRect.left;
+    navGlow.y = o.top + o.height / 2 - navRect.top;
+    // 双 rAF:确保起点先渲染一帧,transform 过渡才会从旧位置滑向新位置
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        navGlow.x = n.left + n.width / 2 - navRect.left;
+        navGlow.y = n.top + n.height / 2 - navRect.top;
+        navGlowHideTimer = setTimeout(() => hideNavGlow(), 320);
+      })
+    );
+  }
+);
+
 // 提供是否有安全区域
 provide('hasSafeArea', props.isPhone);
 
@@ -1714,9 +1751,11 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* hover 态 */
-.glow-nav-item:hover:not(.active) .glow-item-icon {
-  color: var(--cover-text-primary, rgba(255, 255, 255, 0.8));
-  transform: scale(1.05);
+@media (hover: hover) {
+  .glow-nav-item:hover:not(.active) .glow-item-icon {
+    color: var(--cover-text-primary, rgba(255, 255, 255, 0.8));
+    transform: scale(1.05);
+  }
 }
 
 /* 文字标签 — 仅选中时弹出 */
