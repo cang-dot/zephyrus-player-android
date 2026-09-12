@@ -107,7 +107,7 @@
           }"
         >
           <div
-            class="mobile-glow-nav"
+            class="mobile-glow-nav nav-gesture-zone"
             @pointerdown="onNavPointerDown"
             @pointermove="onNavPointerMove"
             @pointerup="onNavPointerUp"
@@ -892,22 +892,34 @@ const navItemPathFromPoint = (x: number, y: number): string => {
   return el?.dataset.path || '';
 };
 
+let navAxisLocked = false;
+
 const onNavPointerDown = (event: PointerEvent) => {
   if (!event.isPrimary || playerStore.musicFull) return;
+  // 阻断 WebView 把按住演化成长按菜单/链接拖拽(click 合成不受影响)
+  event.preventDefault();
   navPickPointerId = event.pointerId;
   navPickStartX = event.clientX;
   navPickStartY = event.clientY;
-  navPicking = false;
-  navSuppressClick = false;
+  navPicking = true;
+  navAxisLocked = false;
+  navSuppressClick = true;
+  // 按住即辉光扩大,预览按住的项
+  navPickPath.value = navItemPathFromPoint(event.clientX, event.clientY);
 };
 
 const onNavPointerMove = (event: PointerEvent) => {
   if (event.pointerId !== navPickPointerId) return;
   const dx = event.clientX - navPickStartX;
   const dy = event.clientY - navPickStartY;
-  if (!navPicking && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
-    navPicking = true;
-    navSuppressClick = true;
+  if (!navAxisLocked && Math.max(Math.abs(dx), Math.abs(dy)) >= 8) {
+    navAxisLocked = true;
+    if (Math.abs(dy) > Math.abs(dx)) {
+      // 纵向意图:取消预览,把纵向手势交回 Dock(上滑打开播放界面)
+      navPicking = false;
+      navPickPath.value = '';
+      return;
+    }
     const host = event.currentTarget as HTMLElement;
     if (!host.hasPointerCapture(event.pointerId)) {
       try {
@@ -917,8 +929,9 @@ const onNavPointerMove = (event: PointerEvent) => {
       }
     }
   }
-  if (!navPicking) return;
+  if (!navPicking || !navAxisLocked) return;
   event.preventDefault();
+  // 辉光跟手:悬停到哪个图标就预览哪个项(不切页)
   navPickPath.value = navItemPathFromPoint(event.clientX, event.clientY);
 };
 
@@ -939,7 +952,11 @@ const onNavPointerRelease = (event: PointerEvent) => {
 };
 
 const onNavPointerUp = (event: PointerEvent) => onNavPointerRelease(event);
-const onNavPointerCancel = (event: PointerEvent) => onNavPointerRelease(event);
+const onNavPointerCancel = (event: PointerEvent) => {
+  if (event.pointerId !== navPickPointerId) return;
+  navAxisLocked = false;
+  onNavPointerRelease(event);
+};
 
 const onNavClickCapture = (event: MouseEvent) => {
   if (!navSuppressClick) return;
@@ -1429,6 +1446,11 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* 导航容器 — 毛玻璃胶囊（降低高度） */
+
+.nav-gesture-zone {
+  touch-action: none;
+}
+
 .mobile-glow-nav {
   display: flex;
   align-items: center;

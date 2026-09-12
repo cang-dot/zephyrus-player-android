@@ -47,9 +47,9 @@
           lazy
           preview-disabled
           @click.stop="onMiniCoverClick"
-          @pointerdown.stop="startCoverLongPress"
-          @pointerup.stop="cancelCoverLongPress"
-          @pointercancel.stop="cancelCoverLongPress"
+          @pointerdown="startCoverLongPress"
+          @pointerup="cancelCoverLongPress"
+          @pointercancel="cancelCoverLongPress"
         />
         <div class="mini-song-text">
           <span class="mini-song-title">{{ playMusic.name }}</span>
@@ -221,6 +221,7 @@ const setMusicFull = () => {
 };
 
 const onMiniSongInfoClick = () => {
+  if (playerStore.musicFull) return;
   if (miniLongPressTriggered) {
     miniLongPressTriggered = false;
     return;
@@ -232,6 +233,7 @@ const onMiniSongInfoClick = () => {
 };
 
 const onMiniCoverClick = () => {
+  if (playerStore.musicFull) return;
   idleCollapsed.value = false;
   setMusicFull();
 };
@@ -391,6 +393,7 @@ const onMiniPointerDown = (event: PointerEvent) => {
 
 const onMiniPointerMove = (event: PointerEvent) => {
   if (!miniPointerActive || miniSwipeSwitching.value || event.pointerId !== miniPointerId) return;
+  if (coverPreviewVisible.value) return;
   const deltaX = event.clientX - miniPointerStartX;
   const deltaY = event.clientY - miniPointerStartY;
 
@@ -544,6 +547,12 @@ const onMiniPointerUp = (event: PointerEvent) => {
   } else {
     if (playerTransition.state.value === 'dragging') playerTransition.close();
     finishMiniSwipeAnimation();
+    // 收起态轻点 = 直接打开播放界面(pointerup 路径,不依赖 click 合成)
+    if (miniPointerStartedCollapsed && !miniLongPressTriggered && !coverPreviewVisible.value) {
+      setMiniClickSuppressed();
+      idleCollapsed.value = false;
+      setMusicFull();
+    }
   }
 };
 
@@ -572,7 +581,7 @@ watch(
   () => playerStore.musicFull,
   (isFull) => {
     if (isFull) {
-      idleCollapsed.value = false;
+      // 不在此处重置 idleCollapsed:收起态打开→退出应还原为收起态
       if (playerTransition.state.value === 'idle' && playerTransition.progress.value < 1) {
         playerTransition.setDragging(Math.max(0.016, playerTransition.progress.value));
         playerTransition.animateTo(1, 1);
