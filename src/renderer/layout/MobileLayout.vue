@@ -1718,27 +1718,23 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   transform: none;
 }
 
-/* 拖动中辉光悬停到的项:复用 hover 动画(轻微放大+颜色加深) */
-.mobile-glow-nav.nav-dragging .glow-nav-item.hover-pick .glow-item-icon {
-  color: var(--cover-text-primary, rgba(255, 255, 255, 0.8));
-  /* 名称向右展开时图标同步左移让位,整体重心保持在辉光中心 */
-  transform: translateX(-3px) scale(1.05);
+/* 拖动中辉光悬停到的项:布局与选中态一致(label 入流、项加宽),
+   由 item 自带的 padding/min-width 弹簧过渡平滑展开;图标颜色加深 */
+.mobile-glow-nav.nav-dragging .glow-nav-item.hover-pick {
+  padding: 0 14px;
+  min-width: auto;
 }
 
-/* 拖动悬停的名称脱离文档流悬浮在图标右侧:弹出/收回不推移任何布局 */
+.mobile-glow-nav.nav-dragging .glow-nav-item.hover-pick .glow-item-icon {
+  color: var(--cover-text-primary, rgba(255, 255, 255, 0.8));
+  transform: scale(1.05);
+}
+
+/* 玻璃辉光上的文字:主文字色保证对比,略升字重与字距提升可读性 */
 .mobile-glow-nav.nav-dragging .glow-item-label {
-  position: absolute;
-  left: calc(100% - 5px);
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  max-width: none;
-  /* 玻璃辉光上的文字:主文字色保证对比,略升字重与字距提升可读性 */
   color: var(--cover-text-primary, var(--m-text-primary, #2c2c2c));
   font-weight: 650;
   letter-spacing: 0.02em;
-  pointer-events: none;
 }
 
 /* 内容容器 */
@@ -1782,6 +1778,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   color: var(--accent-color, #fff);
   white-space: nowrap;
   letter-spacing: 0.01em;
+  max-width: 120px;
+  overflow: hidden;
 }
 
 /* 文字弹入弹出动画 */
