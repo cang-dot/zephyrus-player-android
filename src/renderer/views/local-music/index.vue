@@ -23,6 +23,22 @@
         class="tab-bar-glow"
       />
 
+      <!-- 网页版:本地文件导入(会话级,免扫描) -->
+      <div v-if="isWebBrowser" class="web-import-bar">
+        <button class="web-import-btn" @click="audioFileInput?.click()">
+          <i class="ri-upload-2-line" />
+          导入音乐文件
+        </button>
+        <input
+          ref="audioFileInput"
+          type="file"
+          accept="audio/*"
+          multiple
+          hidden
+          @change="onAudioFilePick"
+        />
+      </div>
+
       <!-- Scanning progress -->
       <div v-if="localMusicStore.scanning" class="scan-progress">
         <n-spin size="small" />
@@ -36,9 +52,9 @@
       >
         <i class="ri-folder-music-fill empty-icon" />
         <p class="empty-text">{{ t('localMusic.emptyState') }}</p>
-        <button class="empty-action" @click="handleAddFolder">
-          <i class="ri-folder-add-line" />
-          {{ t('localMusic.scanFolder') }}
+        <button class="empty-action" @click="isWebBrowser ? audioFileInput?.click() : handleAddFolder()">
+          <i :class="isWebBrowser ? 'ri-upload-2-line' : 'ri-folder-add-line'" />
+          {{ isWebBrowser ? '导入音乐文件' : t('localMusic.scanFolder') }}
         </button>
       </div>
 
@@ -218,24 +234,6 @@
               >
                 <i class="ri-folder-add-line text-lg" />
               </button>
-
-              <button
-                v-if="isWebBrowser"
-                class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-all"
-                :title="t('localMusic.importFiles') || '导入音频文件'"
-                @click="audioFileInput?.click()"
-              >
-                <i class="ri-music-add-line text-lg" />
-              </button>
-              <input
-                v-if="isWebBrowser"
-                ref="audioFileInput"
-                type="file"
-                accept="audio/*"
-                multiple
-                hidden
-                @change="onAudioFilePick"
-              />
 
               <button
                 class="action-btn-icon w-10 h-10 rounded-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-all"
@@ -494,6 +492,7 @@ import type { LocalMusicEntry } from '@/types/localMusic';
 import type { SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
 import type { SortKey } from '@/utils/localMusicUtils';
+import { parseAudioFileMetadata } from '@/utils/audioMetadata';
 import { filterByKeyword, sortMusicList, toSongResult } from '@/utils/localMusicUtils';
 
 const route = useRoute();
@@ -518,18 +517,19 @@ const sessionFiles = ref<Set<string>>(new Set());
 
 const AUDIO_EXT_RE = /\.(mp3|flac|wav|ogg|m4a|aac|opus|wma|ape)$/i;
 
-/** 把本地文件加入列表并返回 SongResult(会话级 blob URL) */
+/** 把本地文件加入列表并返回 SongResult(会话级 blob URL,ID3 元数据解析) */
 async function importAudioFile(file: File): Promise<SongResult | null> {
   if (!AUDIO_EXT_RE.test(file.name)) return null;
+  const meta = await parseAudioFileMetadata(file);
   const filePath = `web-session://${file.name}`;
   const entry: any = {
     id: `web_${file.name}_${file.size}`,
     filePath,
-    title: file.name.replace(/\.[^.]+$/, ''),
-    artist: '',
-    album: '',
-    duration: 0,
-    cover: null,
+    title: meta.title || file.name.replace(/\.[^.]+$/, ''),
+    artist: meta.artist,
+    album: meta.album,
+    duration: meta.duration,
+    cover: meta.cover,
     lyrics: null,
     fileSize: file.size,
     modifiedTime: file.lastModified,
@@ -538,7 +538,10 @@ async function importAudioFile(file: File): Promise<SongResult | null> {
   };
   await localMusicStore.applyEntryMetadata(JSON.stringify(entry));
   sessionFiles.value.add(entry.id);
-  return toSongResult(entry);
+  const song = toSongResult(entry);
+  // blob 直链:绕过 playerCore 的 local:// 改写,网页版可直接播放
+  song.playMusicUrl = entry.fileUrl;
+  return song;
 }
 
 const onDragOver = (e: DragEvent) => {
@@ -627,6 +630,17 @@ const syncTopbarActions = () => {
     title: t('localMusic.title') || '本地音乐',
     subtitle: `${localMusicStore.musicList.length} 首`
   });
+  if (isWebBrowser) {
+    // 网页版:扫描/文件夹管理不可用,顶栏只保留导入入口
+    registerMobileTopbarAction({
+      id: `${topbarActionPrefix}-import`,
+      routePath: route.path,
+      label: '导入音乐文件',
+      icon: 'ri-upload-2-line',
+      run: () => audioFileInput?.click()
+    });
+    return;
+  }
   registerMobileTopbarAction({
     id: `${topbarActionPrefix}-scan`,
     routePath: route.path,
@@ -1467,5 +1481,34 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   border-radius: 18px;
   background: color-mix(in srgb, var(--accent-color, #888) 8%, transparent);
   pointer-events: none;
+}
+
+/* ── 网页版导入入口 ── */
+.web-import-bar {
+  display: flex;
+  padding: 0 16px 12px;
+}
+
+.web-import-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 1px solid rgba(var(--accent-color-rgb, 136, 136, 136), 0.35);
+  border-radius: 9999px;
+  background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.1);
+  color: var(--m-text-primary, #2c2c2c);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+}
+
+.web-import-btn:active {
+  transform: scale(0.96);
+}
+
+.web-import-btn i {
+  color: var(--accent-color, #888);
 }
 </style>
