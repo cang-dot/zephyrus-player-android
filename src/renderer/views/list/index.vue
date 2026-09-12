@@ -127,8 +127,8 @@ const isLoading = computed(() => {
 });
 
 const playlistSourceTabs = computed(() => [
-  { key: 'all', label: '全部' },
-  { key: 'local', label: '本地' },
+  { key: 'all', label: '全部', platform: 'all' },
+  { key: 'local', label: '本地', platform: 'local' },
   { key: 'netease', label: '网易云', platform: 'netease' },
   { key: 'qq', label: 'QQ 音乐', platform: 'qq' },
   { key: 'kugou', label: '酷狗音乐', platform: 'kugou' }

@@ -106,23 +106,35 @@
             'has-player-slot': isPlay && miniPlayerIdleCollapsed
           }"
         >
-          <div class="mobile-glow-nav">
+          <div
+            class="mobile-glow-nav"
+            @pointerdown="onNavPointerDown"
+            @pointermove="onNavPointerMove"
+            @pointerup="onNavPointerUp"
+            @pointercancel="onNavPointerCancel"
+            @click.capture="onNavClickCapture"
+          >
             <router-link
               v-for="item in menuStore.menus"
               :key="item.path"
               :to="menuTarget(item.path)"
+              :data-path="item.path"
               class="glow-nav-item"
-              :class="{ active: isActive(item.path) }"
+              :class="{ active: isActive(item.path), picking: pickPath === item.path }"
               @click="prepareMenuTransition(item.path)"
             >
               <div
                 class="glow-item-radial"
-                :style="isActive(item.path) ? { background: activeGlowStyle } : {}"
+                :style="
+                  isActive(item.path) || pickPath === item.path
+                    ? { background: activeGlowStyle }
+                    : {}
+                "
               />
               <div class="glow-item-content">
                 <i class="iconfont glow-item-icon" :class="item.meta.icon" />
                 <Transition name="label-pop">
-                  <span v-if="isActive(item.path)" class="glow-item-label">{{
+                  <span v-if="isActive(item.path) || pickPath === item.path" class="glow-item-label">{{
                     t(item.meta.title)
                   }}</span>
                 </Transition>
@@ -861,6 +873,78 @@ const onDockClickCapture = (event: MouseEvent) => {
   event.preventDefault();
   event.stopPropagation();
   suppressDockClick = false;
+};
+
+// ── 底栏辉光跟手横滑选页:按住图标后横向滑动,辉光随手指悬停预览目标项
+//    (呈现该项的打开态样式但不切页),松手辉光收拢并切换到对应页面。 ──
+const pickPath = ref('');
+let navPickPointerId: number | null = null;
+let navPickStartX = 0;
+let navPickStartY = 0;
+let navPicking = false;
+let navSuppressClick = false;
+
+const navItemPathFromPoint = (x: number, y: number): string => {
+  const el = document
+    .elementFromPoint(x, y)
+    ?.closest('.glow-nav-item') as HTMLElement | null;
+  return el?.dataset.path || '';
+};
+
+const onNavPointerDown = (event: PointerEvent) => {
+  if (!event.isPrimary || playerStore.musicFull) return;
+  navPickPointerId = event.pointerId;
+  navPickStartX = event.clientX;
+  navPickStartY = event.clientY;
+  navPicking = false;
+  navSuppressClick = false;
+};
+
+const onNavPointerMove = (event: PointerEvent) => {
+  if (event.pointerId !== navPickPointerId) return;
+  const dx = event.clientX - navPickStartX;
+  const dy = event.clientY - navPickStartY;
+  if (!navPicking && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
+    navPicking = true;
+    navSuppressClick = true;
+    const host = event.currentTarget as HTMLElement;
+    if (!host.hasPointerCapture(event.pointerId)) {
+      try {
+        host.setPointerCapture(event.pointerId);
+      } catch {
+        // 指针可能已释放
+      }
+    }
+  }
+  if (!navPicking) return;
+  event.preventDefault();
+  navPickPath.value = navItemPathFromPoint(event.clientX, event.clientY);
+};
+
+const onNavPointerRelease = (event: PointerEvent) => {
+  if (event.pointerId !== navPickPointerId) return;
+  const host = event.currentTarget as HTMLElement;
+  if (host.hasPointerCapture(event.pointerId)) host.releasePointerCapture(event.pointerId);
+  const target = navPickPath.value;
+  navPickPointerId = null;
+  if (navPicking) {
+    navPicking = false;
+    navPickPath.value = '';
+    if (target && !isActive(target)) {
+      prepareMenuTransition(target);
+      router.push(target);
+    }
+  }
+};
+
+const onNavPointerUp = (event: PointerEvent) => onNavPointerRelease(event);
+const onNavPointerCancel = (event: PointerEvent) => onNavPointerRelease(event);
+
+const onNavClickCapture = (event: MouseEvent) => {
+  if (!navSuppressClick) return;
+  event.preventDefault();
+  event.stopPropagation();
+  navSuppressClick = false;
 };
 
 // 提供是否有安全区域

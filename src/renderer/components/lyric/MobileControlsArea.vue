@@ -766,6 +766,14 @@ const handleThumbTouchEnd = () => {
   }
 }
 
+.player-info-row,
+.progress-container,
+.control-buttons {
+  /* 控制面内容随整层统一揭示(单一窗口,无分段接力) */
+  opacity: clamp(0, calc((var(--player-open-progress, 1) - 0.3) * 2.5), 1);
+  transform: translate3d(0, calc((1 - var(--player-open-progress, 1)) * 14px), 0);
+}
+
 .player-info-row {
   display: flex;
   min-height: 48px;

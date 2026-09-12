@@ -756,10 +756,10 @@ const activeSearchTypeLabel = computed(
     ''
 );
 
-// 筛选胶囊:{搜索内容} · {来源平台 logo};全部/all 不显示 logo
+// 筛选胶囊:{搜索内容} · {来源平台 logo};全部显示九宫格 logo
 const activeSearchPlatform = computed(() => {
   const source = searchStore.searchSource;
-  if (!source || source === 'all') return '';
+  if (!source) return '';
   return platformForSearchSource(source);
 });
 const HISTORY_KEY = 'mobile_search_history';
@@ -1317,6 +1317,7 @@ const platformForSearchSource = (source: string) => {
   if (source === 'cross-joox') return 'joox';
   if (source === 'cross-kugou') return 'kugou';
   if (source === 'cross-spotify') return 'spotify';
+  if (source === 'server' || source === 'local' || source === 'all') return source;
   return '';
 };
 
@@ -1733,9 +1734,9 @@ const handleSearchSubmit = () => {
   top: 0;
   right: 0;
   left: auto;
-  width: 92px;
-  min-width: 92px;
-  max-width: 92px;
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
   max-height: none;
   transform-origin: top right;
 
@@ -1984,9 +1985,9 @@ const handleSearchSubmit = () => {
 .search-filter-trigger {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   min-height: 40px;
-  padding-inline: 10px;
+  padding-inline: 7px;
   font-size: 12px;
 
   .search-filter-dot {

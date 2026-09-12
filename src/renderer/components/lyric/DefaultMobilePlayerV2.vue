@@ -97,9 +97,12 @@
         </div>
 
         <div
-          v-if="!config.hideLyrics && showLyricsZone"
+          v-if="!config.hideLyrics"
           class="lyrics-zone"
-          :class="{ expanded: lyricsExpanded || lyricsSwipePreview }"
+          :class="{
+            expanded: lyricsExpanded || lyricsSwipePreview,
+            'zone-hidden': !showLyricsZone && !(lyricsExpanded || lyricsSwipePreview)
+          }"
           :style="lyricsSwipePreview ? lyricsOverlayStyle : undefined"
           @dblclick.stop="toggleLyricsExpanded"
         >
@@ -584,6 +587,11 @@ onBeforeUnmount(() => {
   grid-row: 1 / -1;
   /* 横屏单行多列:歌词展开时也要横跨全部列,否则仍被锁在右列与封面同屏 */
   grid-column: 1 / -1;
+}
+
+/* 关闭「显示歌词区域」只收起主界面歌词区,手势唤起的滚动歌词页不受影响 */
+.lyrics-zone.zone-hidden {
+  display: none;
 }
 
 .default-scrolling-lyrics {

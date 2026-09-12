@@ -45,7 +45,7 @@
           class="mini-song-cover"
           lazy
           preview-disabled
-          @click.stop="setMusicFull"
+          @click.stop="onMiniCoverClick"
           @pointerdown.stop="startCoverLongPress"
           @pointerup.stop="cancelCoverLongPress"
           @pointercancel.stop="cancelCoverLongPress"
@@ -193,7 +193,6 @@ const openMusicFull = async (initialVelocity = 0) => {
   const generation = ++playerOpenGeneration;
   if (playerOpenFrame) cancelAnimationFrame(playerOpenFrame);
   playerOpenFrame = 0;
-  idleCollapsed.value = false;
   transitionStartedWithMenu.value = shouldShowMobileMenu.value;
   capturePlayerTransitionOrigin();
   playerTransition.setDragging(Math.max(0.016, playerTransition.progress.value));
@@ -210,7 +209,6 @@ const openMusicFull = async (initialVelocity = 0) => {
 
 // 设置 musicFull
 const setMusicFull = () => {
-  idleCollapsed.value = false;
   if (playerStore.musicFull) {
     playerOpenGeneration += 1;
     if (playerOpenFrame) cancelAnimationFrame(playerOpenFrame);
@@ -226,11 +224,16 @@ const onMiniSongInfoClick = () => {
     miniLongPressTriggered = false;
     return;
   }
+  // 收起态点击一律忽略:防误触(打开走长按/上滑),避免点击展开与打开手势打架
   if (miniPointerStartedCollapsed || idleCollapsed.value) {
     miniPointerStartedCollapsed = false;
-    idleCollapsed.value = false;
     return;
   }
+  setMusicFull();
+};
+
+const onMiniCoverClick = () => {
+  if (idleCollapsed.value) return;
   setMusicFull();
 };
 
@@ -350,7 +353,6 @@ const onMiniPointerDown = (event: PointerEvent) => {
       miniLongPressTriggered = true;
       setMiniClickSuppressed();
       openMusicFull(1.1);
-      idleCollapsed.value = false;
       if (navigator.vibrate) navigator.vibrate(8);
     }, 520);
   }
@@ -487,9 +489,14 @@ const onMiniPointerUp = (event: PointerEvent) => {
     (shouldShowMobileMenu.value || deltaY < 0);
   if (commit) switchTrackWithAnimation(deltaX < 0 ? 'left' : 'right');
   else if (verticalCommit && miniPointerStartedCollapsed && deltaY < 0) {
+    // 收起态上滑:先弹性拉伸回迷你条(封面滑到最左、信息控件展开),
+    // 拉伸大体到位后由全屏 morph 接管完成打开
     idleCollapsed.value = false;
     if (navigator.vibrate) navigator.vibrate(8);
     finishMiniSwipeAnimation();
+    window.setTimeout(() => {
+      if (!playerStore.musicFull && !idleCollapsed.value) openMusicFull(1.0);
+    }, 380);
   } else if (verticalCommit && !miniPointerStartedCollapsed && deltaY < 0) {
     idleCollapsed.value = false;
     const velocity =

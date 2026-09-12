@@ -172,7 +172,9 @@ const SOURCE_LABEL_PLATFORM: Record<string, string> = {
   'cross-qq': 'qq',
   'cross-kugou': 'kugou',
   'cross-joox': 'joox',
-  'cross-spotify': 'spotify'
+  'cross-spotify': 'spotify',
+  server: 'server',
+  local: 'local'
 };
 
 function sourceLabelPlatform(songId: string | number): string {
