@@ -477,7 +477,6 @@ async function renderChart() {
   if (!context) return;
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   chartSize = size;
-  chartPoints.length = 0;
 
   try {
     const image = await loadImage(coverUrl.value);
@@ -505,7 +504,7 @@ function stopSpectrumLoop() {
 
 function renderSpectrumFrame() {
   const canvas = chartCanvas.value;
-  if (!canvas || !chartPoints.length || !isVisible.value || showFullLyrics.value || !pageVisible) {
+  if (!canvas || !trailStars.length || !isVisible.value || showFullLyrics.value || !pageVisible) {
     stopSpectrumLoop();
     return;
   }
@@ -626,15 +625,13 @@ onBeforeUnmount(() => {
   height: min(44dvh, 400px);
   max-width: 76%;
   padding: 26px 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   color: inherit;
   border: 0;
   background: transparent;
   cursor: pointer;
-  /* 竖排右起:一列一句,书法字帖式文本块 */
+  /* 竖排右起:块级子元素自然从右向左成列(不能用 flex——其主轴随书写模式翻转为纵向) */
   writing-mode: vertical-rl;
+  text-align: justify;
 }
 
 .landscape-lyric {
@@ -850,11 +847,9 @@ onBeforeUnmount(() => {
   }
 
   .landscape-lyric.lyric-block {
-    display: flex;
     width: min(30vw, 380px);
     height: auto;
     max-height: 64dvh;
-    justify-content: center;
     padding: 20px 24px;
   }
 
