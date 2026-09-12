@@ -1721,13 +1721,14 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 /* 拖动中辉光悬停到的项:复用 hover 动画(轻微放大+颜色加深) */
 .mobile-glow-nav.nav-dragging .glow-nav-item.hover-pick .glow-item-icon {
   color: var(--cover-text-primary, rgba(255, 255, 255, 0.8));
-  transform: scale(1.05);
+  /* 名称向右展开时图标同步左移让位,整体重心保持在辉光中心 */
+  transform: translateX(-3px) scale(1.05);
 }
 
 /* 拖动悬停的名称脱离文档流悬浮在图标右侧:弹出/收回不推移任何布局 */
 .mobile-glow-nav.nav-dragging .glow-item-label {
   position: absolute;
-  left: calc(100% - 2px);
+  left: calc(100% - 5px);
   top: 0;
   bottom: 0;
   display: flex;
