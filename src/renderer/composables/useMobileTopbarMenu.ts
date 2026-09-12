@@ -4,6 +4,8 @@ export interface MobileTopbarOption {
   key: string | number;
   label: string;
   icon?: string;
+  /** 平台标识:有值时在 label 后渲染对应平台 SVG logo(PlatformLogo) */
+  platform?: string;
 }
 
 export interface MobileTopbarGroup {
