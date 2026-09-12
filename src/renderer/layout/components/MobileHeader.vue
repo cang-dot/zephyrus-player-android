@@ -149,7 +149,9 @@
       class="topbar-pill topbar-search-pill"
       :class="{
         'search-circle': usesWideDetailTopbar,
-        'assist-expanded': showSearchAssist,
+        'assist-expanded':
+          showSearchAssist &&
+          (isSettingsPage || isSearchResultPage || !!searchStore.searchValue.trim()),
         'filter-expanded': isSearchPage && searchTypeExpanded
       }"
       :style="searchPillStyle"
