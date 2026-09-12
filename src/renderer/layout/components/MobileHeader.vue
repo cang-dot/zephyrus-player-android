@@ -1460,12 +1460,6 @@ const handleSearchSubmit = () => {
     z-index: 100150;
   }
 
-.floating-topbar.is-search {
-  /* 搜索框有 max-width 上限后,剩余空隙均匀分布,返回/搜索钮保持贴边;
-     筛选面板向下拉伸时按钮顶部对齐输入行,不被遮挡 */
-  justify-content: space-between;
-  align-items: flex-start;
-}
 
   &.player-surface-active > .topbar-back,
   &.player-surface-active > .topbar-morph-anchor,
@@ -2008,22 +2002,20 @@ const handleSearchSubmit = () => {
 }
 
 .search-filter-content {
-  display: grid;
-  max-height: none;
-  grid-template-rows: 0fr;
-  padding: 0 6px;
+  max-height: 0;
+  opacity: 0;
   overflow: hidden;
+  padding: 0 6px;
   transition:
-    grid-template-rows 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    max-height 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 180ms ease,
     padding 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
 
-  .topbar-search-pill.filter-expanded & {
-    max-height: none;
-    grid-template-rows: 1fr;
-    overflow: hidden;
-    padding: 6px;
-  }
+.topbar-search-pill.filter-expanded .search-filter-content {
+  max-height: 420px;
+  opacity: 1;
+  padding: 6px;
 }
 
 .search-filter-grid {
@@ -2613,7 +2605,6 @@ const handleSearchSubmit = () => {
 }
 
 .floating-topbar.is-search.assist-expanded > .topbar-search-pill {
-  margin-right: -80px;
   z-index: 310;
 }
 
@@ -3099,5 +3090,11 @@ const handleSearchSubmit = () => {
   .topbar-create-anchor > .topbar-action-pill {
     transition-duration: 100ms;
   }
+}
+
+/* 搜索页顶栏:空隙均匀分布、按钮顶部对齐(筛选面板向下拉伸时不遮挡按钮) */
+.floating-topbar.is-search {
+  justify-content: space-between;
+  align-items: flex-start;
 }
 </style>
