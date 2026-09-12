@@ -108,6 +108,7 @@
         >
           <div
             class="mobile-glow-nav nav-gesture-zone"
+            :class="{ 'nav-dragging': navGlow.enlarged }"
             @pointerdown="onNavPointerDown"
             @pointermove="onNavPointerMove"
             @pointerup="onNavPointerUp"
@@ -123,26 +124,32 @@
               @dragstart.prevent
               @contextmenu.prevent
               class="glow-nav-item"
-              :class="{ active: isActive(item.path), picking: pickPath === item.path }"
+              :class="{ active: isActive(item.path) }"
               @click="prepareMenuTransition(item.path)"
             >
               <div
                 class="glow-item-radial"
-                :style="
-                  isActive(item.path) || pickPath === item.path
-                    ? { background: activeGlowStyle }
-                    : {}
-                "
+                :style="isActive(item.path) ? { background: activeGlowStyle } : {}"
               />
               <div class="glow-item-content">
                 <i class="iconfont glow-item-icon" :class="item.meta.icon" />
                 <Transition name="label-pop">
-                  <span v-if="isActive(item.path) || pickPath === item.path" class="glow-item-label">{{
+                  <span v-if="isActive(item.path)" class="glow-item-label">{{
                     t(item.meta.title)
                   }}</span>
                 </Transition>
               </div>
             </router-link>
+
+            <!-- 按住/横拖的跟手辉光:单个浮层,从按住项亮起,拖动后放大并完全跟随手指 -->
+            <div
+              v-if="navGlow.visible"
+              class="nav-glow-float"
+              :class="{ dragging: navGlow.enlarged, closing: navGlow.closing }"
+              :style="navGlowFloatStyle"
+            >
+              <div class="nav-glow-float-inner" :style="{ background: activeGlowStyle }" />
+            </div>
           </div>
         </div>
       </Transition>
@@ -176,6 +183,7 @@ import {
   onBeforeUnmount,
   onMounted,
   provide,
+  reactive,
   readonly,
   ref,
   watch
@@ -881,6 +889,61 @@ const onDockClickCapture = (event: MouseEvent) => {
 // ── 底栏辉光跟手横滑选页:按住图标辉光立即扩大,横拖时辉光跟手预览目标项
 //    (不切页),松手提交;普通轻点完全交给 router-link 原生行为。 ──
 const pickPath = ref('');
+// 跟手辉光浮层:按下出现在原项,横拖后放大并 1:1 跟随手指,松手收拢
+const navGlow = reactive({
+  visible: false,
+  enlarged: false,
+  closing: false,
+  x: 0,
+  y: 0,
+  w: 64,
+  h: 40
+});
+let navGlowHideTimer: ReturnType<typeof setTimeout> | undefined;
+let navGlowNavLeft = 0;
+let navGlowNavTop = 0;
+
+const navGlowFloatStyle = computed(() => ({
+  width: `${navGlow.w}px`,
+  height: `${navGlow.h}px`,
+  transform: `translate3d(${navGlow.x - navGlow.w / 2}px, ${navGlow.y - navGlow.h / 2}px, 0)`,
+  opacity: navGlow.closing ? '0' : '1'
+}));
+
+function showNavGlowAt(clientX: number, clientY: number, itemEl: HTMLElement | null) {
+  const nav = document.querySelector<HTMLElement>('.mobile-glow-nav');
+  if (!nav) return;
+  const navRect = nav.getBoundingClientRect();
+  navGlowNavLeft = navRect.left;
+  navGlowNavTop = navRect.top;
+  const rect = itemEl
+    ? itemEl.getBoundingClientRect()
+    : { left: clientX - 32, top: clientY - 20, width: 64, height: 40 };
+  if (navGlowHideTimer) {
+    clearTimeout(navGlowHideTimer);
+    navGlowHideTimer = undefined;
+  }
+  navGlow.visible = true;
+  navGlow.closing = false;
+  navGlow.enlarged = false;
+  navGlow.w = rect.width;
+  navGlow.h = rect.height;
+  navGlow.x = rect.left + rect.width / 2 - navRect.left;
+  navGlow.y = rect.top + rect.height / 2 - navRect.top;
+}
+
+function hideNavGlow() {
+  if (!navGlow.visible) return;
+  navGlow.closing = true;
+  if (navGlowHideTimer) clearTimeout(navGlowHideTimer);
+  navGlowHideTimer = setTimeout(() => {
+    navGlow.visible = false;
+    navGlow.closing = false;
+    navGlow.enlarged = false;
+    navGlowHideTimer = undefined;
+  }, 220);
+}
+
 let navPickPointerId: number | null = null;
 let navPickStartX = 0;
 let navPickStartY = 0;
@@ -939,8 +1002,12 @@ const onNavPointerDown = (event: PointerEvent) => {
   navPickStartX = event.clientX;
   navPickStartY = event.clientY;
   navDragging = false;
-  // 按住即辉光扩大,预览按住的项;click 保持放行,轻点仍走 router-link
-  pickPath.value = navItemPathFromPoint(event.clientX, event.clientY);
+  // 按住即在该项亮起辉光;click 保持放行,轻点仍走 router-link
+  const itemEl = document
+    .elementFromPoint(event.clientX, event.clientY)
+    ?.closest('.glow-nav-item') as HTMLElement | null;
+  pickPath.value = itemEl?.dataset.path || '';
+  showNavGlowAt(event.clientX, event.clientY, itemEl);
 };
 
 const onNavPointerMove = (event: PointerEvent) => {
@@ -953,6 +1020,7 @@ const onNavPointerMove = (event: PointerEvent) => {
       // 纵向意图:取消预览,交回 Dock(上滑打开播放界面);click 不拦
       navPickPointerId = null;
       pickPath.value = '';
+      hideNavGlow();
       return;
     }
     // 明确横向:进入拖选,拦下合成 click,改由 pointerup 提交
@@ -968,6 +1036,10 @@ const onNavPointerMove = (event: PointerEvent) => {
     }
   }
   event.preventDefault();
+  // 辉光放大并完全跟手;离开原项范围后原项自然回到未选中态
+  navGlow.enlarged = true;
+  navGlow.x = event.clientX - navGlowNavLeft;
+  navGlow.y = event.clientY - navGlowNavTop;
   pickPath.value = navNearestItemPath(event.clientX, event.clientY);
 };
 
@@ -980,14 +1052,17 @@ const onNavPointerRelease = (event: PointerEvent) => {
     navDragging = false;
     const target = pickPath.value;
     pickPath.value = '';
+    navGlow.enlarged = false;
+    hideNavGlow();
     if (target && !isActive(target)) {
       prepareMenuTransition(target);
       router.push(menuTarget(target));
     }
     scheduleNavSuppressReset();
   } else {
-    // 未进入拖选:清预览,放行 router-link 原生 click
+    // 未进入拖选:收拢辉光,放行 router-link 原生 click
     pickPath.value = '';
+    hideNavGlow();
   }
 };
 
@@ -997,6 +1072,7 @@ const onNavPointerCancel = (event: PointerEvent) => {
   navPickPointerId = null;
   navDragging = false;
   pickPath.value = '';
+  hideNavGlow();
 };
 
 const onNavClickCapture = (event: MouseEvent) => {
@@ -1557,15 +1633,52 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   transform: scale(1.1);
 }
 
-/* 按住/横拖预览态:辉光比 active 更大,松手收拢 */
-.glow-nav-item.picking .glow-item-radial {
-  opacity: 1;
-  transform: scale(1.18);
+/* 按住/横拖的跟手辉光浮层:外层 1:1 跟手(拖动时无位移过渡),内层负责放大过渡 */
+.nav-glow-float {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  transition:
+    opacity 0.22s ease,
+    transform 0.28s $spring;
+  will-change: transform;
 }
 
-.glow-nav-item.picking .glow-item-icon {
-  color: var(--accent-color, #fff);
-  transform: scale(1.12);
+.nav-glow-float.dragging {
+  transition: opacity 0.2s ease;
+}
+
+.nav-glow-float.closing {
+  opacity: 0;
+}
+
+.nav-glow-float-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  transform: scale(1);
+  transition: transform 0.26s $spring;
+}
+
+.nav-glow-float.dragging .nav-glow-float-inner {
+  transform: scale(1.16);
+}
+
+/* 拖动期间:各项(含当前页)回到未选中态,辉光完全由浮动层承载 */
+.mobile-glow-nav.nav-dragging .glow-nav-item.active .glow-item-radial {
+  opacity: 0;
+}
+
+.mobile-glow-nav.nav-dragging .glow-nav-item.active .glow-item-icon {
+  color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
+  transform: none;
+}
+
+.mobile-glow-nav.nav-dragging .glow-item-label {
+  display: none;
 }
 
 /* 内容容器 */
