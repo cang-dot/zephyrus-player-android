@@ -137,9 +137,11 @@
               <div class="glow-item-content">
                 <i class="iconfont glow-item-icon" :class="item.meta.icon" />
                 <Transition name="label-pop">
-                  <span v-if="isActive(item.path)" class="glow-item-label">{{
-                    t(item.meta.title)
-                  }}</span>
+                  <span
+                    v-if="(isActive(item.path) && !navGlow.enlarged) || pickPath === item.path"
+                    class="glow-item-label"
+                    >{{ t(item.meta.title) }}</span
+                  >
                 </Transition>
               </div>
             </router-link>
@@ -1677,10 +1679,6 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 .mobile-glow-nav.nav-dragging .glow-nav-item.active .glow-item-icon {
   color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
   transform: none;
-}
-
-.mobile-glow-nav.nav-dragging .glow-item-label {
-  display: none;
 }
 
 /* 拖动中辉光悬停到的项:复用 hover 动画(轻微放大+颜色加深) */
