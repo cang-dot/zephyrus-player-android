@@ -51,7 +51,10 @@
             v-show="!showFullLyrics || lyricsSwipePreview"
             ref="chartFrame"
             class="chart-shell"
-            :class="{ 'is-playing': isPlaying, 'is-climax': styleEngine.isInClimax }"
+            :class="[
+              { 'is-playing': isPlaying, 'is-climax': styleEngine.isInClimax },
+              `star-position-${starPosition}`
+            ]"
             :style="lyricsUnderlayStyle"
           >
             <div
@@ -65,40 +68,37 @@
               <canvas ref="chartCanvas" class="chart-canvas" />
             </div>
 
-            <transition name="star-chart-content" mode="out-in">
-              <button
-                :key="lyricBlockStart"
-                type="button"
-                class="lyric-block no-toggle"
-                aria-label="打开滚动歌词"
-                @click.stop="openLyricsAnimated"
+            <button
+              :key="lyricBlockStart"
+              type="button"
+              class="lyric-block no-toggle"
+              aria-label="打开滚动歌词"
+              @click.stop="openLyricsAnimated"
+            >
+              <span
+                v-for="(line, i) in lyricBlockLines"
+                :key="`l${i}`"
+                class="lyric-block-line"
+                >{{ line }}</span
               >
-                <span
-                  v-for="(line, i) in lyricBlockLines"
-                  :key="`l${i}`"
-                  class="lyric-block-line"
-                  >{{ line }}</span
-                >
-                <span
-                  v-for="(line, i) in lyricBlockTranslations"
-                  :key="`t${i}`"
-                  class="lyric-block-line lyric-block-translation"
-                  >{{ line }}</span
-                >
-              </button>
-            </transition>
+              <span
+                v-for="(line, i) in lyricBlockTranslations"
+                :key="`t${i}`"
+                class="lyric-block-line lyric-block-translation"
+                >{{ line }}</span
+              >
+            </button>
           </main>
         </transition>
 
-        <transition name="star-chart-content">
-          <button
-            v-show="!showFullLyrics || lyricsSwipePreview"
-            type="button"
-            class="landscape-lyric lyric-block no-toggle"
-            aria-label="打开滚动歌词"
-            @click.stop="openLyricsAnimated"
-            :style="lyricsUnderlayStyle"
-          >
+        <button
+          v-show="!showFullLyrics || lyricsSwipePreview"
+          type="button"
+          class="landscape-lyric lyric-block no-toggle"
+          aria-label="打开滚动歌词"
+          @click.stop="openLyricsAnimated"
+          :style="lyricsUnderlayStyle"
+        >
             <span
               v-for="(line, i) in lyricBlockLines"
               :key="`l${i}`"
@@ -110,9 +110,8 @@
               :key="`t${i}`"
               class="lyric-block-line lyric-block-translation"
               >{{ line }}</span
-            >
-          </button>
-        </transition>
+          >
+        </button>
 
         <div
           v-show="showFullLyrics || lyricsSwipePreview"
@@ -306,6 +305,21 @@ function openCoverPreview() {
 }
 // ── 楷体文本块歌词:按 N 行切块,整块竖排右起展示 ──
 const { config: starStyleCustom } = useStyleCustomConfig('starChart');
+const STAR_POSITIONS = [
+  'center',
+  'top',
+  'bottom',
+  'left',
+  'right',
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right'
+] as const;
+const starPosition = computed(() => {
+  const value = String(starStyleCustom.value.starChartPosition);
+  return (STAR_POSITIONS as readonly string[]).includes(value) ? value : 'center';
+});
 const blockLineCount = computed(() => {
   const value = Number(starStyleCustom.value.starBlockLines);
   return Number.isFinite(value) ? Math.min(6, Math.max(2, Math.round(value))) : 4;
@@ -594,7 +608,40 @@ onBeforeUnmount(() => {
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  transform: translateY(-3vh);
+  /* 九宫格位置:边缘位使圆盘一半出画(center 居中完整) */
+  --star-pos-x: 0%;
+  --star-pos-y: 0%;
+  transform: translate(var(--star-pos-x), var(--star-pos-y));
+  transition: transform 460ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.star-position-top {
+  --star-pos-y: -50%;
+}
+.star-position-bottom {
+  --star-pos-y: 50%;
+}
+.star-position-left {
+  --star-pos-x: -50%;
+}
+.star-position-right {
+  --star-pos-x: 50%;
+}
+.star-position-top-left {
+  --star-pos-x: -50%;
+  --star-pos-y: -50%;
+}
+.star-position-top-right {
+  --star-pos-x: 50%;
+  --star-pos-y: -50%;
+}
+.star-position-bottom-left {
+  --star-pos-x: -50%;
+  --star-pos-y: 50%;
+}
+.star-position-bottom-right {
+  --star-pos-x: 50%;
+  --star-pos-y: 50%;
 }
 
 .chart-rotor {

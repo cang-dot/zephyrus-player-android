@@ -40,7 +40,8 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
   },
   starChart: {
     builtinFontId: 'ma-shan-zheng',
-    starBlockLines: 4
+    starBlockLines: 4,
+    starChartPosition: 'center'
   },
   frenzy: {
     giantSize: 80,
@@ -269,6 +270,21 @@ export function resolvePlayerStyleConfig(
       Math.round(Number.isFinite(Number(config.starBlockLines)) ? Number(config.starBlockLines) : 4)
     )
   );
+  if (
+    ![
+      'center',
+      'top',
+      'bottom',
+      'left',
+      'right',
+      'top-left',
+      'top-right',
+      'bottom-left',
+      'bottom-right'
+    ].includes(String(config.starChartPosition))
+  ) {
+    config.starChartPosition = 'center';
+  }
   if (!['solid', 'gradient', 'image'].includes(config.backgroundMode)) {
     config.backgroundMode = defaults.backgroundMode;
   }
