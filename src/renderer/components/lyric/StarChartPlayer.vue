@@ -350,7 +350,8 @@ const blockLineCount = computed(() => {
  */
 // 分块输入:过滤空行(间奏占位)与制作名单行(作词/作曲/演职员表),
 // 这些行不属于演唱内容,不应出现在歌词块里
-const CREDITS_LINE_RE = /^\s*(作词|作曲|编曲|混音|母带|出品|版权|录音|人声|和声|吉他|贝斯|笛子|古筝|键盘|鼓|制作人|监制|配器|策划|文案)\s*[:：]/;
+const CREDITS_LINE_RE = /^\s*(作词|作曲|编曲|混音|母带|出品|版权|录音|人声|和声|吉他|贝斯|笛子|古筝|键盘|鼓|制作人|监制|配器|策划|文案|主唱|合成器|录音棚)\s*[:：]/;
+const CREDITS_ANYWHERE_RE = /(作词|作曲|编曲|混音|母带|出品|版权|录音棚|监制|配器|策划|文案|MIDI工程|混音\/母带)/;
 // 间奏/尾奏占位行('.' '♪' '——' 等):无演唱内容,还会以超长 duration 吞掉间奏判定
 const PLACEHOLDER_LINE_RE = /^[.。·•*※♪♫~\-—_\s]+$/;
 const chartRows = computed(() => {
@@ -358,6 +359,8 @@ const chartRows = computed(() => {
   lrcArray.value.forEach((line, idx) => {
     const text = (line?.text || '').trim();
     if (!text || PLACEHOLDER_LINE_RE.test(text) || CREDITS_LINE_RE.test(text)) return;
+    // 名单行也会写在句中(录音棚/监制：宽音studio、混音/母带/MIDI工程：李豪)
+    if (CREDITS_ANYWHERE_RE.test(text) && text.length < 30) return;
     rows.push({ idx, text });
   });
   return rows;
@@ -393,7 +396,10 @@ const lyricBreaks = computed(() => {
     if (prevLen > 0 && curLen > 0) {
       const shapeOf = (text: string): number[] => {
         const parts = text.split(/[、,，;；\s]+/).filter(Boolean);
-        return parts.length > 1 ? parts.map((part) => part.length) : [text.length];
+        if (parts.length <= 1) return [text.length];
+        // 含拉丁字母的行(外语短语)不算中文标点分组节奏
+        if (/[a-zA-Z]/.test(text)) return [text.replace(/\s+/g, '').length];
+        return parts.map((part) => part.length);
       };
       const sameShape = (a: number[], b: number[]): boolean =>
         a.length === b.length && a.every((len, gi) => Math.abs(len - b[gi]) <= 1);
