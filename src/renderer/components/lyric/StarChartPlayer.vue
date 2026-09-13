@@ -591,15 +591,13 @@ function sampleCoverTints(image: HTMLImageElement) {
 function buildStarField(size: number, seedText: string) {
   trailStars.length = 0;
   starFieldSeed = hashText(seedText) || 1;
-  const count = Math.round(Math.min(1600, Math.max(320, size * 1.4)));
-  // 尺寸基准:400px 下的观感为 1x,大圆盘星等/线宽等比放大
-  const sizeScale = Math.max(0.6, size / 400);
+  const count = Math.round(Math.min(560, Math.max(320, size * 1.25)));
   for (let i = 0; i < count; i++) {
     trailStars.push({
       orbit: 0.14 + Math.pow(seededRandom(), 0.82) * 0.6,
       angle: seededRandom() * Math.PI * 2,
       speed: 0.6 + seededRandom() * 0.8,
-      magnitude: (0.5 + seededRandom() * 1.1) * sizeScale,
+      magnitude: 0.5 + seededRandom() * 1.1,
       trail: 0.05 + seededRandom() * 0.13,
       twinkle: seededRandom() * Math.PI * 2,
       alpha: 0.35 + seededRandom() * 0.55,
@@ -658,7 +656,7 @@ function drawStarField(context: CanvasRenderingContext2D, size: number, dt: numb
       const nextY = center + Math.sin(angle) * orbitRadius;
       const fade = 1 - seg / segments;
       context.strokeStyle = `rgba(${red}, ${green}, ${blue}, ${(alpha * fade * 0.85).toFixed(3)})`;
-      context.lineWidth = star.magnitude * (0.35 + fade * 0.65) * (size / 400);
+      context.lineWidth = star.magnitude * (0.35 + fade * 0.65);
       context.beginPath();
       context.moveTo(x, y);
       context.lineTo(nextX, nextY);
@@ -668,7 +666,7 @@ function drawStarField(context: CanvasRenderingContext2D, size: number, dt: numb
     }
     context.fillStyle = `rgba(${red}, ${green}, ${blue}, ${alpha.toFixed(3)})`;
     context.beginPath();
-    context.arc(x, y, star.magnitude * 0.9 * (size / 400), 0, Math.PI * 2);
+    context.arc(x, y, star.magnitude * 0.9, 0, Math.PI * 2);
     context.fill();
   }
 }
