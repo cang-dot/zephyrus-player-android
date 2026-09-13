@@ -79,7 +79,7 @@
           type="button"
           class="lyric-block no-toggle"
           aria-label="打开滚动歌词"
-          @click.stop="openLyricsAnimated"
+          @dblclick.stop="openLyricsAnimated"
         >
           <span class="lyric-block-canvas">
             <span
@@ -102,7 +102,7 @@
           type="button"
           class="landscape-lyric lyric-block no-toggle"
           aria-label="打开滚动歌词"
-          @click.stop="openLyricsAnimated"
+          @dblclick.stop="openLyricsAnimated"
           :style="lyricsUnderlayStyle"
         >
           <span class="lyric-block-canvas">
@@ -343,10 +343,62 @@ const blockLineCount = computed(() => {
   const value = Number(starStyleCustom.value.starBlockLines);
   return Number.isFinite(value) ? Math.min(6, Math.max(2, Math.round(value))) : 4;
 });
+/**
+ * 智能分块:在固定行数上限内按语义截断——
+ * ① 间奏(行间隙 ≥2.8s)切;② 行长突变(排版格式切换)切;
+ * ③ 到达行数上限切;④ 收尾消孤行(末块单行且无强间隔则并入前块)。
+ */
+const lyricBreaks = computed(() => {
+  const lines = lrcArray.value;
+  const breaks = new Set<number>([0]);
+  const limit = blockLineCount.value;
+  let blockStart = 0;
+  for (let i = 1; i < lines.length; i++) {
+    const prev = lines[i - 1];
+    const cur = lines[i];
+    const prevEnd = (prev.startTime ?? 0) + (prev.duration ?? 0);
+    const gap = (cur.startTime ?? 0) / 1000 - prevEnd / 1000;
+    const prevLen = (prev.text || '').length;
+    const curLen = (cur.text || '').length;
+    let broke = false;
+    // ① 间奏:到下一句的空隙明显(2.8s 以上)
+    if (gap >= 2.8) broke = true;
+    // ② 排列格式突变:行长骤变(短↔长切换,如主歌短句进副歌长句)
+    else if (
+      prevLen > 0 &&
+      curLen > 0 &&
+      Math.abs(prevLen - curLen) >= 6 &&
+      Math.min(prevLen, curLen) / Math.max(prevLen, curLen) < 0.45
+    ) {
+      broke = true;
+    }
+    // ③ 行数上限
+    else if (i - blockStart >= limit) broke = true;
+    if (broke) {
+      breaks.add(i);
+      blockStart = i;
+    }
+  }
+  // ④ 消孤行:末块只有 1 行时移除其切点,并入前块
+  const starts = [...breaks].sort((a, b) => a - b);
+  if (starts.length >= 2) {
+    const last = starts[starts.length - 1];
+    if (lines.length - last === 1) {
+      const secondLast = starts[starts.length - 2];
+      // 前块已满行则保留(不再膨胀),否则吸收
+      if (last - secondLast < limit) breaks.delete(last);
+    }
+  }
+  return breaks;
+});
 const lyricBlockStart = computed(() => {
-  const index = nowIndex.value;
-  if (index < 0) return 0;
-  return Math.floor(index / blockLineCount.value) * blockLineCount.value;
+  const index = Math.max(0, nowIndex.value);
+  let start = 0;
+  for (const b of lyricBreaks.value) {
+    if (b <= index) start = b;
+    else break;
+  }
+  return start;
 });
 const lyricBlockLines = computed(() => {
   if (!lrcArray.value.length) return [songTitle.value];
