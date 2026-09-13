@@ -113,11 +113,11 @@
         </div>
         <label class="range-row">
           <span>旋转速度 ×{{ local.starSpinSpeed ?? 1 }}</span>
-          <input v-model.number="local.starSpinSpeed" type="range" min="0" max="4" step="0.25" />
+          <input v-model.number="local.starSpinSpeed" type="range" min="0" max="10" step="0.25" />
         </label>
         <label class="range-row">
           <span>圆盘大小 {{ local.starDiscSize ?? 100 }}%</span>
-          <input v-model.number="local.starDiscSize" type="range" min="30" max="250" step="5" />
+          <input v-model.number="local.starDiscSize" type="range" min="30" max="500" step="5" />
         </label>
         <label class="range-row">
           <span>文本大小 {{ local.starTextSize ?? 100 }}%</span>

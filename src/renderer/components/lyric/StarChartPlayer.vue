@@ -318,7 +318,7 @@ function openCoverPreview() {
 const { config: starStyleCustom } = useStyleCustomConfig('starChart');
 const spinSpeed = computed(() => {
   const value = Number(starStyleCustom.value.starSpinSpeed);
-  return Number.isFinite(value) && value >= 0 ? Math.min(4, value) : 1;
+  return Number.isFinite(value) && value >= 0 ? Math.min(10, value) : 1;
 });
 const discScale = computed(() => {
   const value = Number(starStyleCustom.value.starDiscSize);
