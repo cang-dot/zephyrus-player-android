@@ -350,7 +350,9 @@ const blockLineCount = computed(() => {
  */
 const lyricBreaks = computed(() => {
   const lines = lrcArray.value;
-  const breaks = new Set<number>([0]);
+  // 优先级:语义切点(间奏/格式)> 自动合并 > 行数上限。
+  // semantic 标记的切点不会被消孤行删除;行数上限只是兜底。
+  const breaks = new Map<number, 'semantic' | 'cap'>([[0, 'semantic']]);
   const limit = blockLineCount.value;
   let blockStart = 0;
   for (let i = 1; i < lines.length; i++) {
@@ -360,9 +362,9 @@ const lyricBreaks = computed(() => {
     const gap = (cur.startTime ?? 0) / 1000 - prevEnd / 1000;
     const prevLen = (prev.text || '').length;
     const curLen = (cur.text || '').length;
-    let broke = false;
+    let broke: 'semantic' | 'cap' | null = null;
     // ① 间奏:到下一句的空隙明显(2.8s 以上)
-    if (gap >= 2.8) broke = true;
+    if (gap >= 2.8) broke = 'semantic';
     // ② 排列格式突变:行内「标点分组节奏」改变。
     //    形状只对带标点的多组行有意义(xxxxxxx,xxxxxxx = [7,7]);
     //    无标点整行不参与节奏比较(行间字数差异不属格式突变)。
@@ -395,21 +397,20 @@ const lyricBreaks = computed(() => {
         if (prevStable || nextStable) broke = true;
       }
     }
-    // ③ 行数上限(独立判定,保证块不会无限膨胀)
-    if (!broke && i - blockStart >= limit) broke = true;
+    // ③ 行数上限(兜底:语义切点缺失时防止块无限膨胀)
+    if (!broke && i - blockStart >= limit) broke = 'cap';
     if (broke) {
-      breaks.add(i);
+      breaks.set(i, broke);
       blockStart = i;
     }
   }
-  // ④ 消孤行:末块只有 1 行时移除其切点,并入前块
-  const starts = [...breaks].sort((a, b) => a - b);
+  // ④ 消孤行:末块只有 1 行时并入前块——只移除行数上限产生的切点,
+  //    语义切点(间奏/格式边界)优先级更高,永不合并
+  const starts = [...breaks.keys()].sort((a, b) => a - b);
   if (starts.length >= 2) {
     const last = starts[starts.length - 1];
-    if (lines.length - last === 1) {
-      const secondLast = starts[starts.length - 2];
-      // 前块已满行则保留(不再膨胀),否则吸收
-      if (last - secondLast < limit) breaks.delete(last);
+    if (lines.length - last === 1 && breaks.get(last) === 'cap') {
+      breaks.delete(last);
     }
   }
   return breaks;
@@ -420,7 +421,7 @@ const lyricBlockStart = computed(() => {
   // 避免块边界提前越过后,下一块的首句在间奏里就冒出来
   while (index > 0 && !(lrcArray.value[index]?.text || '').trim()) index--;
   let start = 0;
-  for (const b of lyricBreaks.value) {
+  for (const b of lyricBreaks.value.keys()) {
     if (b <= index) start = b;
     else break;
   }
@@ -801,7 +802,6 @@ onBeforeUnmount(() => {
   /* 竖排右起:块级子元素自然从右向左成列(不能用 flex——其主轴随书写模式翻转为纵向) */
   writing-mode: vertical-rl;
   text-align: justify;
-  height: min(44dvh, 400px);
   max-width: 100%;
   padding: 26px 30px;
 }
@@ -822,8 +822,8 @@ onBeforeUnmount(() => {
   line-height: 2.05;
   letter-spacing: 0.16em;
   color: rgba(255, 255, 255, 0.88);
-  max-height: 100%;
-  overflow: hidden;
+  /* 长句不折列:保持一行完整,允许溢出块区域 */
+  white-space: nowrap;
   text-shadow:
     0 2px 14px #000,
     0 0 4px #000;
@@ -1101,8 +1101,6 @@ onBeforeUnmount(() => {
   }
 
   .landscape-lyric .lyric-block-canvas {
-    height: auto;
-    max-height: 62dvh;
     padding: 20px 24px;
   }
 
