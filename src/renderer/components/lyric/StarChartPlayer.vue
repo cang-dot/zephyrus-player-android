@@ -181,7 +181,7 @@ import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
-import { artistList, lrcArray, nowIndex, playMusic } from '@/hooks/MusicHook';
+import { artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { ensureFontLoaded } from '@/utils/fontLoader';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
@@ -358,7 +358,11 @@ const lyricBreaks = computed(() => {
   for (let i = 1; i < lines.length; i++) {
     const prev = lines[i - 1];
     const cur = lines[i];
-    const prevEnd = (prev.startTime ?? 0) + (prev.duration ?? 0);
+    // duration 缺失(部分 TTML/LRC 源)时退化为 startTime 差,间奏判定不失效
+    const prevEnd =
+      (prev.duration ?? 0) > 0
+        ? (prev.startTime ?? 0) + (prev.duration ?? 0)
+        : (prev.startTime ?? 0);
     const gap = (cur.startTime ?? 0) / 1000 - prevEnd / 1000;
     const prevLen = (prev.text || '').length;
     const curLen = (cur.text || '').length;
@@ -415,6 +419,24 @@ const lyricBreaks = computed(() => {
   }
   return breaks;
 });
+// 间奏/尾奏判定:当前时间已越过最近一句的结束(容差 1.2s)且下一句尚远(≥0.5s)
+const inInterlude = computed(() => {
+  if (!lrcArray.value.length) return false;
+  let lastTextIdx = Math.min(Math.max(0, nowIndex.value), lrcArray.value.length - 1);
+  while (lastTextIdx > 0 && !(lrcArray.value[lastTextIdx]?.text || '').trim()) lastTextIdx--;
+  const cur = lrcArray.value[lastTextIdx];
+  if (!cur || !(cur.text || '').trim()) return true;
+  const endedAt = ((cur.startTime ?? 0) + (cur.duration ?? 0)) / 1000;
+  let nextTextStart = Number.POSITIVE_INFINITY;
+  for (let i = lastTextIdx + 1; i < lrcArray.value.length; i++) {
+    if ((lrcArray.value[i]?.text || '').trim()) {
+      nextTextStart = (lrcArray.value[i].startTime ?? 0) / 1000;
+      break;
+    }
+  }
+  const time = nowTime.value;
+  return time > endedAt + 1.2 && time < nextTextStart - 0.5;
+});
 const lyricBlockStart = computed(() => {
   let index = Math.max(0, nowIndex.value);
   // 间奏中的空行/占位行:回退到最后一句有内容的行,
@@ -429,9 +451,20 @@ const lyricBlockStart = computed(() => {
 });
 const lyricBlockLines = computed(() => {
   if (!lrcArray.value.length) return [songTitle.value];
+  // 间奏/尾奏:整块替换为歌名
+  if (inInterlude.value) return [songTitle.value];
   const lines: string[] = [];
   const start = lyricBlockStart.value;
-  for (let i = start; i < start + blockLineCount.value && i < lrcArray.value.length; i++) {
+  // 窗口止于下一语义/兜底切点:块按切点原样呈现(可短于/长于行数上限),
+  // 绝不把切点之后的内容追加进当前块
+  let end = Math.min(start + blockLineCount.value + 4, lrcArray.value.length);
+  for (const b of lyricBreaks.value.keys()) {
+    if (b > start) {
+      end = Math.min(end, b);
+      break;
+    }
+  }
+  for (let i = start; i < end; i++) {
     const text = lrcArray.value[i]?.text?.trim();
     if (text) lines.push(text);
   }
