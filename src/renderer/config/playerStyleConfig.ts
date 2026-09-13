@@ -289,7 +289,7 @@ export function resolvePlayerStyleConfig(
     config.starChartPosition = 'center';
   }
   config.starDiscSize = Math.min(
-    250,
+    500,
     Math.max(30, Math.round(Number.isFinite(Number(config.starDiscSize)) ? Number(config.starDiscSize) : 100))
   );
   config.starTextSize = Math.min(
@@ -297,7 +297,7 @@ export function resolvePlayerStyleConfig(
     Math.max(40, Math.round(Number.isFinite(Number(config.starTextSize)) ? Number(config.starTextSize) : 100))
   );
   config.starSpinSpeed = Math.min(
-    4,
+    10,
     Math.max(
       0,
       Number.isFinite(Number(config.starSpinSpeed)) ? Number(config.starSpinSpeed) : 1
