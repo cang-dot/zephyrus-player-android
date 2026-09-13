@@ -107,6 +107,8 @@ export interface PlayerStyleCustomConfig {
   starDiscSize?: number;
   /** 星盘样式：歌词文本大小百分比 60-200 */
   starTextSize?: number;
+  /** 星盘样式：旋转速度倍率 0(停)-4 */
+  starSpinSpeed?: number;
   /** 星盘样式：圆盘九宫格位置（边缘位露出一半） */
   starChartPosition?: string;
   /** 默认样式：封面大小 60-100（占可用空间的百分比） */
