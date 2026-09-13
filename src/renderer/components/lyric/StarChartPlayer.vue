@@ -351,11 +351,13 @@ const blockLineCount = computed(() => {
 // 分块输入:过滤空行(间奏占位)与制作名单行(作词/作曲/演职员表),
 // 这些行不属于演唱内容,不应出现在歌词块里
 const CREDITS_LINE_RE = /^\s*(作词|作曲|编曲|混音|母带|出品|版权|录音|人声|和声|吉他|贝斯|笛子|古筝|键盘|鼓|制作人|监制|配器|策划|文案)\s*[:：]/;
+// 间奏/尾奏占位行('.' '♪' '——' 等):无演唱内容,还会以超长 duration 吞掉间奏判定
+const PLACEHOLDER_LINE_RE = /^[.。·•*※♪♫~\-—_\s]+$/;
 const chartRows = computed(() => {
   const rows: Array<{ idx: number; text: string }> = [];
   lrcArray.value.forEach((line, idx) => {
     const text = (line?.text || '').trim();
-    if (!text || CREDITS_LINE_RE.test(text)) return;
+    if (!text || PLACEHOLDER_LINE_RE.test(text) || CREDITS_LINE_RE.test(text)) return;
     rows.push({ idx, text });
   });
   return rows;
@@ -399,15 +401,10 @@ const lyricBreaks = computed(() => {
       const curShape = shapeOf(cur.text || '');
       const prevGrouped = prevShape.length > 1;
       const curGrouped = curShape.length > 1;
+      // 只认组数变化(无标点↔带标点、双组↔三组)为格式突变;
+      // 同组数的长度波动是词组自然差异,交给行数均分兜底。
       if (prevGrouped !== curGrouped) {
         breaks.set(i, 'semantic');
-      } else if (prevGrouped && curGrouped && !sameShape(prevShape, curShape)) {
-        const prevPrev = lines[i - 2];
-        const next = lines[i + 1];
-        const prevStable =
-          i >= 2 && prevPrev ? sameShape(shapeOf(prevPrev.text || ''), prevShape) : true;
-        const nextStable = next ? sameShape(curShape, shapeOf(next.text || '')) : true;
-        if (prevStable || nextStable) breaks.set(i, 'semantic');
       }
     }
   }
@@ -420,13 +417,12 @@ const lyricBreaks = computed(() => {
     const segEnd = points[p + 1];
     const segLines = segEnd - segStart;
     if (segLines <= limit) continue;
-    const parts = Math.ceil(segLines / limit);
-    const base = Math.floor(segLines / parts);
-    let extra = segLines % parts;
+    const parts = Math.max(1, Math.round(segLines / limit));
+    // 段长均匀(7 行 limit 4 → 4+3;8 行 → 4+4;10 行 → 5+5)
+    const segmentLength = Math.round(segLines / parts);
     let cursor = segStart;
     for (let part = 0; part < parts - 1; part++) {
-      cursor += base + (extra > 0 ? 1 : 0);
-      if (extra > 0) extra--;
+      cursor += segmentLength;
       breaks.set(cursor, 'cap' as const);
     }
   }
