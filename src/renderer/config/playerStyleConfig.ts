@@ -43,7 +43,8 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     starBlockLines: 4,
     starChartPosition: 'center',
     starDiscSize: 100,
-    starTextSize: 100
+    starTextSize: 100,
+    starSpinSpeed: 1
   },
   frenzy: {
     giantSize: 80,
@@ -288,12 +289,19 @@ export function resolvePlayerStyleConfig(
     config.starChartPosition = 'center';
   }
   config.starDiscSize = Math.min(
-    130,
-    Math.max(50, Math.round(Number.isFinite(Number(config.starDiscSize)) ? Number(config.starDiscSize) : 100))
+    250,
+    Math.max(30, Math.round(Number.isFinite(Number(config.starDiscSize)) ? Number(config.starDiscSize) : 100))
   );
   config.starTextSize = Math.min(
-    200,
-    Math.max(60, Math.round(Number.isFinite(Number(config.starTextSize)) ? Number(config.starTextSize) : 100))
+    400,
+    Math.max(40, Math.round(Number.isFinite(Number(config.starTextSize)) ? Number(config.starTextSize) : 100))
+  );
+  config.starSpinSpeed = Math.min(
+    4,
+    Math.max(
+      0,
+      Number.isFinite(Number(config.starSpinSpeed)) ? Number(config.starSpinSpeed) : 1
+    )
   );
   if (!['solid', 'gradient', 'image'].includes(config.backgroundMode)) {
     config.backgroundMode = defaults.backgroundMode;
