@@ -364,19 +364,26 @@ const lyricBreaks = computed(() => {
     // ① 间奏:到下一句的空隙明显(2.8s 以上)
     if (gap >= 2.8) broke = true;
     // ② 排列格式突变:行内「标点分组节奏」改变
-    //    例:前几行都是 7字+7字(xxxxxxx,xxxxxxx),突然变成 4字+4字(xxxx,xxxx)→ 切
+    //    例:前几行都是 7字+7字(xxxxxxx,xxxxxxx),突然变成 4字+4字(xxxx,xxxx)→ 切。
+    //    只在「稳定格式被打破」时切:前段稳定(prev≈prevPrev)或后段稳定(cur≈next)
+    //    都算边界;连续凌乱的段(行行不同形)不因形状切,避免逐行碎块。
     else if (prevLen > 0 && curLen > 0) {
-      const groupPattern = (text: string): number[] => {
-        // 按顿号/逗号/分号/空格切分出组,取各组字数;无标点则整行一组
+      const shapeOf = (text: string): number[] => {
         const parts = text.split(/[、,，;；\s]+/).filter(Boolean);
         return parts.length > 1 ? parts.map((part) => part.length) : [text.length];
       };
-      const prevGroups = groupPattern(prev.text || '');
-      const curGroups = groupPattern(cur.text || '');
-      const sameShape =
-        prevGroups.length === curGroups.length &&
-        prevGroups.every((len, gi) => Math.abs(len - curGroups[gi]) <= 1);
-      if (!sameShape) broke = true;
+      const sameShape = (a: number[], b: number[]): boolean =>
+        a.length === b.length && a.every((len, gi) => Math.abs(len - b[gi]) <= 1);
+      const prevShape = shapeOf(prev.text || '');
+      const curShape = shapeOf(cur.text || '');
+      if (!sameShape(prevShape, curShape)) {
+        const prevPrev = lines[i - 2];
+        const next = lines[i + 1];
+        const prevStable =
+          i >= 2 && prevPrev ? sameShape(shapeOf(prevPrev.text || ''), prevShape) : true;
+        const nextStable = next ? sameShape(curShape, shapeOf(next.text || '')) : true;
+        if (prevStable || nextStable) broke = true;
+      }
     }
     // ③ 行数上限
     else if (i - blockStart >= limit) broke = true;
@@ -398,7 +405,10 @@ const lyricBreaks = computed(() => {
   return breaks;
 });
 const lyricBlockStart = computed(() => {
-  const index = Math.max(0, nowIndex.value);
+  let index = Math.max(0, nowIndex.value);
+  // 间奏中的空行/占位行:回退到最后一句有内容的行,
+  // 避免块边界提前越过后,下一块的首句在间奏里就冒出来
+  while (index > 0 && !(lrcArray.value[index]?.text || '').trim()) index--;
   let start = 0;
   for (const b of lyricBreaks.value) {
     if (b <= index) start = b;
@@ -817,6 +827,14 @@ onBeforeUnmount(() => {
   font-size: clamp(12px, 1.7dvh, 14px);
   letter-spacing: 0.1em;
   color: rgba(255, 255, 255, 0.5);
+}
+
+.is-climax .lyric-block-line:not(.lyric-block-translation) {
+  color: var(--accent-color);
+  text-shadow:
+    0 0 14px rgba(var(--accent-color-rgb), 0.4),
+    0 2px 14px #000;
+  transition: color 360ms var(--m-ease-out, ease-out);
 }
 
 .top-controls {
