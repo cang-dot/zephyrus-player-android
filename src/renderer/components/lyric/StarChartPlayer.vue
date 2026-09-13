@@ -461,13 +461,14 @@ function drawStarField(context: CanvasRenderingContext2D, size: number, dt: numb
   const now = performance.now();
   const segments = 8;
 
-  // 高潮效果:封面取色占比 8% -> 32% 渐强,并对采样色提饱和(更鲜艳)
-  const targetMix = styleEngine.isInClimax ? 0.32 : 0.08;
-  starTintMix += (targetMix - starTintMix) * Math.min(1, dt * 3);
+  // 高潮效果:星点直接切为最高饱和度的封面采样色,退出回落 8% 混白
+  const targetMix = styleEngine.isInClimax ? 1 : 0.08;
+  starTintMix += (targetMix - starTintMix) * Math.min(1, dt * 6);
   if (vividTintMix !== starTintMix || vividTints.length !== starTints.length) {
     vividTints = starTints.map((tint) => {
       const lum = 0.299 * tint[0] + 0.587 * tint[1] + 0.114 * tint[2];
-      const punch = 1 + starTintMix * 1.6; // 混合越深,色域扩得越开
+      // 高潮(mix→1)时色域全开:饱和度拉到最高
+      const punch = 1 + starTintMix * 2.2;
       const clamp = (v: number) => Math.min(255, Math.max(0, Math.round(v)));
       return [
         clamp(lum + (tint[0] - lum) * punch),
@@ -485,7 +486,7 @@ function drawStarField(context: CanvasRenderingContext2D, size: number, dt: numb
     const alpha = star.alpha * twinkle;
     const head = star.angle;
     const tint = star.tint >= 0 ? vividTints[star.tint] : null;
-    // 白 + 封面采样色:平时 92/8,高潮渐变至 68/32 且采样色更鲜艳
+    // 白 + 封面采样色:平时 92/8,高潮即整点纯采样色(最高饱和度)
     const whitePart = 1 - starTintMix;
     const red = tint ? Math.round(255 * whitePart + tint[0] * starTintMix) : 255;
     const green = tint ? Math.round(255 * whitePart + tint[1] * starTintMix) : 255;
