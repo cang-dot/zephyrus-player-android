@@ -258,7 +258,7 @@ let lastStarFrameAt = 0;
 let starTintMix = 0.08; // 封面色占比:平时 8%,高潮渐强至 32%
 let vividTints: Array<[number, number, number]> = [];
 let vividTintMix = -1;
-const STAR_BASE_SPEED = 0.055;
+const STAR_BASE_SPEED = 0.055; // × spinSpeed 配置
 
 function seededRandom(): number {
   starFieldSeed = (starFieldSeed + 0x6d2b79f5) | 0;
@@ -316,6 +316,10 @@ function openCoverPreview() {
 }
 // ── 楷体文本块歌词:按 N 行切块,整块竖排右起展示 ──
 const { config: starStyleCustom } = useStyleCustomConfig('starChart');
+const spinSpeed = computed(() => {
+  const value = Number(starStyleCustom.value.starSpinSpeed);
+  return Number.isFinite(value) && value >= 0 ? Math.min(4, value) : 1;
+});
 const discScale = computed(() => {
   const value = Number(starStyleCustom.value.starDiscSize);
   return Number.isFinite(value) && value > 0 ? Math.min(1.3, Math.max(0.5, value / 100)) : 1;
@@ -604,8 +608,8 @@ function buildStarField(size: number, seedText: string) {
 
 function drawStarField(context: CanvasRenderingContext2D, size: number, dt: number) {
   context.clearRect(0, 0, size, size);
-  // 播放全速旋转,暂停缓停
-  const targetSpeed = isPlaying.value ? 1 : 0.12;
+  // 播放全速旋转(速度倍率可配),暂停缓停
+  const targetSpeed = isPlaying.value ? spinSpeed.value : spinSpeed.value * 0.12;
   starSpeed += (targetSpeed - starSpeed) * Math.min(1, dt * 2.4);
 
   const center = size / 2;
