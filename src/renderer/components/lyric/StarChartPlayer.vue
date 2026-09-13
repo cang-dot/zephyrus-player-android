@@ -350,36 +350,31 @@ const blockLineCount = computed(() => {
  */
 const lyricBreaks = computed(() => {
   const lines = lrcArray.value;
-  // 优先级:语义切点(间奏/格式)> 自动合并 > 行数上限。
-  // semantic 标记的切点不会被消孤行删除;行数上限只是兜底。
-  const breaks = new Map<number, 'semantic' | 'cap'>([[0, 'semantic']]);
   const limit = blockLineCount.value;
-  let blockStart = 0;
+  // 优先级:语义切点(间奏/格式边界)> 孤行合并 > 行数上限(兜底均分)。
+  // 两遍式:先收集语义骨架,再对超长区间内部均匀插入 cap 切点,
+  // 避免 cap 一刀落在形状段中间造成后续块连锁错位。
+
+  // ── 第一遍:语义骨架 ──
+  const breaks = new Map<number, 'semantic'>([[0, 'semantic']]);
   for (let i = 1; i < lines.length; i++) {
     const prev = lines[i - 1];
     const cur = lines[i];
-    // duration 缺失(部分 TTML/LRC 源)时退化为 startTime 差,间奏判定不失效
+    const prevLen = (prev.text || '').length;
+    const curLen = (cur.text || '').length;
+    // ① 间奏:到下一句的空隙明显(2.8s 以上);duration 缺失退化为 start-to-start
     const prevEnd =
       (prev.duration ?? 0) > 0
         ? (prev.startTime ?? 0) + (prev.duration ?? 0)
         : (prev.startTime ?? 0);
-    const gap = (cur.startTime ?? 0) / 1000 - prevEnd / 1000;
-    const prevLen = (prev.text || '').length;
-    const curLen = (cur.text || '').length;
-    let broke: 'semantic' | 'cap' | null = null;
-    // ① 间奏:到下一句的空隙明显(2.8s 以上)
-    if (gap >= 2.8) broke = 'semantic';
-    // ② 排列格式突变:行内「标点分组节奏」改变。
-    //    形状只对带标点的多组行有意义(xxxxxxx,xxxxxxx = [7,7]);
-    //    无标点整行不参与节奏比较(行间字数差异不属格式突变)。
-    //    多组↔多组:节奏形状变(7+7 → 4+4)且发生在稳定边界才切;
-    //    多组↔单组:标点使用习惯突变,切。
-    if (
-      !broke &&
-      prevLen > 0 &&
-      curLen > 0 &&
-      i - blockStart >= 2 // 首句与第二句之间不因形状切,给块一个成形机会
-    ) {
+    if ((cur.startTime ?? 0) / 1000 - prevEnd / 1000 >= 2.8) {
+      breaks.set(i, 'semantic');
+      continue;
+    }
+    // ② 格式边界:行内「标点分组节奏」改变(7+7 → 4+4 之类),
+    //    只在稳定格式之间生效(prev≈prevPrev 或 cur≈next);
+    //    形状仅对带标点的多组行有意义,无标点整行不参与节奏比较。
+    if (prevLen > 0 && curLen > 0) {
       const shapeOf = (text: string): number[] => {
         const parts = text.split(/[、,，;；\s]+/).filter(Boolean);
         return parts.length > 1 ? parts.map((part) => part.length) : [text.length];
@@ -388,32 +383,41 @@ const lyricBreaks = computed(() => {
         a.length === b.length && a.every((len, gi) => Math.abs(len - b[gi]) <= 1);
       const prevShape = shapeOf(prev.text || '');
       const curShape = shapeOf(cur.text || '');
-      const prevGrouped = prevShape.length > 1;
-      const curGrouped = curShape.length > 1;
-      if (prevGrouped !== curGrouped) {
-        broke = true;
-      } else if (prevGrouped && curGrouped && !sameShape(prevShape, curShape)) {
+      if (!sameShape(prevShape, curShape)) {
         const prevPrev = lines[i - 2];
         const next = lines[i + 1];
         const prevStable =
           i >= 2 && prevPrev ? sameShape(shapeOf(prevPrev.text || ''), prevShape) : true;
         const nextStable = next ? sameShape(curShape, shapeOf(next.text || '')) : true;
-        if (prevStable || nextStable) broke = true;
+        if (prevStable || nextStable) breaks.set(i, 'semantic');
       }
     }
-    // ③ 行数上限(兜底:语义切点缺失时防止块无限膨胀)
-    if (!broke && i - blockStart >= limit) broke = 'cap';
-    if (broke) {
-      breaks.set(i, broke);
-      blockStart = i;
+  }
+
+  // ── 第二遍:超长语义区间内均匀插入 cap 切点 ──
+  const points = [...breaks.keys()].sort((a, b) => a - b);
+  points.push(lines.length);
+  for (let p = 0; p < points.length - 1; p++) {
+    const segStart = points[p];
+    const segEnd = points[p + 1];
+    const segLines = segEnd - segStart;
+    if (segLines <= limit) continue;
+    const parts = Math.ceil(segLines / limit);
+    const base = Math.floor(segLines / parts);
+    let extra = segLines % parts;
+    let cursor = segStart;
+    for (let part = 0; part < parts - 1; part++) {
+      cursor += base + (extra > 0 ? 1 : 0);
+      if (extra > 0) extra--;
+      breaks.set(cursor, 'cap' as const);
     }
   }
-  // ④ 消孤行:末块只有 1 行时并入前块——只移除行数上限产生的切点,
-  //    语义切点(间奏/格式边界)优先级更高,永不合并
+
+  // ── 消孤行:末区间只剩 1 行且其切点是 cap → 并回前块(语义切点永不合并) ──
   const starts = [...breaks.keys()].sort((a, b) => a - b);
   if (starts.length >= 2) {
     const last = starts[starts.length - 1];
-    if (lines.length - last === 1 && breaks.get(last) === 'cap') {
+    if (lines.length - last === 1 && breaks.get(last) !== 'semantic') {
       breaks.delete(last);
     }
   }
