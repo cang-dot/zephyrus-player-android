@@ -348,8 +348,21 @@ const blockLineCount = computed(() => {
  * ① 间奏(行间隙 ≥2.8s)切;② 行长突变(排版格式切换)切;
  * ③ 到达行数上限切;④ 收尾消孤行(末块单行且无强间隔则并入前块)。
  */
+// 分块输入:过滤空行(间奏占位)与制作名单行(作词/作曲/演职员表),
+// 这些行不属于演唱内容,不应出现在歌词块里
+const CREDITS_LINE_RE = /^\s*(作词|作曲|编曲|混音|母带|出品|版权|录音|人声|和声|吉他|贝斯|笛子|古筝|键盘|鼓|制作人|监制|配器|策划|文案)\s*[:：]/;
+const chartRows = computed(() => {
+  const rows: Array<{ idx: number; text: string }> = [];
+  lrcArray.value.forEach((line, idx) => {
+    const text = (line?.text || '').trim();
+    if (!text || CREDITS_LINE_RE.test(text)) return;
+    rows.push({ idx, text });
+  });
+  return rows;
+});
+
 const lyricBreaks = computed(() => {
-  const lines = lrcArray.value;
+  const lines = chartRows.value;
   const limit = blockLineCount.value;
   // 优先级:语义切点(间奏/格式边界)> 孤行合并 > 行数上限(兜底均分)。
   // 两遍式:先收集语义骨架,再对超长区间内部均匀插入 cap 切点,
@@ -426,47 +439,64 @@ const lyricBreaks = computed(() => {
       breaks.delete(last);
     }
   }
+  if (lines.length) {
+    console.debug(
+      '[starChart blocks]',
+      'lines:', lines.length,
+      'breaks:', [...breaks.keys()].map((k) => `${k}(${breaks.get(k)})`).join(','),
+      'sample:', lines.slice(0, 3).map((l) => l.text),
+      'src:', playMusic.value?.name
+    );
+  }
   return breaks;
 });
 // 间奏/尾奏判定:当前时间已越过最近一句的结束(容差 1.2s)且下一句尚远(≥0.5s)
 const inInterlude = computed(() => {
-  if (!lrcArray.value.length) return false;
-  let lastTextIdx = Math.min(Math.max(0, nowIndex.value), lrcArray.value.length - 1);
-  while (lastTextIdx > 0 && !(lrcArray.value[lastTextIdx]?.text || '').trim()) lastTextIdx--;
-  const cur = lrcArray.value[lastTextIdx];
-  if (!cur || !(cur.text || '').trim()) return true;
-  const endedAt = ((cur.startTime ?? 0) + (cur.duration ?? 0)) / 1000;
-  let nextTextStart = Number.POSITIVE_INFINITY;
-  for (let i = lastTextIdx + 1; i < lrcArray.value.length; i++) {
-    if ((lrcArray.value[i]?.text || '').trim()) {
-      nextTextStart = (lrcArray.value[i].startTime ?? 0) / 1000;
+  const rows = chartRows.value;
+  if (!rows.length) return false;
+  // nowIndex 对应的最近有效行
+  let lastTextIdx = rows.length - 1;
+  for (let r = 0; r < rows.length; r++) {
+    if (rows[r].idx > nowIndex.value) {
+      lastTextIdx = r - 1;
       break;
     }
   }
+  if (lastTextIdx < 0) return true;
+  const cur = lrcArray.value[rows[lastTextIdx].idx];
+  const endedAt = ((cur.startTime ?? 0) + (cur.duration ?? 0)) / 1000;
+  const nextTextStart =
+    lastTextIdx + 1 < rows.length
+      ? (lrcArray.value[rows[lastTextIdx + 1].idx].startTime ?? 0) / 1000
+      : Number.POSITIVE_INFINITY;
   const time = nowTime.value;
   return time > endedAt + 1.2 && time < nextTextStart - 0.5;
 });
 const lyricBlockStart = computed(() => {
-  let index = Math.max(0, nowIndex.value);
-  // 间奏中的空行/占位行:回退到最后一句有内容的行,
-  // 避免块边界提前越过后,下一块的首句在间奏里就冒出来
-  while (index > 0 && !(lrcArray.value[index]?.text || '').trim()) index--;
+  // nowIndex → 最近有效行(空行/制作名单已透明化)
+  let rowIndex = 0;
+  const rows = chartRows.value;
+  for (let r = 0; r < rows.length; r++) {
+    if (rows[r].idx <= nowIndex.value) rowIndex = r;
+    else break;
+  }
   let start = 0;
   for (const b of lyricBreaks.value.keys()) {
-    if (b <= index) start = b;
+    if (b <= rowIndex) start = b;
     else break;
   }
   return start;
 });
 const lyricBlockLines = computed(() => {
-  if (!lrcArray.value.length) return [songTitle.value];
+  const rows = chartRows.value;
+  if (!rows.length) return [songTitle.value];
   // 间奏/尾奏:整块替换为歌名
   if (inInterlude.value) return [songTitle.value];
   const lines: string[] = [];
   const start = lyricBlockStart.value;
   // 窗口止于下一语义/兜底切点:块按切点原样呈现(可短于/长于行数上限),
   // 绝不把切点之后的内容追加进当前块
-  let end = Math.min(start + blockLineCount.value + 4, lrcArray.value.length);
+  let end = Math.min(start + blockLineCount.value + 4, rows.length);
   for (const b of lyricBreaks.value.keys()) {
     if (b > start) {
       end = Math.min(end, b);
@@ -474,8 +504,7 @@ const lyricBlockLines = computed(() => {
     }
   }
   for (let i = start; i < end; i++) {
-    const text = lrcArray.value[i]?.text?.trim();
-    if (text) lines.push(text);
+    lines.push(rows[i].text);
   }
   return lines.length ? lines : [songTitle.value];
 });
