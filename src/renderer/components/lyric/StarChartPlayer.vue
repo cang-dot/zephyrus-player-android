@@ -363,11 +363,17 @@ const lyricBreaks = computed(() => {
     let broke = false;
     // ① 间奏:到下一句的空隙明显(2.8s 以上)
     if (gap >= 2.8) broke = true;
-    // ② 排列格式突变:行内「标点分组节奏」改变
-    //    例:前几行都是 7字+7字(xxxxxxx,xxxxxxx),突然变成 4字+4字(xxxx,xxxx)→ 切。
-    //    只在「稳定格式被打破」时切:前段稳定(prev≈prevPrev)或后段稳定(cur≈next)
-    //    都算边界;连续凌乱的段(行行不同形)不因形状切,避免逐行碎块。
-    else if (prevLen > 0 && curLen > 0) {
+    // ② 排列格式突变:行内「标点分组节奏」改变。
+    //    形状只对带标点的多组行有意义(xxxxxxx,xxxxxxx = [7,7]);
+    //    无标点整行不参与节奏比较(行间字数差异不属格式突变)。
+    //    多组↔多组:节奏形状变(7+7 → 4+4)且发生在稳定边界才切;
+    //    多组↔单组:标点使用习惯突变,切。
+    if (
+      !broke &&
+      prevLen > 0 &&
+      curLen > 0 &&
+      i - blockStart >= 2 // 首句与第二句之间不因形状切,给块一个成形机会
+    ) {
       const shapeOf = (text: string): number[] => {
         const parts = text.split(/[、,，;；\s]+/).filter(Boolean);
         return parts.length > 1 ? parts.map((part) => part.length) : [text.length];
@@ -376,7 +382,11 @@ const lyricBreaks = computed(() => {
         a.length === b.length && a.every((len, gi) => Math.abs(len - b[gi]) <= 1);
       const prevShape = shapeOf(prev.text || '');
       const curShape = shapeOf(cur.text || '');
-      if (!sameShape(prevShape, curShape)) {
+      const prevGrouped = prevShape.length > 1;
+      const curGrouped = curShape.length > 1;
+      if (prevGrouped !== curGrouped) {
+        broke = true;
+      } else if (prevGrouped && curGrouped && !sameShape(prevShape, curShape)) {
         const prevPrev = lines[i - 2];
         const next = lines[i + 1];
         const prevStable =
@@ -385,8 +395,8 @@ const lyricBreaks = computed(() => {
         if (prevStable || nextStable) broke = true;
       }
     }
-    // ③ 行数上限
-    else if (i - blockStart >= limit) broke = true;
+    // ③ 行数上限(独立判定,保证块不会无限膨胀)
+    if (!broke && i - blockStart >= limit) broke = true;
     if (broke) {
       breaks.add(i);
       blockStart = i;
