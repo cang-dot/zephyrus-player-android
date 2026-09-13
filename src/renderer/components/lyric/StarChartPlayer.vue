@@ -363,14 +363,20 @@ const lyricBreaks = computed(() => {
     let broke = false;
     // ① 间奏:到下一句的空隙明显(2.8s 以上)
     if (gap >= 2.8) broke = true;
-    // ② 排列格式突变:行长骤变(短↔长切换,如主歌短句进副歌长句)
-    else if (
-      prevLen > 0 &&
-      curLen > 0 &&
-      Math.abs(prevLen - curLen) >= 6 &&
-      Math.min(prevLen, curLen) / Math.max(prevLen, curLen) < 0.45
-    ) {
-      broke = true;
+    // ② 排列格式突变:行内「标点分组节奏」改变
+    //    例:前几行都是 7字+7字(xxxxxxx,xxxxxxx),突然变成 4字+4字(xxxx,xxxx)→ 切
+    else if (prevLen > 0 && curLen > 0) {
+      const groupPattern = (text: string): number[] => {
+        // 按顿号/逗号/分号/空格切分出组,取各组字数;无标点则整行一组
+        const parts = text.split(/[、,，;；\s]+/).filter(Boolean);
+        return parts.length > 1 ? parts.map((part) => part.length) : [text.length];
+      };
+      const prevGroups = groupPattern(prev.text || '');
+      const curGroups = groupPattern(cur.text || '');
+      const sameShape =
+        prevGroups.length === curGroups.length &&
+        prevGroups.every((len, gi) => Math.abs(len - curGroups[gi]) <= 1);
+      if (!sameShape) broke = true;
     }
     // ③ 行数上限
     else if (i - blockStart >= limit) broke = true;
