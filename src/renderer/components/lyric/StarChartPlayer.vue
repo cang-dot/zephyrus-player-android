@@ -372,8 +372,9 @@ const lyricBreaks = computed(() => {
       continue;
     }
     // ② 格式边界:行内「标点分组节奏」改变(7+7 → 4+4 之类),
-    //    只在稳定格式之间生效(prev≈prevPrev 或 cur≈next);
-    //    形状仅对带标点的多组行有意义,无标点整行不参与节奏比较。
+    //    只在稳定格式之间生效(prev≈prevPrev 或 cur≈next)。
+    //    形状仅对带标点的多组行有意义:无标点整行 [N] 不参与节奏比较
+    //    (行间字数差异不是格式突变);多组↔无标点=标点习惯突变,切。
     if (prevLen > 0 && curLen > 0) {
       const shapeOf = (text: string): number[] => {
         const parts = text.split(/[、,，;；\s]+/).filter(Boolean);
@@ -383,7 +384,11 @@ const lyricBreaks = computed(() => {
         a.length === b.length && a.every((len, gi) => Math.abs(len - b[gi]) <= 1);
       const prevShape = shapeOf(prev.text || '');
       const curShape = shapeOf(cur.text || '');
-      if (!sameShape(prevShape, curShape)) {
+      const prevGrouped = prevShape.length > 1;
+      const curGrouped = curShape.length > 1;
+      if (prevGrouped !== curGrouped) {
+        breaks.set(i, 'semantic');
+      } else if (prevGrouped && curGrouped && !sameShape(prevShape, curShape)) {
         const prevPrev = lines[i - 2];
         const next = lines[i + 1];
         const prevStable =
