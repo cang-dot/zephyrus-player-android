@@ -32,7 +32,7 @@
         'is-swipe-animating': miniSwipeAnimating
       }"
       :style="miniSwipeStyle"
-      :aria-hidden="playerTransition.progress.value > 0.98"
+      :aria-hidden="miniSurfaceHidden"
       @click.capture="onMiniClickCapture"
       @pointerdown="onMiniPointerDown"
       @pointermove="onMiniPointerMove"
@@ -284,13 +284,16 @@ const miniSwipeStyle = computed(() => ({
   '--mini-swipe-glow-x': `${miniSwipeOffset.value * 0.7}px`,
   '--mini-swipe-glow-opacity': String(miniSwipeProgress.value * 0.32)
 }));
+// 转场收尾后迷你条整体让位给全屏层;布尔塌缩,避免模板逐帧依赖裸 progress
+const miniSurfaceHidden = computed(() => playerTransition.progress.value > 0.98);
 // 当前播放器样式是否 default:决定迷你信息行的 morph 目标
 // default → 中心大封面/大标题接管;其余样式 → 底部控制区信息行接管
 const playerStyleIsDefault = ref(true);
 const refreshPlayerStyle = () => {
   try {
     const raw = localStorage.getItem('music-full-config');
-    playerStyleIsDefault.value = ((raw ? JSON.parse(raw).playerStyle : 'default') || 'default') === 'default';
+    playerStyleIsDefault.value =
+      ((raw ? JSON.parse(raw).playerStyle : 'default') || 'default') === 'default';
   } catch {
     playerStyleIsDefault.value = true;
   }
@@ -304,6 +307,9 @@ onBeforeUnmount(() => window.removeEventListener('music-full-config-updated', re
 //          淡出窗口与全屏层 reveal(--player-surface-reveal 起点 0.035)同步;
 // 其余样式:飞向底部控制区信息行落点,0.86-0.98 与接管行(零位移)同窗交叉,
 //          观感即同一元素变形重排,无接力感。
+// 非 default 样式 morph 的环境量(底部安全区/横竖屏)按视口签名缓存:
+// 只有视口尺寸变化才重新测量,转场逐帧不再触碰 getComputedStyle/matchMedia
+let miniMorphEnv: { key: string; safeBottom: number; landscape: boolean } | null = null;
 const miniSongInfoStyle = computed(() => {
   const progress = playerTransition.progress.value;
   if (progress <= 0.001) return {} as CSSProperties;
@@ -315,10 +321,18 @@ const miniSongInfoStyle = computed(() => {
     } as CSSProperties;
   }
   const source = playerTransition.identitySourceRect.value;
-  const safeBottom = Number.parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom') || '0'
-  );
-  const landscape = window.matchMedia('(orientation: landscape)').matches;
+  const envKey = `${window.innerWidth}x${window.innerHeight}`;
+  if (!miniMorphEnv || miniMorphEnv.key !== envKey) {
+    miniMorphEnv = {
+      key: envKey,
+      safeBottom: Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom') ||
+          '0'
+      ),
+      landscape: window.matchMedia('(orientation: landscape)').matches
+    };
+  }
+  const { safeBottom, landscape } = miniMorphEnv;
   const controlHeight = landscape ? 96 : 168;
   const targetLeft = 30;
   const targetTop = window.innerHeight - safeBottom - 14 - controlHeight + 12;
@@ -655,22 +669,11 @@ watch(
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
   }
 
-  /* 独立出现时由播放栏自身提供有色毛玻璃表面，兼容 WebView 的弱 backdrop-filter。 */
+  /* 独立出现时由播放栏自身提供实色表面（原为有色毛玻璃，已移除模糊）。 */
   &.is-menu-hide.play-bar-mini:not(.playlist-open) .mobile-mini-controls {
-    background:
-      linear-gradient(
-        145deg,
-        rgba(255, 255, 255, 0.18),
-        rgba(var(--accent-color-rgb, 136, 136, 136), 0.12)
-      ),
-      color-mix(in srgb, var(--cover-surface, rgba(24, 24, 28, 0.78)) 86%, transparent);
-    border-color: color-mix(in srgb, var(--accent-color, #888) 24%, rgba(255, 255, 255, 0.22));
-    box-shadow:
-      0 10px 30px rgba(0, 0, 0, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.24),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.08);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    background: var(--m-surface-container-high, var(--m-card));
+    border-color: var(--m-outline-variant, var(--m-border));
+    box-shadow: var(--m-elevation-2);
   }
 
   &.play-bar-mini {
@@ -723,14 +726,10 @@ watch(
     width: calc(100% - 24px);
     height: min(62dvh, 500px);
     min-height: 310px;
-    border-color: var(--m-glass-border);
+    border-color: var(--m-outline-variant, var(--m-border));
     border-radius: 32px;
-    background: var(--m-glass-bg);
-    box-shadow:
-      0 18px 48px rgba(0, 0, 0, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.22);
-    backdrop-filter: blur(30px) saturate(175%);
-    -webkit-backdrop-filter: blur(30px) saturate(175%);
+    background: var(--m-surface-container, var(--m-card));
+    box-shadow: var(--m-elevation-3);
   }
 
   &.playlist-open.play-bar-mini.is-menu-hide.song-sheet-open {
@@ -738,56 +737,37 @@ watch(
     min-height: 280px;
   }
 
-  /* 无底栏页面进入播放界面时，迷你栏自身的玻璃与有底栏页面的底栏行为
-     一致：随转场进度渐隐，避免与形变中的播放器表面叠出双重玻璃。 */
+  /* 无底栏页面进入播放界面时，迷你栏自身的表面与有底栏页面的底栏行为
+     一致：随转场进度渐隐，避免与形变中的播放器表面叠出双层表面。
+     玻璃拟态已移除，此处只渐隐实色表面（背景/描边/阴影），不再涉及模糊。 */
   &.player-active.is-menu-hide:not(.playlist-open) .mobile-mini-controls {
-    --mini-glass-fade: clamp(0, calc(1 - var(--player-open-progress, 0) * 3), 1);
+    --mini-surface-fade: clamp(0, calc(1 - var(--player-open-progress, 0) * 3), 1);
     border-color: color-mix(
       in srgb,
-      color-mix(in srgb, var(--accent-color, #888) 24%, rgba(255, 255, 255, 0.22))
-        calc(var(--mini-glass-fade) * 100%),
-      transparent
-    );
-    background:
-      linear-gradient(
-        145deg,
-        rgba(255, 255, 255, calc(0.18 * var(--mini-glass-fade))),
-        rgba(var(--accent-color-rgb, 136, 136, 136), calc(0.12 * var(--mini-glass-fade)))
-      ),
-      color-mix(
-        in srgb,
-        var(--cover-surface, rgba(24, 24, 28, 0.78)) calc(var(--mini-glass-fade) * 100%),
-        transparent
-      );
-    box-shadow:
-      0 10px 30px rgba(0, 0, 0, calc(0.2 * var(--mini-glass-fade))),
-      inset 0 1px 0 rgba(255, 255, 255, calc(0.24 * var(--mini-glass-fade))),
-      inset 0 -1px 0 rgba(0, 0, 0, calc(0.08 * var(--mini-glass-fade)));
-    backdrop-filter: blur(calc(30px * var(--mini-glass-fade)))
-      saturate(calc(100% + 80% * var(--mini-glass-fade)));
-    -webkit-backdrop-filter: blur(calc(30px * var(--mini-glass-fade)))
-      saturate(calc(100% + 80% * var(--mini-glass-fade)));
-  }
-
-  &.player-active.playlist-open.play-bar-mini.is-menu-hide {
-    --mini-glass-fade: clamp(0, calc(1 - var(--player-open-progress, 0) * 3), 1);
-    border-color: color-mix(
-      in srgb,
-      var(--m-glass-border) calc(var(--mini-glass-fade) * 100%),
+      var(--m-outline-variant, var(--m-border)) calc(var(--mini-surface-fade) * 100%),
       transparent
     );
     background: color-mix(
       in srgb,
-      var(--m-glass-bg) calc(var(--mini-glass-fade) * 100%),
+      var(--m-surface-container-high, var(--m-card)) calc(var(--mini-surface-fade) * 100%),
       transparent
     );
-    box-shadow:
-      0 18px 48px rgba(0, 0, 0, calc(0.2 * var(--mini-glass-fade))),
-      inset 0 1px 0 rgba(255, 255, 255, calc(0.22 * var(--mini-glass-fade)));
-    backdrop-filter: blur(calc(30px * var(--mini-glass-fade)))
-      saturate(calc(100% + 75% * var(--mini-glass-fade)));
-    -webkit-backdrop-filter: blur(calc(30px * var(--mini-glass-fade)))
-      saturate(calc(100% + 75% * var(--mini-glass-fade)));
+    box-shadow: 0 10px 30px rgba(0, 0, 0, calc(0.2 * var(--mini-surface-fade)));
+  }
+
+  &.player-active.playlist-open.play-bar-mini.is-menu-hide {
+    --mini-surface-fade: clamp(0, calc(1 - var(--player-open-progress, 0) * 3), 1);
+    border-color: color-mix(
+      in srgb,
+      var(--m-outline-variant, var(--m-border)) calc(var(--mini-surface-fade) * 100%),
+      transparent
+    );
+    background: color-mix(
+      in srgb,
+      var(--m-surface-container, var(--m-card)) calc(var(--mini-surface-fade) * 100%),
+      transparent
+    );
+    box-shadow: 0 18px 48px rgba(0, 0, 0, calc(0.2 * var(--mini-surface-fade)));
   }
 
   &.playlist-mounted.play-bar-mini.is-menu-hide .mobile-mini-controls {
@@ -911,10 +891,8 @@ watch(
     --mini-swipe-duration: 0ms;
     --mini-swipe-opacity-duration: 0ms;
     --mini-swipe-ease: cubic-bezier(0.22, 0.84, 0.24, 1.08);
-    background: var(--m-glass-bg);
-    border: 1px solid var(--m-glass-border);
-    backdrop-filter: var(--m-glass-filter, blur(30px) saturate(175%));
-    -webkit-backdrop-filter: var(--m-glass-filter, blur(30px) saturate(175%));
+    background: var(--m-surface-container-high, var(--m-card));
+    border: 1px solid var(--m-outline-variant, var(--m-border));
     touch-action: none;
     user-select: none;
     &::after {
@@ -1110,10 +1088,8 @@ watch(
     gap: 0 !important;
     overflow: hidden;
     border-radius: 50%;
-    background: var(--m-glass-bg);
-    border: 1px solid var(--m-glass-border);
-    backdrop-filter: var(--m-glass-filter, blur(30px) saturate(175%));
-    -webkit-backdrop-filter: var(--m-glass-filter, blur(30px) saturate(175%));
+    background: var(--m-surface-container-high, var(--m-card));
+    border: 1px solid var(--m-outline-variant, var(--m-border));
     box-shadow: none;
   }
 
@@ -1166,7 +1142,6 @@ watch(
   @apply relative rounded-t-2xl overflow-hidden;
 
   .mobile-play-list-back {
-    backdrop-filter: blur(20px);
     @apply absolute top-0 left-0 w-full h-full;
     @apply bg-light dark:bg-black bg-opacity-90;
   }

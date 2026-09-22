@@ -41,17 +41,21 @@ export function isServerSongResult(item: { id?: unknown; platform?: string }): b
   return item?.platform === 'server' || String(item?.id || '').startsWith('server:');
 }
 
-/** 内存缓存 */
+/** 内存缓存(带 TTL):过期后经 ETag 协商重新拉取,保证新上传的歌曲能被搜索到 */
 let cachedSongs: ServerSong[] | null = null;
+let cachedAt = 0;
+const CACHE_TTL_MS = 60_000;
 
 /**
- * 加载云端歌曲列表（带内存缓存）
+ * 加载云端歌曲列表(内存缓存 60s,过期后 no-cache 协商刷新)
  */
 export async function loadServerSongs(): Promise<ServerSong[]> {
-  if (cachedSongs) return cachedSongs;
+  if (cachedSongs && Date.now() - cachedAt < CACHE_TTL_MS) return cachedSongs;
 
   try {
-    const res = await fetch(SONGS_JSON_URL);
+    // no-cache:强制 ETag 协商(songs.json 未变时 304,代价极低);
+    // 时间戳参数兜底绕过无 Cache-Control 头时的启发式 HTTP 缓存
+    const res = await fetch(`${SONGS_JSON_URL}?t=${Date.now()}`, { cache: 'no-cache' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const songs = (data.songs || []) as Array<
@@ -62,8 +66,11 @@ export async function loadServerSongs(): Promise<ServerSong[]> {
       picUrl: song.picUrl || '/images/default_cover.png',
       climax: normalizeClimaxSegments(song.climax, song.duration)
     }));
+    cachedAt = Date.now();
     return cachedSongs;
   } catch (err) {
+    // 刷新失败时回退旧缓存,避免列表被清空
+    if (cachedSongs) return cachedSongs;
     console.error('[ServerSongs] 加载云端歌曲列表失败:', err);
     return [];
   }

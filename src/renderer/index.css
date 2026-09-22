@@ -915,3 +915,11 @@
 .player-style-surface.player-style-customized .split-lyrics .lyric-word.active {
   color: var(--player-style-lyric-color) !important;
 }
+
+/* naive-ui 离散 API(message/dialog)的浮层容器默认 z(≈2000-6000) 低于
+   全屏播放器/评论页(9998+)，评论区内的提示与确认框会被盖住——抬到其上 */
+.n-message-container,
+.n-dialog-container,
+.n-modal-container {
+  z-index: 21000 !important;
+}

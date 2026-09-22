@@ -24,40 +24,62 @@
   --m-border: var(--cover-border, #d5d0c9);
   --m-white: #ffffff;
   --m-shadow: rgba(0, 0, 0, 0.06);
-  --m-glass-bg:
-    linear-gradient(
-      rgba(var(--accent-color-rgb, 136, 136, 136), 0.12),
-      rgba(var(--accent-color-rgb, 136, 136, 136), 0.12)
-    ),
-    color-mix(in srgb, var(--m-surface) 58%, transparent);
-  --m-glass-border: color-mix(in srgb, var(--accent-color) 24%, var(--m-white) 22%);
-  --m-glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  /* ── MD3 表面容器（实色分层，取消玻璃拟态） ──
+     层级语义：surface(页面底) < container-low < container < container-high
+     卡片用 container 档，靠色调差而非模糊/透明度区分层级。 */
+  --m-surface-container-low: var(--m-surface);
+  --m-surface-container: var(--m-card);
+  --m-surface-container-high: var(--m-surface-alt);
+  --m-outline-variant: var(--m-border);
+  --m-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --m-elevation-2: 0 3px 10px rgba(0, 0, 0, 0.09);
+  --m-elevation-3: 0 6px 18px rgba(0, 0, 0, 0.12);
+
+  /* ── 底栏选中胶囊（实心偏深，非径向辉光） ──
+     固定配方：强调色只占 40%，混入暖深灰压掉饱和度——
+     强调色本身已被 adjustForAccent 提亮，占比过高会显得过艳。 */
+  --m-nav-indicator-bg: color-mix(in srgb, var(--accent-color, #888888) 40%, #2a2724 60%);
+  --m-nav-indicator-fg: #ffffff;
+
+  /* 旧名保留为别名，避免既有引用断裂；新代码请直接用上面的 surface-container-* */
+  --m-glass-bg: var(--m-surface-container);
+  --m-glass-border: var(--m-border);
+  --m-glass-shadow: var(--m-elevation-2);
 }
 
 /* ── 深色主题覆盖（封面取色注入，fallback 为硬编码值）── */
 /* 展平原生嵌套：老 WebView（Chrome<112）不支持 CSS nesting，嵌套解析失败会吞掉后续大量规则 */
 .mobile.dark,
 .dark .mobile {
-    --m-bg: var(--cover-bg, #1a1a1a);
-    --m-surface: var(--cover-surface, #252525);
-    --m-surface-alt: var(--cover-surface-hover, #2a2a2a);
-    --m-card: var(--cover-surface, #333333);
-    --m-card-light: var(--cover-surface-hover, #3a3a3a);
-    --m-text-primary: var(--cover-text-primary, #f0ece4);
-    --m-text-secondary: var(--cover-text-secondary, #aaaaaa);
-    --m-text-muted: var(--cover-text-muted, #666666);
-    --m-border: var(--cover-border, #3a3a3a);
-    --m-shadow: rgba(0, 0, 0, 0.3);
-    --m-glass-bg:
-      linear-gradient(
-        rgba(var(--accent-color-rgb, 136, 136, 136), 0.14),
-        rgba(var(--accent-color-rgb, 136, 136, 136), 0.14)
-      ),
-      color-mix(in srgb, var(--m-surface) 54%, transparent);
-    /* 深色下玻璃描边去掉白成分(继承浅色的 accent+白各半配方会形成刺眼亮边),
-       改为比背景微亮的 accent 低透明描边;阴影同步去掉顶部 inset 白线 */
-    --m-glass-border: color-mix(in srgb, var(--accent-color) 28%, transparent);
-    --m-glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+  --m-bg: var(--cover-bg, #1a1a1a);
+  --m-surface: var(--cover-surface, #252525);
+  --m-surface-alt: var(--cover-surface-hover, #2a2a2a);
+  --m-card: var(--cover-surface, #333333);
+  --m-card-light: var(--cover-surface-hover, #3a3a3a);
+  --m-text-primary: var(--cover-text-primary, #f0ece4);
+  --m-text-secondary: var(--cover-text-secondary, #aaaaaa);
+  --m-text-muted: var(--cover-text-muted, #666666);
+  --m-border: var(--cover-border, #3a3a3a);
+  --m-shadow: rgba(0, 0, 0, 0.3);
+  /* ── MD3 表面容器（深色）：container 比 surface 更亮，与浅色反向 ── */
+  --m-surface-container-low: var(--m-surface);
+  --m-surface-container: var(--m-card);
+  --m-surface-container-high: var(--m-surface-alt);
+  /* 深色下 --cover-border 会被 MobileLayout 置为 transparent，
+       描边令牌不能经由它派生，这里显式定值保证暗色卡片仍有边界 */
+  --m-outline-variant: #3a3a3a;
+  --m-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --m-elevation-2: 0 3px 10px rgba(0, 0, 0, 0.32);
+  --m-elevation-3: 0 6px 18px rgba(0, 0, 0, 0.4);
+
+  /* 与浅色同一配方：强调色 40% + 暖深灰 60%，纯白前景 */
+  --m-nav-indicator-bg: color-mix(in srgb, var(--accent-color, #888888) 40%, #2a2724 60%);
+  --m-nav-indicator-fg: #ffffff;
+
+  /* 旧名别名 */
+  --m-glass-bg: var(--m-surface-container);
+  --m-glass-border: var(--m-border);
+  --m-glass-shadow: var(--m-elevation-2);
 }
 
 .mobile {
@@ -163,15 +185,13 @@
 
 /* ── 卡片 ── */
 .mobile .m-card {
-  border: 1px solid var(--m-glass-border);
+  border: 1px solid var(--m-outline-variant, var(--m-border));
   border-radius: 24px;
-  background: var(--m-glass-bg);
-  box-shadow: var(--m-glass-shadow);
-  backdrop-filter: blur(22px) saturate(165%);
-  -webkit-backdrop-filter: blur(22px) saturate(165%);
+  background: var(--m-surface-container, var(--m-card));
+  box-shadow: var(--m-elevation-1);
 }
 
-/* Shared glass surface for the common mobile component families. */
+/* 共享表面：移动端常用卡片族统一使用 container 档实色表面（原玻璃材质已移除）。 */
 .mobile
   :is(
     .n-card,
@@ -182,11 +202,9 @@
     .platform-group,
     .search-assist-panel
   ) {
-  border-color: var(--m-glass-border) !important;
-  background: var(--m-glass-bg) !important;
-  box-shadow: var(--m-glass-shadow);
-  backdrop-filter: blur(22px) saturate(165%);
-  -webkit-backdrop-filter: blur(22px) saturate(165%);
+  border-color: var(--m-outline-variant, var(--m-border)) !important;
+  background: var(--m-surface-container, var(--m-card)) !important;
+  box-shadow: var(--m-elevation-1);
 }
 
 /* ── 艺术过渡页 ── */
@@ -238,41 +256,39 @@
   }
 }
 
-/* ==================== 半透明材质（Apple 风格） ==================== */
+/* ==================== 表面材质（实色，取消玻璃拟态） ==================== */
 
+/* 顶栏/材质层改为不透明表面：不再依赖 backdrop-filter，
+   层级改由色调（surface vs surface-container）表达。 */
 .mobile .m-material {
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: var(--m-surface);
 }
 
 .mobile .m-material-header {
-  background: color-mix(in srgb, var(--m-bg) 70%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: var(--m-bg);
 }
 
 /* ==================== 老旧浏览器兜底 ==================== */
 
-/* backdrop-filter 不可用时：玻璃材质换高不透明度实底，保证文字可读 */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .mobile .m-material,
-  .mobile .m-material-header {
-    background: var(--m-surface);
-  }
-}
-
-/* color-mix 不可用时：--m-glass-* 令牌会整体失效（背景回落为透明），
-   重定义为纯 rgba 近似值（浅色/深色两套） */
+/* color-mix 不可用时：表面容器与底栏胶囊回落为硬编码实色（浅色/深色两套） */
 @supports not (color: color-mix(in srgb, #fff 50%, transparent)) {
   .mobile {
-    --m-glass-bg: rgba(136, 136, 136, 0.12);
-    --m-glass-border: rgba(214, 214, 214, 0.9);
+    --m-surface-container: #efeae2;
+    --m-surface-container-high: #e6e0d7;
+    --m-outline-variant: #d5d0c9;
+    --m-nav-indicator-bg: #4a4540;
+    --m-glass-bg: var(--m-surface-container);
+    --m-glass-border: var(--m-outline-variant);
   }
 
   .mobile.dark,
   .dark .mobile {
-    --m-glass-bg: rgba(38, 38, 38, 0.92);
-    --m-glass-border: rgba(58, 58, 58, 0.95);
+    --m-surface-container: #2a2a2a;
+    --m-surface-container-high: #333333;
+    --m-outline-variant: #3a3a3a;
+    --m-nav-indicator-bg: #56504a;
+    --m-glass-bg: var(--m-surface-container);
+    --m-glass-border: var(--m-outline-variant);
   }
 }
 
@@ -386,14 +402,7 @@
   }
 }
 
-@media (prefers-reduced-transparency: reduce) {
-  .mobile .m-material,
-  .mobile .m-material-header {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    background: var(--m-bg);
-  }
-}
+/* 玻璃拟态已移除，原先的 prefers-reduced-transparency 降级分支不再需要 */
 
 /* ==================== Naive UI Message 样式（保留原有） ==================== */
 
@@ -420,7 +429,6 @@
   border-radius: 24px !important;
   font-size: 14px !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
-  backdrop-filter: blur(10px) !important;
   max-width: 85vw !important;
 }
 
@@ -430,11 +438,13 @@
   color: #fff !important;
 }
 
-/* 浅色模式下的 message */
+/* 浅色模式下的 message
+   原先 0.5 透明度靠 backdrop-filter 保证可读；玻璃移除后改为不透明表面 */
 .mobile:not(.noElectron) .n-message,
 .mobile .theme-light .n-message {
-  background: rgba(255, 255, 255, 0.5) !important;
-  color: #333 !important;
+  background: var(--m-surface-container-high, #efeae2) !important;
+  color: var(--m-text-primary, #2c2c2c) !important;
+  border: 1px solid var(--m-outline-variant, #d5d0c9);
 }
 
 /* 成功消息 */

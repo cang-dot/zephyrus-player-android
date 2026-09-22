@@ -331,11 +331,11 @@ function startBeatListening() {
 }
 
 function stopBeatListening() {
+  // 只退订自身回调:drumDetector 是全局共享数据源,组件级停止不得杀喂数管线
   if (unsubscribeBeat) {
     unsubscribeBeat();
     unsubscribeBeat = null;
   }
-  drumDetector.stop();
   beatSpike.value = 0;
   if (spikeTimer) {
     clearTimeout(spikeTimer);

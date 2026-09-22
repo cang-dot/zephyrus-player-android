@@ -1,15 +1,25 @@
 import type { CSSProperties } from 'vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
-import { type LyricSwipeDirection, normalizeLyricSwipeDirection } from '@/types/lyric';
+import {
+  type LyricSwipeDirection,
+  normalizeLyricSwipeDirection,
+  normalizePlayerPageLayout
+} from '@/types/lyric';
 
 type LyricSwipeGestureOptions = {
   isOpen: () => boolean;
   onOpen: () => void;
   onClose: () => void;
+  /** 实例角色：lyrics=歌词页(默认，兼容现状)；comments=评论页 */
+  role?: 'lyrics' | 'comments';
+  /** 返回 true 时手势不响应（页面互斥：歌词页打开时抑制评论手势，反之亦然） */
+  suppressed?: () => boolean;
 };
 
 export type LyricSwipePhase = 'opening' | 'closing' | null;
+
+export type LyricSwipeGestureApi = ReturnType<typeof useLyricSwipeGesture>;
 
 type PointerSample = {
   x: number;
@@ -52,17 +62,47 @@ function rubberBand(distance: number, dimension: number, constant = 0.24): numbe
   return (distance * dimension * constant) / (dimension + constant * Math.abs(distance));
 }
 
-function readDirection(): LyricSwipeDirection {
+function readLyricConfig() {
   try {
-    const stored = JSON.parse(localStorage.getItem('music-full-config') || '{}');
-    return normalizeLyricSwipeDirection(stored.lyricSwipeDirection);
+    return JSON.parse(localStorage.getItem('music-full-config') || '{}') as {
+      lyricSwipeDirection?: unknown;
+      showCommentSection?: unknown;
+      playerPageLayout?: unknown;
+    };
   } catch {
-    return 'left';
+    return {} as Record<string, never>;
   }
 }
 
+/**
+ * 布局感知的方向解析：
+ * - 评论区关闭 → 歌词页沿用 lyricSwipeDirection，评论页方向为 none（手势惰性）
+ * - 评论区开启 → 由 playerPageLayout 推导两侧。注意手势语义：'right'(右划)
+ *   表示页面从左侧滑入，'left'(左划)表示从右侧滑入，与布局文案的左右一致：
+ *   评论-播放-歌词 = 评论在左(从左进入/right)、歌词在右(从右进入/left)
+ */
+export function readPageSwipeDirection(role: 'lyrics' | 'comments'): LyricSwipeDirection {
+  const config = readLyricConfig();
+  if (config.showCommentSection === true) {
+    const lyricsFromLeft =
+      normalizePlayerPageLayout(config.playerPageLayout) === 'lyrics-player-comments';
+    if (role === 'lyrics') return lyricsFromLeft ? 'right' : 'left';
+    return lyricsFromLeft ? 'left' : 'right';
+  }
+  if (role === 'comments') return 'none';
+  return normalizeLyricSwipeDirection(config.lyricSwipeDirection);
+}
+
+function readDirection(role: 'lyrics' | 'comments'): LyricSwipeDirection {
+  return readPageSwipeDirection(role);
+}
+
 export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
-  const direction = ref<LyricSwipeDirection>(readDirection());
+  const role = options.role ?? 'lyrics';
+  const direction = ref<LyricSwipeDirection>(readDirection(role));
+  // 三页模式开启时，同根节点上并存歌词/评论两个手势实例，
+  // 各自只认自己方向的那半边滑动，方向不符立即让位
+  const dualPageEnabled = ref(false);
   const offset = ref(0);
   const dragging = ref(false);
   const settling = ref(false);
@@ -137,7 +177,8 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
   });
 
   function syncDirection() {
-    direction.value = readDirection();
+    direction.value = readDirection(role);
+    dualPageEnabled.value = readLyricConfig().showCommentSection === true;
   }
 
   function cancelAnimation() {
@@ -221,6 +262,7 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
   function onPointerDown(event: PointerEvent) {
     if (!event.isPrimary || event.pointerType === 'mouse' || direction.value === 'none') return;
     if (isInteractiveTarget(event.target)) return;
+    if (options.suppressed?.()) return;
 
     cancelAnimation();
     previewing.value = false;
@@ -245,6 +287,11 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
       if (Math.hypot(deltaX, deltaY) < AXIS_LOCK_DISTANCE) return;
       axis = Math.abs(deltaX) > Math.abs(deltaY) * 1.12 ? 'horizontal' : 'vertical';
       if (axis === 'vertical') return;
+      // 双页并存：滑向不属于本实例一侧时立即让位，交给对侧实例处理
+      if (dualPageEnabled.value && Math.sign(deltaX) !== gestureSign) {
+        resetPointer();
+        return;
+      }
       dragging.value = true;
       phase.value = startedOpen ? 'closing' : 'opening';
       previewing.value = true;

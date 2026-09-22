@@ -18,6 +18,12 @@ export function normalizeLyricSwipeDirection(value: unknown): LyricSwipeDirectio
   return value === 'none' || value === 'left' || value === 'right' ? value : 'left';
 }
 
+export type PlayerPageLayout = 'comment-player-lyrics' | 'lyrics-player-comments';
+
+export function normalizePlayerPageLayout(value: unknown): PlayerPageLayout {
+  return value === 'lyrics-player-comments' ? value : 'comment-player-lyrics';
+}
+
 export type StatusBarLyricColorSource = {
   source: 'theme' | 'custom';
   color: string;
@@ -169,6 +175,8 @@ export interface LyricConfig {
   centerLyrics: boolean;
   lyricAlignment: LyricAlignment;
   lyricSwipeDirection: LyricSwipeDirection;
+  showCommentSection: boolean; // 播放界面显示评论区（三页布局：评论/播放/歌词）
+  playerPageLayout: PlayerPageLayout; // 三页排布顺序，仅 showCommentSection 开启时生效
   fontSize: number;
   letterSpacing: number;
   fontWeight: number;
@@ -250,6 +258,8 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   centerLyrics: false,
   lyricAlignment: 'left',
   lyricSwipeDirection: 'left',
+  showCommentSection: false,
+  playerPageLayout: 'comment-player-lyrics',
   fontSize: 22,
   letterSpacing: 0,
   fontWeight: 500,

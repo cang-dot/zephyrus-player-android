@@ -35,8 +35,8 @@ import SharedSongCard from '@/components/common/SharedSongCard.vue';
 import SplashScreen from '@/components/splash/SplashScreen.vue';
 import TrafficWarningDrawer from '@/components/TrafficWarningDrawer.vue';
 import { setSmartAudioInstance, useSmartAudio } from '@/composables/useSmartAudio';
-import { registerExternalAudioHandler } from '@/services/externalAudio';
 import { registerBuiltinFeatures } from '@/features/register';
+import { registerExternalAudioHandler } from '@/services/externalAudio';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
@@ -51,6 +51,7 @@ import { initNativeBridge, injectSafeAreaInsets, isAndroidNative } from './servi
 import { audioService } from './services/audioService';
 import { listenTogetherService } from './services/listenTogetherService';
 import { initLxMusicRunner } from './services/LxMusicSourceRunner';
+import { setupMediaSessionLyric } from './services/mediaSessionLyric';
 import { useStyleEngineStore } from './store/modules/styleEngine';
 import { isMobile } from './utils';
 import { useAppShortcuts } from './utils/appShortcuts';
@@ -382,6 +383,9 @@ onMounted(async () => {
   if (isAndroidNative()) {
     initNativeBridge();
   }
+
+  // 控制中心歌词(网易云式):媒体会话标题实时替换为当前歌词行(iOS/桌面浏览器)
+  setupMediaSessionLyric();
 });
 
 onBeforeUnmount(() => {

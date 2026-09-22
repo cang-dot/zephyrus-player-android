@@ -1,6 +1,7 @@
 // 本地音乐工具函数
 // 提供格式过滤、元数据 fallback、类型转换、搜索过滤、增量扫描等功能
 
+import { parseTtml, ttmlToTimedLines } from '@/services/ttmlParser';
 import type { LocalMusicEntry, LocalMusicMeta } from '@/types/localMusic';
 import { SUPPORTED_AUDIO_FORMATS } from '@/types/localMusic';
 import type { ILyric, ILyricText, IWordData, SongResult } from '@/types/music';
@@ -58,6 +59,52 @@ export function buildFallbackMeta(filePath: string): LocalMusicMeta {
 }
 
 /**
+ * 判断歌词内容是否具备 TTML 特征（XML 声明或 <tt> 根元素）
+ * @param content 歌词原文
+ * @param filePath 可选的来源文件路径（.ttml 后缀直接判定）
+ */
+export function looksLikeTtmlLyric(content: string, filePath?: string): boolean {
+  if (filePath?.toLowerCase().endsWith('.ttml')) return true;
+  const head = content.trimStart().slice(0, 400).toLowerCase();
+  return head.startsWith('<?xml') || head.startsWith('<tt ') || head.startsWith('<tt>');
+}
+
+/**
+ * 将 TTML 歌词（XML）解析为 ILyric 对象
+ * 内嵌元数据/外部 .ttl 文件里的 TTML 走真正的 TTML 解析器，
+ * 逐字时间轴、翻译与罗马音经 ttmlToTimedLines 进入统一 ILyric 通道
+ * @param xmlString TTML XML 原文
+ * @returns ILyric 对象，非 TTML 或解析失败返回 null
+ */
+export function parseTtmlToILyric(xmlString: string): ILyric | null {
+  if (!xmlString || !looksLikeTtmlLyric(xmlString)) {
+    return null;
+  }
+
+  try {
+    const parsed = parseTtml(xmlString);
+    if (!parsed || parsed.lines.length === 0) {
+      return null;
+    }
+
+    const lrcArray = ttmlToTimedLines(parsed);
+    if (lrcArray.length === 0) {
+      return null;
+    }
+
+    const lrcTimeArray = lrcArray.map((line) => (line.startTime ?? 0) / 1000);
+    return {
+      lrcTimeArray,
+      lrcArray,
+      hasWordByWord: lrcArray.some((line) => line.hasWordByWord),
+      format: 'ttml'
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 将 LRC 格式歌词字符串解析为 ILyric 对象
  * 复用 yrcParser 解析能力，兼容标准 LRC 和 YRC 格式
  * @param lrcString LRC 格式歌词文本
@@ -65,6 +112,11 @@ export function buildFallbackMeta(filePath: string): LocalMusicMeta {
  */
 export function parseLrcToILyric(lrcString: string | null): ILyric | null {
   if (!lrcString || typeof lrcString !== 'string') {
+    return null;
+  }
+
+  // TTML 是 XML，交给 parseTtmlToILyric，避免 YRC 解析器产出无时间轴的垃圾行
+  if (looksLikeTtmlLyric(lrcString)) {
     return null;
   }
 
@@ -111,8 +163,8 @@ export function parseLrcToILyric(lrcString: string | null): ILyric | null {
  * @returns 兼容播放系统的 SongResult 对象
  */
 export function toSongResult(entry: LocalMusicEntry): SongResult {
-  // 解析内嵌歌词为 ILyric 对象
-  const lyric = parseLrcToILyric(entry.lyrics);
+  // 解析内嵌歌词为 ILyric 对象：TTML 特征优先走 TTML 解析器，其余按 LRC/YRC
+  const lyric = parseTtmlToILyric(entry.lyrics ?? '') ?? parseLrcToILyric(entry.lyrics);
 
   return {
     id: entry.id,
@@ -371,16 +423,10 @@ export function parseLyricContent(content: string, filePath?: string): ILyric | 
   if (!content) return null;
 
   try {
-    // TTML 内容嗅探防御:TTML 是 XML,用 LRC 解析器只会产出无时间轴的垃圾行。
-    // 真正的 TTML 解析走 parseTtml + AMLL 链路(playerCore 对 server 平台已分叉)
-    const head = content.trimStart().slice(0, 400).toLowerCase();
-    const isTtml =
-      filePath?.toLowerCase().endsWith('.ttml') ||
-      head.startsWith('<?xml') ||
-      head.startsWith('<tt ') ||
-      head.startsWith('<tt>');
-    if (isTtml) {
-      return null;
+    // TTML 特征：走真正的 TTML 解析器（逐字/翻译/罗马音进统一 ILyric 通道），
+    // 解析失败（残缺 XML）时保持原防御行为——不落入 LRC 解析器产垃圾
+    if (looksLikeTtmlLyric(content, filePath)) {
+      return parseTtmlToILyric(content);
     }
 
     // LRC/TXT 格式：使用 parseYrcLyrics 解析

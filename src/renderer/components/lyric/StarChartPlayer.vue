@@ -21,10 +21,22 @@
           ...lyricsSwipeStyle
         }"
         @click="handleTapToggle"
-        @pointerdown.capture="onLyricsSwipePointerDown"
-        @pointermove.capture="onLyricsSwipePointerMove"
-        @pointerup.capture="onLyricsSwipePointerUp"
-        @pointercancel.capture="onLyricsSwipePointerCancel"
+        @pointerdown.capture="
+          onLyricsSwipePointerDown($event);
+          commentsSwipe.onPointerDown($event);
+        "
+        @pointermove.capture="
+          onLyricsSwipePointerMove($event);
+          commentsSwipe.onPointerMove($event);
+        "
+        @pointerup.capture="
+          onLyricsSwipePointerUp($event);
+          commentsSwipe.onPointerUp($event);
+        "
+        @pointercancel.capture="
+          onLyricsSwipePointerCancel($event);
+          commentsSwipe.onPointerCancel($event);
+        "
         @touchstart="onSwipeCloseTouchStart"
         @touchend="onSwipeCloseTouchEnd"
       >
@@ -82,12 +94,9 @@
           @dblclick.stop="openLyricsAnimated"
         >
           <span class="lyric-block-canvas">
-            <span
-              v-for="(line, i) in lyricBlockLines"
-              :key="`l${i}`"
-              class="lyric-block-line"
-              >{{ line }}</span
-            >
+            <span v-for="(line, i) in lyricBlockLines" :key="`l${i}`" class="lyric-block-line">{{
+              line
+            }}</span>
             <span
               v-for="(line, i) in lyricBlockTranslations"
               :key="`t${i}`"
@@ -106,12 +115,9 @@
           :style="lyricsUnderlayStyle"
         >
           <span class="lyric-block-canvas">
-            <span
-              v-for="(line, i) in lyricBlockLines"
-              :key="`l${i}`"
-              class="lyric-block-line"
-              >{{ line }}</span
-            >
+            <span v-for="(line, i) in lyricBlockLines" :key="`l${i}`" class="lyric-block-line">{{
+              line
+            }}</span>
             <span
               v-for="(line, i) in lyricBlockTranslations"
               :key="`t${i}`"
@@ -127,6 +133,7 @@
           :style="lyricsBackdropStyle"
           @click="closeLyricsAnimated"
         />
+        <mobile-comments-overlay :gesture="commentsSwipe" />
         <div
           v-show="showFullLyrics || lyricsSwipePreview"
           class="scrolling-lyrics-overlay"
@@ -170,23 +177,25 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import MobileCommentsOverlay from '@/components/comment/MobileCommentsOverlay.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { useCommentsPage } from '@/composables/useCommentsPage';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
+import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
-import { ensureFontLoaded } from '@/utils/fontLoader';
-import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
+import { ensureFontLoaded } from '@/utils/fontLoader';
 import { shouldSkipMobilePlayerFrame } from '@/utils/mobilePlayerPerformance';
 import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 
@@ -205,6 +214,7 @@ const { primaryColor, primaryColorRgb } = useCoverColor();
 const { showPosterModal, selectedLyrics, posterSubject, handleGeneratePoster } = usePosterShare();
 const { styleVars, isCustom, customBackgroundActive, customFontActive } =
   usePlayerStyleAppearance('starChart');
+const commentsSwipe = useCommentsPage();
 const showFullLyrics = ref(false);
 const {
   style: lyricsSwipeStyle,
@@ -220,6 +230,7 @@ const {
   animateClose: closeLyricsAnimated
 } = useLyricSwipeGesture({
   isOpen: () => showFullLyrics.value,
+  suppressed: () => playerStore.fullCommentsVisible,
   onOpen: () => {
     showFullLyrics.value = true;
     playerStore.setFullLyricsVisible(true);
@@ -274,7 +285,7 @@ const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
 });
 
 const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({
-  shouldClose: () => !showFullLyrics.value,
+  shouldClose: () => !showFullLyrics.value && !playerStore.fullCommentsVisible,
   onClose: () => close()
 });
 
@@ -354,8 +365,10 @@ const blockLineCount = computed(() => {
  */
 // 分块输入:过滤空行(间奏占位)与制作名单行(作词/作曲/演职员表),
 // 这些行不属于演唱内容,不应出现在歌词块里
-const CREDITS_LINE_RE = /^\s*(作词|作曲|编曲|混音|母带|出品|版权|录音|人声|和声|吉他|贝斯|笛子|古筝|键盘|鼓|制作人|监制|配器|策划|文案|主唱|合成器|录音棚)\s*[:：]/;
-const CREDITS_ANYWHERE_RE = /(作词|作曲|编曲|混音|母带|出品|版权|录音棚|监制|配器|策划|文案|MIDI工程|混音\/母带)/;
+const CREDITS_LINE_RE =
+  /^\s*(作词|作曲|编曲|混音|母带|出品|版权|录音|人声|和声|吉他|贝斯|笛子|古筝|键盘|鼓|制作人|监制|配器|策划|文案|主唱|合成器|录音棚)\s*[:：]/;
+const CREDITS_ANYWHERE_RE =
+  /(作词|作曲|编曲|混音|母带|出品|版权|录音棚|监制|配器|策划|文案|MIDI工程|混音\/母带)/;
 // 间奏/尾奏占位行('.' '♪' '——' 等):无演唱内容,还会以超长 duration 吞掉间奏判定
 const PLACEHOLDER_LINE_RE = /^[.。·•*※♪♫~\-—_\s]+$/;
 const chartRows = computed(() => {
@@ -448,10 +461,14 @@ const lyricBreaks = computed(() => {
   if (lines.length) {
     console.debug(
       '[starChart blocks]',
-      'lines:', lines.length,
-      'breaks:', [...breaks.keys()].map((k) => `${k}(${breaks.get(k)})`).join(','),
-      'sample:', lines.slice(0, 3).map((l) => l.text),
-      'src:', playMusic.value?.name
+      'lines:',
+      lines.length,
+      'breaks:',
+      [...breaks.keys()].map((k) => `${k}(${breaks.get(k)})`).join(','),
+      'sample:',
+      lines.slice(0, 3).map((l) => l.text),
+      'src:',
+      playMusic.value?.name
     );
   }
   return breaks;
@@ -591,15 +608,13 @@ function sampleCoverTints(image: HTMLImageElement) {
 function buildStarField(size: number, seedText: string) {
   trailStars.length = 0;
   starFieldSeed = hashText(seedText) || 1;
-  const count = Math.round(Math.min(1600, Math.max(320, size * 1.4)));
-  // 尺寸基准:400px 下的观感为 1x,大圆盘星等/线宽等比放大
-  const sizeScale = Math.max(0.6, size / 400);
+  const count = Math.round(Math.min(560, Math.max(320, size * 1.25)));
   for (let i = 0; i < count; i++) {
     trailStars.push({
       orbit: 0.14 + Math.pow(seededRandom(), 0.82) * 0.6,
       angle: seededRandom() * Math.PI * 2,
       speed: 0.6 + seededRandom() * 0.8,
-      magnitude: (0.5 + seededRandom() * 1.1) * sizeScale,
+      magnitude: 0.5 + seededRandom() * 1.1,
       trail: 0.05 + seededRandom() * 0.13,
       twinkle: seededRandom() * Math.PI * 2,
       alpha: 0.35 + seededRandom() * 0.55,
@@ -658,7 +673,7 @@ function drawStarField(context: CanvasRenderingContext2D, size: number, dt: numb
       const nextY = center + Math.sin(angle) * orbitRadius;
       const fade = 1 - seg / segments;
       context.strokeStyle = `rgba(${red}, ${green}, ${blue}, ${(alpha * fade * 0.85).toFixed(3)})`;
-      context.lineWidth = star.magnitude * (0.35 + fade * 0.65) * (size / 400);
+      context.lineWidth = star.magnitude * (0.35 + fade * 0.65);
       context.beginPath();
       context.moveTo(x, y);
       context.lineTo(nextX, nextY);
@@ -668,7 +683,7 @@ function drawStarField(context: CanvasRenderingContext2D, size: number, dt: numb
     }
     context.fillStyle = `rgba(${red}, ${green}, ${blue}, ${alpha.toFixed(3)})`;
     context.beginPath();
-    context.arc(x, y, star.magnitude * 0.9 * (size / 400), 0, Math.PI * 2);
+    context.arc(x, y, star.magnitude * 0.9, 0, Math.PI * 2);
     context.fill();
   }
 }
@@ -895,7 +910,14 @@ onBeforeUnmount(() => {
 
 .lyric-block-line {
   display: block;
-  font-family: var(--player-style-font-family, 'ZephyrusMaShanZheng', 'Noto Serif SC', 'STKai', 'KaiTi', serif);
+  font-family: var(
+    --player-style-font-family,
+    'ZephyrusMaShanZheng',
+    'Noto Serif SC',
+    'STKai',
+    'KaiTi',
+    serif
+  );
   font-size: calc(clamp(19px, 2.7dvh, 24px) * var(--star-text-scale, 1));
   font-weight: 500;
   line-height: 2.05;

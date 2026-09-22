@@ -393,7 +393,19 @@ export default {
       'The "Error" style contains intense flashing. Tap again to confirm (photosensitivity)'
   },
   lyricSettings: {
-    title: 'Scrolling Lyrics',
+    title: 'Layout',
+    showCommentSection: 'Show comment section',
+    pageLayout: 'Page layout',
+    pageLayoutCommentFirst: 'Comments · Player · Lyrics',
+    pageLayoutLyricsFirst: 'Lyrics · Player · Comments',
+    lyricSwipeGesture: 'Lyrics swipe gesture',
+    swipeLeft: 'Swipe from left',
+    swipeRight: 'Swipe from right',
+    swipeOff: 'Off',
+    showCommentSectionDescription:
+      'Open a comments page beside the player, switch with the lyrics page',
+    pageLayoutDescription: 'Left/right arrangement of the comments and lyrics pages',
+    lyricSwipeGestureDescription: 'Choose the entry direction of the lyrics page',
     tabs: {
       display: 'Display',
       interface: 'Interface',

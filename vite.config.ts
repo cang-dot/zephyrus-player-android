@@ -21,7 +21,10 @@ export default defineConfig({
   },
   plugins: [
     vue(),
-    viteCompression(),
+    // deploy_web.py 上传时会跳过所有 .gz 文件，gzip 产物对当前部署链路无用；
+    // 且压缩阶段在大资源（24MB 词典 / 80MB 字体）上极慢，并观察到间歇性挂起
+    // （构建进程长时间 0 CPU、dist 停在被清空态）。设 VITE_DISABLE_GZIP=1 跳过。
+    ...(process.env.VITE_DISABLE_GZIP === '1' ? [] : [viteCompression()]),
     VueDevTools(),
     AutoImport({
       imports: [

@@ -67,9 +67,11 @@
           </div>
         </template>
 
-        <!-- 专辑/歌单/MV 搜索 -->
+        <!-- 专辑/歌单/MV 搜索：与专辑页一致的自适应多列网格 -->
         <template v-else-if="searchType !== SEARCH_TYPE.MUSIC">
-          <search-item v-for="item in results" :key="item.id" :item="item" class="mb-3" />
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 px-4 pt-2">
+            <search-item v-for="item in results" :key="item.id" :item="item" />
+          </div>
         </template>
 
         <!-- 加载更多 -->
@@ -94,7 +96,6 @@
 </template>
 
 <script setup lang="ts">
-import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
@@ -110,6 +111,7 @@ import {
 } from '@/api/serverSongs';
 import { openSpotifyTrack } from '@/api/spotify';
 import { getUnlockKey, getUnlockSearchResults } from '@/api/unlockKey';
+import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { SEARCH_TYPE } from '@/const/bar-const';
@@ -670,7 +672,9 @@ onMounted(() => {
 }
 
 .source-mark {
-  @apply absolute right-12 top-2.5 z-10 pointer-events-none;
+  /* 与三个点按钮并列：按钮占右缘 12~44px（w-8 + 容器 p-3），标记右缘 48px 留 4px 间距，
+     垂直居中（原先 top-2.5 贴在右上角） */
+  @apply absolute right-12 top-1/2 -translate-y-1/2 z-10 pointer-events-none;
 }
 
 .source-mark--text {

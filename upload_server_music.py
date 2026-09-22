@@ -64,6 +64,9 @@ def read_meta(path: str) -> dict:
     if ext == ".flac":
         pic = getattr(m, "pictures", None)
         meta["has_picture"] = bool(pic and pic[0].data)
+    elif ext in (".m4a", ".mp4", ".aac"):
+        covers = m.tags.get("covr") if m.tags else None
+        meta["has_picture"] = bool(covers and len(covers) > 0 and len(bytes(covers[0])) > 0)
     else:
         try:
             pics = m.tags.getall("APIC") if m.tags else []
@@ -119,6 +122,7 @@ def extract_lyrics(path: str, ext: str) -> tuple:
 
     - MP3: USLT 标签文本; 若以 <tt 开头视为 TTML, 存 .ttml, 否则存 .lrc
     - FLAC: Vorbis lyrics 标签(通常为 LRC)
+    - M4A/MP4: iTunes ©lyr 标签(TTML / LRC 均可, 由内容判定扩展名)
     """
     m = mutagen.File(path, easy=False)
     text = None
@@ -127,6 +131,13 @@ def extract_lyrics(path: str, ext: str) -> tuple:
             v = m.tags["lyrics"]
             text = v[0] if isinstance(v, list) else v
             text = str(text).strip()
+    elif ext in (".m4a", ".mp4", ".aac"):
+        if m.tags:
+            v = m.tags.get("\xa9lyr")
+            if isinstance(v, list):
+                v = v[0] if v else None
+            if v:
+                text = str(v).strip()
     else:
         if m.tags:
             uslt = m.tags.getall("USLT")
@@ -354,12 +365,21 @@ def main():
                 pic_data = None
                 if it["ext"] == ".flac":
                     pic_data = m.pictures[0].data if m.pictures else None
+                elif it["ext"] in (".m4a", ".mp4", ".aac"):
+                    covers = m.tags.get("covr") if m.tags else None
+                    if isinstance(covers, list):
+                        covers = [bytes(c) for c in covers if c]
+                    pic_data = covers[0] if covers else None
                 else:
                     pics = m.tags.getall("APIC") if m.tags else []
                     if pics:
                         pic_data = pics[0].data
                 if pic_data:
-                    cover_remote = f"{REMOTE_DIR}/cover_{it['id']}.jpg"
+                    # 按真实图片格式命名,避免 PNG 内容挂在 .jpg 的 Content-Type 下
+                    is_png = pic_data[:8] == b"\x89PNG\r\n\x1a\n"
+                    cover_ext = "png" if is_png else "jpg"
+                    it["cover_ext"] = cover_ext
+                    cover_remote = f"{REMOTE_DIR}/cover_{it['id']}.{cover_ext}"
                     with sftp.open(cover_remote, "wb") as fh:
                         fh.write(pic_data)
                     print(f"   -> {cover_remote} (封面)")
@@ -397,8 +417,12 @@ def main():
         existing_ids = {str(s.get("id", "")) for s in line}
         for it in items:
             if it["id"] in existing_ids:
-                print(f"   (已存在于线上 songs.json, 跳过录入: {it['id']})")
-                continue
+                if not force:
+                    print(f"   (已存在于线上 songs.json, 跳过录入: {it['id']})")
+                    continue
+                # --force:移除旧条目后重建,让 picUrl/lyricsUrl 等元数据同步更新
+                line = [s for s in line if str(s.get("id", "")) != it["id"]]
+                print(f"   (--force 覆盖线上条目: {it['id']})")
             existing_ids.add(it["id"])
             entry = {
                 "id": it["id"],
@@ -415,7 +439,9 @@ def main():
             if it["track"]:
                 entry["track"] = it["track"]
             if it["has_picture"]:
-                entry["picUrl"] = f"https://www.mucang.xyz/server-music/cover_{it['id']}.jpg"
+                entry["picUrl"] = (
+                    f"https://www.mucang.xyz/server-music/cover_{it['id']}.{it.get('cover_ext', 'jpg')}"
+                )
             if it["lyrics"] and it["lyrics_ext"]:
                 entry["lyricsUrl"] = (
                     f"https://www.mucang.xyz/server-music/lyrics_{it['id']}{it['lyrics_ext']}"

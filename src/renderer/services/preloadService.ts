@@ -2,6 +2,21 @@ import { Howl } from 'howler';
 
 import type { SongResult } from '@/types/music';
 
+/**
+ * iOS Safari 不做音频预加载:后台常驻的暂停 <audio> 元素会让系统媒体面板
+ * 绑定到错误的元素(控制中心卡在暂停态、上下曲按钮失效)。
+ * 播放全程只保留当前一个元素,切歌时旧元素已卸载,面板绑定即恢复正确。
+ * 预取调用点(playlist.fetchSongs/smartMix)应以此函数做门控。
+ */
+export function isIosSafari(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return (
+    /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    // iPadOS 13+ 桌面 UA
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
 class PreloadService {
   private loadingPromises: Map<string | number, Promise<Howl>> = new Map();
   private preloadedSounds: Map<string | number, Howl> = new Map();
@@ -50,7 +65,6 @@ class PreloadService {
    * 执行实际的加载和验证逻辑
    */
   private async _performLoad(song: SongResult): Promise<Howl> {
-
     if (!song.playMusicUrl) {
       throw new Error('歌曲没有 URL');
     }

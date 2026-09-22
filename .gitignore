@@ -56,3 +56,8 @@ __pycache__/
 src/renderer/auto-imports.d.ts
 src/renderer/components.d.ts
 Screenshot_2026*
+
+.zcode
+.zcodeignore
+_backup-*/
+promo-assets/promo-v2/

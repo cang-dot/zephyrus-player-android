@@ -393,7 +393,19 @@ export default {
       '「エラー」スタイルには強い点滅が含まれます。光過敏性発作予防のため、もう一度タップして確認してください'
   },
   lyricSettings: {
-    title: 'スクロール歌詞設定',
+    title: 'レイアウト設定',
+    showCommentSection: 'コメント欄を表示',
+    pageLayout: 'ページレイアウト',
+    pageLayoutCommentFirst: 'コメント · プレイヤー · 歌詞',
+    pageLayoutLyricsFirst: '歌詞 · プレイヤー · コメント',
+    lyricSwipeGesture: 'スクロール歌詞スワイプ',
+    swipeLeft: '左からスワイプ',
+    swipeRight: '右からスワイプ',
+    swipeOff: 'オフ',
+    showCommentSectionDescription:
+      'プレイヤーの両側にコメントページを開き、歌詞ページと切り替えます',
+    pageLayoutDescription: 'コメントページと歌詞ページの左右配置',
+    lyricSwipeGestureDescription: '歌詞ページの開く方向を選択します',
     tabs: {
       display: '表示',
       interface: 'インターフェース',

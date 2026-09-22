@@ -107,7 +107,7 @@ export default {
     }
   },
   // プレイヤー設定
-    settings: {
+  settings: {
     smartEq: 'スマートイコライザー',
     title: '再生設定',
     playbackSpeed: '再生速度',
@@ -264,5 +264,30 @@ export default {
     clearConfirmTitle: 'プレイリストをクリア',
     clearConfirmContent:
       'これによりプレイリスト内のすべての楽曲がクリアされ、現在の再生が停止されます。続行しますか？'
+  },
+  commentPanel: {
+    commentsCount: 'コメント {n}件',
+    hot: '人気',
+    latest: '新着',
+    saySomething: 'コメントを書く',
+    reply: '返信',
+    replyTo: '{name} に返信',
+    close: '閉じる',
+    send: '送信',
+    cancel: 'キャンセル',
+    expandReplies: '返信 {n}件',
+    noMore: 'コメントはこれ以上ありません',
+    loadFailed: 'コメントの読み込みに失敗しました',
+    retry: '再試行',
+    empty: 'まだコメントはありません',
+    loginRequired: 'ログインが必要です',
+    loginToComment: 'ログインしてコメント',
+    delete: '削除',
+    deleteConfirm: 'このコメントを削除しますか？',
+    justNow: 'たった今',
+    minutesAgo: '{n}分前',
+    hoursAgo: '{n}時間前',
+    yesterday: '昨日',
+    daysAgo: '{n}日前'
   }
 };

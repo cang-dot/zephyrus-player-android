@@ -5,10 +5,10 @@
  * 驱动排版播放器的三种高潮颜色模式
  */
 
-import { type Ref,ref, watch } from 'vue';
+import { type Ref, ref, watch } from 'vue';
 
 import { nowTime } from '@/hooks/MusicHook';
-import { type BeatInfo,drumDetector } from '@/services/drumDetector';
+import { type BeatInfo, drumDetector } from '@/services/drumDetector';
 
 /** 高潮模式 */
 export type ClimaxMode = 1 | 2 | 3;
@@ -38,7 +38,7 @@ export function createClimaxDriver(
   const colorState = ref<ClimaxColorState>({
     phase: false,
     inverted: false,
-    bgIndex: 0,
+    bgIndex: 0
   });
 
   // 手动切换模式
@@ -78,11 +78,11 @@ export function createClimaxDriver(
   }
 
   function stopListening() {
+    // 只退订自身回调:drumDetector 是全局共享数据源,组件级停止不得杀喂数管线
     if (unsubscribeBeat) {
       unsubscribeBeat();
       unsubscribeBeat = null;
     }
-    drumDetector.stop();
   }
 
   // 监听播放时间，判断是否在高潮段落内
@@ -99,9 +99,7 @@ export function createClimaxDriver(
         return;
       }
 
-      const inSegment = segments.some(
-        (seg) => time >= seg.start && time <= seg.end
-      );
+      const inSegment = segments.some((seg) => time >= seg.start && time <= seg.end);
 
       if (inSegment && !isInClimax.value) {
         isInClimax.value = true;
@@ -122,6 +120,6 @@ export function createClimaxDriver(
     colorState,
     cycleMode,
     startListening,
-    stopListening,
+    stopListening
   };
 }

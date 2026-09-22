@@ -107,7 +107,7 @@ export default {
     }
   },
   // Playback settings
-    settings: {
+  settings: {
     smartEq: 'Smart Equalizer',
     title: 'Playback Settings',
     playbackSpeed: 'Playback Speed',
@@ -264,5 +264,30 @@ export default {
     clearConfirmTitle: 'Clear Playlist',
     clearConfirmContent:
       'This will clear all songs in the playlist and stop the current playback. Continue?'
+  },
+  commentPanel: {
+    commentsCount: '{n} comments',
+    hot: 'Hot',
+    latest: 'New',
+    saySomething: 'Say something',
+    reply: 'Reply',
+    replyTo: 'Reply to {name}',
+    close: 'Close',
+    send: 'Send',
+    cancel: 'Cancel',
+    expandReplies: '{n} replies',
+    noMore: 'No more comments',
+    loadFailed: 'Failed to load comments',
+    retry: 'Retry',
+    empty: 'No comments yet. Be the first!',
+    loginRequired: 'Log in to interact',
+    loginToComment: 'Log in to comment',
+    delete: 'Delete',
+    deleteConfirm: 'Delete this comment?',
+    justNow: 'just now',
+    minutesAgo: '{n} min ago',
+    hoursAgo: '{n} h ago',
+    yesterday: 'Yesterday',
+    daysAgo: '{n} d ago'
   }
 };

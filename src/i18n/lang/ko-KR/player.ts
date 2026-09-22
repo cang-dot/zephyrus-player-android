@@ -107,7 +107,7 @@ export default {
     }
   },
   // 플레이어 설정
-    settings: {
+  settings: {
     smartEq: '스마트 이퀄라이저',
     title: '재생 설정',
     playbackSpeed: '재생 속도',
@@ -262,5 +262,30 @@ export default {
     empty: '재생 목록이 비어있습니다',
     clearConfirmTitle: '재생 목록 비우기',
     clearConfirmContent: '재생 목록의 모든 곡을 삭제하고 현재 재생을 중지합니다. 계속하시겠습니까?'
+  },
+  commentPanel: {
+    commentsCount: '댓글 {n}개',
+    hot: '인기',
+    latest: '최신',
+    saySomething: '댓글을 입력하세요',
+    reply: '답글',
+    replyTo: '{name}에게 답글',
+    close: '닫기',
+    send: '보내기',
+    cancel: '취소',
+    expandReplies: '답글 {n}개',
+    noMore: '더 이상 댓글이 없습니다',
+    loadFailed: '댓글을 불러오지 못했습니다',
+    retry: '다시 시도',
+    empty: '아직 댓글이 없습니다',
+    loginRequired: '로그인이 필요합니다',
+    loginToComment: '로그인 후 댓글 작성',
+    delete: '삭제',
+    deleteConfirm: '이 댓글을 삭제할까요?',
+    justNow: '방금 전',
+    minutesAgo: '{n}분 전',
+    hoursAgo: '{n}시간 전',
+    yesterday: '어제',
+    daysAgo: '{n}일 전'
   }
 };

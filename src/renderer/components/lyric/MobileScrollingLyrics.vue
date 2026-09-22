@@ -209,12 +209,25 @@ const hasSourceLyrics = computed(
   () => playback.displayLines.value.length > 0 || Boolean(playback.lyric.value?.lines.length)
 );
 const amllLines = computed(() =>
-  allAmllLines.value.map((line) => ({
-    ...line,
-    translatedLyric: config.value.showTranslation ? line.translatedLyric : '',
-    romanLyric: config.value.showRomanization ? line.romanLyric : ''
-  }))
+  deepPlainLines(
+    allAmllLines.value.map((line) => ({
+      ...line,
+      translatedLyric: config.value.showTranslation ? line.translatedLyric : '',
+      romanLyric: config.value.showRomanization ? line.romanLyric : ''
+    }))
+  )
 );
+
+// AMLL setLyricLines 内部 structuredClone 整个行数组:store 响应式 Proxy
+// (TTML 翻译/罗马音数组按引用透出)无法克隆会抛 DataCloneError,
+// 进入 core 前统一 JSON 纯净化
+function deepPlainLines(lines: LyricLine[]): LyricLine[] {
+  try {
+    return JSON.parse(JSON.stringify(lines)) as LyricLine[];
+  } catch {
+    return lines;
+  }
+}
 const renderAmllPlayer = computed(() => hasMountedPlayer.value && amllLines.value.length > 0);
 const transitionLyricText = computed(
   () =>
@@ -335,7 +348,6 @@ function clearLongPress() {
   longPressSourceIndex = null;
   isPointerScrolling.value = false;
 }
-
 function handlePointerDown(event: PointerEvent) {
   if (!event.isPrimary) return;
   isPointerScrolling.value = true;
@@ -649,6 +661,17 @@ onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('music-full-config-updated', handleConfigUpdate);
 });
+
+// 切歌:歌词行重建后滚动进度自动切到顶端(新歌首行)
+watch(
+  () => playerStore.currentSong?.id,
+  async () => {
+    if (!hasMountedPlayer.value) return;
+    await nextTick();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    resolvedAmllPlayer()?.resetScroll?.();
+  }
+);
 
 onBeforeUnmount(() => {
   releaseLyricPlayerResource?.();

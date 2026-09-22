@@ -382,7 +382,18 @@ export default {
     errorConfirmHint: '「錯誤」樣式包含強烈閃爍效果，為防光敏不適請再次點擊確認'
   },
   lyricSettings: {
-    title: '滾動歌詞設定',
+    title: '佈局設定',
+    showCommentSection: '顯示評論區',
+    pageLayout: '頁面佈局',
+    pageLayoutCommentFirst: '評論 · 播放介面 · 歌詞',
+    pageLayoutLyricsFirst: '歌詞 · 播放介面 · 評論',
+    lyricSwipeGesture: '滾動歌詞手勢',
+    swipeLeft: '從左側滑入',
+    swipeRight: '從右側滑入',
+    swipeOff: '關閉',
+    showCommentSectionDescription: '在播放介面兩側開啟評論頁，與歌詞頁左右切換',
+    pageLayoutDescription: '評論頁與歌詞頁的左右排布',
+    lyricSwipeGestureDescription: '選擇大字歌詞進入方向，返回時使用相反方向',
     tabs: {
       display: '顯示',
       interface: '介面',

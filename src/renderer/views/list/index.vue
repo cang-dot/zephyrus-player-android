@@ -16,8 +16,26 @@
         class="embedded-local-music"
       />
 
+      <!-- 未登录 / 全部来源加载失败：状态提示块。
+           「全部」下仍会渲染本地歌曲入口卡，故提示块独立于网格之外。 -->
+      <div
+        v-if="stateNotice"
+        class="state-block"
+        :class="{ 'state-block--error': stateNotice.kind === 'error' }"
+      >
+        <i :class="stateNotice.icon" />
+        <p class="state-title">{{ stateNotice.title }}</p>
+        <p class="state-desc">{{ stateNotice.desc }}</p>
+        <button
+          class="state-action pressable"
+          @click="stateNotice.kind === 'error' ? retryFailedSources() : goLogin()"
+        >
+          {{ stateNotice.kind === 'error' ? '重试' : '去登录' }}
+        </button>
+      </div>
+
       <!-- Loading skeleton -->
-      <div v-if="playlistSourceFilter !== 'local' && isLoading" class="cover-grid">
+      <div v-if="showSkeleton" class="cover-grid">
         <div v-for="i in 6" :key="'skeleton-' + i" class="cover-card">
           <div class="cover-wrap skeleton-shimmer" style="aspect-ratio: 1; border-radius: 16px" />
           <div class="cover-text">
@@ -31,11 +49,7 @@
       </div>
 
       <!-- Cover Grid -->
-      <div
-        v-else-if="playlistSourceFilter !== 'local' && items.length > 0"
-        ref="gridRef"
-        class="cover-grid"
-      >
+      <div v-else-if="items.length > 0" ref="gridRef" class="cover-grid">
         <div
           v-for="item in items"
           :key="cardKey(item)"
@@ -70,16 +84,34 @@
               />
             </p>
             <span class="cover-kind">{{
-              item.isLocal ? '本地歌曲' : item.type === 'album' ? '专辑' : '歌单'
+              item.isLocal
+                ? '本地歌曲'
+                : `${item.type === 'album' ? '专辑' : '歌单'}${coverKindCountSuffix(item)}`
             }}</span>
           </div>
         </div>
       </div>
 
       <!-- Empty state -->
-      <div v-else-if="playlistSourceFilter !== 'local'" class="empty-state">
+      <div v-else-if="!stateNotice && playlistSourceFilter !== 'local'" class="empty-state">
         <i class="ri-disc-line"></i>
         <p>暂无歌单或专辑</p>
+      </div>
+
+      <!-- 部分来源加载失败：不阻断已加载内容，以横幅提示 -->
+      <div v-if="partialErrors.length" class="partial-error">
+        <i class="ri-error-warning-line" />
+        <div class="partial-error-body">
+          <p class="partial-error-title">部分来源加载失败</p>
+          <p
+            v-for="entry in partialErrors"
+            :key="entry.account.accountId"
+            class="partial-error-desc"
+          >
+            {{ entry.state.message }}
+          </p>
+        </div>
+        <button class="partial-error-retry pressable" @click="retryFailedSources()">重试</button>
       </div>
 
       <div class="bottom-spacer" />
@@ -89,9 +121,11 @@
 
 <script lang="ts" setup>
 import { useMessage } from 'naive-ui';
-import { computed, defineAsyncComponent, nextTick, ref } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
+import { fetchPlatformAccountData } from '@/api/platformQrApi';
+import { getUserPlaylist } from '@/api/user';
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
@@ -123,10 +157,169 @@ const gridRef = ref<HTMLElement>();
 
 /** 封面卡稳定标识:跨来源筛选切换时同卡同 key,是 FILTER MOVE 段 FLIP 的前提 */
 const cardKey = (item: any) => `${item.accountId}-${item.type}-${item.id}`;
-// 加载状态：用户未登录或歌单数据未加载完成
-const isLoading = computed(() => {
-  return !accountStore.accounts.length && !userStore.user;
+// ==================== 数据加载与页面状态 ====================
+// 歌单页自己负责拉取数据。原先只读缓存：未登录会永远停在骨架屏，
+// 没进过「我的」页则歌单永远是空的。
+
+type AccountLoadStatus = 'loading' | 'ok' | 'error';
+interface AccountLoadState {
+  status: AccountLoadStatus;
+  message?: string;
+}
+
+const accountLoadStates = ref<Record<string, AccountLoadState>>({});
+let loadSequence = 0;
+
+/** 不同失败形态给不同文案，而不是笼统的「加载失败」 */
+function describeLoadError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error ?? '');
+  const text = raw.toLowerCase();
+  if (/timeout|timed?\s?out|network error|err_network|fetch failed/.test(text)) {
+    return '网络超时或中断，请检查网络后重试';
+  }
+  if (/\b(301|401|403)\b|登录|cookie|未登录|expired/.test(text)) {
+    return '登录状态已失效，请到「我的」页重新登录';
+  }
+  if (/\b429\b|频率|频繁|rate limit/.test(text)) {
+    return '来源接口限流，稍等片刻再试';
+  }
+  if (/\b5\d\d\b|服务器|server error|bad gateway/.test(text)) {
+    return raw || '来源服务暂时不可用，稍后重试';
+  }
+  return raw || '加载失败，请重试';
+}
+
+/** 当前筛选下的来源账号；local 视图不参与 */
+const relevantAccounts = computed(() => {
+  const source = playlistSourceFilter.value;
+  if (source === 'local') return [];
+  return accountStore.accounts.filter((account) => source === 'all' || account.platform === source);
 });
+
+const notLoggedIn = computed(
+  () => playlistSourceFilter.value !== 'local' && relevantAccounts.value.length === 0
+);
+
+const failedAccounts = computed(() =>
+  relevantAccounts.value
+    .map((account) => ({ account, state: accountLoadStates.value[account.accountId] }))
+    .filter((entry) => entry.state?.status === 'error')
+);
+
+const allSourcesFailed = computed(
+  () =>
+    relevantAccounts.value.length > 0 &&
+    relevantAccounts.value.every(
+      (account) => accountLoadStates.value[account.accountId]?.status === 'error'
+    )
+);
+
+const showSkeleton = computed(() => {
+  if (playlistSourceFilter.value === 'local') return false;
+  if (!relevantAccounts.value.length) return false;
+  return relevantAccounts.value.every(
+    (account) => accountLoadStates.value[account.accountId]?.status === 'loading'
+  );
+});
+
+const stateNotice = computed(() => {
+  if (playlistSourceFilter.value === 'local') return null;
+  if (notLoggedIn.value) {
+    const source = playlistSourceFilter.value;
+    const label = source === 'all' ? '任意音乐平台' : platformName(source as MusicPlatform);
+    return {
+      kind: 'login' as const,
+      icon: 'ri-user-line',
+      title: '暂未登录',
+      desc:
+        source === 'all'
+          ? '登录网易云 / QQ 音乐 / 酷狗后，这里会显示对应账号的歌单与专辑。'
+          : `登录${label}后，这里会显示该平台的歌单与专辑。`
+    };
+  }
+  if (allSourcesFailed.value) {
+    return {
+      kind: 'error' as const,
+      icon: 'ri-wifi-off-line',
+      title: '歌单加载失败',
+      desc: failedAccounts.value[0]?.state?.message || '请检查网络后重试'
+    };
+  }
+  return null;
+});
+
+/** 有成功有失败时不整屏报错，只挂横幅 */
+const partialErrors = computed(() => (allSourcesFailed.value ? [] : failedAccounts.value));
+
+const goLogin = () => {
+  router.push({ path: '/user', query: { panel: 'login' } });
+};
+
+const retryFailedSources = () => {
+  for (const { account } of failedAccounts.value) {
+    delete accountLoadStates.value[account.accountId];
+  }
+  accountLoadStates.value = { ...accountLoadStates.value };
+  void ensureSourcesLoaded();
+};
+
+async function ensureSourcesLoaded() {
+  const source = playlistSourceFilter.value;
+  if (source === 'local') return;
+  const sequence = ++loadSequence;
+  const targets = relevantAccounts.value;
+  if (!targets.length) {
+    accountLoadStates.value = {};
+    return;
+  }
+
+  await Promise.all(
+    targets.map(async (account) => {
+      const existing = accountLoadStates.value[account.accountId];
+      if (existing && (existing.status === 'ok' || existing.status === 'loading')) return;
+
+      const settle = (state: AccountLoadState) => {
+        if (sequence !== loadSequence) return;
+        accountLoadStates.value = { ...accountLoadStates.value, [account.accountId]: state };
+      };
+
+      settle({ status: 'loading' });
+      try {
+        if (account.platform === 'netease') {
+          const isActive = accountStore.activeAccountId === account.accountId;
+          if (isActive && !userStore.playList?.length) {
+            const response = await getUserPlaylist(Number(account.userId));
+            if (response.data?.playlist && accountStore.activeAccountId === account.accountId) {
+              userStore.playList = response.data.playlist;
+            }
+          }
+        } else if (account.platform === 'qq' || account.platform === 'kugou') {
+          const cache = accountStore.accountCache[account.accountId];
+          if (!cache?.playlists?.length) {
+            const data = await fetchPlatformAccountData(account.platform, account.cookie || '');
+            accountStore.cacheAccountData(account.accountId, 'playlists', data.playlists);
+            accountStore.cacheAccountData(account.accountId, 'albums', data.albums);
+          }
+        }
+        // spotify 等其余来源：数据由「我的」页同步，这里缺省视为已加载（与既有行为一致）
+        settle({ status: 'ok' });
+      } catch (error) {
+        settle({ status: 'error', message: describeLoadError(error) });
+      }
+    })
+  );
+}
+
+onMounted(() => {
+  void ensureSourcesLoaded();
+});
+
+watch(
+  [playlistSourceFilter, () => accountStore.accounts.map((account) => account.accountId).join(',')],
+  () => {
+    void ensureSourcesLoaded();
+  }
+);
 
 const playlistSourceTabs = computed(() => [
   { key: 'all', label: '全部', platform: 'all' },
@@ -138,6 +331,16 @@ const playlistSourceTabs = computed(() => [
 
 const platformName = (platform: MusicPlatform) =>
   ({ netease: '网易云', qq: 'QQ 音乐', kugou: '酷狗音乐', spotify: 'Spotify' })[platform];
+
+/**
+ * 类型小字的曲目数后缀：网易云歌单原生带 trackCount，QQ/酷狗由服务端网关
+ * 归一化为 trackCount，专辑统一用 size。取不到有效数字时不加后缀。
+ */
+const coverKindCountSuffix = (item: any) => {
+  const raw = item.raw || {};
+  const count = Number(raw.trackCount ?? raw.size ?? 0);
+  return Number.isFinite(count) && count > 0 ? ` · ${count}首` : '';
+};
 
 // "全部"页新增的本地歌曲入口卡片（点击跳转本地标签页）。
 const LOCAL_SONGS_ITEM = {
@@ -581,6 +784,100 @@ const handleItemClick = (item: any) => {
 
   p {
     font-size: 14px;
+  }
+}
+
+/* ── 未登录 / 全部来源失败的状态提示块 ── */
+.state-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 24px 16px 0;
+  padding: 44px 24px;
+  gap: 10px;
+  border: 1px solid var(--m-outline-variant, var(--m-border, #d5d0c9));
+  border-radius: var(--m-radius-lg, 16px);
+  background: var(--m-surface-container, var(--m-card, #e8e4dc));
+  text-align: center;
+
+  > i {
+    font-size: 44px;
+    color: var(--cover-text-muted, var(--m-text-muted, #9a9590));
+  }
+
+  .state-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--cover-text-primary, var(--m-text-primary, #2c2c2c));
+  }
+
+  .state-desc {
+    max-width: 300px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
+  }
+
+  .state-action {
+    margin-top: 6px;
+    padding: 8px 28px;
+    border: 0;
+    border-radius: var(--m-radius-full, 9999px);
+    background: var(--accent-color, #888);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  &.state-block--error > i {
+    color: var(--m-text-secondary, #6b6560);
+  }
+}
+
+/* ── 部分来源加载失败横幅 ── */
+.partial-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 16px 16px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--m-outline-variant, var(--m-border, #d5d0c9));
+  border-radius: var(--m-radius-md, 12px);
+  background: var(--m-surface-container, var(--m-card, #e8e4dc));
+
+  > i {
+    flex-shrink: 0;
+    font-size: 18px;
+    color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
+  }
+
+  .partial-error-body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .partial-error-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--cover-text-primary, var(--m-text-primary, #2c2c2c));
+  }
+
+  .partial-error-desc {
+    margin-top: 2px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--cover-text-secondary, var(--m-text-secondary, #6b6560));
+  }
+
+  .partial-error-retry {
+    flex-shrink: 0;
+    padding: 5px 14px;
+    border: 1px solid var(--m-outline-variant, var(--m-border, #d5d0c9));
+    border-radius: var(--m-radius-full, 9999px);
+    background: transparent;
+    color: var(--cover-text-primary, var(--m-text-primary, #2c2c2c));
+    font-size: 12px;
   }
 }
 

@@ -65,6 +65,23 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
     if (isAndroidNative()) {
       drumDetector.startExternal();
       climaxDetector.startExternal();
+      // 外部注入会经 ingestBands → beatCallbacks 触发同一回调:
+      // 不注册的话 bpm/beatFlux/kickEnergy/isBeat/isStrongBeat 永远是初值
+      beatUnsubscribe = drumDetector.onBeat((info: BeatInfo) => {
+        bpm.value = info.bpm;
+        beatFlux.value = info.flux;
+        kickEnergy.value = info.kickEnergy;
+        isBeat.value = true;
+        isStrongBeat.value = info.isStrong;
+
+        // 重置 isBeat（单帧信号）
+        const timer = setTimeout(() => {
+          beatResetTimers.delete(timer);
+          isBeat.value = false;
+          isStrongBeat.value = false;
+        }, 50);
+        beatResetTimers.add(timer);
+      });
       nativeTicker = setInterval(() => {
         const analysis = NativeAudioPlayer.getAnalysis();
         drumDetector.ingestBands(

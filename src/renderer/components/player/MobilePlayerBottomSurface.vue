@@ -26,7 +26,7 @@
             playerTransition.state.value === 'opening' ||
             playerTransition.state.value === 'closing'
         }"
-        :style="surfaceStyle"
+        :style="[surfaceGeometryStyle, surfaceMotionStyle]"
         @pointerdown="onSurfacePointerDown"
         @pointermove="onSurfacePointerMove"
         @pointerup="onSurfacePointerUp"
@@ -231,10 +231,17 @@ watch(
 
 const chromeVisibility = computed(() => {
   if (lyricSelection.active.value) return 1;
+  // 评论页打开期间共享底面整体让位：透明 + pointer-events none。
+  // 实测证据：dock 形态（进度条贴底）的面板会停在评论输入区上方，
+  // elementFromPoint 命中 shared-controls-pane，拦截全部点击并形成暗色玻璃带
+  if (playerStore.fullCommentsVisible) return 0;
   const transitionState = playerTransition.state.value;
   // 非 default 样式:底板稍晚浮现(0.28),给「迷你信息重排为信息行」留出可感知的时序
   const revealDenominator = defaultStyleSurface.value ? 0.08 : 0.28;
-  const progressReveal = Math.min(1, Math.max(0, playerTransition.progress.value / revealDenominator));
+  const progressReveal = Math.min(
+    1,
+    Math.max(0, playerTransition.progress.value / revealDenominator)
+  );
   if (
     transitionState === 'dragging' ||
     transitionState === 'opening' ||
@@ -269,9 +276,10 @@ const layerStyle = computed<CSSProperties>(
     }) as CSSProperties
 );
 
-const surfaceStyle = computed<CSSProperties>(() => {
+// 静态几何:只依赖 sheet 抽屉进度与视口/控件形态,不依赖转场 progress——
+// 播放器开合弹簧逐帧重渲染时这段布局属性既不重算也不重写,消除逐帧布局失效
+const surfaceGeometryStyle = computed<CSSProperties>(() => {
   const sheet = sheetProgress.value;
-  const playerProgress = lyricSelection.active.value ? 1 : playerTransition.progress.value;
   const landscape = isLandscape.value;
   const controlHeight = lyricSelection.active.value
     ? 88
@@ -299,18 +307,23 @@ const surfaceStyle = computed<CSSProperties>(() => {
   const finalTop = viewportHeight.value - safeBottom - 14 - height;
   const finalRadius = 26 + sheet * 4;
   return {
-    '--player-open-progress': String(playerProgress),
     top: `${finalTop}px`,
     left: `${finalLeft}px`,
     right: 'auto',
     bottom: 'auto',
     width: `${width}px`,
     height: `${height}px`,
-    borderRadius: `${finalRadius}px`,
-    transform: surfaceDocked.value ? `translate3d(0, ${surfaceDock.dockShift.value}px, 0)` : 'none',
-    pointerEvents: chromeVisibility.value > 0.02 ? 'auto' : 'none'
+    borderRadius: `${finalRadius}px`
   };
 });
+// 逐帧运动属性:仅合成器友好的 transform/opacity 与 CSS 变量
+const surfaceMotionStyle = computed<CSSProperties>(() => ({
+  '--player-open-progress': String(
+    lyricSelection.active.value ? 1 : playerTransition.progress.value
+  ),
+  transform: surfaceDocked.value ? `translate3d(0, ${surfaceDock.dockShift.value}px, 0)` : 'none',
+  pointerEvents: chromeVisibility.value > 0.02 ? 'auto' : 'none'
+}));
 
 const controlsPaneStyle = computed<CSSProperties>(() => ({
   opacity: lyricSelection.active.value
@@ -320,7 +333,9 @@ const controlsPaneStyle = computed<CSSProperties>(() => ({
           Math.min(1, Math.max(0, (playerTransition.progress.value - 0.12) / 0.56))
       ),
   transform: `translate3d(0, ${-10 * sheetProgress.value}px, 0)`,
-  pointerEvents: sheetProgress.value < 0.05 ? 'auto' : 'none'
+  // 评论页打开期间必须跟随父级让位：此处显式 auto 会穿透父级的 pointer-events none，
+  // 让已隐形的控制面板继续拦截评论输入区的点击
+  pointerEvents: sheetProgress.value < 0.05 && !playerStore.fullCommentsVisible ? 'auto' : 'none'
 }));
 const sheetPaneStyle = computed<CSSProperties>(() => ({
   opacity: String(sheetProgress.value),

@@ -10,19 +10,34 @@
         'lyrics-expanded': lyricsExpanded,
         'custom-background': customBackgroundActive,
         'player-transitioning': playerTransitionBusy,
-        'controls-docked': controlsDocked
+        'controls-docked': controlsDocked,
+        'controls-visible': controlsShown
       }"
       :style="{ ...surfaceStyle, ...lyricsSwipeStyle }"
       @click="handleTapToggle"
-      @pointerdown.capture="onLyricsSwipePointerDown"
-      @pointermove.capture="onLyricsSwipePointerMove"
-      @pointerup.capture="onLyricsSwipePointerUp"
-      @pointercancel.capture="onLyricsSwipePointerCancel"
+      @pointerdown.capture="
+        onLyricsSwipePointerDown($event);
+        commentsSwipe.onPointerDown($event);
+      "
+      @pointermove.capture="
+        onLyricsSwipePointerMove($event);
+        commentsSwipe.onPointerMove($event);
+      "
+      @pointerup.capture="
+        onLyricsSwipePointerUp($event);
+        commentsSwipe.onPointerUp($event);
+      "
+      @pointercancel.capture="
+        onLyricsSwipePointerCancel($event);
+        commentsSwipe.onPointerCancel($event);
+      "
       @touchstart="onTouchStart"
       @touchend="onTouchEnd"
     >
-      <!-- 背景预设层(none/aurora/fluid,颜色从封面主色派生) -->
-      <div v-if="backgroundPreset !== 'none'" class="background-preset-layer" aria-hidden="true">
+      <!-- 背景预设层(none/aurora/fluid,颜色从封面主色派生)。
+           WebGL 上下文与 shader 编译成本高,首次弹簧收敛到 open 后才挂载,
+           形变期显示静态背景色;embedded 为引导页小窗预览,始终直接挂载 -->
+      <div v-if="backgroundLayerActive" class="background-preset-layer" aria-hidden="true">
         <aurora
           v-if="backgroundPreset === 'aurora'"
           :color-stops="auroraColorStops"
@@ -54,6 +69,9 @@
       <div v-if="playMusic?.playLoading" class="loading-state" aria-live="polite">
         <i class="ri-loader-4-line"></i>
       </div>
+
+      <!-- 评论页（三页布局的评论侧，与歌词页共享同一套手势/动画语言） -->
+      <mobile-comments-overlay :gesture="commentsSwipe" :bottom-inset="150" />
 
       <main
         class="player-content"
@@ -144,8 +162,10 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import Aurora from '@/components/Aurora.vue';
+import MobileCommentsOverlay from '@/components/comment/MobileCommentsOverlay.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { useCommentsPage } from '@/composables/useCommentsPage';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
@@ -160,7 +180,7 @@ import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import type { AuroraPosition } from '@/types/playerStyle';
 import { getImgUrl } from '@/utils';
 import { normalizeArtworkUrl, resolveArtworkSource } from '@/utils/artwork';
-import { getTextColors } from '@/utils/linearColor';
+import { animateGradient, getTextColors } from '@/utils/linearColor';
 import {
   choosePlayerInkTone,
   parseRepresentativeCssColor,
@@ -252,8 +272,13 @@ const artworkZoneStyle = computed(() => ({
 const artworkFrameStyle = computed(() => {
   // mode-full 画布是非正方形(width 100%/520、height 40dvh、aspect auto),
   // 图片 contain 居中会在浅色背景上露出灰边;锁定正方形让 frame 紧贴封面。
-  // 横屏分栏高度充裕,基准比竖屏更大
-  const base = isLandscape.value ? 'min(38vw, 48dvh, 430px)' : 'min(76vw, 38dvh, 370px)';
+  // 横屏分栏高度充裕,基准比竖屏更大;
+  // 控件栏可见时竖屏压缩封面(dvh cap 38→30、上限 370→330),为歌词区让位
+  const base = isLandscape.value
+    ? 'min(38vw, 48dvh, 430px)'
+    : controlsShown.value
+      ? 'min(76vw, 30dvh, 330px)'
+      : 'min(76vw, 38dvh, 370px)';
   const side = `calc(${base} * ${artworkSize.value / 100})`;
   return { width: side, height: side, aspectRatio: '1' };
 });
@@ -266,7 +291,7 @@ function rgbToHex(r: number, g: number, b: number) {
   return `#${channel(r)}${channel(g)}${channel(b)}`;
 }
 const themeRgb = computed(
-  () => parseRepresentativeCssColor(resolvedBackgroundColor.value) || { r: 23, g: 23, b: 23 }
+  () => parseRepresentativeCssColor(tweenedBackgroundColor.value) || { r: 23, g: 23, b: 23 }
 );
 const auroraColorStops = computed(() => {
   const { r, g, b } = themeRgb.value;
@@ -282,6 +307,7 @@ const fluidColors = computed(() => {
 const surfaceRef = ref<HTMLElement | null>(null);
 const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
 const lyricsExpanded = ref(false);
+const commentsSwipe = useCommentsPage();
 const {
   style: lyricsSwipeStyle,
   overlayStyle: lyricsOverlayStyle,
@@ -295,6 +321,7 @@ const {
   animateClose: closeLyricsAnimated
 } = useLyricSwipeGesture({
   isOpen: () => lyricsExpanded.value,
+  suppressed: () => playerStore.fullCommentsVisible,
   onOpen: () => commitLyricsExpanded(true),
   onClose: () => commitLyricsExpanded(false)
 });
@@ -324,6 +351,13 @@ const controlsDocked = computed(
     !playerTransition.controlsVisible.value &&
     playerTransition.sheetProgress.value < 0.02
 );
+// 控件栏可见(非常显模式):此时挤压封面/信息区,给滚动歌词让出完整可视空间
+const controlsShown = computed(
+  () =>
+    !surfacePinned.value &&
+    playerTransition.controlsVisible.value &&
+    playerTransition.sheetProgress.value < 0.02
+);
 const playerTransitionBusy = computed(
   () =>
     playerTransition.state.value === 'dragging' ||
@@ -339,15 +373,34 @@ const originalBackground = computed(
 const resolvedBackgroundColor = computed(() =>
   customBackgroundActive.value ? backgroundColor.value : originalBackground.value
 );
+// 背景叠化:源色(封面主色/自定义色)变化经 600ms rAF 渐变写入 tweened,
+// CSS 背景、Aurora/流体预设色、墨色全部从 tweened 派生——切歌整体平滑过渡
+const tweenedBackgroundColor = ref(resolvedBackgroundColor.value);
+let backgroundAnimationFrame: number | null = null;
+watch(resolvedBackgroundColor, (next) => {
+  if (backgroundAnimationFrame !== null) cancelAnimationFrame(backgroundAnimationFrame);
+  const result = animateGradient(
+    tweenedBackgroundColor.value,
+    next,
+    (value) => {
+      tweenedBackgroundColor.value = value;
+    },
+    600
+  );
+  if (typeof result === 'number') backgroundAnimationFrame = result;
+});
+onBeforeUnmount(() => {
+  if (backgroundAnimationFrame !== null) cancelAnimationFrame(backgroundAnimationFrame);
+});
 const ink = computed(() => {
-  const rgb = parseRepresentativeCssColor(resolvedBackgroundColor.value) || { r: 23, g: 23, b: 23 };
+  const rgb = parseRepresentativeCssColor(tweenedBackgroundColor.value) || { r: 23, g: 23, b: 23 };
   return playerInkVariables(choosePlayerInkTone(rgb));
 });
 const surfaceStyle = computed(() => ({
   ...styleVars.value,
   '--default-player-background': customBackgroundActive.value
     ? background.value
-    : originalBackground.value,
+    : tweenedBackgroundColor.value,
   '--player-ink': ink.value.color,
   '--player-ink-rgb': ink.value.rgb,
   '--text-color-active': ink.value.color,
@@ -372,12 +425,30 @@ const artworkTransitionStyle = computed(() => {
 const artworkInfoRef = ref<HTMLElement | null>(null);
 // 大标题从迷你栏歌曲信息行位置 FLIP 反演入场:p=0(及 reveal 起点附近)精确
 // 覆盖迷你文字,与大封面共同构成"同一元素变形"的连续路径,随弹簧飞向目标位
+// 目标行 rect 按布局签名缓存:转场逐帧只算 transform,测量仅在布局因素
+// (视口/横竖屏/自定义项/切歌)变化时重做一次,消除逐帧强制同步布局
+let infoRectCache: { key: string; rect: DOMRect } | null = null;
 const infoTransitionStyle = computed(() => {
   const source = playerTransition.identitySourceRect.value;
   const progress = playerTransition.progress.value;
   const el = artworkInfoRef.value;
   if (!source || !el || progress >= 0.999) return {};
-  const target = el.getBoundingClientRect();
+  const key = [
+    width.value,
+    height.value,
+    isLandscape.value,
+    controlsShown.value,
+    lyricsExpanded.value,
+    artworkSize.value,
+    artworkAlign.value,
+    showArtwork.value,
+    showTrackInfo.value,
+    playMusic.value?.id ?? ''
+  ].join('|');
+  if (!infoRectCache || infoRectCache.key !== key) {
+    infoRectCache = { key, rect: el.getBoundingClientRect() };
+  }
+  const target = infoRectCache.rect;
   if (!target.width || !target.height) return {};
   // 迷你行由 40px 方形封面撑高,文字起点在封面右侧(40px + 间距)
   const textLeft = source.left + source.height + 12;
@@ -397,6 +468,20 @@ const isVisible = computed({
   get: () => props.modelValue !== false,
   set: (value: boolean) => emit('update:modelValue', value)
 });
+// 背景预设层挂载闩:首次完整打开后保持挂载(此后开合不再重复创建 WebGL),
+// 关闭播放器后释放;挂载前形变期由静态背景色兜底
+const backgroundLayerLatch = ref(false);
+watch(
+  () => [playerTransition.state.value, isVisible.value] as const,
+  ([state, visible]) => {
+    if (state === 'open' && visible) backgroundLayerLatch.value = true;
+    else if (!visible) backgroundLayerLatch.value = false;
+  },
+  { immediate: true }
+);
+const backgroundLayerActive = computed(
+  () => backgroundPreset.value !== 'none' && (props.embedded === true || backgroundLayerLatch.value)
+);
 
 function loadConfig() {
   try {
@@ -434,7 +519,8 @@ function handleLyricsSurfaceClose() {
 }
 
 const { onTouchStart, onTouchEnd } = useSwipeClose({
-  shouldClose: () => !lyricsExpanded.value && !isLandscape.value,
+  shouldClose: () =>
+    !lyricsExpanded.value && !isLandscape.value && !playerStore.fullCommentsVisible,
   onClose: closePlayer
 });
 
@@ -443,7 +529,7 @@ function handleConfigUpdate() {
 }
 
 watch(
-  resolvedBackgroundColor,
+  tweenedBackgroundColor,
   (color) => {
     textColors.value = getTextColors(color);
   },
@@ -513,6 +599,11 @@ onBeforeUnmount(() => {
   transition: grid-template-rows 380ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+/* 控件栏可见:压缩封面/信息区,把空间让给滚动歌词(避免信息被封面盖住) */
+.controls-visible .player-content {
+  grid-template-rows: minmax(168px, 52%) minmax(100px, 48%);
+}
+
 .artwork-zone {
   /* 显式锁定第一格:歌词层手势预览时显式跨满网格,若封面区靠自动放置
      会被挤进网格外的隐式行(屏幕下方),出现"封面掉到下面"的错乱 */
@@ -530,6 +621,12 @@ onBeforeUnmount(() => {
     opacity 260ms ease,
     transform 380ms cubic-bezier(0.32, 0.72, 0, 1),
     padding-bottom 350ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* 控件栏可见:区内收紧(与封面挤压、行分配同一 350ms 曲线) */
+.controls-visible .artwork-zone {
+  gap: 14px;
+  padding-bottom: max(20px, 3%);
 }
 
 .artwork-preview-trigger {

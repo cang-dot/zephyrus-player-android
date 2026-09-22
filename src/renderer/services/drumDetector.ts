@@ -167,6 +167,11 @@ class DrumDetector {
   public start(): void {
     if (this.animationFrameId !== null) return;
     if (!this.analyserNode) {
+      // 无 Web Audio 图(安卓原生注入模式)时回落外部模式,保证 stop 后可重启
+      if (this.externalMode) {
+        this.startExternal();
+        return;
+      }
       console.error('[DrumDetector] 未连接，请先调用 connect()');
       return;
     }
@@ -227,14 +232,19 @@ class DrumDetector {
 
   /**
    * 停止检测
+   *
+   * 外部注入模式(安卓原生分析)是全局共享数据源:组件级「停止聆听」
+   * 应退订自身 onBeat 回调,而不是杀掉喂数管线——这里只停
+   * AnalyserNode 路径,外部模式保持运行,stop 后可经 start() 重启。
    */
   public stop(): void {
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
-    this.running = false;
-    this.externalMode = false;
+    if (!this.externalMode) {
+      this.running = false;
+    }
   }
 
   /**

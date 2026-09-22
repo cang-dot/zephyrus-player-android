@@ -261,5 +261,30 @@ export default {
     empty: '播放列表为空',
     clearConfirmTitle: '清空播放列表',
     clearConfirmContent: '这将清空所有播放列表中的歌曲并停止当前播放。是否继续？'
+  },
+  commentPanel: {
+    commentsCount: '{n} 条评论',
+    hot: '热门',
+    latest: '最新',
+    saySomething: '说点什么',
+    reply: '回复',
+    replyTo: '回复 {name}',
+    close: '关闭',
+    send: '发送',
+    cancel: '取消',
+    expandReplies: '共 {n} 条回复',
+    noMore: '没有更多评论了',
+    loadFailed: '评论加载失败',
+    retry: '重试',
+    empty: '还没有评论，来抢沙发',
+    loginRequired: '登录后才能互动',
+    loginToComment: '登录后评论',
+    delete: '删除',
+    deleteConfirm: '删除这条评论？',
+    justNow: '刚刚',
+    minutesAgo: '{n} 分钟前',
+    hoursAgo: '{n} 小时前',
+    yesterday: '昨天',
+    daysAgo: '{n} 天前'
   }
 };

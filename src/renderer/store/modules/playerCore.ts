@@ -36,6 +36,8 @@ export const usePlayerCoreStore = defineStore(
     const musicFull = ref(false);
     // 移动端全屏歌词（竖屏播放器内展开的滚动歌词页）
     const fullLyricsVisible = ref(false);
+    // 移动端播放页评论区（三页布局中的评论页）
+    const fullCommentsVisible = ref(false);
     // 移动端播放器设置弹窗
     const playerSettingsVisible = ref(false);
     const playbackRate = ref(1.0);
@@ -80,6 +82,17 @@ export const usePlayerCoreStore = defineStore(
      */
     const setFullLyricsVisible = (value: boolean) => {
       fullLyricsVisible.value = value;
+      // 三页互斥：歌词页打开时收起评论页
+      if (value) fullCommentsVisible.value = false;
+    };
+
+    /**
+     * 设置播放页评论区可见性
+     */
+    const setFullCommentsVisible = (value: boolean) => {
+      fullCommentsVisible.value = value;
+      // 三页互斥：评论页打开时收起歌词页
+      if (value) fullLyricsVisible.value = false;
     };
 
     /**
@@ -215,6 +228,12 @@ export const usePlayerCoreStore = defineStore(
           // 底层 HTMLAudioElement 实际在播放，不需要重试
           audioService.off('play', onPlayHandler);
           audioService.off('playerror', onPlayErrorHandler);
+          return;
+        }
+
+        // iOS 后台会挂起 Web Audio 并冻结定时器，此时 isActuallyPlaying 恒为 false；
+        // 页面不可见时放弃重载/重试，避免把正在缓冲/过渡的后台播放误杀
+        if (typeof document !== 'undefined' && document.hidden) {
           return;
         }
 
@@ -724,6 +743,7 @@ export const usePlayerCoreStore = defineStore(
       playMusicUrl,
       musicFull,
       fullLyricsVisible,
+      fullCommentsVisible,
       playerSettingsVisible,
       playbackRate,
       volume,
@@ -740,6 +760,7 @@ export const usePlayerCoreStore = defineStore(
       setIsPlay,
       setMusicFull,
       setFullLyricsVisible,
+      setFullCommentsVisible,
       setPlayerSettingsVisible,
       setPlayMusic,
       setPlaybackRate,

@@ -150,7 +150,7 @@
                 >
                   <span class="control-section-title">
                     <i class="ri-translate-2 mr-1"></i>
-                    {{ tr('settings.lyricSettings.title', '滚动歌词设置') }}
+                    {{ tr('settings.lyricSettings.title', '布局设置') }}
                   </span>
                   <i
                     class="ri-arrow-down-s-line control-section-chevron"
@@ -250,11 +250,78 @@
                       </div>
                     </div>
 
+                    <!-- 显示评论区（三页布局） -->
                     <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
                       <div class="min-w-0 pr-3">
-                        <div class="text-sm text-white/80">滚动歌词手势</div>
+                        <div class="text-sm text-white/80">
+                          {{ tr('settings.lyricSettings.showCommentSection', '显示评论区') }}
+                        </div>
                         <div class="text-xs text-white/40 mt-1">
-                          选择大字歌词进入方向，返回时使用相反方向
+                          {{
+                            tr(
+                              'settings.lyricSettings.showCommentSectionDescription',
+                              '在播放界面两侧开启评论页，与歌词页左右切换'
+                            )
+                          }}
+                        </div>
+                      </div>
+                      <button
+                        class="share-toggle-switch"
+                        :class="{ on: lyricConfig.showCommentSection }"
+                        @click="lyricConfig.showCommentSection = !lyricConfig.showCommentSection"
+                      >
+                        <span class="share-toggle-knob"></span>
+                      </button>
+                    </div>
+
+                    <!-- 页面布局（评论区开启时替换手势方向项） -->
+                    <div
+                      v-if="lyricConfig.showCommentSection"
+                      class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2"
+                    >
+                      <div class="min-w-0 pr-3">
+                        <div class="text-sm text-white/80">
+                          {{ tr('settings.lyricSettings.pageLayout', '页面布局') }}
+                        </div>
+                        <div class="text-xs text-white/40 mt-1">
+                          {{
+                            tr(
+                              'settings.lyricSettings.pageLayoutDescription',
+                              '评论页与歌词页的左右排布'
+                            )
+                          }}
+                        </div>
+                      </div>
+                      <div class="lyric-swipe-control" role="radiogroup">
+                        <button
+                          v-for="option in pageLayoutOptions"
+                          :key="option.value"
+                          type="button"
+                          :class="{ active: lyricConfig.playerPageLayout === option.value }"
+                          :aria-checked="lyricConfig.playerPageLayout === option.value"
+                          role="radio"
+                          @click="setPageLayout(option.value)"
+                        >
+                          {{ option.label }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      v-if="!lyricConfig.showCommentSection"
+                      class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2"
+                    >
+                      <div class="min-w-0 pr-3">
+                        <div class="text-sm text-white/80">
+                          {{ tr('settings.lyricSettings.lyricSwipeGesture', '滚动歌词手势') }}
+                        </div>
+                        <div class="text-xs text-white/40 mt-1">
+                          {{
+                            tr(
+                              'settings.lyricSettings.lyricSwipeGestureDescription',
+                              '选择大字歌词进入方向，返回时使用相反方向'
+                            )
+                          }}
                         </div>
                       </div>
                       <div class="lyric-swipe-control" role="radiogroup">
@@ -1337,11 +1404,17 @@ import { useLocalMusicStore } from '@/store/modules/localMusic';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useUserStore } from '@/store/modules/user';
-import type { LyricAlignment, LyricConfig, LyricSwipeDirection } from '@/types/lyric';
+import type {
+  LyricAlignment,
+  LyricConfig,
+  LyricSwipeDirection,
+  PlayerPageLayout
+} from '@/types/lyric';
 import {
   DEFAULT_LYRIC_CONFIG,
   normalizeLyricAlignment,
   normalizeLyricSwipeDirection,
+  normalizePlayerPageLayout,
   normalizeStatusBarLyricConfig
 } from '@/types/lyric';
 import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from '@/types/playerStyle';
@@ -2175,6 +2248,9 @@ function loadStoredLyricConfig(): LyricConfig {
       ...parsed,
       lyricAlignment: normalizeLyricAlignment(parsed.lyricAlignment, parsed.centerLyrics),
       lyricSwipeDirection: normalizeLyricSwipeDirection(parsed.lyricSwipeDirection),
+      showCommentSection: parsed.showCommentSection === true,
+      playerPageLayout: normalizePlayerPageLayout(parsed.playerPageLayout),
+
       statusBarLyricConfig: normalizeStatusBarLyricConfig(
         parsed.statusBarLyricConfig,
         Boolean(parsed.statusBarLyricsEnabled)
@@ -2465,14 +2541,29 @@ function setLyricAlignment(alignment: LyricAlignment) {
   lyricConfig.value.centerLyrics = alignment === 'center';
 }
 
-const lyricSwipeOptions: Array<{ value: LyricSwipeDirection; label: string }> = [
-  { value: 'none', label: '关闭' },
-  { value: 'left', label: '左划' },
-  { value: 'right', label: '右划' }
-];
+const lyricSwipeOptions = computed<Array<{ value: LyricSwipeDirection; label: string }>>(() => [
+  { value: 'none', label: tr('settings.lyricSettings.swipeOff', '关闭') },
+  { value: 'left', label: tr('settings.lyricSettings.swipeLeft', '左划') },
+  { value: 'right', label: tr('settings.lyricSettings.swipeRight', '右划') }
+]);
+
+const pageLayoutOptions = computed<Array<{ value: PlayerPageLayout; label: string }>>(() => [
+  {
+    value: 'comment-player-lyrics',
+    label: tr('settings.lyricSettings.pageLayoutCommentFirst', '评论 · 播放界面 · 歌词')
+  },
+  {
+    value: 'lyrics-player-comments',
+    label: tr('settings.lyricSettings.pageLayoutLyricsFirst', '歌词 · 播放界面 · 评论')
+  }
+]);
 
 function setLyricSwipeDirection(direction: LyricSwipeDirection) {
   lyricConfig.value.lyricSwipeDirection = direction;
+}
+
+function setPageLayout(layout: PlayerPageLayout) {
+  lyricConfig.value.playerPageLayout = layout;
 }
 
 // 滚动歌词字体选项（内置字体，含"默认"空选项）

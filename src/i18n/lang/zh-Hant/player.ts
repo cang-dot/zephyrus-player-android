@@ -106,7 +106,7 @@ export default {
     }
   },
   // 播放器設定
-    settings: {
+  settings: {
     smartEq: '智慧等化器',
     title: '播放設定',
     playbackSpeed: '播放速度',
@@ -261,5 +261,30 @@ export default {
     empty: '播放清單為空',
     clearConfirmTitle: '清空播放清單',
     clearConfirmContent: '這將清空所有播放清單中的歌曲並停止目前播放。是否繼續？'
+  },
+  commentPanel: {
+    commentsCount: '{n} 條評論',
+    hot: '熱門',
+    latest: '最新',
+    saySomething: '說點什麼',
+    reply: '回覆',
+    replyTo: '回覆 {name}',
+    close: '關閉',
+    send: '發送',
+    cancel: '取消',
+    expandReplies: '共 {n} 條回覆',
+    noMore: '沒有更多評論了',
+    loadFailed: '評論載入失敗',
+    retry: '重試',
+    empty: '還沒有評論，來搶沙發',
+    loginRequired: '登入後才能互動',
+    loginToComment: '登入後評論',
+    delete: '刪除',
+    deleteConfirm: '刪除這條評論？',
+    justNow: '剛剛',
+    minutesAgo: '{n} 分鐘前',
+    hoursAgo: '{n} 小時前',
+    yesterday: '昨天',
+    daysAgo: '{n} 天前'
   }
 };

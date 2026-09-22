@@ -18,10 +18,22 @@
           ...lyricsSwipeStyle
         }"
         @click="handleTapToggle"
-        @pointerdown.capture="onLyricsSwipePointerDown"
-        @pointermove.capture="onLyricsSwipePointerMove"
-        @pointerup.capture="onLyricsSwipePointerUp"
-        @pointercancel.capture="onLyricsSwipePointerCancel"
+        @pointerdown.capture="
+          onLyricsSwipePointerDown($event);
+          commentsSwipe.onPointerDown($event);
+        "
+        @pointermove.capture="
+          onLyricsSwipePointerMove($event);
+          commentsSwipe.onPointerMove($event);
+        "
+        @pointerup.capture="
+          onLyricsSwipePointerUp($event);
+          commentsSwipe.onPointerUp($event);
+        "
+        @pointercancel.capture="
+          onLyricsSwipePointerCancel($event);
+          commentsSwipe.onPointerCancel($event);
+        "
         @touchstart="onSwipeCloseTouchStart"
         @touchend="onSwipeCloseTouchEnd"
       >
@@ -121,6 +133,7 @@
           :style="lyricsBackdropStyle"
           @click="closeLyricsAnimated"
         ></div>
+        <mobile-comments-overlay :gesture="commentsSwipe" />
         <div
           v-show="showFullLyrics || lyricsSwipePreview"
           class="scrolling-lyrics-overlay"
@@ -175,6 +188,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import newspaperManifest from '@/assets/textures/newspaper/manifest.json';
+import MobileCommentsOverlay from '@/components/comment/MobileCommentsOverlay.vue';
 import ClimaxInterludeOverlay from '@/components/lyric/ClimaxInterludeOverlay.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
@@ -182,6 +196,7 @@ import StaggeredClimaxLyrics from '@/components/lyric/StaggeredClimaxLyrics.vue'
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
+import { useCommentsPage } from '@/composables/useCommentsPage';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
@@ -324,6 +339,7 @@ const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
   }
 });
 
+const commentsSwipe = useCommentsPage();
 const showFullLyrics = ref(false);
 const {
   style: lyricsSwipeStyle,
@@ -339,6 +355,7 @@ const {
   animateClose: closeLyricsAnimated
 } = useLyricSwipeGesture({
   isOpen: () => showFullLyrics.value,
+  suppressed: () => playerStore.fullCommentsVisible,
   onOpen: () => {
     showFullLyrics.value = true;
     playerStore.setFullLyricsVisible(true);
@@ -349,7 +366,7 @@ const {
   }
 });
 const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({
-  shouldClose: () => !showFullLyrics.value,
+  shouldClose: () => !showFullLyrics.value && !playerStore.fullCommentsVisible,
   onClose: () => close()
 });
 

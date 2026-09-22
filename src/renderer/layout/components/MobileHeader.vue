@@ -14,7 +14,6 @@
       'legacy-content-topbar': usesLegacyContentTopbar,
       'player-surface-active': playerHeaderMounted
     }"
-    :style="{ '--player-header-progress': String(playerTransition.progress.value) }"
   >
     <Transition name="topbar-pill-morph">
       <button v-if="showBack" type="button" class="topbar-pill topbar-back" @click="onTitleClick">
@@ -99,7 +98,11 @@
                   v-if="option.platform"
                   :platform="option.platform"
                   :size="13"
-                  :color="String(option.key) === String(group.value) ? 'var(--accent-color, #888)' : 'var(--cover-text-muted, #9a9590)'"
+                  :color="
+                    String(option.key) === String(group.value)
+                      ? 'var(--accent-color, #888)'
+                      : 'var(--cover-text-muted, #9a9590)'
+                  "
                 />
                 <i v-if="String(option.key) === String(group.value)" class="ri-check-line" />
               </button>
@@ -326,8 +329,6 @@
       </div>
     </section>
 
-
-
     <!-- 右侧动作胶囊随路由切换：缩回再展开的形变过渡 -->
     <Transition name="topbar-pill-morph" mode="out-in">
       <button
@@ -446,9 +447,10 @@
       :class="{
         'surface-interaction-active': playerSurfaceFeedback.active.value,
         'collapse-only': !lyricSelection.active.value,
-        'lyric-selection-mode': lyricSelection.active.value
+        'lyric-selection-mode': lyricSelection.active.value,
+        'controls-visible': playerHeaderVisible,
+        'reveal-active': playerHeaderRevealActive
       }"
-      :style="playerHeaderStyle"
     >
       <template v-if="lyricSelection.active.value">
         <button
@@ -610,16 +612,13 @@ const playerHeaderOrigins = ref<{
   song: HeaderMorphRect;
   settings: HeaderMorphRect;
 } | null>(null);
-const playerHeaderStyle = computed<CSSProperties>(() => {
-  const progressReveal = lyricSelection.active.value
-    ? 1
-    : Math.min(1, Math.max(0, playerTransition.progress.value * 2.6));
-  const reveal = progressReveal * (playerHeaderVisible.value ? 1 : 0);
-  return {
-    opacity: String(reveal),
-    pointerEvents: reveal > 0.05 ? 'auto' : 'none'
-  };
-});
+// 播放器头层的显隐与 pointer-events 全部由 class + --player-open-progress 在
+// CSS 内插值(opacity: clamp(progress*2.6)),组件不再逐帧重渲染
+const playerHeaderRevealActive = computed(
+  () =>
+    playerHeaderVisible.value &&
+    (lyricSelection.active.value || playerTransition.progress.value * 2.6 > 0.05)
+);
 const headerTargetTop = () =>
   Number.parseFloat(
     getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-top') || '0'
@@ -765,9 +764,7 @@ const searchHistory = ref<string[]>([]);
 const suggestions = ref<string[]>([]);
 const suggestionsLoading = ref(false);
 // 搜索历史只在结果页(回改关键词)展示;纯搜索页保持干净
-const showingHistory = computed(
-  () => isSearchResultPage.value && !searchStore.searchValue.trim()
-);
+const showingHistory = computed(() => isSearchResultPage.value && !searchStore.searchValue.trim());
 const assistItems = computed(() =>
   showingHistory.value ? searchHistory.value : suggestions.value
 );
@@ -915,9 +912,10 @@ watch(
 );
 
 watch(
-  () => playerTransition.progress.value,
-  (progress) => {
-    if (progress > 0.015) closeFloatingMenus();
+  // 布尔塌缩:只在 progress 跨过阈值时执行一次,不再逐帧触发
+  () => playerTransition.progress.value > 0.015,
+  (engaged) => {
+    if (engaged) closeFloatingMenus();
   }
 );
 
@@ -1456,7 +1454,9 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px;
+  /* 圆形按钮贴边：水平方向不留容器内边距（2026-09-17 沐苍要求），
+     胶囊由 flex 拉伸占据圆形按钮之间的全部宽度 */
+  padding: 0;
   padding-top: calc(var(--safe-area-inset-top, 0px) + 8px);
   padding-bottom: 8px;
   pointer-events: none; /* allow scroll-through on gaps */
@@ -1466,7 +1466,6 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
     z-index: 100150;
   }
 
-
   &.player-surface-active > .topbar-back,
   &.player-surface-active > .topbar-morph-anchor,
   &.player-surface-active > .topbar-search-pill,
@@ -1474,10 +1473,31 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   &.player-surface-active > .topbar-action-pill,
   // 创建歌单的「+」按钮也要随播放界面展开淡出，否则会以顶栏层级悬浮在播放器上
   &.player-surface-active > .topbar-create-anchor {
-    opacity: calc(1 - var(--player-header-progress, 0));
+    opacity: calc(1 - var(--player-open-progress, 0));
     transform: none;
     pointer-events: none;
   }
+}
+
+/* 播放器头层显隐:reveal 曲线由 #layout-main 上的 --player-open-progress
+   在 CSS 内插值(与原 JS reveal = clamp(progress*2.6) × visible 语义一致),
+   转场期组件不再逐帧重渲染 */
+.player-header-layer {
+  opacity: calc(clamp(0, var(--player-open-progress, 0) * 2.6, 1));
+  pointer-events: none;
+}
+
+.player-header-layer.lyric-selection-mode {
+  opacity: 1;
+}
+
+.player-header-layer.reveal-active {
+  pointer-events: auto;
+}
+
+/* 控制条隐藏期整体隐藏(对应原 reveal × playerHeaderVisible 的 0 分支) */
+.player-header-layer:not(.controls-visible):not(.lyric-selection-mode) {
+  opacity: 0;
 }
 
 .player-header-layer {
@@ -1644,11 +1664,12 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
 
 .topbar-morph-anchor {
   position: relative;
-  width: fit-content;
+  width: auto;
   min-width: 64px;
-  max-width: 44vw;
+  max-width: none;
   height: 40px;
-  flex: 0 1 auto;
+  /* 标题胶囊按剩余宽度拉伸（原 fit-content + 44vw 上限，2026-09-17 沐苍要求） */
+  flex: 1 1 auto;
   pointer-events: auto;
   transform-origin: left center;
   transition:
@@ -1671,11 +1692,9 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   align-items: center;
   height: 40px;
   border-radius: 20px;
-  background: var(--m-glass-bg);
-  backdrop-filter: blur(24px) saturate(170%);
-  -webkit-backdrop-filter: blur(24px) saturate(170%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: var(--m-surface-container, var(--m-card));
+  border: 1px solid var(--m-outline-variant, var(--m-border));
+  box-shadow: var(--m-elevation-1);
   cursor: pointer;
   pointer-events: auto;
   transition:
@@ -1711,10 +1730,11 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   position: relative;
   z-index: 3;
   flex: 0 0 auto;
-  width: max-content;
+  /* 填满拉伸后的锚点宽度（原 max-content 会抵消锚点的 flex 拉伸） */
+  width: 100%;
   height: auto;
   min-width: 64px;
-  max-width: 44vw;
+  max-width: 100%;
   min-height: 40px;
   max-height: 40px;
   flex-direction: column;
@@ -1742,10 +1762,8 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
     max-height: min(52dvh, 420px);
     min-height: 40px;
     border-radius: 18px;
-    background: var(--m-glass-bg);
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    background: var(--m-surface-container, var(--m-card));
+    box-shadow: var(--m-elevation-3);
   }
 }
 
@@ -1773,10 +1791,8 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
     max-height: calc(100dvh - var(--safe-area-inset-top, 0px) - 16px);
     min-height: 40px;
     border-radius: 18px;
-    background: var(--m-glass-bg);
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    background: var(--m-surface-container, var(--m-card));
+    box-shadow: var(--m-elevation-3);
   }
 }
 
@@ -2090,7 +2106,7 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   min-width: 0;
   grid-template-rows: auto 0fr;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--m-glass-border) 60%, transparent);
+  border: 1px solid var(--m-outline-variant, var(--m-border));
   border-radius: 14px;
   background: color-mix(in srgb, var(--m-surface-alt, #fff) 38%, transparent);
   transition:
@@ -2173,7 +2189,7 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   gap: 8px;
   width: 100%;
   padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--m-glass-border) 60%, transparent);
+  border: 1px solid var(--m-outline-variant, var(--m-border));
   border-radius: 14px;
   background: color-mix(in srgb, var(--m-surface-alt, #fff) 38%, transparent);
   color: var(--cover-text-primary, var(--text-color));
@@ -2289,8 +2305,8 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   height: auto;
   min-height: 40px;
   min-width: 72px;
-  /* 宽屏(平板/桌面网页)下搜索框不再拉满整行 */
-  max-width: 340px;
+  /* 胶囊按屏幕宽度拉满（原 340px 上限取消，2026-09-17 沐苍要求） */
+  max-width: none;
   max-height: 40px;
   align-self: flex-start;
   flex-direction: column;
@@ -2569,13 +2585,14 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   .topbar-morph.expanded {
     position: fixed;
     top: calc(var(--safe-area-inset-top, 0px) + 8px);
-    left: 12px;
+    left: 0;
     width: min(78vw, 320px);
     max-width: min(78vw, 320px);
   }
 
   &.has-back .topbar-morph.expanded {
-    left: 60px;
+    /* 容器水平内边距已归零：返回键 0~40px + 间距 8px */
+    left: 48px;
   }
 
   &.wide-detail-topbar .topbar-morph.expanded {
@@ -2631,7 +2648,7 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
 }
 
 .topbar-settings-pill {
-  border: 1px solid var(--m-glass-border);
+  border: 1px solid var(--m-outline-variant, var(--m-border));
   color: var(--cover-text-primary, var(--text-color));
 
   .action-icon {
@@ -2944,11 +2961,9 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   width: min(calc(100vw - 92px), 340px);
   overflow: hidden;
   border-radius: 20px;
-  background: var(--m-glass-bg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  background: var(--m-surface-container, var(--m-card));
+  border: 1px solid var(--m-outline-variant, var(--m-border));
+  box-shadow: var(--m-elevation-3);
   opacity: 0;
   transform: scale(0.94);
   transform-origin: top right;

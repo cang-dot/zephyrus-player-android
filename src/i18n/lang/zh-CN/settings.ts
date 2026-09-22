@@ -386,7 +386,18 @@ export default {
     errorConfirmHint: '「错误」样式包含强烈闪烁效果，为防光敏不适请再次点击确认'
   },
   lyricSettings: {
-    title: '滚动歌词设置',
+    title: '布局设置',
+    showCommentSection: '显示评论区',
+    pageLayout: '页面布局',
+    pageLayoutCommentFirst: '评论 · 播放界面 · 歌词',
+    pageLayoutLyricsFirst: '歌词 · 播放界面 · 评论',
+    lyricSwipeGesture: '滚动歌词手势',
+    swipeLeft: '从左侧滑入',
+    swipeRight: '从右侧滑入',
+    swipeOff: '关闭',
+    showCommentSectionDescription: '在播放界面两侧开启评论页，与歌词页左右切换',
+    pageLayoutDescription: '评论页与歌词页的左右排布',
+    lyricSwipeGestureDescription: '选择大字歌词进入方向，返回时使用相反方向',
     tabs: {
       display: '显示',
       interface: '界面',

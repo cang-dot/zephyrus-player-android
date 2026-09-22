@@ -7,7 +7,14 @@
     @click="emit('cycle')"
   >
     <img v-if="displayUrl" :src="displayUrl" :alt="`${title} 封面`" class="artwork-image" />
-    <span v-else class="artwork-placeholder" aria-hidden="true">
+    <img
+      v-if="overlayUrl"
+      :src="overlayUrl"
+      class="artwork-image artwork-crossfade-overlay"
+      :class="{ fading: overlayFading }"
+      alt=""
+    />
+    <span v-else-if="!displayUrl" class="artwork-placeholder" aria-hidden="true">
       <i class="ri-music-2-fill"></i>
     </span>
     <span v-if="loading" class="artwork-loading" aria-hidden="true"></span>
@@ -29,8 +36,27 @@ const props = defineProps<{
 const emit = defineEmits<{ cycle: [] }>();
 const displayUrl = ref('');
 const loading = ref(false);
+// 换歌叠化:旧封面盖在新图上淡出,新图经 decode 就绪后露出
+const overlayUrl = ref('');
+const overlayFading = ref(false);
+let overlayTimer: ReturnType<typeof setTimeout> | null = null;
 let requestVersion = 0;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+function startCoverCrossfade(oldUrl: string): void {
+  if (!oldUrl) return;
+  overlayUrl.value = oldUrl;
+  overlayFading.value = false;
+  if (overlayTimer) clearTimeout(overlayTimer);
+  requestAnimationFrame(() => {
+    overlayFading.value = true;
+  });
+  overlayTimer = setTimeout(() => {
+    overlayUrl.value = '';
+    overlayFading.value = false;
+    overlayTimer = null;
+  }, 650);
+}
 
 function preload(url: string, version: number, attempt = 0): void {
   const candidate = appendArtworkRetry(url, attempt);
@@ -39,10 +65,14 @@ function preload(url: string, version: number, attempt = 0): void {
   image.onload = async () => {
     try {
       await image.decode();
-    } catch {}
+    } catch {
+      // decode 失败不阻断:img 加载成功即可显示
+    }
     if (version !== requestVersion) return;
+    const previous = displayUrl.value;
     displayUrl.value = candidate;
     loading.value = false;
+    if (previous && previous !== candidate) startCoverCrossfade(previous);
   };
   image.onerror = () => {
     if (version !== requestVersion) return;
@@ -62,6 +92,10 @@ watch(
     requestVersion += 1;
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = null;
+    if (overlayTimer) clearTimeout(overlayTimer);
+    overlayTimer = null;
+    overlayUrl.value = '';
+    overlayFading.value = false;
     const url = String(source || '').trim();
     if (!url) {
       displayUrl.value = '';
@@ -77,6 +111,7 @@ watch(
 onBeforeUnmount(() => {
   requestVersion += 1;
   if (retryTimer) clearTimeout(retryTimer);
+  if (overlayTimer) clearTimeout(overlayTimer);
 });
 </script>
 
@@ -95,6 +130,10 @@ onBeforeUnmount(() => {
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22);
   color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.42);
   contain: layout paint;
+  /* 控件栏可见态的封面挤压:尺寸内联变更时平滑缩放 */
+  transition:
+    width 350ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 350ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .artwork-image,
@@ -107,6 +146,19 @@ onBeforeUnmount(() => {
   display: block;
   object-fit: cover;
   transform: translateZ(0);
+}
+
+/* 换歌叠化:旧封面盖在新图上方整体淡出 */
+.artwork-crossfade-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 500ms ease;
+}
+
+.artwork-crossfade-overlay.fading {
+  opacity: 0;
 }
 
 .artwork-placeholder {
@@ -132,7 +184,8 @@ onBeforeUnmount(() => {
 }
 
 .mode-record .artwork-image,
-.mode-record .artwork-placeholder {
+.mode-record .artwork-placeholder,
+.mode-record .artwork-crossfade-overlay {
   border-radius: 50%;
 }
 
@@ -174,6 +227,15 @@ onBeforeUnmount(() => {
   .mode-record:not(.paused) .artwork-image,
   .artwork-loading {
     animation: none;
+  }
+
+  .artwork-frame {
+    transition: none;
+  }
+
+  .artwork-crossfade-overlay.fading {
+    transition: none;
+    opacity: 0;
   }
 }
 </style>

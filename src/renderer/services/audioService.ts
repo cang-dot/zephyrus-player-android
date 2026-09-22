@@ -115,6 +115,45 @@ class AudioService {
     window.addEventListener('beforeunload', () => {
       this.forceResetOperationLock();
     });
+
+    // iOS Safari 会在后台挂起 AudioContext 并可能把媒体会话状态打落到 paused；
+    // 回前台时按元素真实状态再同步 + 恢复挂起的 ctx（鼓点/高潮检测与本地音乐依赖它）
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        this.syncPlaybackStateFromElement();
+      }
+      this.resumeSuspendedContext();
+    });
+    window.addEventListener('pageshow', () => {
+      this.syncPlaybackStateFromElement();
+      this.resumeSuspendedContext();
+    });
+    // 媒体手势解锁兜底（Howler autoUnlock 之外的第二通道）
+    const unlock = () => this.resumeSuspendedContext();
+    window.addEventListener('pointerdown', unlock, { passive: true });
+    window.addEventListener('touchend', unlock, { passive: true });
+  }
+
+  /** 按当前音频元素的真实播放状态回写媒体会话（前后台切换时调用） */
+  private syncPlaybackStateFromElement() {
+    if (!this.currentSound || !('mediaSession' in navigator)) return;
+    try {
+      this.updateMediaSessionState(this.currentSound.playing());
+    } catch {
+      // 元素正在销毁时忽略
+    }
+  }
+
+  /** 恢复被 iOS 后台挂起的 AudioContext（无手势时尽力而为） */
+  private resumeSuspendedContext() {
+    try {
+      const ctx = Howler.ctx as AudioContext | undefined;
+      if (ctx && ctx.state === 'suspended') {
+        void ctx.resume().catch(() => {});
+      }
+    } catch {
+      // Howler 尚未初始化时忽略
+    }
   }
 
   private initMediaSession() {
@@ -229,11 +268,16 @@ class AudioService {
         ? track.ar.map((a) => a.name)
         : track.song.artists?.map((a) => a.name);
       const album = track.al ? track.al.name : track.song.album.name;
-      const artwork = ['96', '128', '192', '256', '384', '512'].map((size) => ({
-        src: `${track.picUrl?.replace(/^http:/, 'https:')}?param=${size}y${size}`,
-        type: 'image/jpg',
-        sizes: `${size}x${size}`
-      }));
+      const artUrl = track.picUrl?.replace(/^http:/, 'https:') || '';
+      // 尺寸参数是网易云 CDN 专用；其他音源直出原图，type 按扩展名推断
+      const isNeteaseArt = /music\.126\.net/.test(artUrl);
+      const artwork = ['96', '128', '192', '256', '384', '512']
+        .map((size) => ({
+          src: artUrl ? (isNeteaseArt ? `${artUrl}?param=${size}y${size}` : artUrl) : '',
+          type: /\.png(\?|$)/.test(artUrl) ? 'image/png' : 'image/jpeg',
+          sizes: `${size}x${size}`
+        }))
+        .filter((item) => item.src);
       const metadata = {
         title: track.name || '',
         artist: artists ? artists.join(',') : '',
@@ -242,9 +286,22 @@ class AudioService {
       };
 
       navigator.mediaSession.metadata = new window.MediaMetadata(metadata);
+      // Safari 异步应用元数据并可能短暂重置卡片状态:延迟按元素真实状态重断言
+      window.setTimeout(() => this.syncPlaybackStateFromElement(), 300);
     } catch (error) {
       console.error('更新媒体会话元数据时出错:', error);
     }
+  }
+
+  /**
+   * 控制中心歌词(网易云式):将媒体会话标题替换为当前歌词行。
+   * lyric 为 null 时恢复真实歌名。复用 updateMediaSessionMetadata 的
+   * 构造(歌手/专辑/封面不动),仅替换 name 字段。
+   */
+  public setMediaSessionLyricTitle(lyric: string | null): void {
+    if (!('mediaSession' in navigator) || !this.currentTrack) return;
+    const track = lyric ? { ...this.currentTrack, name: lyric } : this.currentTrack;
+    this.updateMediaSessionMetadata(track);
   }
 
   private updateMediaSessionState(isPlaying: boolean) {
@@ -258,11 +315,22 @@ class AudioService {
     try {
       if (!this.currentSound || !('mediaSession' in navigator)) return;
       if ('setPositionState' in navigator.mediaSession) {
-        navigator.mediaSession.setPositionState({
-          duration: this.currentSound.duration(),
-          playbackRate: this.playbackRate,
-          position: this.currentSound.seek() as number
-        });
+        const duration = this.currentSound.duration();
+        const position = this.currentSound.seek() as number;
+        // iOS WebKit 对 NaN/越界值会拒收并忽略后续状态更新，先做参数校验
+        if (
+          Number.isFinite(duration) &&
+          duration > 0 &&
+          Number.isFinite(position) &&
+          position >= 0 &&
+          position <= duration + 1
+        ) {
+          navigator.mediaSession.setPositionState({
+            duration,
+            playbackRate: this.playbackRate,
+            position
+          });
+        }
       }
     } catch (error) {
       console.error('更新媒体会话位置状态时出错:', error);
@@ -1118,6 +1186,12 @@ class AudioService {
     const generation = ++this.crossfadeGeneration;
     if (!this.currentSound || this.currentSound instanceof NativeAudioPlayer) return false;
 
+    // 页面不可见时（iOS 后台/锁屏）setInterval 渐变会被系统冻结，
+    // 下一首会卡在 volume=0 静音播放；退化为直切：满音量起下一首并快速清理
+    if (typeof document !== 'undefined' && document.hidden) {
+      seamless = true;
+    }
+
     // 1. 确保下一首已加载
     if (nextSound instanceof LocalAudioPlayer) {
       try {
@@ -1360,19 +1434,28 @@ class AudioService {
     sound.on('pause', () => {
       if (this.currentSound === sound || this.crossfadingSound === sound) {
         if (this.isTransientSeekPause(sound)) return;
-        this.updateMediaSessionState(false);
-        this.emit('pause', {
-          soundId: this.getSoundIdentity(sound),
-          requestId: this.activeSeek?.sound === sound ? this.activeSeek.requestId : undefined
-        });
+        // Howler html5 模式在内部重载、iOS 媒体中断等场景会产生瞬时 pause；
+        // 延迟复查元素真实状态，防止控制中心被瞬时事件打落到「已暂停」
+        window.setTimeout(() => {
+          if (this.currentSound !== sound && this.crossfadingSound !== sound) return;
+          if (sound.playing()) {
+            this.updateMediaSessionState(true);
+            return;
+          }
+          this.updateMediaSessionState(false);
+          this.emit('pause', {
+            soundId: this.getSoundIdentity(sound),
+            requestId: this.activeSeek?.sound === sound ? this.activeSeek.requestId : undefined
+          });
+        }, 150);
       }
     });
 
     sound.on('end', () => {
       if (this.currentSound === sound) {
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.playbackState = 'none';
-        }
+        // 置 'none' 会拆除 iOS/Safari 的媒体卡片绑定,后续歌曲的控制中心
+        // 会卡在暂停态(需手动暂停/播放才重新绑定);保持卡片存活
+        this.updateMediaSessionState(false);
         this.emit('end');
       }
     });

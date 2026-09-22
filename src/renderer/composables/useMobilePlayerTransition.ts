@@ -253,7 +253,7 @@ const animateTo = (target: 0 | 1, velocity = 0, complete?: () => void) => {
     speed += (-420 * (value - target) - 38 * speed) * dt;
     value += speed * dt;
     progress.value = Math.min(1, Math.max(0, value));
-    if (Math.abs(value - target) < 0.002 && Math.abs(speed) < 0.02) {
+    if (Math.abs(value - target) < 0.004 && Math.abs(speed) < 0.05) {
       progress.value = target;
       frame = 0;
       frameResourceRelease?.();

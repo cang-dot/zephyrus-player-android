@@ -1,6 +1,7 @@
 <template>
   <div
     id="layout-main"
+    ref="layoutMainRef"
     class="mobile-layout mobile"
     :class="{
       'has-safe-area': isPhone,
@@ -9,8 +10,7 @@
       'player-full': playerTransition.state.value === 'open'
     }"
     :style="{
-      '--mobile-dock-content-inset': `${mobileDockContentInset}px`,
-      '--player-open-progress': String(playerTransition.progress.value)
+      '--mobile-dock-content-inset': `${mobileDockContentInset}px`
     }"
   >
     <!-- 浮动顶栏（所有页面统一显示） -->
@@ -115,6 +115,8 @@
             @pointercancel="onNavPointerCancel"
             @click.capture="onNavClickCapture"
           >
+            <!-- 滑动指示胶囊:单个元素随选中项平移/变宽，点击切页产生滑动动画 -->
+            <div class="nav-slide-indicator" :style="navIndicatorStyle" />
             <router-link
               v-for="item in menuStore.menus"
               :key="item.path"
@@ -130,10 +132,6 @@
               }"
               @click="prepareMenuTransition(item.path)"
             >
-              <div
-                class="glow-item-radial"
-                :style="isActive(item.path) ? { background: activeGlowStyle } : {}"
-              />
               <div class="glow-item-content">
                 <i class="iconfont glow-item-icon" :class="item.meta.icon" />
                 <Transition name="label-pop">
@@ -153,7 +151,7 @@
               :class="{ dragging: navGlow.enlarged, closing: navGlow.closing }"
               :style="navGlowFloatStyle"
             >
-              <div class="nav-glow-float-inner" :style="{ background: activeGlowStyle }" />
+              <div class="nav-glow-float-inner" :style="{ backgroundColor: activeGlowStyle }" />
             </div>
           </div>
         </div>
@@ -185,6 +183,7 @@ import {
   type Component,
   computed,
   defineAsyncComponent,
+  nextTick,
   onBeforeUnmount,
   onMounted,
   provide,
@@ -298,6 +297,9 @@ let playerSourceReleaseFrame = 0;
 let playerSurfaceClassReleaseTimer: ReturnType<typeof setTimeout> | undefined;
 let lastPlayerSurfaceProgress = '';
 let lastPlayerSurfaceReveal = '';
+// 两个转场变量挂 #layout-main 而非 :root:所有消费点(底栏/迷你条/全屏表面,
+// 含 Teleport 目标)都在其子树内,把逐帧样式失效范围从全文档缩到布局子树
+const layoutMainRef = ref<HTMLElement | null>(null);
 const capturePlayerTransitionOrigin = () => {
   if (playerSourceReleaseFrame) {
     cancelAnimationFrame(playerSourceReleaseFrame);
@@ -342,12 +344,13 @@ const syncPlayerSurfaceProgress = () => {
   const surfaceActive = progress > 0 || state !== 'idle';
   const progressValue = String(progress);
   const revealValue = String(reveal);
+  const surfaceEl = layoutMainRef.value;
   if (progressValue !== lastPlayerSurfaceProgress) {
-    document.documentElement.style.setProperty('--player-open-progress', progressValue);
+    surfaceEl?.style.setProperty('--player-open-progress', progressValue);
     lastPlayerSurfaceProgress = progressValue;
   }
   if (revealValue !== lastPlayerSurfaceReveal) {
-    document.documentElement.style.setProperty('--player-surface-reveal', revealValue);
+    surfaceEl?.style.setProperty('--player-surface-reveal', revealValue);
     lastPlayerSurfaceReveal = revealValue;
   }
   if (surfaceActive) {
@@ -379,10 +382,14 @@ watch(
 onBeforeUnmount(() => {
   if (playerSourceReleaseFrame) cancelAnimationFrame(playerSourceReleaseFrame);
   if (playerSurfaceClassReleaseTimer) clearTimeout(playerSurfaceClassReleaseTimer);
-  document.documentElement.style.removeProperty('--player-open-progress');
-  document.documentElement.style.removeProperty('--player-surface-reveal');
+  layoutMainRef.value?.style.removeProperty('--player-open-progress');
+  layoutMainRef.value?.style.removeProperty('--player-surface-reveal');
   document.body.classList.remove('mobile-player-surface-active');
   document.body.classList.remove('mobile-player-surface-morphing');
+});
+onMounted(() => {
+  // setup 期的 immediate watch 触发时 #layout-main 还未挂载,挂载后补写基线值
+  syncPlayerSurfaceProgress();
 });
 watch(
   () => playerTransition.state.value,
@@ -959,9 +966,7 @@ let navSuppressClick = false;
 let navSuppressResetFrame = 0;
 
 const navItemPathFromPoint = (x: number, y: number): string => {
-  const el = document
-    .elementFromPoint(x, y)
-    ?.closest('.glow-nav-item') as HTMLElement | null;
+  const el = document.elementFromPoint(x, y)?.closest('.glow-nav-item') as HTMLElement | null;
   return el?.dataset.path || '';
 };
 
@@ -1009,12 +1014,9 @@ const onNavPointerDown = (event: PointerEvent) => {
   navPickStartX = event.clientX;
   navPickStartY = event.clientY;
   navDragging = false;
-  // 按住即在该项亮起辉光;click 保持放行,轻点仍走 router-link
-  const itemEl = document
-    .elementFromPoint(event.clientX, event.clientY)
-    ?.closest('.glow-nav-item') as HTMLElement | null;
-  pickPath.value = itemEl?.dataset.path || '';
-  showNavGlowAt(event.clientX, event.clientY, itemEl);
+  // 轻点不唤出跟手浮层，也不点亮 pickPath：否则静态胶囊会在点击期间被
+  // 隐藏、松手后只能在新位置淡入（瞬移 + 与浮层交叉淡变时露底闪白）。
+  // 浮层改为在 onNavPointerMove 判定横向意图后才接管。
 };
 
 const onNavPointerMove = (event: PointerEvent) => {
@@ -1033,6 +1035,11 @@ const onNavPointerMove = (event: PointerEvent) => {
     // 明确横向:进入拖选,拦下合成 click,改由 pointerup 提交
     navDragging = true;
     navSuppressClick = true;
+    // 此刻才唤出跟手浮层（轻点不唤出，把滑动让给静态胶囊）
+    const itemEl = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest('.glow-nav-item') as HTMLElement | null;
+    showNavGlowAt(event.clientX, event.clientY, itemEl);
     const host = event.currentTarget as HTMLElement;
     if (!host.hasPointerCapture(event.pointerId)) {
       try {
@@ -1047,7 +1054,10 @@ const onNavPointerMove = (event: PointerEvent) => {
   navGlow.enlarged = true;
   navGlow.x = event.clientX - navGlowNavLeft;
   const halfGlow = navGlow.w / 2 + 6;
-  navGlow.x = Math.min(Math.max(navGlow.x, halfGlow), Math.max(halfGlow, navGlowNavWidth - halfGlow));
+  navGlow.x = Math.min(
+    Math.max(navGlow.x, halfGlow),
+    Math.max(halfGlow, navGlowNavWidth - halfGlow)
+  );
   pickPath.value = navNearestItemPath(event.clientX, event.clientY);
 };
 
@@ -1147,9 +1157,67 @@ const mobileDockContentInset = computed(() => {
 
 const isActive = (itemPath: string) => route.path === itemPath;
 
-const activeGlowStyle = computed(() => {
-  const rgb = 'var(--accent-color-rgb, 136, 136, 136)';
-  return `radial-gradient(circle, rgba(${rgb}, 0.28) 0%, rgba(${rgb}, 0.1) 50%, transparent 100%)`;
+// 底栏选中态：实心偏深胶囊（原为径向辉光渐变）。
+// 具体色值由 CSS 令牌统一管理，见 assets/css/mobile.css 的 --m-nav-indicator-bg。
+const activeGlowStyle = computed(() => 'var(--m-nav-indicator-bg, #3a332e)');
+
+// ── 滑动指示胶囊:单个元素随选中项平移/变宽，点击切页产生滑动动画 ──
+// 几何取自选中项的实时矩形；选中项会随标签弹入而加宽，故测两轮:
+// nextTick 先到位，动画结束（约 450ms）后再校准最终宽度。
+// 注意：本段必须在 mobileDockContentInset 之后定义——watch 的 getter 会在
+// setup 阶段同步求值一次，提前引用会触发 TDZ。
+const navIndicator = reactive({ x: 0, w: 0, ready: false });
+let indicatorMeasureTimer: ReturnType<typeof setTimeout> | undefined;
+let indicatorResizeHandler: (() => void) | null = null;
+
+const measureNavIndicator = () => {
+  const nav = document.querySelector<HTMLElement>('.mobile-glow-nav');
+  if (!nav) {
+    navIndicator.ready = false;
+    return;
+  }
+  const active = nav.querySelector<HTMLElement>('.glow-nav-item.active');
+  if (!active) {
+    navIndicator.ready = false;
+    return;
+  }
+  const navRect = nav.getBoundingClientRect();
+  const rect = active.getBoundingClientRect();
+  navIndicator.x = rect.left - navRect.left;
+  navIndicator.w = rect.width;
+  navIndicator.ready = true;
+};
+
+const scheduleNavIndicatorMeasure = () => {
+  void nextTick(measureNavIndicator);
+  if (indicatorMeasureTimer) clearTimeout(indicatorMeasureTimer);
+  indicatorMeasureTimer = setTimeout(measureNavIndicator, 480);
+};
+
+const navIndicatorStyle = computed(() => ({
+  width: `${navIndicator.w}px`,
+  transform: `translate3d(${navIndicator.x}px, 0, 0)`,
+  // 仅在实际横向拖选（浮层跟手）时让位；轻点期间保持在位，才能滑向目标项
+  opacity: navIndicator.ready && !navGlow.enlarged ? '1' : '0'
+}));
+
+watch(
+  // 路由切换(选中项变)、拖拽结束(浮层归还)、Dock 布局变化(收起/展开播放位)都需要重新对位
+  () => [route.path, navGlow.visible, mobileDockContentInset.value] as const,
+  () => scheduleNavIndicatorMeasure()
+);
+
+onMounted(() => {
+  indicatorResizeHandler = () => measureNavIndicator();
+  window.addEventListener('resize', indicatorResizeHandler);
+  // iconfont 就绪会改变图标宽度，进而改变选中项宽度
+  void document.fonts?.ready?.then(() => measureNavIndicator());
+});
+
+onBeforeUnmount(() => {
+  if (indicatorMeasureTimer) clearTimeout(indicatorMeasureTimer);
+  if (indicatorResizeHandler) window.removeEventListener('resize', indicatorResizeHandler);
+  indicatorResizeHandler = null;
 });
 
 // 提供给 MobilePlayBar 使用，用于调整播放栏位置
@@ -1366,17 +1434,13 @@ onBeforeUnmount(() => {
     position: absolute;
     inset: 0;
     z-index: -1;
-    border: 1px solid var(--m-glass-border);
+    border: 1px solid var(--m-outline-variant, var(--m-border));
     border-radius: inherit;
-    background: var(--m-glass-bg);
-    box-shadow:
-      0 14px 34px rgba(0, 0, 0, 0.18),
-      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    background: var(--m-surface-container, var(--m-card));
+    box-shadow: var(--m-elevation-3);
     content: '';
     opacity: 0;
     pointer-events: none;
-    backdrop-filter: blur(30px) saturate(175%);
-    -webkit-backdrop-filter: blur(30px) saturate(175%);
   }
 
   &.visible {
@@ -1413,8 +1477,6 @@ onBeforeUnmount(() => {
 
   &.player-full::before {
     opacity: 0;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
   }
 
   &.player-full > :deep(.mobile-play-bar) {
@@ -1446,9 +1508,7 @@ onBeforeUnmount(() => {
   }
 
   &.playlist-open::before {
-    box-shadow:
-      0 18px 48px rgba(0, 0, 0, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
   }
 
   /* Without navigation, the MobilePlayBar itself is the visible morphing surface. */
@@ -1456,8 +1516,6 @@ onBeforeUnmount(() => {
     border-color: transparent;
     background: transparent;
     box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
     overflow: visible;
   }
 
@@ -1595,19 +1653,10 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   bottom: 3px;
 }
 
-/* 外层径向辉光 — 动态强调色 */
-.mobile-glow-nav-glow {
-  position: absolute;
-  inset: -6px -12px;
-  border-radius: 9999px;
-  opacity: 0.7;
-  filter: blur(10px);
-  pointer-events: none;
-  z-index: 0;
-  transition: opacity 0.5s $spring-smooth;
-}
+/* 底栏外层的径向模糊辉光已移除（噪声大且与实心胶囊语汇冲突）。
+   注意：此处原有一个 .mobile-glow-nav-glow 规则，模板中从未引用，属死代码，一并删除。 */
 
-/* 导航容器 — 毛玻璃胶囊（降低高度） */
+/* 导航容器 — 透明布局壳，表面由父级 Dock 提供 */
 
 .nav-gesture-zone {
   touch-action: none;
@@ -1629,9 +1678,9 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* 单个导航项 — 纯图标，选中时才显示文字 */
 .glow-nav-item {
-    -webkit-touch-callout: none;
-    user-select: none;
-    -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-drag: none;
   position: relative;
   display: flex;
   align-items: center;
@@ -1660,22 +1709,23 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   }
 }
 
-/* 径向辉光背景 — 动态强调色 */
-.glow-item-radial {
+/* 滑动指示胶囊 — 单个元素随选中项平移/变宽（几何由 JS 测量注入）。
+   取代原先每个 item 内部的径向辉光块；点击切页时产生滑动动画。
+   top 4px = 容器 padding-top，高 40px = 项高。 */
+.nav-slide-indicator {
   position: absolute;
-  inset: 0;
+  top: 4px;
+  left: 0;
+  z-index: 0;
+  height: 40px;
   border-radius: 9999px;
-  opacity: 0;
-  transform: scale(0.6);
+  background: var(--m-nav-indicator-bg, #4a4540);
   transition:
-    opacity 0.4s $spring-smooth,
-    transform 0.5s $spring;
+    transform 0.42s $spring,
+    width 0.42s $spring,
+    opacity 0.24s ease;
   pointer-events: none;
-}
-
-.glow-nav-item.active .glow-item-radial {
-  opacity: 1;
-  transform: scale(1.1);
+  will-change: transform, width;
 }
 
 /* 按住/横拖的跟手辉光浮层:外层 1:1 跟手(拖动时无位移过渡),内层负责放大过渡 */
@@ -1712,10 +1762,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   transform: scale(1.16);
 }
 
-/* 拖动期间:各项(含当前页)回到未选中态,辉光完全由浮动层承载 */
-.mobile-glow-nav.nav-dragging .glow-nav-item.active .glow-item-radial {
-  opacity: 0;
-}
+/* 拖动期间:各项(含当前页)回到未选中态,视觉完全由浮动层承载
+   （静态滑动胶囊的显隐由 navIndicatorStyle 的 opacity 控制） */
 
 .mobile-glow-nav.nav-dragging .glow-nav-item.active .glow-item-icon {
   color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
@@ -1730,14 +1778,14 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .mobile-glow-nav.nav-dragging .glow-nav-item.hover-pick .glow-item-icon {
-  color: var(--cover-text-primary, rgba(255, 255, 255, 0.8));
+  color: var(--m-nav-indicator-fg, #fff);
   transform: scale(1.05);
 }
 
-/* 玻璃辉光上的文字:主文字色保证对比,略升字重与字距提升可读性 */
+/* 胶囊上的文字：实心深底，前景固定为纯白 */
 .mobile-glow-nav.nav-dragging .glow-item-label {
-  color: var(--cover-text-primary, var(--m-text-primary, #2c2c2c));
-  font-weight: 650;
+  color: var(--m-nav-indicator-fg, #fff);
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 
@@ -1761,9 +1809,11 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
     transform 0.45s $spring;
 }
 
-/* 选中态：图标弹跳放大 + 强调色 */
+/* 选中态：图标弹跳放大 + 胶囊前景色。
+   现为实心深色胶囊，必须用 --m-nav-indicator-fg（纯白）；
+   沿用强调色会在深底上对比不足。 */
 .glow-nav-item.active .glow-item-icon {
-  color: var(--accent-color, #fff);
+  color: var(--m-nav-indicator-fg, #fff);
   transform: scale(1.1);
 }
 
@@ -1775,11 +1825,11 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   }
 }
 
-/* 文字标签 — 仅选中时弹出 */
+/* 文字标签 — 仅选中时弹出；坐在实心胶囊上，用胶囊前景色 */
 .glow-item-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--accent-color, #fff);
+  color: var(--m-nav-indicator-fg, #fff);
   white-space: nowrap;
   letter-spacing: 0.01em;
   max-width: 120px;
@@ -1794,10 +1844,11 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
     max-width 0.45s $spring;
 }
 .label-pop-leave-active {
+  /* 离场加快：胶囊滑走后，白色文字不能在浅色 Dock 上停留（闪白来源之一） */
   transition:
-    opacity 0.2s ease,
-    transform 0.25s $spring-smooth,
-    max-width 0.25s $spring-smooth;
+    opacity 0.12s ease,
+    transform 0.18s $spring-smooth,
+    max-width 0.18s $spring-smooth;
 }
 .label-pop-enter-from {
   opacity: 0;
@@ -1939,6 +1990,10 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 .mobile-glow-nav-wrap.has-player-slot .mobile-glow-nav {
   width: 100%;
   justify-content: space-around;
+  /* 收起态下 flex:1 1 0 会把四格撑满整行，justify-content 因无剩余空间而失效，
+     格间距只剩基础 gap 2px，比容器 6px padding 窄 → 胶囊左右留白不对称。
+     把 gap 提到与容器 padding 一致，恢复左右对称。 */
+  gap: 6px;
 }
 
 .mobile-glow-nav-wrap.has-player-slot .glow-nav-item {

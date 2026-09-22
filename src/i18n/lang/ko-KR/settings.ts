@@ -392,7 +392,18 @@ export default {
       '"오류" 스타일은 강한 깜빡임을 포함합니다. 광과민성 예방을 위해 다시 탭해 확인해 주세요'
   },
   lyricSettings: {
-    title: '스크롤 가사 설정',
+    title: '레이아웃 설정',
+    showCommentSection: '댓글 표시',
+    pageLayout: '페이지 레이아웃',
+    pageLayoutCommentFirst: '댓글 · 플레이어 · 가사',
+    pageLayoutLyricsFirst: '가사 · 플레이어 · 댓글',
+    lyricSwipeGesture: '스크롤 가사 스와이프',
+    swipeLeft: '왼쪽에서 스와이프',
+    swipeRight: '오른쪽에서 스와이프',
+    swipeOff: '끄기',
+    showCommentSectionDescription: '플레이어 양옆에 댓글 페이지를 열고 가사 페이지와 전환합니다',
+    pageLayoutDescription: '댓글 페이지와 가사 페이지의 좌우 배치',
+    lyricSwipeGestureDescription: '가사 페이지가 열리는 방향을 선택합니다',
     tabs: {
       display: '표시',
       interface: '인터페이스',

@@ -8,7 +8,7 @@ import i18n from '@/../i18n/renderer';
 import { isLocalSong, useLocalMusic } from '@/hooks/useLocalMusic';
 import { useSongDetail } from '@/hooks/usePlayerHooks';
 import { isAndroidNative } from '@/services/androidNative';
-import { preloadService } from '@/services/preloadService';
+import { isIosSafari, preloadService } from '@/services/preloadService';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 import { performShuffle, preloadCoverImage } from '@/utils/playerUtils';
@@ -145,7 +145,7 @@ export const usePlaylistStore = defineStore(
         if (nextSong) {
           if (nextSong.playMusicUrl) {
             try {
-              if (!isAndroidNative()) await preloadService.load(nextSong);
+              if (!isAndroidNative() && !isIosSafari()) await preloadService.load(nextSong);
             } catch (error) {
               console.warn('预加载下一首音频失败:', error);
             }

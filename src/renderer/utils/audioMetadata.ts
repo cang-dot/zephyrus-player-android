@@ -18,7 +18,9 @@ export interface AudioFileMetadata {
 }
 
 function syncsafe(b: Uint8Array, o: number): number {
-  return ((b[o] & 0x7f) << 21) | ((b[o + 1] & 0x7f) << 14) | ((b[o + 2] & 0x7f) << 7) | (b[o + 3] & 0x7f);
+  return (
+    ((b[o] & 0x7f) << 21) | ((b[o + 1] & 0x7f) << 14) | ((b[o + 2] & 0x7f) << 7) | (b[o + 3] & 0x7f)
+  );
 }
 
 function u32(b: Uint8Array, o: number): number {
@@ -32,7 +34,10 @@ function decodeText(bytes: Uint8Array, encoding: number): string {
     else if (encoding === 2) text = new TextDecoder('utf-16be').decode(bytes);
     else if (encoding === 3) text = new TextDecoder('utf-8').decode(bytes);
     else text = new TextDecoder('iso-8859-1').decode(bytes);
-    return text.replace(/\0+$/g, '').replace(/^\uFEFF/, '').trim();
+    return text
+      .replace(/\0+$/g, '')
+      .replace(/^\uFEFF/, '')
+      .trim();
   } catch {
     return '';
   }
@@ -40,12 +45,26 @@ function decodeText(bytes: Uint8Array, encoding: number): string {
 
 /** 「歌手 - 歌名」文件名拆分兜底 */
 function splitFileName(name: string): { title: string; artist: string } {
-  const base = name.replace(/\.[^.]+$/, '').replace(/_+/g, ' ').trim();
+  const base = name
+    .replace(/\.[^.]+$/, '')
+    .replace(/_+/g, ' ')
+    .trim();
   const idx = base.indexOf(' - ');
   if (idx > 0) {
     return { artist: base.slice(0, idx).trim(), title: base.slice(idx + 3).trim() };
   }
   return { artist: '', title: base };
+}
+
+/**
+ * 标签解析后统一兜底:只用文件名拆分补齐标签缺失的字段。
+ * 兜底必须在标签之后应用——否则预填值会让「!meta.title」守卫永远为假,
+ * 正确的标签无法覆盖,文件名为「歌名 - 歌手」序时会表现为作者与歌名颠倒
+ */
+function applyFilenameFallback(meta: AudioFileMetadata, fileName: string): void {
+  const fallback = splitFileName(fileName);
+  if (!meta.title) meta.title = fallback.title;
+  if (!meta.artist) meta.artist = fallback.artist;
 }
 
 function probeDuration(file: File): Promise<number> {
@@ -68,10 +87,10 @@ function probeDuration(file: File): Promise<number> {
 }
 
 export async function parseAudioFileMetadata(file: File): Promise<AudioFileMetadata> {
-  const fallback = splitFileName(file.name);
+  // 标签字段初始留空,标签解析成功即为权威;文件名兜底在解析之后只补空缺字段
   const meta: AudioFileMetadata = {
-    title: fallback.title,
-    artist: fallback.artist,
+    title: '',
+    artist: '',
     album: '',
     duration: 0,
     cover: null,
@@ -80,16 +99,28 @@ export async function parseAudioFileMetadata(file: File): Promise<AudioFileMetad
 
   try {
     const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
-    if (head.length > 4 && head[0] === 0x66 && head[1] === 0x4c && head[2] === 0x61 && head[3] === 0x43) {
+    if (
+      head.length > 4 &&
+      head[0] === 0x66 &&
+      head[1] === 0x4c &&
+      head[2] === 0x61 &&
+      head[3] === 0x43
+    ) {
       await parseFlacVorbis(file, meta);
     } else if (
       head.length > 10 &&
-      head[4] === 0x66 && head[5] === 0x74 && head[6] === 0x79 && head[7] === 0x70
+      head[4] === 0x66 &&
+      head[5] === 0x74 &&
+      head[6] === 0x79 &&
+      head[7] === 0x70
     ) {
       await parseMp4Ilst(file, meta);
     } else if (
       head.length > 4 &&
-      head[0] === 0x4f && head[1] === 0x67 && head[2] === 0x67 && head[3] === 0x53
+      head[0] === 0x4f &&
+      head[1] === 0x67 &&
+      head[2] === 0x67 &&
+      head[3] === 0x53
     ) {
       await parseOggVorbis(file, meta);
     } else {
@@ -99,6 +130,7 @@ export async function parseAudioFileMetadata(file: File): Promise<AudioFileMetad
     // 标签解析失败:保留文件名兜底
   }
 
+  applyFilenameFallback(meta, file.name);
   meta.duration = await probeDuration(file);
   return meta;
 }
@@ -107,48 +139,50 @@ export async function parseAudioFileMetadata(file: File): Promise<AudioFileMetad
 async function parseId3v2(file: File, meta: AudioFileMetadata): Promise<void> {
   const buf = new Uint8Array(await file.slice(0, 10 * 1024 * 1024).arrayBuffer());
   if (buf.length > 10 && buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) {
-      const ver = buf[3]; // 3 = ID3v2.3, 4 = ID3v2.4
-      if (ver === 3 || ver === 4) {
-        const tagEnd = Math.min(10 + syncsafe(buf, 6), buf.length);
-        let o = 10;
-        // 跳过扩展头(v2.3: u32 size;v2.4: syncsafe size,均不含自身 4 字节)
-        if (buf[5] & 0x40) {
-          const extSize = ver === 4 ? syncsafe(buf, 10) : u32(buf, 10);
-          o += extSize + 4;
-        }
-        while (o + 10 <= tagEnd) {
-          const id = String.fromCharCode(...buf.subarray(o, o + 4));
-          if (!/^[A-Z0-9]{4}$/.test(id)) break; // padding
-          const fsize = ver === 4 ? syncsafe(buf, o + 4) : u32(buf, o + 4);
-          if (fsize <= 0 || o + 10 + fsize > tagEnd) break;
-          const data = buf.subarray(o + 10, o + 10 + fsize);
-          if (id === 'TIT2') meta.title = decodeText(data.subarray(1), data[0]) || meta.title;
-          else if (id === 'TPE1') meta.artist = decodeText(data.subarray(1), data[0]) || meta.artist;
-          else if (id === 'TALB') meta.album = decodeText(data.subarray(1), data[0]) || meta.album;
-          else if (id === 'USLT' && !meta.lyrics) meta.lyrics = parseUslt(data) || meta.lyrics;
-          else if (id === 'SYLT' && !meta.lyrics) meta.lyrics = parseSylt(data) || meta.lyrics;
-          else if (id === 'APIC' && !meta.cover) {
-            const encoding = data[0];
-            let p = 1;
-            while (p < data.length && data[p] !== 0) p++;
-            const mime = new TextDecoder('iso-8859-1').decode(data.subarray(1, p)) || 'image/jpeg';
-            p++; // null
-            p++; // picture type
-            if (encoding === 1 || encoding === 2) {
-              while (p + 1 < data.length && !(data[p] === 0 && data[p + 1] === 0)) p += 2;
-              p += 2;
-            } else {
-              while (p < data.length && data[p] !== 0) p++;
-              p++;
-            }
-            const img = data.subarray(p);
-            if (img.length > 128) {
-              meta.cover = URL.createObjectURL(new Blob([img], { type: mime.startsWith('image/') ? mime : 'image/jpeg' }));
-            }
-          }
-          o += 10 + fsize;
-        }
+    const ver = buf[3]; // 3 = ID3v2.3, 4 = ID3v2.4
+    if (ver === 3 || ver === 4) {
+      const tagEnd = Math.min(10 + syncsafe(buf, 6), buf.length);
+      let o = 10;
+      // 跳过扩展头(v2.3: u32 size;v2.4: syncsafe size,均不含自身 4 字节)
+      if (buf[5] & 0x40) {
+        const extSize = ver === 4 ? syncsafe(buf, 10) : u32(buf, 10);
+        o += extSize + 4;
       }
+      while (o + 10 <= tagEnd) {
+        const id = String.fromCharCode(...buf.subarray(o, o + 4));
+        if (!/^[A-Z0-9]{4}$/.test(id)) break; // padding
+        const fsize = ver === 4 ? syncsafe(buf, o + 4) : u32(buf, o + 4);
+        if (fsize <= 0 || o + 10 + fsize > tagEnd) break;
+        const data = buf.subarray(o + 10, o + 10 + fsize);
+        if (id === 'TIT2') meta.title = decodeText(data.subarray(1), data[0]) || meta.title;
+        else if (id === 'TPE1') meta.artist = decodeText(data.subarray(1), data[0]) || meta.artist;
+        else if (id === 'TALB') meta.album = decodeText(data.subarray(1), data[0]) || meta.album;
+        else if (id === 'USLT' && !meta.lyrics) meta.lyrics = parseUslt(data) || meta.lyrics;
+        else if (id === 'SYLT' && !meta.lyrics) meta.lyrics = parseSylt(data) || meta.lyrics;
+        else if (id === 'APIC' && !meta.cover) {
+          const encoding = data[0];
+          let p = 1;
+          while (p < data.length && data[p] !== 0) p++;
+          const mime = new TextDecoder('iso-8859-1').decode(data.subarray(1, p)) || 'image/jpeg';
+          p++; // null
+          p++; // picture type
+          if (encoding === 1 || encoding === 2) {
+            while (p + 1 < data.length && !(data[p] === 0 && data[p + 1] === 0)) p += 2;
+            p += 2;
+          } else {
+            while (p < data.length && data[p] !== 0) p++;
+            p++;
+          }
+          const img = data.subarray(p);
+          if (img.length > 128) {
+            meta.cover = URL.createObjectURL(
+              new Blob([img], { type: mime.startsWith('image/') ? mime : 'image/jpeg' })
+            );
+          }
+        }
+        o += 10 + fsize;
+      }
+    }
   }
 }
 
@@ -177,8 +211,7 @@ function applyVorbisComments(bytes: Uint8Array, meta: AudioFileMetadata): void {
     else if (key === 'ALBUM') meta.album = meta.album || value;
     else if (['LYRICS', 'UNSYNCEDLYRICS', 'SYNCEDLYRICS'].includes(key) && !meta.lyrics) {
       meta.lyrics = normalizeSyncedLyrics(value);
-    }
-    else if ((key === 'METADATA_BLOCK_PICTURE' || key === 'COVERART') && !meta.cover) {
+    } else if ((key === 'METADATA_BLOCK_PICTURE' || key === 'COVERART') && !meta.cover) {
       try {
         if (key === 'COVERART') {
           meta.cover = URL.createObjectURL(
@@ -234,7 +267,9 @@ async function parseFlacVorbis(file: File, meta: AudioFileMetadata): Promise<voi
 /** OGG:扫描 VORBIS_COMMENT 包(0x03 头),允许跨页取连续区域解析 */
 async function parseOggVorbis(file: File, meta: AudioFileMetadata): Promise<void> {
   const buf = new Uint8Array(await file.slice(0, 8 * 1024 * 1024).arrayBuffer());
-  const marker = [0x03, 0x76, 0x6f, 0x72, 0x62, 0x69, 0x73, 0x43, 0x6f, 0x6d, 0x6d, 0x65, 0x6e, 0x74];
+  const marker = [
+    0x03, 0x76, 0x6f, 0x72, 0x62, 0x69, 0x73, 0x43, 0x6f, 0x6d, 0x6d, 0x65, 0x6e, 0x74
+  ];
   for (let i = 0; i + marker.length <= buf.length; i++) {
     let hit = true;
     for (let j = 0; j < marker.length; j++) {
@@ -244,7 +279,10 @@ async function parseOggVorbis(file: File, meta: AudioFileMetadata): Promise<void
       }
     }
     if (!hit) continue;
-    const body = buf.subarray(i + marker.length, Math.min(i + marker.length + 2 * 1024 * 1024, buf.length));
+    const body = buf.subarray(
+      i + marker.length,
+      Math.min(i + marker.length + 2 * 1024 * 1024, buf.length)
+    );
     applyVorbisComments(body, meta);
     return;
   }
@@ -261,7 +299,7 @@ const MP4_KEY_MAP: Record<string, 'title' | 'artist' | 'album' | 'covr' | 'lyric
 };
 
 /** MP4:遍历 moov.udta.meta.ilst,取 ©nam/©ART/©alb/covr */
-async function parseMp4Ilst(file: File, meta: AudioFileMetadata): Promise<void> {
+export async function parseMp4Ilst(file: File, meta: AudioFileMetadata): Promise<void> {
   const buf = new Uint8Array(await file.slice(0, 12 * 1024 * 1024).arrayBuffer());
   const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 
@@ -292,7 +330,8 @@ async function parseMp4Ilst(file: File, meta: AudioFileMetadata): Promise<void> 
           if (dType === 'data' && dSize > 16) {
             const payload = buf.subarray(d + 16, d + dSize);
             const mapped = MP4_KEY_MAP[type];
-            if (mapped === 'title' && !meta.title) meta.title = new TextDecoder('utf-8').decode(payload);
+            if (mapped === 'title' && !meta.title)
+              meta.title = new TextDecoder('utf-8').decode(payload);
             else if (mapped === 'artist' && !meta.artist)
               meta.artist = new TextDecoder('utf-8').decode(payload);
             else if (mapped === 'album' && !meta.album)
@@ -325,7 +364,12 @@ function normalizeSyncedLyrics(raw: string): string | null {
 
 /** 4 字节 syncsafe 整数 */
 function readSyncsafe4(bytes: Uint8Array, o: number): number {
-  return ((bytes[o] & 0x7f) << 21) | ((bytes[o + 1] & 0x7f) << 14) | ((bytes[o + 2] & 0x7f) << 7) | (bytes[o + 3] & 0x7f);
+  return (
+    ((bytes[o] & 0x7f) << 21) |
+    ((bytes[o + 1] & 0x7f) << 14) |
+    ((bytes[o + 2] & 0x7f) << 7) |
+    (bytes[o + 3] & 0x7f)
+  );
 }
 
 /** 文本解码(按 ID3 编码字节);off 起读至首个终止符 */
