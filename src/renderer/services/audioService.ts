@@ -697,7 +697,17 @@ class AudioService {
 
       // 清理旧图（保持上下文），再以 CORS 干净的元素建源
       await this.disposeEQ(true);
-      this.source = this.context.createMediaElementSource(audioNode);
+      // 一个元素在同一 AudioContext 里只能绑定一个 MediaElementSourceNode：
+      // Howler 跨曲复用 html5 元素，crossfade 也会先给新元素建源，
+      // 这里再建一次会抛 InvalidStateError（表现为退化成直通播放、失去鼓点/频谱）。
+      // 复用同上下文已存在的源节点即可，图连接仍然整套重建。
+      const existingSource = (audioNode as any).source as MediaElementAudioSourceNode | undefined;
+      if (existingSource?.context === this.context) {
+        this.source = existingSource;
+      } else {
+        this.source = this.context.createMediaElementSource(audioNode);
+        (audioNode as any).source = this.source;
+      }
 
       const gainNode = this.context.createGain();
       this.gainNode = gainNode;
