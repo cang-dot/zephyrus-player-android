@@ -129,6 +129,6 @@ server-ai-gateway.js   云端歌词 AI 网关
 
 ## 致谢与许可证
 
-滚动歌词使用 [Apple Music-like Lyrics](https://github.com/amll-dev/applemusic-like-lyrics) 的 Vue 组件；「错误」样式的流体背景改编自 [vue-bits](https://github.com/DavidHDev/vue-bits) 的 LiquidEther 组件，遵循其开源许可证并在应用关于页面与文档站致谢。项目整体使用 [AGPL-3.0-only](./LICENSE) 发布；第三方依赖的许可证以各自仓库为准。
+滚动歌词使用 [Apple Music-like Lyrics](https://github.com/amll-dev/applemusic-like-lyrics) 的 Vue 组件；「错误」样式的流体背景改编自 [vue-bits](https://github.com/DavidHDev/vue-bits) 的 LiquidEther 组件；默认样式的「网格」背景使用 Apple Music-like Lyrics 的 `MeshGradientRenderer` 渲染器，其低频驱动曲线移植自 [amll-player](https://github.com/JoyElliot/amll-player)（作者 JoyElliot 授权使用第一方代码，双方均遵循 AGPL-3.0）。以上组件均遵循其开源许可证并在应用关于页面与文档站致谢。项目整体使用 [AGPL-3.0-only](./LICENSE) 发布；第三方依赖的许可证以各自仓库为准。
 
 问题反馈请提交 [GitHub Issues](https://github.com/cang-dot/zephyrus-player-android/issues)，并附上 Android 版本、歌曲来源、歌词格式、播放器样式和复现步骤。

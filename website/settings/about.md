@@ -12,7 +12,7 @@ Zephyrus Player for Android 当前文档对应 **v1.2.5**。
 
 ## 开源与致谢
 
-项目以 MIT License 发布，并基于 AlgerMusicPlayer 持续演进。AMLL TTML 数据源和其他开源依赖的许可证与来源保留在仓库及应用内。
+项目以 MIT License 发布，并基于 AlgerMusicPlayer 持续演进。AMLL TTML 数据源和其他开源依赖的许可证与来源保留在仓库及应用内。默认样式的「网格」背景使用 Apple Music-like Lyrics 的网格渐变渲染器，其低频驱动曲线移植自 [amll-player](https://github.com/JoyElliot/amll-player)（AGPL-3.0，经作者授权使用其第一方代码）。
 
 ## 隐私
 

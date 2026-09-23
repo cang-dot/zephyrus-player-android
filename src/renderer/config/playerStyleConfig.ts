@@ -28,7 +28,10 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     artworkAlign: 'center',
     backgroundPreset: 'none',
     auroraSpeed: 0.8,
-    auroraPosition: 'top'
+    auroraPosition: 'top',
+    meshMaxFps: 60,
+    meshRenderScale: 1,
+    meshStaticMode: false
   },
   stage: {
     auroraSpeed: 0.8,
@@ -263,9 +266,18 @@ export function resolvePlayerStyleConfig(
   if (!['start', 'center', 'end'].includes(String(config.artworkAlign))) {
     config.artworkAlign = 'center';
   }
-  if (!['none', 'aurora', 'fluid'].includes(String(config.backgroundPreset))) {
+  if (!['none', 'aurora', 'fluid', 'mesh'].includes(String(config.backgroundPreset))) {
     config.backgroundPreset = 'none';
   }
+  config.meshMaxFps = Math.min(
+    120,
+    Math.max(1, Math.round(Number.isFinite(Number(config.meshMaxFps)) ? Number(config.meshMaxFps) : 60))
+  );
+  config.meshRenderScale = Math.min(
+    2,
+    Math.max(0.25, Number.isFinite(Number(config.meshRenderScale)) ? Number(config.meshRenderScale) : 1)
+  );
+  config.meshStaticMode = config.meshStaticMode === true;
   config.starBlockLines = Math.min(
     6,
     Math.max(

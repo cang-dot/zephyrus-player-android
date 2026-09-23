@@ -64,6 +64,16 @@
           :max-fps="30"
           :paused="reduceMotion || playerTransitionBusy"
         />
+        <!-- 网格预设：AMLL 渲染器 + 本项目音频分析驱动；
+             reduceMotion 用静态模式定格一帧（暂停会连首帧都不画） -->
+        <mesh-gradient-background
+          v-else-if="backgroundPreset === 'mesh'"
+          :cover-url="coverUrl"
+          :max-fps="meshMaxFps"
+          :render-scale="meshRenderScale"
+          :static-mode="meshStaticMode || reduceMotion"
+          :paused="playerTransitionBusy"
+        />
       </div>
 
       <div v-if="playMusic?.playLoading" class="loading-state" aria-live="polite">
@@ -189,6 +199,7 @@ import {
 
 import DefaultPlayerArtwork from './DefaultPlayerArtwork.vue';
 import LiquidEther from './LiquidEther.vue';
+import MeshGradientBackground from './MeshGradientBackground.vue';
 import MobileScrollingLyrics from './MobileScrollingLyrics.vue';
 
 const props = defineProps<{
@@ -230,11 +241,21 @@ const artworkAlign = computed(() => {
 });
 const backgroundPreset = computed(() => {
   const value = String(styleCustom.value.backgroundPreset);
-  return (['none', 'aurora', 'fluid'].includes(value) ? value : 'none') as
+  return (['none', 'aurora', 'fluid', 'mesh'].includes(value) ? value : 'none') as
     | 'none'
     | 'aurora'
-    | 'fluid';
+    | 'fluid'
+    | 'mesh';
 });
+const meshMaxFps = computed(() => {
+  const value = Number(styleCustom.value.meshMaxFps);
+  return Number.isFinite(value) ? Math.min(120, Math.max(1, Math.round(value))) : 60;
+});
+const meshRenderScale = computed(() => {
+  const value = Number(styleCustom.value.meshRenderScale);
+  return Number.isFinite(value) ? Math.min(2, Math.max(0.25, value)) : 1;
+});
+const meshStaticMode = computed(() => styleCustom.value.meshStaticMode === true);
 const auroraSpeed = computed(() => {
   const value = Number(styleCustom.value.auroraSpeed);
   return Number.isFinite(value) && value > 0 ? value : 0.8;

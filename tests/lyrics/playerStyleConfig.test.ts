@@ -42,4 +42,31 @@ describe('smoke player style configuration', () => {
     expect(config.smokeCustomColor).toBe('#5fffd0');
     expect(config.smokeGlowCustomColor).toBe('#ff765f');
   });
+
+  it('accepts the mesh background preset and clamps its three parameters', () => {
+    const defaults = createPlayerStyleConfig('default');
+    const mesh = resolvePlayerStyleConfig('default', {
+      backgroundPreset: 'mesh',
+      meshMaxFps: 500,
+      meshRenderScale: 9,
+      meshStaticMode: true
+    });
+    const sanitized = resolvePlayerStyleConfig('default', {
+      backgroundPreset: 'glow',
+      meshMaxFps: Number.NaN,
+      meshRenderScale: 0
+    });
+
+    expect(mesh.backgroundPreset).toBe('mesh');
+    expect(mesh.meshMaxFps).toBe(120);
+    expect(mesh.meshRenderScale).toBe(2);
+    expect(mesh.meshStaticMode).toBe(true);
+    expect(defaults.meshMaxFps).toBe(60);
+    expect(defaults.meshRenderScale).toBe(1);
+    expect(defaults.meshStaticMode).toBe(false);
+    expect(sanitized.backgroundPreset).toBe('none');
+    expect(sanitized.meshMaxFps).toBe(60);
+    expect(sanitized.meshRenderScale).toBe(0.25);
+    expect(sanitized.meshStaticMode).toBe(false);
+  });
 });

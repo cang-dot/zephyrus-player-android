@@ -115,8 +115,14 @@ export interface PlayerStyleCustomConfig {
   artworkSize?: number;
   /** 默认样式：封面块对齐 */
   artworkAlign?: 'start' | 'center' | 'end';
-  /** 默认样式：背景预设（后续可扩展 vuebits 背景板块） */
-  backgroundPreset?: 'none' | 'aurora' | 'fluid';
+  /** 默认样式：背景预设（后续可扩展 vuebits 背景板块；mesh 为 AMLL 音频响应网格） */
+  backgroundPreset?: 'none' | 'aurora' | 'fluid' | 'mesh';
+  /** 网格背景：最高帧率 1-120 */
+  meshMaxFps?: number;
+  /** 网格背景：渲染倍率 0.25-2，越低越省电 */
+  meshRenderScale?: number;
+  /** 网格背景：静态模式（画面静止，低频驱动不再引起变化） */
+  meshStaticMode?: boolean;
   [key: string]: unknown;
 }
 

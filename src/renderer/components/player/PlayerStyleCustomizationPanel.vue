@@ -193,7 +193,7 @@
         </div>
         <div class="setting-row">
           <span>{{ tr('player.styleCustomization.backgroundPreset', '背景预设') }}</span>
-          <div class="segmented-control three-options">
+          <div class="segmented-control four-options">
             <button
               v-for="option in backgroundPresetOptions"
               :key="option.value"
@@ -227,6 +227,41 @@
               </button>
             </div>
           </div>
+        </template>
+        <template v-if="(local.backgroundPreset || 'none') === 'mesh'">
+          <label class="setting-row">
+            <span>{{ tr('player.styleCustomization.meshStaticMode', '静态模式') }}</span>
+            <button
+              type="button"
+              class="toggle-switch"
+              :class="{ on: local.meshStaticMode === true }"
+              role="switch"
+              :aria-checked="local.meshStaticMode === true"
+              @click.prevent="local.meshStaticMode = local.meshStaticMode !== true"
+            >
+              <span></span>
+            </button>
+          </label>
+          <label class="range-row">
+            <span
+              >{{ tr('player.styleCustomization.meshMaxFps', '背景帧率上限') }}
+              {{ local.meshMaxFps ?? 60 }}</span
+            >
+            <input v-model.number="local.meshMaxFps" type="range" min="1" max="120" step="1" />
+          </label>
+          <label class="range-row">
+            <span
+              >{{ tr('player.styleCustomization.meshRenderScale', '渲染倍率') }}
+              {{ local.meshRenderScale ?? 1 }}</span
+            >
+            <input
+              v-model.number="local.meshRenderScale"
+              type="range"
+              min="0.25"
+              max="2"
+              step="0.05"
+            />
+          </label>
         </template>
       </template>
 
@@ -716,7 +751,8 @@ const starPositionOptions = [
 const backgroundPresetOptions = computed(() => [
   { value: 'none' as const, label: tr('player.styleCustomization.presetNone', '无') },
   { value: 'aurora' as const, label: tr('player.styleCustomization.presetAurora', '极光') },
-  { value: 'fluid' as const, label: tr('player.styleCustomization.presetFluid', '流体') }
+  { value: 'fluid' as const, label: tr('player.styleCustomization.presetFluid', '流体') },
+  { value: 'mesh' as const, label: tr('player.styleCustomization.presetMesh', '网格') }
 ]);
 const auroraPositionOptions = computed(() => [
   { value: 'top' as const, label: tr('player.styleCustomization.posTop', '上') },
@@ -869,6 +905,9 @@ function importFont() {
 }
 .segmented-control.three-options {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.segmented-control.four-options {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .segmented-control.aurora-position-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
