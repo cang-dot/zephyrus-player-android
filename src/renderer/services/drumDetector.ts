@@ -172,7 +172,9 @@ class DrumDetector {
         this.startExternal();
         return;
       }
-      console.error('[DrumDetector] 未连接，请先调用 connect()');
+      // 网页端流媒体直通路径(探测未通过/尚未建图)没有分析节点,静默待命即可,
+      // 后续歌曲建图成功时会重新 connect+start
+      console.debug('[DrumDetector] 未连接 Web Audio 图，待命中（建图后自动启动）');
       return;
     }
 

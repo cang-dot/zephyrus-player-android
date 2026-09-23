@@ -54,6 +54,15 @@ function cacheVerdict(host: string, ok: boolean) {
 }
 
 /**
+ * http→https 升级：media 元素在 https 页面上会自动升级混合内容，
+ * fetch() 不会（直接 TypeError: Failed to fetch）——所有对音频直链的
+ * fetch 都必须先走这一步。
+ */
+export function upgradeToHttps(url: string): string {
+  return url.replace(/^http:\/\//i, 'https://');
+}
+
+/**
  * 探测 URL 所在 CDN 是否允许跨域读取（决定能否安全建 Web Audio 图）。
  * 结果按 host 缓存：成功长期有效（CDN 的 ACAO 是节点级配置），
  * 失败 5 分钟后复检。blob:/data: 等同源 URL 视作可分析。
@@ -73,8 +82,8 @@ export async function probeAnalysisCapability(url: string): Promise<boolean> {
   }
 
   try {
-    // 与媒体元素实际请求对齐：https 升级（混合内容自动升级语义）+ CORS 模式 + 小段 Range
-    const probeUrl = url.replace(/^http:\/\//i, 'https://');
+    // 与媒体元素实际请求对齐：https 升级 + CORS 模式 + 小段 Range
+    const probeUrl = upgradeToHttps(url);
     const res = await fetch(probeUrl, {
       mode: 'cors',
       headers: { Range: 'bytes=0-1023' }
@@ -85,10 +94,14 @@ export async function probeAnalysisCapability(url: string): Promise<boolean> {
       /* 连接释放失败无关紧要 */
     }
     const ok = res.ok;
+    console.debug(
+      `[audioAnalysisGate] 探测 ${host}: ${ok ? 'ACAO 通过，武装建图' : `不可分析(HTTP ${res.status})，维持直通`}`
+    );
     cacheVerdict(host, ok);
     return ok;
   } catch {
     // CORS 拒绝时 fetch 直接 throw；按不可分析处理，5 分钟后复检
+    console.debug(`[audioAnalysisGate] 探测 ${host}: 请求被拒(CORS/网络)，维持直通`);
     cacheVerdict(host, false);
     return false;
   }

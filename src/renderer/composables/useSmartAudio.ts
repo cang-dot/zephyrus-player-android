@@ -20,6 +20,7 @@ import { Howler } from 'howler';
 import { computed, ref, shallowRef } from 'vue';
 
 import { audioService } from '@/services/audioService';
+import { upgradeToHttps } from '@/services/audioAnalysisGate';
 import { type BpmCacheEntry,useMixEngineStore } from '@/store/modules/mixEngine';
 import { isElectron } from '@/utils';
 import { applyBandSplitCrossfade, type BandSplitChain,createBandSplitChain } from '@/utils/audio/bandSplitter';
@@ -170,7 +171,9 @@ export function useSmartAudio() {
         copy.set(uint8);
         arrayBuffer = copy.buffer;
       } else if (!url.startsWith('local://')) {
-        const response = await fetch(url);
+        // https 页面上 fetch 不会像 media 元素那样自动升级混合内容，
+        // 音频直链多为 http:// 必须显式升级，否则整段 BPM 预分析静默失效
+        const response = await fetch(upgradeToHttps(url));
         if (!response.ok) return null;
         arrayBuffer = await response.arrayBuffer();
       } else {

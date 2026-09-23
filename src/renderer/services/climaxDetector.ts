@@ -185,7 +185,8 @@ class ClimaxDetector {
     }
 
     if (!this.analyserNode) {
-      console.error('[ClimaxDetector] 未连接音频图谱，请先调用 connect()');
+      // 网页端流媒体直通路径(探测未通过/尚未建图)没有分析节点,静默待命即可
+      console.debug('[ClimaxDetector] 未连接 Web Audio 图，待命中（建图后自动启动）');
       return;
     }
 
