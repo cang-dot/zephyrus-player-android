@@ -4,6 +4,7 @@
  * 实现 MusicSourceStrategy 接口，作为落雪音源的解析入口
  */
 
+import { upgradeToHttps } from '@/services/audioAnalysisGate';
 import { getLxMusicRunner, initLxMusicRunner } from '@/services/LxMusicSourceRunner';
 import { useSettingsStore } from '@/store';
 import type { LxMusicInfo, LxQuality, LxSourceKey } from '@/types/lxMusic';
@@ -27,8 +28,8 @@ const resolveAudioUrl = async (url: string): Promise<string> => {
       return url;
     }
 
-    // 尝试获取真实 URL
-    const response = await fetch(url, {
+    // 尝试获取真实 URL（https 页面 fetch 不自动升级混合内容，http 音源必须显式升级）
+    const response = await fetch(upgradeToHttps(url), {
       method: 'HEAD',
       redirect: 'manual' // 不自动跟随重定向
     });
@@ -42,7 +43,7 @@ const resolveAudioUrl = async (url: string): Promise<string> => {
     }
 
     // 如果 HEAD 请求没有重定向，尝试 GET 请求
-    const getResponse = await fetch(url, {
+    const getResponse = await fetch(upgradeToHttps(url), {
       redirect: 'follow'
     });
 

@@ -2,6 +2,8 @@ import { Howler } from 'howler';
 
 import { isElectron } from '@/utils';
 
+import { upgradeToHttps } from './audioAnalysisGate';
+
 type EventCallback = (...args: any[]) => void;
 
 export class LocalAudioPlayer {
@@ -59,7 +61,8 @@ export class LocalAudioPlayer {
         const binary = uint8.buffer as ArrayBuffer;
         arrayBuffer = binary.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength);
       } else if (!this._url.startsWith('local://')) {
-        const response = await fetch(this._url);
+        // https 页面 fetch 不会像 media 元素那样自动升级混合内容，http 直链必须显式升级
+        const response = await fetch(upgradeToHttps(this._url));
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         arrayBuffer = await response.arrayBuffer();
       } else if ((window as any).AndroidNative) {
