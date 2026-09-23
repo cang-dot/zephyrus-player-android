@@ -10,6 +10,13 @@ import {
 } from '@/utils/seekPlaybackGuard';
 
 import { isAndroidNative } from './androidNative';
+import {
+  armHowlForAnalysis,
+  disarmHowlAudio,
+  isAnalysisArmed,
+  isWebAnalysisPlatform,
+  probeAnalysisCapability
+} from './audioAnalysisGate';
 import { climaxDetector } from './climaxDetector';
 import { drumDetector } from './drumDetector';
 import { LocalAudioPlayer } from './localAudioPlayer';
@@ -505,6 +512,10 @@ class AudioService {
         if (sound instanceof LocalAudioPlayer) {
           return await this._setupEQLocalMobile(sound);
         }
+        // 网页端：探测通过且已挂 crossOrigin 的流媒体走建图路径（鼓点/高潮分析）
+        if (isAnalysisArmed(sound as Howl)) {
+          return await this._setupEQHowlWebAnalyzed(sound as Howl);
+        }
         return this._setupEQHowlMobile(sound as Howl);
       }
 
@@ -648,6 +659,65 @@ class AudioService {
       this.applyVolume(parseFloat(savedVolume));
     } else {
       this.applyVolume(1);
+    }
+  }
+
+  /**
+   * 网页端流媒体建图路径（与 _setupEQLocalMobile 同构，无 EQ 滤波）。
+   * 前置条件：probeAnalysisCapability 探测通过且 armHowlForAnalysis 已挂
+   * crossOrigin——否则 createMediaElementSource 会把跨域媒体 taint 成静音且不可逆。
+   * 任何异常都回退 _setupEQHowlMobile 直通播放，保声音优先。
+   */
+  private async _setupEQHowlWebAnalyzed(sound: Howl) {
+    try {
+      if (!isAnalysisArmed(sound)) {
+        throw new Error('音频元素未武装 crossOrigin，拒绝建图');
+      }
+      const audioNode = (sound as any)._sounds?.[0]?._node;
+      if (!(audioNode instanceof HTMLMediaElement)) {
+        throw new Error('无法获取音频元素节点');
+      }
+
+      this.context = Howler.ctx as AudioContext;
+      if (!this.context || this.context.state === 'closed') {
+        Howler.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        this.context = Howler.ctx;
+        Howler.masterGain = this.context.createGain();
+        Howler.masterGain.connect(this.context.destination);
+      }
+
+      if (this.context.state === 'suspended') {
+        await this.context.resume().catch(() => {});
+      }
+      if (this.context.state !== 'running') {
+        throw new Error(`AudioContext 未运行 (state=${this.context.state})`);
+      }
+
+      this.setupContextStateMonitoring();
+
+      // 清理旧图（保持上下文），再以 CORS 干净的元素建源
+      await this.disposeEQ(true);
+      this.source = this.context.createMediaElementSource(audioNode);
+
+      const gainNode = this.context.createGain();
+      this.gainNode = gainNode;
+      gainNode.gain.value = 1;
+
+      this.source.connect(gainNode);
+      gainNode.connect(this.context.destination);
+
+      // 挂高潮/鼓点检测器（styleEngine 与各皮肤只认 gainNode，无需感知音源变化）
+      climaxDetector.connect(this.context, this.gainNode);
+      drumDetector.connect(this.context, this.gainNode);
+      drumDetector.start();
+      climaxDetector.start();
+
+      const savedVolume = localStorage.getItem('volume');
+      this.applyVolume(savedVolume ? parseFloat(savedVolume) : 1);
+    } catch (error) {
+      console.warn('[Web] 流媒体建图失败，回退直通播放:', error);
+      await this.disposeEQ(true);
+      return this._setupEQHowlMobile(sound);
     }
   }
 
@@ -1065,6 +1135,19 @@ class AudioService {
       const howl = nextSound as any;
       const audioNode = howl._sounds?.[0]?._node;
       if (!audioNode || !(audioNode instanceof HTMLMediaElement)) {
+        try {
+          this.crossfadeGain.disconnect();
+        } catch {
+          // Gain node may already be disconnected.
+        }
+        this.crossfadeGain = null;
+        return false;
+      }
+      // 网页端未武装 CORS 的元素禁止建源（taint 静音不可逆）；此类歌曲放弃 crossfade 直切
+      if (
+        !isElectron &&
+        (audioNode as HTMLMediaElement).getAttribute('crossorigin') !== 'anonymous'
+      ) {
         try {
           this.crossfadeGain.disconnect();
         } catch {
@@ -1599,6 +1682,15 @@ class AudioService {
               rate: this.playbackRate,
               format: ['mp3', 'aac']
             });
+            // 网页端：探测通过则给元素挂 crossOrigin（为建图分析做准备）；
+            // 未通过/未探测时必须摘除对象池残留的 crossOrigin，否则无 ACAO 节点会整段加载失败
+            if (isWebAnalysisPlatform()) {
+              if (await probeAnalysisCapability(url)) {
+                armHowlForAnalysis(newSound, url);
+              } else {
+                disarmHowlAudio(newSound, url);
+              }
+            }
           }
 
           // 统一设置事件处理

@@ -2,6 +2,13 @@ import { Howl } from 'howler';
 
 import type { SongResult } from '@/types/music';
 
+import {
+  armHowlForAnalysis,
+  disarmHowlAudio,
+  isWebAnalysisPlatform,
+  probeAnalysisCapability
+} from './audioAnalysisGate';
+
 /**
  * iOS Safari 不做音频预加载:后台常驻的暂停 <audio> 元素会让系统媒体面板
  * 绑定到错误的元素(控制中心卡在暂停态、上下曲按钮失效)。
@@ -104,7 +111,13 @@ class PreloadService {
     return sound;
   }
 
-  private _createSound(url: string): Promise<Howl> {
+  private async _createSound(url: string): Promise<Howl> {
+    // 网页端先探测再构造：预载实例会被 consume() 直接交给播放主链路，
+    // 必须与 audioService 用同一武装网关，否则复用时无法安全建图
+    let armed = false;
+    if (isWebAnalysisPlatform()) {
+      armed = await probeAnalysisCapability(url);
+    }
     return new Promise((resolve, reject) => {
       const sound = new Howl({
         src: [url],
@@ -114,6 +127,11 @@ class PreloadService {
         onload: () => resolve(sound),
         onloaderror: (_, err) => reject(err)
       });
+      if (armed) {
+        armHowlForAnalysis(sound, url);
+      } else {
+        disarmHowlAudio(sound, url);
+      }
     });
   }
 
