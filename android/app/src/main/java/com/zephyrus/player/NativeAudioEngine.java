@@ -504,6 +504,7 @@ public final class NativeAudioEngine {
             payload.put("mid", data.mid);
             payload.put("high", data.high);
             payload.put("bpm", data.bpm);
+            payload.put("beat", data.beatStrength);
             emit(payload);
         } catch (Exception ignored) {
         }

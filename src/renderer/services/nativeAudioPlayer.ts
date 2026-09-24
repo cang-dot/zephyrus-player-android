@@ -13,6 +13,11 @@ export interface NativeAudioAnalysis {
   mid: number;
   high: number;
   bpm: number;
+  /**
+   * 原生 onset 强度（low/低频包络 的倍率，0 = 本周期无 onset）。
+   * 基于未饱和的原始低通幅度判定，供鼓点检测绕过被 ×3 封顶的频段数据。
+   */
+  beat: number;
 }
 
 /** 引擎侧实际解码格式（STATE_READY 时由 ExoPlayer 轨道信息取得）。 */
@@ -39,7 +44,8 @@ const EMPTY_ANALYSIS: NativeAudioAnalysis = {
   low: 0,
   mid: 0,
   high: 0,
-  bpm: 0
+  bpm: 0,
+  beat: 0
 };
 const analysisState = shallowRef<NativeAudioAnalysis>({ ...EMPTY_ANALYSIS });
 const tokenFormats = new Map<string, NativeAudioFormat>();
@@ -99,7 +105,8 @@ export class NativeAudioPlayer {
             low: Number(payload.low) || 0,
             mid: Number(payload.mid) || 0,
             high: Number(payload.high) || 0,
-            bpm: Number(payload.bpm) || 0
+            bpm: Number(payload.bpm) || 0,
+            beat: Number(payload.beat) || 0
           };
         }
         if (payload.audioFormat && payload.token) {
@@ -280,7 +287,8 @@ export class NativeAudioPlayer {
         low: numeric(latest.low),
         mid: numeric(latest.mid),
         high: numeric(latest.high),
-        bpm: numeric(latest.bpm, analysisState.value.bpm)
+        bpm: numeric(latest.bpm, analysisState.value.bpm),
+        beat: numeric(latest.beat)
       };
     } catch {
       // Event stream remains the fallback when a synchronous bridge read fails.

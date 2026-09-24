@@ -5,12 +5,16 @@
  * 实时检测鼓点（kick/snare）并估算 BPM。
  *
  * 原理:
- *   1. 频谱通量 (Spectral Flux): 相邻帧频谱的正向差异之和
- *      - 鼓点会导致频谱在短时间内剧烈变化
- *   2. 低频能量检测: 专门分析 60~200Hz（kick drum）的能量突增
- *   3. 自适应阈值: 使用滚动平均的频谱通量作为动态基准
- *   4. 冷却期: 防止同一个鼓点被重复检测
- *   5. BPM 估算: 统计鼓点间隔的中位数
+ *   1. 频谱通量 (Spectral Flux): 相邻帧频谱的正向差异之和（低/中/高频段加权，
+ *      压制密集镲片对通量的主导）
+ *   2. 低频能量检测: 60~200Hz（kick drum）还原成线性幅度后取 RMS——
+ *      字节频谱是 dB 压缩域，直接平均会把 +10dB 的底鼓压成 1.2 倍的假差异
+ *   3. 自适应阈值: 时间窗 + 分位数基线（排除当前帧）——密集配器下低频长期
+ *      贴顶时基线不会被自己的峰值抬高，Web 60fps 与安卓 20Hz 注入的时间常数也一致
+ *   4. 抗贴顶: 分析链路串 12dB 衰减并把 maxDecibels 抬到 -10dBFS，
+ *      密集混音的低频不再钉死在 255（见 connect）
+ *   5. 冷却期: 防止同一个鼓点被重复检测
+ *   6. BPM 估算: 统计鼓点间隔的中位数
  *
  * 用法:
  *   import { drumDetector } from '@/services/drumDetector';
@@ -18,6 +22,25 @@
  *   drumDetector.start();
  *   drumDetector.onBeat((info) => console.log('鼓点!', info.bpm));
  */
+
+import { AdaptiveBaseline, weightedSpectralFlux } from '@/utils/audio/beatResponse';
+
+/** AnalyserNode 字节域的下/上沿（dB）。上沿抬到 -10dBFS 给密集混音留动态余量 */
+const ANALYSER_MIN_DB = -100;
+const ANALYSER_MAX_DB = -10;
+/** 分析专用衰减（≈-12dB）：只影响检测，不影响输出音量；判据全是相对倍率 */
+const ANALYSIS_TRIM_GAIN = 0.25;
+/** 通量基线地板：静音段底噪不该触发「突增」 */
+const FLUX_BASELINE_FLOOR = 0.002;
+/** 低频基线地板（线性 RMS 域） */
+const KICK_BASELINE_FLOOR = 0.004;
+/**
+ * 低频通路饱和判定：基线 RMS 持续高于此值（安卓伪频谱 low 被 ×3 封顶后恒定）
+ * 时，1.8× 倍率判据数学上不可达，直接禁用 kick 通路、只认通量兜底。
+ */
+const KICK_SATURATED_BASE = 0.6;
+/** 线性 RMS → 对外 kickEnergy 的标定增益，保持与旧字节域观感连续（消费者都是 a + kick*b 的加成形式） */
+const KICK_ENERGY_GAIN = 2.2;
 
 /** 鼓点检测配置 */
 export interface DrumDetectorConfig {
@@ -31,7 +54,11 @@ export interface DrumDetectorConfig {
   kickThresholdMultiplier?: number;
   /** 鼓点冷却时间（毫秒），防止重复检测，默认 100ms */
   cooldownMs?: number;
-  /** 滚动窗口大小（帧数），用于计算自适应阈值，默认 43 帧（约 0.7s @60fps） */
+  /** 基线窗口时长（毫秒），默认 1500。用时间而不是帧数，两条数据路径的时间常数才一致 */
+  baselineWindowMs?: number;
+  /** 基线分位数（0~1），默认 0.75。高分位对孤立峰值不敏感 */
+  baselinePercentile?: number;
+  /** 基线样本数上限（防无界增长），默认 360（≈1.5s @240fps 的 2.4 倍余量） */
   rollingWindowSize?: number;
   /** 每 N 帧分析一次，默认 1（每帧都分析以保证精度） */
   analysisInterval?: number;
@@ -47,9 +74,9 @@ export interface DrumDetectorConfig {
 export interface BeatInfo {
   /** 估算的 BPM */
   bpm: number;
-  /** 当前频谱通量 (0~1) */
+  /** 当前频谱通量（频段加权，0~1） */
   flux: number;
-  /** 低频能量 (0~1) */
+  /** 低频能量（60~200Hz 线性 RMS × 标定增益，0~1） */
   kickEnergy: number;
   /** 是否为强拍（能量特别高） */
   isStrong: boolean;
@@ -83,16 +110,18 @@ class DrumDetector {
   private context: AudioContext | null = null;
   private analyserNode: AnalyserNode | null = null;
   private upstreamNode: AudioNode | null = null;
+  /** 分析专用衰减节点（仅串联在本检测器的 analyser 之前，不影响输出链路） */
+  private trimGain: GainNode | null = null;
 
   /** 频域数据缓冲区 */
   private frequencyData: Uint8Array<ArrayBuffer> = new Uint8Array(0);
   /** 上一帧的频域数据（用于计算频谱通量） */
   private prevFrequencyData: Float32Array = new Float32Array(0);
 
-  /** 频谱通量历史 */
-  private fluxHistory: number[] = [];
-  /** 低频能量历史 */
-  private kickHistory: number[] = [];
+  /** 通量基线（时间窗 + 分位 + 排除当前帧） */
+  private fluxBaseline = new AdaptiveBaseline();
+  /** 低频能量基线 */
+  private kickBaseline = new AdaptiveBaseline();
   /** 鼓点间隔历史（毫秒） */
   private beatIntervals: number[] = [];
   /** 上一次鼓点时间戳 */
@@ -115,12 +144,15 @@ class DrumDetector {
       fluxThresholdMultiplier: config?.fluxThresholdMultiplier ?? 1.5,
       kickThresholdMultiplier: config?.kickThresholdMultiplier ?? 1.8,
       cooldownMs: config?.cooldownMs ?? 100,
-      rollingWindowSize: config?.rollingWindowSize ?? 43,
+      baselineWindowMs: config?.baselineWindowMs ?? 1500,
+      baselinePercentile: config?.baselinePercentile ?? 0.75,
+      rollingWindowSize: config?.rollingWindowSize ?? 360,
       analysisInterval: config?.analysisInterval ?? 1,
       minBeatIntervalMs: config?.minBeatIntervalMs ?? 250,
       maxBeatIntervalMs: config?.maxBeatIntervalMs ?? 1500,
       bpmWindowSize: config?.bpmWindowSize ?? 12
     };
+    this.rebuildBaselines();
   }
 
   // ==================== 公共接口 ====================
@@ -132,14 +164,23 @@ class DrumDetector {
     this.context = audioContext;
     this.upstreamNode = sourceNode;
 
+    // 分析专用衰减：字节域原标定(-100~-30dB)在密集混音下低频贴顶，
+    // 先降 12dB 再把 maxDecibels 抬到 -10dBFS，等效满刻度 ≈ +2dBFS，
+    // 真实信号永不触顶；判据全是相对倍率，绝对电平下降不影响触发
+    this.trimGain = audioContext.createGain();
+    this.trimGain.gain.value = ANALYSIS_TRIM_GAIN;
+
     this.analyserNode = this.context.createAnalyser();
     this.analyserNode.fftSize = this.config.fftSize;
     this.analyserNode.smoothingTimeConstant = this.config.smoothingTimeConstant;
+    this.analyserNode.minDecibels = ANALYSER_MIN_DB;
+    this.analyserNode.maxDecibels = ANALYSER_MAX_DB;
 
     this.frequencyData = new Uint8Array(this.analyserNode.frequencyBinCount);
     this.prevFrequencyData = new Float32Array(this.analyserNode.frequencyBinCount);
 
-    this.upstreamNode.connect(this.analyserNode);
+    this.upstreamNode.connect(this.trimGain);
+    this.trimGain.connect(this.analyserNode);
   }
 
   /**
@@ -148,9 +189,16 @@ class DrumDetector {
   public disconnect(): void {
     this.stop();
 
-    if (this.analyserNode && this.upstreamNode) {
+    if (this.analyserNode && this.trimGain) {
       try {
-        this.upstreamNode.disconnect(this.analyserNode);
+        this.trimGain.disconnect(this.analyserNode);
+      } catch {
+        /* 忽略：节点已断开时可安全跳过 */
+      }
+    }
+    if (this.upstreamNode && this.trimGain) {
+      try {
+        this.upstreamNode.disconnect(this.trimGain);
       } catch {
         /* 忽略：节点已断开时可安全跳过 */
       }
@@ -158,6 +206,7 @@ class DrumDetector {
 
     this.analyserNode = null;
     this.upstreamNode = null;
+    this.trimGain = null;
     this.context = null;
   }
 
@@ -194,8 +243,8 @@ class DrumDetector {
     this.externalMode = true;
     this.running = true;
     this.frameIndex = 0;
-    this.fluxHistory = [];
-    this.kickHistory = [];
+    this.fluxBaseline.reset();
+    this.kickBaseline.reset();
     this.beatIntervals = [];
     this.lastBeatTime = 0;
     this.cooldownEndTime = 0;
@@ -208,10 +257,16 @@ class DrumDetector {
   }
 
   /**
-   * 注入一帧外部频段数据(low/mid/high 均 0~1),可选原生精确 BPM。
-   * 三频段合成伪频谱帧后走与 AnalyserNode 路径相同的通量/低频/鼓点判定。
+   * 注入一帧外部频段数据(low/mid/high 均 0~1),可选原生精确 BPM 与原生 onset 强度。
+   * 三频段合成伪频谱帧后走与 AnalyserNode 路径相同的通量/低频/鼓点判定；
+   * 原生 onset（基于未饱和的原始低通幅度）存在时优先采信——伪频谱的 low 被
+   * ×3 封顶后没有动态余量，JS 侧判据在密集配器下会失灵。
    */
-  public ingestBands(bands: { low: number; mid: number; high: number }, nativeBpm?: number): void {
+  public ingestBands(
+    bands: { low: number; mid: number; high: number },
+    nativeBpm?: number,
+    nativeBeat?: number
+  ): void {
     if (!this.running || !this.externalMode) return;
     const data = this.frequencyData;
     if (data.length === 0) return;
@@ -229,7 +284,7 @@ class DrumDetector {
     fill(121, data.length - 1, bands.high);
     data[0] = data[1];
 
-    this.processFrame(nativeBpm);
+    this.processFrame(nativeBpm, nativeBeat);
   }
 
   /**
@@ -265,9 +320,12 @@ class DrumDetector {
    */
   public updateConfig(config: Partial<DrumDetectorConfig>): void {
     Object.assign(this.config, config);
-    if (config.rollingWindowSize !== undefined) {
-      while (this.fluxHistory.length > config.rollingWindowSize) this.fluxHistory.shift();
-      while (this.kickHistory.length > config.rollingWindowSize) this.kickHistory.shift();
+    if (
+      config.baselineWindowMs !== undefined ||
+      config.baselinePercentile !== undefined ||
+      config.rollingWindowSize !== undefined
+    ) {
+      this.rebuildBaselines();
     }
   }
 
@@ -286,34 +344,37 @@ class DrumDetector {
   };
 
   /** 通量/低频/鼓点判定核心:AnalyserNode 与外部注入两条路径共用 */
-  private processFrame(nativeBpm?: number): void {
-    // 计算频谱通量
+  private processFrame(nativeBpm?: number, nativeBeat?: number): void {
+    // 计算频谱通量（频段加权）
     const spectralFlux = this.calculateSpectralFlux(this.frequencyData);
 
-    // 计算低频能量 (kick drum: ~60-200Hz)
+    // 计算低频能量 (kick drum: ~60-200Hz，线性 RMS)
     const kickEnergy = this.calculateKickEnergy(this.frequencyData);
 
-    // 更新历史
-    this.fluxHistory.push(spectralFlux);
-    this.kickHistory.push(kickEnergy);
-    if (this.fluxHistory.length > this.config.rollingWindowSize) this.fluxHistory.shift();
-    if (this.kickHistory.length > this.config.rollingWindowSize) this.kickHistory.shift();
-
-    // 计算自适应阈值
-    const fluxAvg = this.rollingAverage(this.fluxHistory);
-    const kickAvg = this.rollingAverage(this.kickHistory);
+    // 自适应基线：时间窗 + 分位 + 不含当前帧。
+    // 密集配器下低频长期贴顶时基线不会被自己的峰值抬高；
+    // 地板值防止静音段的底噪把「突增」判据轻松击穿。
+    const now = performance.now();
+    const fluxBase = Math.max(this.fluxBaseline.observe(now, spectralFlux), FLUX_BASELINE_FLOOR);
+    const kickBaseRaw = this.kickBaseline.observe(now, kickEnergy);
+    // 低频通路饱和（如安卓伪频谱 low 被 ×3 封顶后恒定）时基线恒在高位，
+    // 倍率判据数学上不可达——置 Infinity 禁用 kick 通路，只认通量兜底
+    const kickBase =
+      kickBaseRaw > KICK_SATURATED_BASE ? Infinity : Math.max(kickBaseRaw, KICK_BASELINE_FLOOR);
 
     this.flux = spectralFlux;
     this.kickEnergy = kickEnergy;
 
     // 检测鼓点
-    const now = performance.now();
-    const fluxSpike = spectralFlux > fluxAvg * this.config.fluxThresholdMultiplier;
-    const kickSpike = kickEnergy > kickAvg * this.config.kickThresholdMultiplier;
+    const nativeOnset = (nativeBeat ?? 0) > 0;
+    const fluxSpike = spectralFlux > fluxBase * this.config.fluxThresholdMultiplier;
+    const kickSpike = kickEnergy > kickBase * this.config.kickThresholdMultiplier;
     const cooldownOk = now >= this.cooldownEndTime;
 
-    // 鼓点判定：频谱通量突增 AND (低频突增 OR 频谱通量特别强)
-    const isBeat = cooldownOk && fluxSpike && (kickSpike || spectralFlux > fluxAvg * 2.5);
+    // 鼓点判定：原生 onset（安卓，基于未饱和的原始低通幅度）优先采信；
+    // 否则频谱通量突增 AND (低频突增 OR 频谱通量特别强)
+    const isBeat =
+      cooldownOk && (nativeOnset || (fluxSpike && (kickSpike || spectralFlux > fluxBase * 2.5)));
 
     if (isBeat) {
       // 计算间隔（用于 BPM 估算）
@@ -334,7 +395,9 @@ class DrumDetector {
       this.lastBeatTime = now;
       this.cooldownEndTime = now + this.config.cooldownMs;
 
-      const isStrong = kickEnergy > kickAvg * 2.2 || spectralFlux > fluxAvg * 3;
+      const isStrong = nativeOnset
+        ? (nativeBeat as number) >= 2.2
+        : kickEnergy > kickBase * 2.2 || spectralFlux > fluxBase * 3;
 
       const info: BeatInfo = {
         bpm: this.bpm,
@@ -365,32 +428,30 @@ class DrumDetector {
   }
 
   /**
-   * 计算频谱通量 (Spectral Flux)
+   * 计算频谱通量 (Spectral Flux，频段加权)
    *
-   * 公式: SF = Σ max(0, X[n] - X[n-1])
-   * 只计算正向变化（能量增加），忽略衰减。
-   * 鼓点会导致多个频率 bin 同时出现能量突增。
+   * 公式: SF = Σ w[i]·max(0, X[n] - X[n-1]) / (Σw·255)
+   * 只计算正向变化（能量增加），忽略衰减。低频段权重满、高频段压到 0.4，
+   * 避免密集混音里镲片/嘶声的碎波动主导通量。
    */
   private calculateSpectralFlux(data: Uint8Array): number {
-    let flux = 0;
-    const len = Math.min(data.length, this.prevFrequencyData.length);
-    for (let i = 0; i < len; i++) {
-      const diff = data[i] - this.prevFrequencyData[i];
-      if (diff > 0) flux += diff;
-    }
-    // 归一化到 0~1
-    return flux / (len * 255);
+    if (data.length === 0) return 0;
+    // 外部注入模式无 AudioContext，按 48kHz 量级折算 bin
+    const sampleRate = this.context?.sampleRate ?? 48000;
+    const binResolution = sampleRate / (data.length * 2);
+    const lowEnd = Math.max(1, Math.floor(250 / binResolution));
+    const midEnd = Math.min(data.length - 1, Math.ceil(4000 / binResolution));
+    return weightedSpectralFlux(data, this.prevFrequencyData, { lowEnd, midEnd });
   }
 
   /**
-   * 计算低频能量 (Kick Drum 频段)
+   * 计算低频能量 (Kick Drum 频段，线性 RMS)
    *
-   * Kick drum 的主要频率范围: 60~200Hz
-   * 采样率 44100Hz, FFT=1024 → 频率分辨率 ≈ 43Hz/bin
-   * 60Hz → bin 1.4, 200Hz → bin 4.65
-   * 实际取 bin 1~5（约 43~215Hz）
-   *
-   * 对于其他 FFT 大小，按比例计算 bin 范围
+   * Kick drum 的主要频率范围: 60~200Hz（bin 范围按采样率折算）。
+   * 字节频谱是 dB 压缩域（minDb~maxDb 映射 0~255），直接平均会把 +10dB 的
+   * 底鼓压成 1.2 倍的假差异、1.8× 倍率判据永远够不到；先还原线性幅度再取
+   * 均方根，鼓点的 +8~15dB 才体现为 2.5~5 倍的能量跳变。
+   * 输出乘 KICK_ENERGY_GAIN：保持与旧字节域观感连续（消费者都是 a + kick*b 的加成形式）。
    */
   private calculateKickEnergy(data: Uint8Array): number {
     // 外部注入模式无 AudioContext,按 48kHz 量级折算 bin
@@ -400,24 +461,32 @@ class DrumDetector {
     const lowBin = Math.max(1, Math.floor(60 / binResolution));
     const highBin = Math.min(data.length - 1, Math.ceil(200 / binResolution));
 
-    let sum = 0;
+    const dbSpan = ANALYSER_MAX_DB - ANALYSER_MIN_DB;
+    let sumSquares = 0;
     let count = 0;
     for (let i = lowBin; i <= highBin; i++) {
-      sum += data[i];
+      const db = (data[i] / 255) * dbSpan + ANALYSER_MIN_DB;
+      const linear = 10 ** (db / 20);
+      sumSquares += linear * linear;
       count++;
     }
 
-    return count > 0 ? sum / count / 255 : 0;
+    const rms = count > 0 ? Math.sqrt(sumSquares / count) : 0;
+    return Math.min(1, rms * KICK_ENERGY_GAIN);
   }
 
-  /**
-   * 计算滚动平均值
-   */
-  private rollingAverage(history: number[]): number {
-    if (history.length === 0) return 0;
-    let sum = 0;
-    for (let i = 0; i < history.length; i++) sum += history[i];
-    return sum / history.length;
+  /** 按当前配置重建基线实例（构造与 updateConfig 共用） */
+  private rebuildBaselines(): void {
+    this.fluxBaseline = new AdaptiveBaseline({
+      windowMs: this.config.baselineWindowMs,
+      percentile: this.config.baselinePercentile,
+      maxSamples: this.config.rollingWindowSize
+    });
+    this.kickBaseline = new AdaptiveBaseline({
+      windowMs: this.config.baselineWindowMs,
+      percentile: this.config.baselinePercentile,
+      maxSamples: this.config.rollingWindowSize
+    });
   }
 
   /**
@@ -483,7 +552,9 @@ export const drumDetector = new DrumDetector({
   fluxThresholdMultiplier: 1.5,
   kickThresholdMultiplier: 1.8,
   cooldownMs: 100,
-  rollingWindowSize: 43,
+  baselineWindowMs: 1500,
+  baselinePercentile: 0.75,
+  rollingWindowSize: 360,
   analysisInterval: 1,
   minBeatIntervalMs: 250,
   maxBeatIntervalMs: 1500,

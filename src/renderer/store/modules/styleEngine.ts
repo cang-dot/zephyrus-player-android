@@ -86,7 +86,8 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
         const analysis = NativeAudioPlayer.getAnalysis();
         drumDetector.ingestBands(
           { low: analysis.low, mid: analysis.mid, high: analysis.high },
-          analysis.bpm
+          analysis.bpm,
+          analysis.beat
         );
         climaxDetector.ingestLoudness(analysis.loudness);
       }, 50);

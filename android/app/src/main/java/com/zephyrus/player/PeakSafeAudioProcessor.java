@@ -16,13 +16,20 @@ public final class PeakSafeAudioProcessor extends BaseAudioProcessor {
         public final float mid;
         public final float high;
         public final float bpm;
+        /**
+         * 本快照窗口内 onset（底鼓起振）相对低频包络的最大倍率，0 表示无 onset。
+         * 基于未饱和的原始低通幅度（low > max(0.015, envelope×1.55) 才触发），
+         * 供 JS 侧绕过被 ×3 封顶的频段数据直接驱动鼓点响应。
+         */
+        public final float beatStrength;
 
-        AnalysisSnapshot(float loudness, float low, float mid, float high, float bpm) {
+        AnalysisSnapshot(float loudness, float low, float mid, float high, float bpm, float beatStrength) {
             this.loudness = loudness;
             this.low = low;
             this.mid = mid;
             this.high = high;
             this.bpm = bpm;
+            this.beatStrength = beatStrength;
         }
     }
 
@@ -34,7 +41,7 @@ public final class PeakSafeAudioProcessor extends BaseAudioProcessor {
     private volatile float eqLowGain = 1f;
     private volatile float eqMidGain = 1f;
     private volatile float eqHighGain = 1f;
-    private volatile AnalysisSnapshot snapshot = new AnalysisSnapshot(0f, 0f, 0f, 0f, 0f);
+    private volatile AnalysisSnapshot snapshot = new AnalysisSnapshot(0f, 0f, 0f, 0f, 0f, 0f);
 
     private float[] lowState = new float[0];
     private float[] highState = new float[0];
@@ -49,6 +56,8 @@ public final class PeakSafeAudioProcessor extends BaseAudioProcessor {
     private float lowEnvelope;
     private long lastOnsetFrame = -1;
     private float bpm;
+    /** 自上次 publishAnalysis 以来 onset 的最大强度（low/包络），publish 时取走并清零 */
+    private float pendingBeatStrength;
 
     @Override
     protected AudioFormat onConfigure(AudioFormat inputAudioFormat)
@@ -142,6 +151,7 @@ public final class PeakSafeAudioProcessor extends BaseAudioProcessor {
     }
 
     private void detectBeat(float low, float sampleRate) {
+        float envelopeBeforeUpdate = lowEnvelope;
         lowEnvelope += (low - lowEnvelope) * 0.0025f;
         long refractoryFrames = (long) (sampleRate * 0.25f);
         if (low > Math.max(0.015f, lowEnvelope * 1.55f)
@@ -153,6 +163,9 @@ public final class PeakSafeAudioProcessor extends BaseAudioProcessor {
                 bpm = bpm == 0f ? candidate : bpm * 0.82f + candidate * 0.18f;
             }
             lastOnsetFrame = totalFrames;
+            // 用更新前的包络计算突起倍率（更代表冲击强度），窗口内取最大
+            float strength = low / Math.max(envelopeBeforeUpdate, 1e-4f);
+            if (strength > pendingBeatStrength) pendingBeatStrength = strength;
         }
     }
 
@@ -164,9 +177,11 @@ public final class PeakSafeAudioProcessor extends BaseAudioProcessor {
                 clamp((float) (lowSum / divisor) * 3f, 0f, 1f),
                 clamp((float) (midSum / divisor) * 3f, 0f, 1f),
                 clamp((float) (highSum / divisor) * 3f, 0f, 1f),
-                bpm);
+                bpm,
+                pendingBeatStrength);
         loudnessSum = lowSum = midSum = highSum = 0d;
         analysisFrames = 0;
+        pendingBeatStrength = 0f;
     }
 
     @Override
@@ -174,6 +189,7 @@ public final class PeakSafeAudioProcessor extends BaseAudioProcessor {
         limiterGain = 1f;
         loudnessSum = lowSum = midSum = highSum = 0d;
         analysisFrames = 0;
+        pendingBeatStrength = 0f;
         for (int i = 0; i < lowState.length; i++) {
             lowState[i] = 0f;
             highState[i] = 0f;
