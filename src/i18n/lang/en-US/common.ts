@@ -16,6 +16,7 @@ export default {
   hide: 'Hide',
   confirm: 'Confirm',
   cancel: 'Cancel',
+  more: 'More',
   close: 'Close',
   clear: 'Clear',
   configure: 'Configure',

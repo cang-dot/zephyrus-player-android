@@ -23,6 +23,7 @@ import CompactSongItem from './songItemCom/CompactSongItem.vue';
 import HomeSongItem from './songItemCom/HomeSongItem.vue';
 import ListSongItem from './songItemCom/ListSongItem.vue';
 import MiniSongItem from './songItemCom/MiniSongItem.vue';
+import PlainSongItem from './songItemCom/PlainSongItem.vue';
 import StandardSongItem from './songItemCom/StandardSongItem.vue';
 
 const props = withDefaults(
@@ -32,6 +33,7 @@ const props = withDefaults(
     list?: boolean;
     compact?: boolean;
     home?: boolean;
+    plain?: boolean;
     favorite?: boolean;
     selectable?: boolean;
     selected?: boolean;
@@ -44,6 +46,7 @@ const props = withDefaults(
     list: false,
     compact: false,
     home: false,
+    plain: false,
     favorite: true,
     selectable: false,
     selected: false,
@@ -61,6 +64,7 @@ const renderComponent = computed(() => {
   if (props.list) return ListSongItem;
   if (props.compact) return CompactSongItem;
   if (props.home) return HomeSongItem;
+  if (props.plain) return PlainSongItem;
   return StandardSongItem;
 });
 </script>

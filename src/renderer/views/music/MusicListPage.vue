@@ -1,5 +1,5 @@
 <template>
-  <div class="music-list-page" data-no-page-swipe>
+  <div ref="pageRootRef" class="music-list-page" data-no-page-swipe>
     <n-scrollbar ref="scrollbarRef" class="flex-1 min-h-0" @scroll="handleScroll">
       <div class="music-list-content">
         <page-loading-placeholder
@@ -18,175 +18,42 @@
         </section>
 
         <template v-else>
-          <section class="list-topbar-spacer" aria-hidden="true">
-            <span>{{ name }}</span>
-          </section>
-          <!-- 歌单操作收纳到顶栏形变胶囊；列表本身从顶栏下方开始。 -->
-          <section class="list-controls-placeholder" aria-hidden="true" />
-          <!-- removed standalone hero controls -->
-          <section v-if="false" class="legacy-hero-zone">
-            <!-- 封面：160px → 40px -->
-            <div class="cover-wrap">
-              <img
-                :src="getImgUrl(getCoverImgUrl, '500y500')"
-                class="cover-img"
-                alt=""
-                draggable="false"
-              />
-            </div>
-
-            <!-- 文字区：标题始终可见，详情收缩时淡出 -->
-            <div class="hero-text">
-              <h1 ref="titleElRef" class="hero-title">{{ name }}</h1>
-              <div class="hero-detail">
-                <div class="hero-badge-row">
-                  <span class="hero-badge">{{ isAlbum ? 'Album' : 'Playlist' }}</span>
-                </div>
-                <div class="hero-meta">
-                  <div v-if="isAlbum && listInfo?.artist" class="meta-creator">
-                    <img
-                      :src="getImgUrl(listInfo.artist.picUrl, '50y50')"
-                      class="meta-avatar"
-                      alt=""
-                    />
-                    <span class="meta-name" @click="navigateToArtist(listInfo.artist.id)">{{
-                      listInfo.artist.name
-                    }}</span>
-                  </div>
-                  <div v-else-if="!isAlbum && listInfo?.creator" class="meta-creator">
-                    <img
-                      :src="getImgUrl(listInfo.creator.avatarUrl, '50y50')"
-                      class="meta-avatar"
-                      alt=""
-                    />
-                    <span class="meta-name">{{ listInfo.creator.nickname }}</span>
-                  </div>
-                  <span class="meta-count">{{ t('common.songCount', { count: total }) }}</span>
-                </div>
-                <div
-                  v-if="listInfo?.description"
-                  class="hero-desc"
-                  @click.stop="showDescriptionPopover = !showDescriptionPopover"
-                >
-                  {{ listInfo.description }}
-                </div>
-              </div>
-            </div>
-
-            <!-- 控制区：播放全部+收藏始终可见，其余收缩时淡出 -->
-            <div v-if="songList.length > 0" class="hero-controls">
-              <button class="play-all-btn" @click="handlePlayAll">
+          <!-- Apple Music 风格 hero：大封面 + 标题 + 作者 + 元信息 + 动作行 -->
+          <section class="list-hero">
+            <img
+              :src="getImgUrl(getCoverImgUrl, '500y500')"
+              class="hero-cover"
+              alt=""
+              draggable="false"
+            />
+            <h1 class="hero-title">{{ name }}</h1>
+            <p v-if="heroSubtitle" class="hero-subtitle" @click="onHeroSubtitleClick">
+              {{ heroSubtitle }}
+            </p>
+            <p class="hero-meta">{{ metaSegments.join(' · ') }}</p>
+            <div v-if="songList.length > 0" class="hero-actions">
+              <button
+                type="button"
+                class="hero-round-btn"
+                :title="t('comp.musicList.shuffleAll', '随机播放')"
+                @click="handleShuffleAll"
+              >
+                <i class="ri-shuffle-line" />
+              </button>
+              <button type="button" class="hero-play-btn" @click="handlePlayAll">
                 <i class="ri-play-fill" />
-                <span class="play-all-label">{{ t('comp.musicList.playAll') }}</span>
+                <span>{{ t('comp.musicList.playAll') }}</span>
               </button>
-
               <button
-                v-if="canCollect"
-                class="collect-btn"
-                :class="{ collected: isCollected }"
-                @click="toggleCollect"
+                type="button"
+                class="hero-round-btn"
+                :title="t('comp.musicList.downloadAll', '下载全部')"
+                @click="handleDownloadAll"
               >
-                <i :class="isCollected ? 'ri-heart-fill' : 'ri-heart-line'" />
+                <i class="ri-download-line" />
               </button>
-
-              <button
-                v-if="currentPlayingIndex >= 0"
-                class="icon-btn"
-                :title="t('comp.musicList.locateCurrent', '定位当前播放')"
-                @click="scrollToCurrentSong"
-              >
-                <i class="ri-focus-3-line" />
-              </button>
-
-              <!-- 额外控制：选择/搜索/排序等，收缩态隐藏 -->
-              <div class="controls-extra">
-                <button v-if="!isSelecting && isElectron" class="icon-btn" @click="startSelect">
-                  <i class="ri-checkbox-multiple-line" />
-                </button>
-
-                <div v-if="isSelecting" class="batch-actions">
-                  <n-checkbox
-                    :checked="isAllSelected"
-                    :indeterminate="isIndeterminate"
-                    @update:checked="handleSelectAll"
-                  >
-                    {{ t('common.selectAll') }}
-                  </n-checkbox>
-                  <button
-                    class="batch-btn"
-                    :disabled="selectedSongs.length === 0 || isDownloading"
-                    @click="handleBatchDownload"
-                  >
-                    <i class="ri-download-line" />
-                    {{ t('favorite.download', { count: selectedSongs.length }) }}
-                  </button>
-                  <button
-                    class="batch-btn"
-                    :disabled="selectedSongs.length === 0"
-                    @click="handleAddToPlaylist"
-                  >
-                    <i class="ri-play-list-add-line" />
-                    {{ t('comp.musicList.addToPlaylist') }}
-                  </button>
-                  <button class="cancel-btn" @click="cancelSelect">{{ t('common.cancel') }}</button>
-                </div>
-
-                <div class="hidden sm:block list-search-wrap">
-                  <n-input
-                    v-model:value="searchKeyword"
-                    :placeholder="t('comp.musicList.searchSongs')"
-                    round
-                    clearable
-                    size="small"
-                    class="list-search-input"
-                  >
-                    <template #prefix>
-                      <i class="ri-search-line text-neutral-400"></i>
-                    </template>
-                  </n-input>
-                </div>
-
-                <button v-if="!isMobile" class="icon-btn" @click="toggleLayout">
-                  <i :class="isCompactLayout ? 'ri-list-check-2' : 'ri-grid-line'" />
-                </button>
-
-                <n-dropdown :options="sortOptions" :value="sortBy" @select="handleSortChange">
-                  <button class="icon-btn">
-                    <i class="ri-sort-asc" />
-                  </button>
-                </n-dropdown>
-              </div>
             </div>
           </section>
-
-          <div v-if="false && isMobile && songList.length > 0" class="mobile-list-adjust-toolbar">
-            <div class="list-search-wrap">
-              <n-input
-                v-model:value="searchKeyword"
-                :placeholder="t('comp.musicList.searchSongs')"
-                round
-                clearable
-                size="small"
-                class="list-search-input"
-              >
-                <template #prefix>
-                  <i class="ri-search-line text-neutral-400"></i>
-                </template>
-              </n-input>
-            </div>
-            <button
-              class="icon-btn"
-              :title="t('comp.musicList.toggleLayout', '切换布局')"
-              @click="toggleLayout"
-            >
-              <i :class="isCompactLayout ? 'ri-list-check-2' : 'ri-grid-line'" />
-            </button>
-            <n-dropdown :options="sortOptions" :value="sortBy" @select="handleSortChange">
-              <button class="icon-btn" :title="t('common.sort', '排序')">
-                <i class="ri-sort-asc" />
-              </button>
-            </n-dropdown>
-          </div>
         </template>
 
         <!-- 专辑介绍弹窗 -->
@@ -200,75 +67,104 @@
           </Transition>
           <Transition name="popover-slide">
             <div v-if="showDescriptionPopover" class="description-popover-card" @click.stop>
-              <p class="description-popover-title">专辑介绍</p>
+              <p class="description-popover-title">
+                {{
+                  isAlbum
+                    ? t('comp.musicList.albumDescription')
+                    : t('comp.musicList.playlistDescription')
+                }}
+              </p>
               <p class="description-popover-text">{{ listInfo?.description }}</p>
             </div>
           </Transition>
         </Teleport>
 
-        <!-- List Content -->
-        <section v-if="!loading && !initialLoadError" class="song-list-section">
-          <div v-if="filteredSongs.length === 0 && searchKeyword" class="empty-state">
-            <i class="ri-search-line"></i>
-            <p>{{ t('comp.musicList.noSearchResults') }}</p>
-          </div>
-
-          <div v-else ref="songListRef" class="song-list-container">
-            <div
-              v-for="(item, index) in filteredSongs"
-              :key="item.id"
-              class="song-item-wrap"
-              :class="{ 'animate-item': index < initialAnimateCount }"
-              :style="
-                index < initialAnimateCount
-                  ? { animationDelay: calculateAnimationDelay(index, 0.03) }
-                  : undefined
-              "
+        <!-- 右列：歌单内搜索 + 歌曲列表（宽屏与 hero 左右分栏） -->
+        <div class="list-main-column">
+          <!-- 歌单内搜索（从更多面板唤出） -->
+          <section v-if="searchInListOpen && !loading && !initialLoadError" class="list-search-bar">
+            <n-input
+              v-model:value="searchKeyword"
+              :placeholder="t('comp.musicList.searchSongs')"
+              round
+              clearable
+              size="small"
             >
-              <song-item
-                :index="index"
-                :compact="isCompactLayout"
-                :item="formatSong(item)"
-                :can-remove="canRemove"
-                :selectable="isSelecting"
-                :selected="selectedSongs.includes(item.id as number)"
-                @play="handlePlayItem(item)"
-                @remove-song="handleRemoveSong"
-                @select="(id, selected) => handleSelect(id, selected)"
-              />
+              <template #prefix>
+                <i class="ri-search-line" />
+              </template>
+            </n-input>
+            <button type="button" class="list-search-close" @click="closeInListSearch">
+              <i class="ri-close-line" />
+            </button>
+          </section>
+
+          <!-- List Content -->
+          <section v-if="!loading && !initialLoadError" class="song-list-section">
+            <div v-if="filteredSongs.length === 0 && searchKeyword" class="empty-state">
+              <i class="ri-search-line"></i>
+              <p>{{ t('comp.musicList.noSearchResults') }}</p>
             </div>
 
-            <div v-if="placeholderHeight > 0" :style="{ height: placeholderHeight + 'px' }" />
+            <div v-else ref="songListRef" class="song-list-container">
+              <div
+                v-for="(item, index) in filteredSongs"
+                :key="item.id"
+                class="song-item-wrap"
+                :class="{ 'animate-item': index < initialAnimateCount }"
+                :style="
+                  index < initialAnimateCount
+                    ? { animationDelay: calculateAnimationDelay(index, 0.03) }
+                    : undefined
+                "
+              >
+                <song-item
+                  :index="index"
+                  plain
+                  :compact="isCompactLayout"
+                  :item="formatSong(item)"
+                  :can-remove="canRemove"
+                  :selectable="isSelecting"
+                  :selected="selectedSongs.includes(item.id as number)"
+                  @play="handlePlayItem(item)"
+                  @remove-song="handleRemoveSong"
+                  @select="(id, selected) => handleSelect(id, selected)"
+                />
+              </div>
 
-            <div v-if="loadingList" class="list-loading">
-              <n-spin :size="18" />
-              <span>{{ t('common.loading') }}</span>
+              <div v-if="placeholderHeight > 0" :style="{ height: placeholderHeight + 'px' }" />
+
+              <div v-if="loadingList" class="list-loading">
+                <n-spin :size="18" />
+                <span>{{ t('common.loading') }}</span>
+              </div>
+              <div v-else-if="pagingLoadError" class="list-retry">
+                <span>{{ t('common.loadFailed') }}</span>
+                <button type="button" @click="loadMoreSongs">
+                  <i class="ri-refresh-line" aria-hidden="true" />
+                  {{ t('common.retry') }}
+                </button>
+              </div>
+              <div
+                v-else-if="
+                  !hasMore &&
+                  renderLimit >= allFilteredSongs.length &&
+                  filteredSongs.length > 0 &&
+                  !searchKeyword
+                "
+                class="list-end"
+              >
+                {{ t('common.noMore') }}
+              </div>
             </div>
-            <div v-else-if="pagingLoadError" class="list-retry">
-              <span>{{ t('common.loadFailed') }}</span>
-              <button type="button" @click="loadMoreSongs">
-                <i class="ri-refresh-line" aria-hidden="true" />
-                {{ t('common.retry') }}
-              </button>
-            </div>
-            <div
-              v-else-if="
-                !hasMore &&
-                renderLimit >= allFilteredSongs.length &&
-                filteredSongs.length > 0 &&
-                !searchKeyword
-              "
-              class="list-end"
-            >
-              {{ t('common.noMore') }}
-            </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
     </n-scrollbar>
     <play-bottom />
     <poster-share-modal v-model:visible="showPosterModal" :lyrics="[]" :subject="posterSubject" />
     <ai-playlist-panel v-model:visible="showAiPlaylistPanel" />
+    <list-more-sheet v-model:visible="showMoreSheet" :actions="moreSheetActions" :title="name" />
   </div>
 </template>
 
@@ -289,30 +185,30 @@ import {
 import { fetchPlatformPlaylistTracks } from '@/api/platformQrApi';
 import { getUserPlaylist } from '@/api/user';
 import playlistPlaceholder from '@/assets/icon_512.png';
-import AiPlaylistPanel from '@/components/player/AiPlaylistPanel.vue';
+import ListMoreSheet from '@/components/common/ListMoreSheet.vue';
 import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
+import AiPlaylistPanel from '@/components/player/AiPlaylistPanel.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import {
+  type MobileTopbarAction,
   registerMobileTopbarAction,
-  registerMobileTopbarPresentation,
-  unregisterMobileTopbarAction,
-  unregisterMobileTopbarPresentation
+  unregisterMobileTopbarAction
 } from '@/composables/useMobileTopbarMenu';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useDownload } from '@/hooks/useDownload';
 import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
-import { useScrollTitle } from '@/hooks/useScrollTitle';
 import { useMusicStore, usePlayerStore, useRecommendStore, useUserStore } from '@/store';
 import { useLocalPlaylistStore } from '@/store/modules/localPlaylist';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayHistoryStore } from '@/store/modules/playHistory';
 import { SongResult } from '@/types/music';
 import type { PosterSubject } from '@/types/share';
-import { calculateAnimationDelay, getImgUrl, isElectron, isMobile } from '@/utils';
+import { calculateAnimationDelay, getImgUrl, isMobile } from '@/utils';
 import { getLoginErrorMessage, hasPermission } from '@/utils/auth';
+import { getPageChromeForCover, pageChromeVariables } from '@/utils/pageChrome';
 import {
   getMissingTrackIds,
   isSameMusicListSource,
@@ -556,7 +452,10 @@ const dataMatchesRoute = computed(() => {
   if (musicStore.currentListInfo?.id?.toString() !== String(id)) return false;
   // 跨平台来源必须同源（netease/qq/kugou 同 id 也可能互不相同）
   const sourceContext = routeSourceContext.value;
-  if (sourceContext && !isSameMusicListSource(musicStore.currentListInfo?._sourceContext, sourceContext)) {
+  if (
+    sourceContext &&
+    !isSameMusicListSource(musicStore.currentListInfo?._sourceContext, sourceContext)
+  ) {
     return false;
   }
   return Boolean(musicStore.currentMusicList && musicStore.currentMusicList.length > 0);
@@ -567,9 +466,6 @@ const name = computed(() => {
   if (isDailyRecommend.value) return t('comp.recommendSinger.songlist');
   return musicStore.currentMusicListName || '';
 });
-
-const titleElRef = ref<HTMLElement | null>(null);
-useScrollTitle(name, titleElRef);
 
 const songList = computed(() => {
   if (isDailyRecommend.value) return recommendStore.dailyRecommendSongs;
@@ -677,87 +573,179 @@ const buildPosterSubject = (): PosterSubject => {
   };
 };
 
+// ==================== 顶栏（简洁形态）：分享 + 更多；其余动作进页内更多面板 ====================
+const showMoreSheet = ref(false);
+const searchInListOpen = ref(false);
+
 const registerMusicListTopbar = () => {
-  registerMobileTopbarPresentation({
-    routePath: '/music-list/*',
-    title: name.value || '歌单',
-    subtitle: `${topbarSource.value} · ${total.value} 首`,
-    imageUrl: getImgUrl(getCoverImgUrl.value, '100y100'),
-    descriptionTitle: isAlbum.value
-      ? t('comp.musicList.albumDescription')
-      : t('comp.musicList.playlistDescription'),
-    description: listDescription.value || undefined,
-    searchPlaceholder: t('comp.musicList.searchSongs'),
-    searchValue: searchKeyword.value,
-    onSearchInput: (value) => {
-      searchKeyword.value = value;
-    }
-  });
-  registerMobileTopbarAction({
-    id: `${topbarActionPrefix}-play`,
-    routePath: '/music-list/*',
-    label: t('comp.musicList.playAll'),
-    icon: 'ri-play-fill',
-    run: handlePlayAll
-  });
-  registerMobileTopbarAction({
-    id: `${topbarActionPrefix}-collect`,
-    routePath: '/music-list/*',
-    label: '收藏歌单',
-    icon: isCollected.value ? 'ri-heart-fill' : 'ri-heart-line',
-    run: toggleCollect
-  });
-  registerMobileTopbarAction({
-    id: `${topbarActionPrefix}-search`,
-    routePath: '/music-list/*',
-    label: '歌单内搜索',
-    icon: 'ri-search-line',
-    keepOpen: true,
-    run: () => undefined
-  });
-  registerMobileTopbarAction({
-    id: `${topbarActionPrefix}-layout`,
-    routePath: '/music-list/*',
-    label: '切换视图',
-    icon: isCompactLayout.value ? 'ri-list-check-2' : 'ri-grid-line',
-    run: toggleLayout
-  });
   registerMobileTopbarAction({
     id: `${topbarActionPrefix}-poster`,
     routePath: '/music-list/*',
-    label: '分享',
+    label: t('comp.musicList.posterShare', '分享'),
     icon: 'ri-share-line',
     run: () => openPosterForSubject(buildPosterSubject())
   });
   registerMobileTopbarAction({
-    id: `${topbarActionPrefix}-ai-playlist`,
+    id: `${topbarActionPrefix}-more`,
     routePath: '/music-list/*',
-    label: 'AI 歌单',
-    icon: 'ri-magic-line',
+    label: t('common.more', '更多'),
+    icon: 'ri-more-2-fill',
     run: () => {
-      showAiPlaylistPanel.value = true;
+      void loadUserPlaylistsForTopbar();
+      showMoreSheet.value = true;
     }
   });
-  registerMobileTopbarAction({
-    id: `${topbarActionPrefix}-sort`,
+};
+
+/** hero 副标题：专辑 → 歌手（点击进歌手页），歌单 → 创建者昵称 */
+const heroSubtitle = computed(() => {
+  const info = listInfo.value as any;
+  if (isAlbum.value) return info?.artist?.name || '';
+  return info?.creator?.nickname || '';
+});
+
+const onHeroSubtitleClick = () => {
+  if (!isAlbum.value) return;
+  const artistId = (listInfo.value as any)?.artist?.id;
+  if (artistId) navigateToArtist(artistId);
+};
+
+/** hero 元信息行：风格 · 年份 · 音质；缺省回退「来源 · N 首」 */
+const metaSegments = computed(() => {
+  const info = listInfo.value as any;
+  const segments: string[] = [];
+  const genre = Array.isArray(info?.tags) && info.tags.length ? String(info.tags[0]) : '';
+  if (genre) segments.push(genre);
+  const timeValue = Number(info?.time || info?.publishTime || info?.createTime || info?.updateTime);
+  if (Number.isFinite(timeValue) && timeValue > 0) {
+    const year = new Date(timeValue).getFullYear();
+    if (Number.isFinite(year) && year > 1970) segments.push(String(year));
+  }
+  const songs = (isDailyRecommend.value ? songList.value : displayedSongs.value) as any[];
+  const maxbr = songs.reduce(
+    (acc, song) => Math.max(acc, Number(song?.privilege?.maxbr ?? song?.maxbr ?? 0)),
+    0
+  );
+  if (maxbr >= 999000) segments.push(t('comp.musicList.lossless', '无损'));
+  if (!segments.length) {
+    segments.push(topbarSource.value, t('common.songCount', { count: total.value }));
+  }
+  return segments;
+});
+
+/** hero 动作：随机播放全部 */
+const handleShuffleAll = () => {
+  if (displayedSongs.value.length === 0) return;
+  confirmPlaylistReplace(() => {
+    saveHistory();
+    const source = searchKeyword.value ? filteredSongs.value : allFilteredSongs.value;
+    const shuffled = (source.map(formatSong).filter(Boolean) as SongResult[]).slice();
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    if (!shuffled.length) return;
+    playerStore.setPlayList(shuffled);
+    void playerStore.setPlay(shuffled[0]);
+    if (!isFullPlaylistLoaded.value) loadFullPlaylist();
+  });
+};
+
+/** hero 动作：下载全部（复用批量下载队列） */
+const handleDownloadAll = async () => {
+  const source = searchKeyword.value ? filteredSongs.value : allFilteredSongs.value;
+  const list = source.map(formatSong).filter(Boolean) as SongResult[];
+  if (!list.length) return;
+  await batchDownloadMusic(list);
+};
+
+const closeInListSearch = () => {
+  searchInListOpen.value = false;
+  searchKeyword.value = '';
+};
+
+/** 更多面板动作（排序方式 / 全部加入歌单带二级选项） */
+const moreSheetActions = computed<MobileTopbarAction[]>(() => {
+  const actions: MobileTopbarAction[] = [];
+  if (canCollect.value) {
+    actions.push({
+      id: 'more-collect',
+      routePath: '/music-list/*',
+      label: isCollected.value
+        ? t('comp.musicList.uncollect', '取消收藏')
+        : t('comp.musicList.collect', '收藏歌单'),
+      icon: isCollected.value ? 'ri-heart-fill' : 'ri-heart-line',
+      run: () => void toggleCollect()
+    });
+  }
+  actions.push({
+    id: 'more-search',
     routePath: '/music-list/*',
-    label: '排序方式',
+    label: t('comp.musicList.searchSongs'),
+    icon: 'ri-search-line',
+    run: () => {
+      searchInListOpen.value = true;
+    }
+  });
+  if (currentPlayingIndex.value >= 0) {
+    actions.push({
+      id: 'more-locate',
+      routePath: '/music-list/*',
+      label: t('comp.musicList.locateCurrent', '定位当前播放'),
+      icon: 'ri-focus-3-line',
+      run: () => void scrollToCurrentSong()
+    });
+  }
+  actions.push({
+    id: 'more-layout',
+    routePath: '/music-list/*',
+    label: t('comp.musicList.toggleLayout', '切换视图'),
+    icon: isCompactLayout.value ? 'ri-list-check-2' : 'ri-grid-line',
+    run: toggleLayout
+  });
+  actions.push({
+    id: 'more-sort',
+    routePath: '/music-list/*',
+    label: t('common.sort', '排序方式'),
     icon: 'ri-sort-asc',
     run: () => undefined,
     options: sortOptions,
     value: sortBy.value,
     select: (value) => handleSortChange(value as SortType)
   });
-  registerMobileTopbarAction({
-    id: `${topbarActionPrefix}-addall`,
+  actions.push({
+    id: 'more-addall',
     routePath: '/music-list/*',
-    label: '全部加入歌单',
+    label: t('comp.musicList.addAll', '全部加入歌单'),
     icon: 'ri-folder-add-line',
-    keepOpen: true,
+    run: () => undefined,
     options: userPlaylistOptions.value,
     select: (value) => void addAllToPlaylist(value)
   });
-};
+  if (listDescription.value) {
+    actions.push({
+      id: 'more-description',
+      routePath: '/music-list/*',
+      label: isAlbum.value
+        ? t('comp.musicList.albumDescription')
+        : t('comp.musicList.playlistDescription'),
+      icon: 'ri-file-text-line',
+      run: () => {
+        showDescriptionPopover.value = true;
+      }
+    });
+  }
+  actions.push({
+    id: 'more-ai',
+    routePath: '/music-list/*',
+    label: t('comp.musicList.aiPlaylist', 'AI 歌单'),
+    icon: 'ri-magic-line',
+    run: () => {
+      showAiPlaylistPanel.value = true;
+    }
+  });
+  return actions;
+});
 
 // ==================== 一键加入歌单 ====================
 const userPlaylistOptions = ref<{ key: number; label: string }[]>([]);
@@ -823,7 +811,7 @@ const addAllToPlaylist = async (playlistId: string | number) => {
 
 const isSelecting = ref(false);
 const selectedSongs = ref<number[]>([]);
-const { isDownloading, batchDownloadMusic } = useDownload();
+const { batchDownloadMusic } = useDownload();
 
 const isCompactLayout = ref(
   isMobile.value ? false : localStorage.getItem('musicListLayout') === 'compact'
@@ -843,6 +831,23 @@ const getCoverImgUrl = computed(() => {
   const song = songList.value[0];
   return song?.picUrl || song?.al?.picUrl || song?.album?.picUrl || playlistPlaceholder;
 });
+
+// ==================== 页面 chrome 配色（按打开页封面明暗混色，非当前歌曲） ====================
+const pageRootRef = ref<HTMLElement | null>(null);
+
+const applyPageChrome = async () => {
+  const chrome = await getPageChromeForCover(getCoverImgUrl.value);
+  const vars = pageChromeVariables(chrome);
+  const apply = (el: HTMLElement | null) => {
+    if (!el) return;
+    for (const [key, value] of Object.entries(vars)) el.style.setProperty(key, value);
+  };
+  apply(pageRootRef.value);
+  // 顶栏/底栏在布局层，同步一份变量供该路由下消费
+  apply(document.getElementById('layout-main'));
+};
+
+watch(getCoverImgUrl, () => void applyPageChrome(), { immediate: true });
 
 // 全量歌曲列表（用于"播放全部"等操作）
 const allFilteredSongs = computed(() => {
@@ -1220,54 +1225,10 @@ const toggleCollect = async () => {
   }
 };
 
-const startSelect = () => {
-  isSelecting.value = true;
-  selectedSongs.value = [];
-};
-const cancelSelect = () => {
-  isSelecting.value = false;
-  selectedSongs.value = [];
-};
 const handleSelect = (id: number, selected: boolean) => {
   selected
     ? selectedSongs.value.push(id)
     : (selectedSongs.value = selectedSongs.value.filter((i) => i !== id));
-};
-const isAllSelected = computed(
-  () => filteredSongs.value.length > 0 && selectedSongs.value.length === filteredSongs.value.length
-);
-const isIndeterminate = computed(
-  () => selectedSongs.value.length > 0 && selectedSongs.value.length < filteredSongs.value.length
-);
-const handleSelectAll = (checked: boolean) => {
-  selectedSongs.value = checked ? filteredSongs.value.map((s) => s.id as number) : [];
-};
-const handleBatchDownload = async () => {
-  const list = selectedSongs.value
-    .map((id) => filteredSongs.value.find((s) => s.id === id))
-    .filter((s) => s) as SongResult[];
-  await batchDownloadMusic(list);
-  cancelSelect();
-};
-
-const handleAddToPlaylist = () => {
-  const songs = selectedSongs.value
-    .map((id) => filteredSongs.value.find((s) => s.id === id))
-    .filter((s) => s)
-    .map((s) => formatSong(s))
-    .filter((s) => s) as SongResult[];
-  if (songs.length === 0) return;
-
-  const currentList = playerStore.playList;
-  const newSongs = songs.filter((s) => !currentList.some((item) => item.id === s.id));
-  if (newSongs.length === 0) {
-    message.warning(t('comp.musicList.songsAlreadyInPlaylist'));
-    return;
-  }
-
-  playerStore.setPlayList([...currentList, ...newSongs], true);
-  message.success(t('comp.musicList.addToPlaylistSuccess', { count: newSongs.length }));
-  cancelSelect();
 };
 
 // 当前播放歌曲在列表中的索引
@@ -1446,31 +1407,18 @@ onMounted(() => {
   checkCollectionStatus();
   registerMusicListTopbar();
   void loadUserPlaylistsForTopbar();
+  void applyPageChrome();
 });
 
-watch(
-  [
-    name,
-    total,
-    getCoverImgUrl,
-    listDescription,
-    isAlbum,
-    isCollected,
-    isCompactLayout,
-    searchKeyword
-  ],
-  () => registerMusicListTopbar(),
-  { flush: 'post' }
-);
-
 onBeforeUnmount(() => {
-  unregisterMobileTopbarPresentation('/music-list/*');
-  unregisterMobileTopbarAction(`${topbarActionPrefix}-play`);
-  unregisterMobileTopbarAction(`${topbarActionPrefix}-collect`);
-  unregisterMobileTopbarAction(`${topbarActionPrefix}-search`);
-  unregisterMobileTopbarAction(`${topbarActionPrefix}-layout`);
-  unregisterMobileTopbarAction(`${topbarActionPrefix}-sort`);
-  unregisterMobileTopbarAction(`${topbarActionPrefix}-addall`);
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-poster`);
+  unregisterMobileTopbarAction(`${topbarActionPrefix}-more`);
+  const layout = document.getElementById('layout-main');
+  if (layout) {
+    layout.style.removeProperty('--page-chrome-bg');
+    layout.style.removeProperty('--page-chrome-ink');
+    layout.style.removeProperty('--page-chrome-ink-rgb');
+  }
 });
 
 // keep-alive 重新激活时重置状态
@@ -2048,6 +1996,178 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 @media (prefers-reduced-motion: reduce) {
   .animate-item {
     animation: none;
+  }
+}
+
+/* ==================== Apple Music 风格 hero（后置覆盖 legacy 同名规则） ==================== */
+.music-list-page {
+  background: var(--page-chrome-bg, var(--m-bg, var(--bg-color)));
+  color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.94);
+}
+
+.music-list-content .list-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 18px 24px 6px;
+
+  .hero-cover {
+    width: min(68vw, 320px);
+    aspect-ratio: 1;
+    border-radius: 10px;
+    object-fit: cover;
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
+  }
+
+  .hero-title {
+    margin-top: 18px;
+    max-width: 92%;
+    font-size: 21px;
+    font-weight: 700;
+    line-height: 1.25;
+    text-align: center;
+    color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.96);
+  }
+
+  .hero-subtitle {
+    margin-top: 6px;
+    font-size: 14px;
+    line-height: 1.3;
+    text-align: center;
+    color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.62);
+    cursor: pointer;
+  }
+
+  .hero-meta {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.3;
+    text-align: center;
+    color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.5);
+  }
+
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    width: 100%;
+    margin-top: 22px;
+  }
+
+  .hero-round-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border: 1px solid rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.16);
+    border-radius: 50%;
+    background: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.08);
+    color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+    cursor: pointer;
+
+    i {
+      font-size: 20px;
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+
+  .hero-play-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 150px;
+    height: 46px;
+    padding: 0 26px;
+    border: 0;
+    border-radius: 23px;
+    background: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.94);
+    color: var(--page-chrome-bg, #fff);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+
+    i {
+      font-size: 18px;
+    }
+
+    &:active {
+      transform: scale(0.97);
+    }
+  }
+}
+
+.music-list-content .list-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 2px;
+
+  :deep(.n-input) {
+    flex: 1;
+  }
+
+  .list-search-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.08);
+    color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.8);
+    cursor: pointer;
+
+    i {
+      font-size: 18px;
+    }
+  }
+}
+
+/* ==================== 宽屏：hero 左列吸附，搜索+列表右列 ==================== */
+@media (min-width: 900px) {
+  .music-list-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 48px;
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+
+  .music-list-content .list-hero {
+    width: 320px;
+    flex-shrink: 0;
+    position: sticky;
+    top: calc(var(--mobile-topbar-inset, 60px) + 16px);
+    align-items: flex-start;
+    padding: 24px 0 12px;
+
+    .hero-cover {
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .hero-title,
+    .hero-subtitle,
+    .hero-meta {
+      max-width: 100%;
+      text-align: left;
+    }
+
+    .hero-actions {
+      justify-content: flex-start;
+    }
+  }
+
+  .list-main-column {
+    flex: 1;
+    min-width: 0;
   }
 }
 </style>

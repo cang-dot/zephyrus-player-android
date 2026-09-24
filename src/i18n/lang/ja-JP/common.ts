@@ -16,6 +16,7 @@ export default {
   hide: '非表示',
   confirm: '確認',
   cancel: 'キャンセル',
+  more: 'もっと見る',
   close: '閉じる',
   clear: 'クリア',
   configure: '設定',

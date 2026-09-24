@@ -16,6 +16,7 @@ export default {
   hide: '隐藏',
   confirm: '确认',
   cancel: '取消',
+  more: '更多',
   close: '关闭',
   clear: '清空',
   configure: '配置',

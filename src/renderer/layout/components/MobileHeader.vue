@@ -12,6 +12,7 @@
       'assist-expanded': showSearchAssist,
       'wide-detail-topbar': usesWideDetailTopbar,
       'legacy-content-topbar': usesLegacyContentTopbar,
+      'plain-detail-topbar': usesPlainDetailTopbar,
       'player-surface-active': playerHeaderMounted
     }"
   >
@@ -147,8 +148,9 @@
       </div>
     </Transition>
 
-    <!-- 搜索框（非搜索页：点击跳转；搜索页：真实输入框） -->
+    <!-- 搜索框（非搜索页：点击跳转；搜索页：真实输入框；/music-list 移到底栏搜索钮） -->
     <section
+      v-if="!usesPlainDetailTopbar"
       class="topbar-pill topbar-search-pill"
       :class="{
         'search-circle': usesWideDetailTopbar,
@@ -331,8 +333,27 @@
 
     <!-- 右侧动作胶囊随路由切换：缩回再展开的形变过渡 -->
     <Transition name="topbar-pill-morph" mode="out-in">
+      <!-- /music-list 简洁顶栏：右胶囊只承载注册动作（分享/更多，仿 Apple Music 专辑页） -->
+      <div
+        v-if="usesPlainDetailTopbar"
+        key="plain-detail"
+        class="topbar-pill topbar-action-pill topbar-plain-actions"
+      >
+        <button
+          v-for="action in topbarMenu.actions.value"
+          :key="action.id"
+          type="button"
+          class="plain-action-btn"
+          :title="action.label"
+          :aria-label="action.label"
+          @click="action.run()"
+        >
+          <i :class="action.icon" />
+        </button>
+      </div>
+
       <button
-        v-if="route.path === '/user'"
+        v-else-if="route.path === '/user'"
         key="settings"
         type="button"
         class="topbar-pill topbar-action-pill topbar-settings-pill"
@@ -551,11 +572,16 @@ const isSearchPage = computed(
 );
 const isSettingsPage = computed(() => route.path === '/set');
 const showPageCapsule = computed(
-  () => !isSearchPage.value && !['/', '/discover', '/user'].includes(route.path)
+  () =>
+    !isSearchPage.value &&
+    !route.path.startsWith('/music-list') &&
+    !['/', '/discover', '/user'].includes(route.path)
 );
 const usesWideDetailTopbar = computed(
   () => route.path.startsWith('/music-list/') || route.path.startsWith('/artist/detail/')
 );
+/** /music-list 简洁顶栏：无标题胶囊、无搜索胶囊，右胶囊只承载注册动作（分享/更多） */
+const usesPlainDetailTopbar = computed(() => route.path.startsWith('/music-list'));
 const usesLegacyContentTopbar = computed(() => showPageCapsule.value);
 const isSearchResultPage = computed(() => route.path === '/mobile-search-result');
 
@@ -3125,5 +3151,48 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
 .floating-topbar.is-search {
   justify-content: space-between;
   align-items: flex-start;
+}
+
+/* /music-list 简洁顶栏：胶囊底色随页面 chrome（封面混色底），动作双钮一胶囊 */
+.floating-topbar.plain-detail-topbar {
+  justify-content: space-between;
+}
+
+.floating-topbar.plain-detail-topbar .topbar-pill {
+  background: rgba(var(--page-chrome-ink-rgb, 128, 128, 128), 0.12);
+  border-color: rgba(var(--page-chrome-ink-rgb, 128, 128, 128), 0.14);
+  color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+}
+
+.topbar-plain-actions {
+  display: flex;
+  align-items: center;
+  width: auto;
+  height: 40px;
+  gap: 2px;
+  padding: 0 8px;
+  border-radius: 20px;
+  justify-content: flex-start;
+
+  .plain-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+
+    i {
+      font-size: 19px;
+    }
+
+    &:active {
+      transform: scale(0.94);
+    }
+  }
 }
 </style>
