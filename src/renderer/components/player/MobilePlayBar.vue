@@ -669,11 +669,19 @@ watch(
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
   }
 
-  /* 独立出现时由播放栏自身提供实色表面（原为有色毛玻璃，已移除模糊）。 */
+  /* 独立出现时由播放栏自身提供实色表面（原为有色毛玻璃，已移除模糊）。
+     歌单页等 chrome 页面（#layout-main 注入 --page-chrome-*）下跟随页面明暗。 */
   &.is-menu-hide.play-bar-mini:not(.playlist-open) .mobile-mini-controls {
-    background: var(--m-surface-container-high, var(--m-card));
-    border-color: var(--m-outline-variant, var(--m-border));
+    background: color-mix(
+      in srgb,
+      var(--page-chrome-bg, var(--m-surface-container-high, var(--m-card))) 84%,
+      rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.45) 16%
+    );
+    border-color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.12);
     box-shadow: var(--m-elevation-2);
+    color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+    --d-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+    --d-text-secondary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.55);
   }
 
   &.play-bar-mini {

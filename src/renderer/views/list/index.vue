@@ -524,6 +524,18 @@ const handleItemClick = (item: any) => {
   const account = accountStore.accounts.find((candidate) => candidate.accountId === item.accountId);
   if (!account) return;
 
+  // 记录封面卡片位置，歌单页 hero 封面据此做飞入过渡
+  const cardImg = document.querySelector(
+    `.cover-card[data-key="${CSS.escape(String(cardKey(item)))}"] .cover-img`
+  ) as HTMLElement | null;
+  if (cardImg) {
+    const rect = cardImg.getBoundingClientRect();
+    sessionStorage.setItem(
+      'musicListCoverRect',
+      JSON.stringify({ x: rect.x, y: rect.y, w: rect.width, h: rect.height })
+    );
+  }
+
   const sourceId = String(
     item.raw.listId ||
       item.raw.list_id ||

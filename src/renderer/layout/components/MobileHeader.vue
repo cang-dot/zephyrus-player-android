@@ -3153,9 +3153,12 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   align-items: flex-start;
 }
 
-/* /music-list 简洁顶栏：胶囊底色随页面 chrome（封面混色底），动作双钮一胶囊 */
+/* /music-list 简洁顶栏：胶囊底色随页面 chrome（封面混色底），动作双钮一胶囊；
+   两侧留出安全距离 */
 .floating-topbar.plain-detail-topbar {
   justify-content: space-between;
+  padding-left: 12px;
+  padding-right: 12px;
 }
 
 .floating-topbar.plain-detail-topbar .topbar-pill {

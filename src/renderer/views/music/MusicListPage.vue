@@ -843,8 +843,11 @@ const applyPageChrome = async () => {
     for (const [key, value] of Object.entries(vars)) el.style.setProperty(key, value);
   };
   apply(pageRootRef.value);
-  // 顶栏/底栏在布局层，同步一份变量供该路由下消费
-  apply(document.getElementById('layout-main'));
+  // 顶栏/底栏在布局层，同步一份变量供该路由下消费；
+  // data-page-chrome 供宽屏规则把迷你播放栏定位到左列（index.css）
+  const layout = document.getElementById('layout-main');
+  apply(layout);
+  layout?.setAttribute('data-page-chrome', 'music-list');
 };
 
 watch(getCoverImgUrl, () => void applyPageChrome(), { immediate: true });
@@ -1403,6 +1406,46 @@ watch(
   { immediate: true }
 );
 
+// ==================== 封面飞入过渡：列表页卡片 → hero ====================
+const playCoverEnterTransition = () => {
+  const raw = sessionStorage.getItem('musicListCoverRect');
+  if (!raw) return;
+  sessionStorage.removeItem('musicListCoverRect');
+  if (prefersReducedMotion()) return;
+  const cover = pageRootRef.value?.querySelector<HTMLElement>('.hero-cover');
+  if (!cover) return;
+  let src: { x: number; y: number; w: number; h: number };
+  try {
+    src = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  const rect = cover.getBoundingClientRect();
+  if (!rect.width || !src.w) return;
+  const scale = Math.max(0.05, src.w / rect.width);
+  const dx = src.x + src.w / 2 - (rect.x + rect.width / 2);
+  const dy = src.y + src.h / 2 - (rect.y + rect.height / 2);
+  cover.style.transition = 'none';
+  cover.style.transformOrigin = 'center';
+  cover.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+  cover.style.opacity = '0.5';
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      cover.style.transition = 'transform 420ms cubic-bezier(0.32, 0.72, 0, 1), opacity 300ms ease';
+      cover.style.transform = '';
+      cover.style.opacity = '';
+    });
+  });
+};
+
+watch(
+  [loading, dataMatchesRoute],
+  ([isLoading, matches]) => {
+    if (!isLoading && matches) void nextTick(playCoverEnterTransition);
+  },
+  { immediate: true }
+);
+
 onMounted(() => {
   checkCollectionStatus();
   registerMusicListTopbar();
@@ -1418,6 +1461,7 @@ onBeforeUnmount(() => {
     layout.style.removeProperty('--page-chrome-bg');
     layout.style.removeProperty('--page-chrome-ink');
     layout.style.removeProperty('--page-chrome-ink-rgb');
+    layout.removeAttribute('data-page-chrome');
   }
 });
 

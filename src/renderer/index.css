@@ -923,3 +923,56 @@
 .n-modal-container {
   z-index: 21000 !important;
 }
+
+/* ==================== 项目风格确认弹窗（usePlaylistConfirm 等离散 dialog 统一皮肤） ==================== */
+.n-dialog.app-confirm-dialog {
+  border-radius: 20px;
+  background: var(--m-surface-container, var(--bg-color, #fff));
+  border: 1px solid var(--m-outline-variant, rgba(128, 128, 128, 0.2));
+  box-shadow: var(--m-elevation-3, 0 8px 32px rgba(0, 0, 0, 0.3));
+  padding: 20px;
+  width: min(92vw, 360px);
+}
+
+.n-dialog.app-confirm-dialog .n-dialog__title {
+  color: var(--d-text-primary, rgba(0, 0, 0, 0.92));
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.n-dialog.app-confirm-dialog .n-dialog__content {
+  margin-top: 8px;
+  color: var(--d-text-secondary, rgba(0, 0, 0, 0.6));
+  font-size: 14px;
+}
+
+.n-dialog.app-confirm-dialog .n-dialog__action {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.n-dialog.app-confirm-dialog .n-dialog__action .n-button {
+  border-radius: 20px;
+}
+
+.n-dialog.app-confirm-dialog .n-dialog__action .n-button--primary-type {
+  background: var(--accent-color, #888);
+  color: #fff;
+}
+
+.n-dialog.app-confirm-dialog .n-dialog__action .n-button--default-type {
+  background: transparent;
+  border: 1px solid var(--m-outline-variant, rgba(128, 128, 128, 0.3));
+}
+
+/* ==================== 宽屏：歌单页迷你播放栏移到左列信息区（宽度与按钮区对齐） ==================== */
+@media (min-width: 900px) {
+  #layout-main[data-page-chrome] .mobile-play-bar {
+    left: 48px !important;
+    right: auto !important;
+    width: 320px !important;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 24px) !important;
+  }
+}

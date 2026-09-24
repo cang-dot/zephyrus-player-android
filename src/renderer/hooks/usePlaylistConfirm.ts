@@ -90,6 +90,7 @@ export function usePlaylistConfirm() {
       },
       positiveText: '继续',
       negativeText: '取消',
+      class: 'app-confirm-dialog',
       style: { zIndex: 999999999 },
       onPositiveClick: () => {
         if (skipChecked.value) {

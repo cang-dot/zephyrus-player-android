@@ -110,16 +110,24 @@ function runOption(option: { key: string | number; label: string }) {
 
 .list-more-sheet {
   position: fixed;
-  left: 10px;
-  right: 10px;
-  bottom: calc(var(--safe-area-inset-bottom, 0px) + 10px);
+  top: calc(var(--safe-area-inset-top, 0px) + 60px);
+  right: 12px;
   z-index: 301;
-  max-height: min(70dvh, 560px);
+  width: min(78vw, 320px);
+  max-height: min(64dvh, 520px);
   overflow-y: auto;
   border-radius: 20px;
   padding: 6px 6px 0;
-  background: var(--m-surface-container, var(--m-card, #1d1b19));
+  transform-origin: top right;
+  background: color-mix(
+    in srgb,
+    var(--page-chrome-bg, var(--m-surface-container, var(--m-card, #1d1b19))) 88%,
+    rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.45) 12%
+  );
   box-shadow: var(--m-elevation-3, 0 8px 32px rgba(0, 0, 0, 0.35));
+  color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+  --d-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+  --d-text-secondary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.55);
 }
 
 .list-more-sheet-handle {
@@ -188,12 +196,13 @@ function runOption(option: { key: string | number; label: string }) {
 .more-sheet-slide-leave-active {
   transition:
     transform 240ms cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 180ms ease;
+    opacity 160ms ease;
 }
 
+/* 由右上角的窄胶囊形变展开为菜单 */
 .more-sheet-slide-enter-from,
 .more-sheet-slide-leave-to {
-  transform: translateY(24px);
+  transform: translateY(-10px) scale(0.55);
   opacity: 0;
 }
 </style>

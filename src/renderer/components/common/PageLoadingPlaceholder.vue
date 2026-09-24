@@ -44,8 +44,36 @@
       </div>
     </template>
 
+    <template v-else-if="variant === 'music-list'">
+      <!-- Apple Music 风格：居中封面方块 + 文字条 + 动作胶囊行 + 序号行列表 -->
+      <div class="loading-hero">
+        <span class="loading-shape loading-hero-cover" />
+        <span class="loading-shape loading-line loading-hero-title" />
+        <span class="loading-shape loading-line loading-line--short loading-hero-sub" />
+        <div class="loading-hero-actions">
+          <span class="loading-shape loading-hero-pill" />
+          <span class="loading-shape loading-hero-pill loading-hero-pill--main" />
+          <span class="loading-shape loading-hero-pill" />
+        </div>
+      </div>
+      <div class="loading-list">
+        <div v-for="index in rows" :key="index" class="loading-row" :style="delayStyle(index)">
+          <span class="loading-index">{{ String(index).padStart(2, '0') }}</span>
+          <span class="loading-shape loading-cover" />
+          <span class="loading-copy">
+            <i
+              class="loading-shape loading-line"
+              :class="{ 'loading-line--wide': index % 3 === 1 }"
+            />
+            <i class="loading-shape loading-line loading-line--short" />
+          </span>
+          <span class="loading-shape loading-dot" />
+        </div>
+      </div>
+    </template>
+
     <template v-else>
-      <!-- 音乐列表/歌手:现版本顶栏由全局胶囊承担,页面直接从列表开始 -->
+      <!-- 歌手:现版本顶栏由全局胶囊承担,页面直接从列表开始 -->
       <div class="loading-list">
         <div v-for="index in rows" :key="index" class="loading-row" :style="delayStyle(index)">
           <span class="loading-index">{{ String(index).padStart(2, '0') }}</span>
@@ -178,6 +206,50 @@ const delayStyle = (index: number) => ({ '--loading-index': index }) as Record<s
   gap: 2px;
 }
 
+/* music-list 骨架：居中 hero（封面方块+文字条+动作胶囊行） */
+.loading-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding-top: 16px;
+}
+
+.loading-hero-cover {
+  width: min(52vw, 220px);
+  aspect-ratio: 1;
+  border-radius: 10px;
+}
+
+.loading-hero-title {
+  width: 42%;
+  height: 18px;
+  margin-top: 4px;
+}
+
+.loading-hero-sub {
+  width: 26%;
+}
+
+.loading-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 6px;
+}
+
+.loading-hero-pill {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+}
+
+.loading-hero-pill--main {
+  width: 150px;
+  height: 46px;
+  border-radius: 23px;
+}
+
 .loading-row {
   display: flex;
   min-height: 64px;
@@ -214,10 +286,6 @@ const delayStyle = (index: number) => ({ '--loading-index': index }) as Record<s
   border-radius: 50%;
   opacity: 0.68;
 }
-
-
-
-
 
 .loading-profile {
   display: grid;
@@ -275,10 +343,6 @@ const delayStyle = (index: number) => ({ '--loading-index': index }) as Record<s
   border-radius: 4px;
   opacity: 0.68;
 }
-
-
-
-
 
 .loading-ranking {
   padding: 18px 14px 10px;
