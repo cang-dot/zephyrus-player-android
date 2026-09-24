@@ -69,4 +69,16 @@ describe('smoke player style configuration', () => {
     expect(sanitized.meshRenderScale).toBe(0.25);
     expect(sanitized.meshStaticMode).toBe(false);
   });
+
+  it('clamps the mesh beat response sensitivity', () => {
+    const defaults = createPlayerStyleConfig('default');
+    const boosted = resolvePlayerStyleConfig('default', { meshBeatResponse: 5 });
+    const muted = resolvePlayerStyleConfig('default', { meshBeatResponse: -1 });
+    const invalid = resolvePlayerStyleConfig('default', { meshBeatResponse: 'off' });
+
+    expect(defaults.meshBeatResponse).toBe(1);
+    expect(boosted.meshBeatResponse).toBe(2);
+    expect(muted.meshBeatResponse).toBe(0);
+    expect(invalid.meshBeatResponse).toBe(1);
+  });
 });

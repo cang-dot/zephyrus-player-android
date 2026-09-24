@@ -31,7 +31,8 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     auroraPosition: 'top',
     meshMaxFps: 60,
     meshRenderScale: 1,
-    meshStaticMode: false
+    meshStaticMode: false,
+    meshBeatResponse: 1
   },
   stage: {
     auroraSpeed: 0.8,
@@ -278,6 +279,10 @@ export function resolvePlayerStyleConfig(
     Math.max(0.25, Number.isFinite(Number(config.meshRenderScale)) ? Number(config.meshRenderScale) : 1)
   );
   config.meshStaticMode = config.meshStaticMode === true;
+  config.meshBeatResponse = Math.min(
+    2,
+    Math.max(0, Number.isFinite(Number(config.meshBeatResponse)) ? Number(config.meshBeatResponse) : 1)
+  );
   config.starBlockLines = Math.min(
     6,
     Math.max(

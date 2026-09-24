@@ -169,6 +169,7 @@ export default {
     meshStaticMode: '靜態模式',
     meshMaxFps: '背景影格率上限',
     meshRenderScale: '算繪倍率',
+    meshBeatResponse: '鼓點響應',
     customBackground: '自訂背景',
     solid: '純色',
     gradient: '漸層',

@@ -244,6 +244,19 @@
           </label>
           <label class="range-row">
             <span
+              >{{ tr('player.styleCustomization.meshBeatResponse', '鼓点响应') }}
+              {{ local.meshBeatResponse ?? 1 }}</span
+            >
+            <input
+              v-model.number="local.meshBeatResponse"
+              type="range"
+              min="0"
+              max="2"
+              step="0.05"
+            />
+          </label>
+          <label class="range-row">
+            <span
               >{{ tr('player.styleCustomization.meshMaxFps', '背景帧率上限') }}
               {{ local.meshMaxFps ?? 60 }}</span
             >

@@ -171,6 +171,7 @@ export default {
     meshStaticMode: 'Static mode',
     meshMaxFps: 'Background FPS cap',
     meshRenderScale: 'Render scale',
+    meshBeatResponse: 'Beat response',
     customBackground: 'Custom Background',
     solid: 'Solid',
     gradient: 'Gradient',

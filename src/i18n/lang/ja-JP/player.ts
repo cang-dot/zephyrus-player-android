@@ -171,6 +171,7 @@ export default {
     meshStaticMode: '静止モード',
     meshMaxFps: '背景フレームレート上限',
     meshRenderScale: 'レンダー倍率',
+    meshBeatResponse: 'ビート反応',
     customBackground: 'カスタム背景',
     solid: '単色',
     gradient: 'グラデーション',

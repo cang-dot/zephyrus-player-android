@@ -72,6 +72,7 @@
           :max-fps="meshMaxFps"
           :render-scale="meshRenderScale"
           :static-mode="meshStaticMode || reduceMotion"
+          :beat-response="meshBeatResponse"
           :paused="playerTransitionBusy"
         />
       </div>
@@ -256,6 +257,10 @@ const meshRenderScale = computed(() => {
   return Number.isFinite(value) ? Math.min(2, Math.max(0.25, value)) : 1;
 });
 const meshStaticMode = computed(() => styleCustom.value.meshStaticMode === true);
+const meshBeatResponse = computed(() => {
+  const value = Number(styleCustom.value.meshBeatResponse);
+  return Number.isFinite(value) ? Math.min(2, Math.max(0, value)) : 1;
+});
 const auroraSpeed = computed(() => {
   const value = Number(styleCustom.value.auroraSpeed);
   return Number.isFinite(value) && value > 0 ? value : 0.8;

@@ -123,6 +123,8 @@ export interface PlayerStyleCustomConfig {
   meshRenderScale?: number;
   /** 网格背景：静态模式（画面静止，低频驱动不再引起变化） */
   meshStaticMode?: boolean;
+  /** 网格背景：鼓点响应灵敏度 0-2，默认 1 */
+  meshBeatResponse?: number;
   [key: string]: unknown;
 }
 

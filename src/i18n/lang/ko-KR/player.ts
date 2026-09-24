@@ -171,6 +171,7 @@ export default {
     meshStaticMode: '정적 모드',
     meshMaxFps: '배경 프레임 상한',
     meshRenderScale: '렌더 배율',
+    meshBeatResponse: '비트 반응',
     customBackground: '사용자 배경',
     solid: '단색',
     gradient: '그라데이션',
