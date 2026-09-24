@@ -250,6 +250,42 @@ const delayStyle = (index: number) => ({ '--loading-index': index }) as Record<s
   border-radius: 23px;
 }
 
+/* 宽屏/横屏：骨架同步歌单页左右分栏（hero 左列、行列表右列） */
+@media (min-width: 900px), (orientation: landscape) {
+  .page-loading-placeholder--music-list {
+    display: flex;
+    align-items: flex-start;
+    gap: 48px;
+    padding: 24px 48px 28px;
+  }
+
+  .page-loading-placeholder--music-list .loading-hero {
+    width: 320px;
+    flex-shrink: 0;
+    align-items: flex-start;
+    padding-top: 24px;
+
+    .loading-hero-cover {
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .loading-hero-title,
+    .loading-hero-sub {
+      width: 70%;
+    }
+
+    .loading-hero-actions {
+      justify-content: flex-start;
+    }
+  }
+
+  .page-loading-placeholder--music-list .loading-list {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
 .loading-row {
   display: flex;
   min-height: 64px;

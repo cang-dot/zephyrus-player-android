@@ -115,21 +115,9 @@ const onMenuClick = (event: MouseEvent) => baseItem.value?.openItemMenu(event);
 <style lang="scss" scoped>
 .plain-song-item {
   @apply flex items-center;
-  position: relative;
   padding: 12px 2px;
-  /* 容器自身零描边、零底色；分割线用伪元素从封面后开始（Apple Music 式），避开序号区 */
+  /* 容器自身零描边、零底色；分割线由外层 .song-item-wrap 的伪元素绘制（正好在容器交界） */
   border: 0;
-
-  &::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 42px;
-    height: 1px;
-    background: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.12);
-    pointer-events: none;
-  }
 
   .plain-index {
     @apply flex items-center justify-center shrink-0;

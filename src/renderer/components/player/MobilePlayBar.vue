@@ -670,7 +670,9 @@ watch(
   }
 
   /* 独立出现时由播放栏自身提供实色表面（原为有色毛玻璃，已移除模糊）。
-     歌单页等 chrome 页面（#layout-main 注入 --page-chrome-*）下跟随页面明暗。 */
+     歌单页等 chrome 页面（#layout-main 注入 --page-chrome-*）下跟随页面明暗：
+     表面/墨色/主题文字变量一并覆盖——mini-song-title 等用的是 --m-text-*，
+     不覆盖的话浅色主题值会把文字强制成黑色。 */
   &.is-menu-hide.play-bar-mini:not(.playlist-open) .mobile-mini-controls {
     background: color-mix(
       in srgb,
@@ -680,6 +682,8 @@ watch(
     border-color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.12);
     box-shadow: var(--m-elevation-2);
     color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+    --m-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+    --m-text-muted: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.55);
     --d-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
     --d-text-secondary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.55);
   }

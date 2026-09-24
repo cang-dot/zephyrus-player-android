@@ -3,53 +3,58 @@
     <Transition name="more-sheet-fade">
       <div v-if="visible" class="list-more-sheet-overlay" @click.stop="close" />
     </Transition>
-    <Transition name="more-sheet-slide">
-      <div v-if="visible" class="list-more-sheet" role="dialog" :aria-label="title">
-        <div class="list-more-sheet-handle" aria-hidden="true" />
-        <!-- 一级：动作列表 -->
-        <template v-if="!activeOptions">
-          <p v-if="title" class="list-more-sheet-title">{{ title }}</p>
-          <button
-            v-for="action in actions"
-            :key="action.id"
-            type="button"
-            class="list-more-row"
-            @click="runAction(action)"
-          >
-            <i :class="action.icon" aria-hidden="true" />
-            <span class="list-more-row-label">{{ action.label }}</span>
-            <i v-if="action.options?.length" class="ri-arrow-right-s-line list-more-row-arrow" />
-          </button>
-        </template>
-        <!-- 二级：选项列表（排序、加入歌单等） -->
-        <template v-else>
-          <button type="button" class="list-more-row list-more-sub-header" @click="backToRoot">
-            <i class="ri-arrow-left-s-line" aria-hidden="true" />
-            <span class="list-more-row-label">{{ activeOptions.label }}</span>
-          </button>
-          <button
-            v-for="option in activeOptions.options"
-            :key="option.key"
-            type="button"
-            class="list-more-row"
-            @click="runOption(option)"
-          >
-            <span class="list-more-row-label">{{ option.label }}</span>
-            <i
-              v-if="String(option.key) === String(activeOptions.value)"
-              class="ri-check-line list-more-row-check"
-              aria-hidden="true"
-            />
-          </button>
-        </template>
-        <div class="list-more-sheet-pad" aria-hidden="true" />
-      </div>
-    </Transition>
+    <div
+      v-if="visible"
+      ref="sheetRef"
+      class="list-more-sheet"
+      :class="{ closing }"
+      role="dialog"
+      :aria-label="title"
+    >
+      <div class="list-more-sheet-handle" aria-hidden="true" />
+      <!-- 一级：动作列表 -->
+      <template v-if="!activeOptions">
+        <p v-if="title" class="list-more-sheet-title">{{ title }}</p>
+        <button
+          v-for="action in actions"
+          :key="action.id"
+          type="button"
+          class="list-more-row"
+          @click="runAction(action)"
+        >
+          <i :class="action.icon" aria-hidden="true" />
+          <span class="list-more-row-label">{{ action.label }}</span>
+          <i v-if="action.options?.length" class="ri-arrow-right-s-line list-more-row-arrow" />
+        </button>
+      </template>
+      <!-- 二级：选项列表（排序、加入歌单等） -->
+      <template v-else>
+        <button type="button" class="list-more-row list-more-sub-header" @click="backToRoot">
+          <i class="ri-arrow-left-s-line" aria-hidden="true" />
+          <span class="list-more-row-label">{{ activeOptions.label }}</span>
+        </button>
+        <button
+          v-for="option in activeOptions.options"
+          :key="option.key"
+          type="button"
+          class="list-more-row"
+          @click="runOption(option)"
+        >
+          <span class="list-more-row-label">{{ option.label }}</span>
+          <i
+            v-if="String(option.key) === String(activeOptions.value)"
+            class="ri-check-line list-more-row-check"
+            aria-hidden="true"
+          />
+        </button>
+      </template>
+      <div class="list-more-sheet-pad" aria-hidden="true" />
+    </div>
   </Teleport>
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 import type { MobileTopbarAction } from '@/composables/useMobileTopbarMenu';
 
@@ -58,27 +63,90 @@ const props = withDefaults(
     visible: boolean;
     actions: MobileTopbarAction[];
     title?: string;
+    /** 触发胶囊的矩形：菜单由它形变展开/缩回（不传则退化为普通浮现） */
+    origin?: { x: number; y: number; w: number; h: number } | null;
   }>(),
-  { title: '' }
+  { title: '', origin: null }
 );
 
 const emit = defineEmits<{ 'update:visible': [value: boolean] }>();
 
+const sheetRef = ref<HTMLElement | null>(null);
+const closing = ref(false);
 const activeActionId = ref<string | null>(null);
 const activeOptions = computed(() => {
   const action = props.actions.find((item) => item.id === activeActionId.value);
   return action?.options?.length ? action : null;
 });
 
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' &&
+  !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/** 胶囊 → 菜单的 FLIP 逆变换（右上映射） */
+function applyFlip(el: HTMLElement, opacity: string) {
+  const origin = props.origin;
+  if (!origin) return false;
+  const rect = el.getBoundingClientRect();
+  if (!rect.width || !rect.height || origin.w <= 0 || origin.h <= 0) return false;
+  const sx = Math.max(0.05, origin.w / rect.width);
+  const sy = Math.max(0.05, origin.h / rect.height);
+  const dx = origin.x + origin.w - (rect.x + rect.width);
+  const dy = origin.y - rect.y;
+  el.style.transition = 'none';
+  el.style.transformOrigin = 'top right';
+  el.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+  el.style.opacity = opacity;
+  return true;
+}
+
+function playOpenFlip() {
+  const el = sheetRef.value;
+  if (!el) return;
+  if (prefersReducedMotion() || !applyFlip(el, '0.35')) return;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      el.style.transition = 'transform 260ms cubic-bezier(0.32, 0.72, 0, 1), opacity 200ms ease';
+      el.style.transform = '';
+      el.style.opacity = '';
+    });
+  });
+}
+
 watch(
   () => props.visible,
   (open) => {
-    if (!open) activeActionId.value = null;
-  }
+    if (open) {
+      activeActionId.value = null;
+      closing.value = false;
+      void nextTick(playOpenFlip);
+    }
+  },
+  { immediate: true }
 );
 
 function close() {
-  emit('update:visible', false);
+  if (closing.value) return;
+  const el = sheetRef.value;
+  if (!el || prefersReducedMotion() || !props.origin) {
+    emit('update:visible', false);
+    return;
+  }
+  // 缩回触发胶囊后再卸载
+  closing.value = true;
+  const rect = el.getBoundingClientRect();
+  const sx = Math.max(0.05, props.origin.w / rect.width);
+  const sy = Math.max(0.05, props.origin.h / rect.height);
+  const dx = props.origin.x + props.origin.w - (rect.x + rect.width);
+  const dy = props.origin.y - rect.y;
+  el.style.transformOrigin = 'top right';
+  el.style.transition = 'transform 180ms cubic-bezier(0.32, 0.72, 0, 1), opacity 160ms ease';
+  el.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+  el.style.opacity = '0';
+  setTimeout(() => {
+    closing.value = false;
+    emit('update:visible', false);
+  }, 190);
 }
 
 function runAction(action: MobileTopbarAction) {
@@ -192,17 +260,7 @@ function runOption(option: { key: string | number; label: string }) {
   opacity: 0;
 }
 
-.more-sheet-slide-enter-active,
-.more-sheet-slide-leave-active {
-  transition:
-    transform 240ms cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 160ms ease;
-}
-
-/* 由右上角的窄胶囊形变展开为菜单 */
-.more-sheet-slide-enter-from,
-.more-sheet-slide-leave-to {
-  transform: translateY(-10px) scale(0.55);
-  opacity: 0;
+.list-more-sheet.closing {
+  pointer-events: none;
 }
 </style>

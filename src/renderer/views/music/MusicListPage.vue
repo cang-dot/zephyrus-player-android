@@ -164,7 +164,12 @@
     <play-bottom />
     <poster-share-modal v-model:visible="showPosterModal" :lyrics="[]" :subject="posterSubject" />
     <ai-playlist-panel v-model:visible="showAiPlaylistPanel" />
-    <list-more-sheet v-model:visible="showMoreSheet" :actions="moreSheetActions" :title="name" />
+    <list-more-sheet
+      v-model:visible="showMoreSheet"
+      :actions="moreSheetActions"
+      :title="name"
+      :origin="moreSheetOrigin"
+    />
   </div>
 </template>
 
@@ -576,6 +581,8 @@ const buildPosterSubject = (): PosterSubject => {
 // ==================== 顶栏（简洁形态）：分享 + 更多；其余动作进页内更多面板 ====================
 const showMoreSheet = ref(false);
 const searchInListOpen = ref(false);
+/** 「更多」触发胶囊的矩形：菜单由该胶囊形变展开 */
+const moreSheetOrigin = ref<{ x: number; y: number; w: number; h: number } | null>(null);
 
 const registerMusicListTopbar = () => {
   registerMobileTopbarAction({
@@ -592,6 +599,10 @@ const registerMusicListTopbar = () => {
     icon: 'ri-more-2-fill',
     run: () => {
       void loadUserPlaylistsForTopbar();
+      const capsule = document.querySelector('.topbar-plain-actions')?.getBoundingClientRect();
+      moreSheetOrigin.value = capsule
+        ? { x: capsule.x, y: capsule.y, w: capsule.width, h: capsule.height }
+        : null;
       showMoreSheet.value = true;
     }
   });
@@ -843,10 +854,11 @@ const applyPageChrome = async () => {
     for (const [key, value] of Object.entries(vars)) el.style.setProperty(key, value);
   };
   apply(pageRootRef.value);
-  // 顶栏/底栏在布局层，同步一份变量供该路由下消费；
+  // 顶栏/底栏在布局层消费；:root 一份供 body 下的弹窗（naive dialog）继承明暗；
   // data-page-chrome 供宽屏规则把迷你播放栏定位到左列（index.css）
   const layout = document.getElementById('layout-main');
   apply(layout);
+  apply(document.documentElement);
   layout?.setAttribute('data-page-chrome', 'music-list');
 };
 
@@ -1463,6 +1475,11 @@ onBeforeUnmount(() => {
     layout.style.removeProperty('--page-chrome-ink-rgb');
     layout.removeAttribute('data-page-chrome');
   }
+  // :root 上的 chrome 变量同步移除，避免其他页面的弹窗残留歌单配色
+  const rootStyle = document.documentElement.style;
+  rootStyle.removeProperty('--page-chrome-bg');
+  rootStyle.removeProperty('--page-chrome-ink');
+  rootStyle.removeProperty('--page-chrome-ink-rgb');
 });
 
 // keep-alive 重新激活时重置状态
@@ -1881,7 +1898,20 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   padding-bottom: 20px;
 }
 .song-item-wrap {
-  margin-bottom: 6px;
+  position: relative;
+  /* 间距用 padding 而非 margin：分割线画在 wrap 最底 = 与下一项容器正好交界 */
+  padding-bottom: 6px;
+}
+
+.song-item-wrap::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 42px;
+  height: 1px;
+  background: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.12);
+  pointer-events: none;
 }
 
 .empty-state {
@@ -2174,8 +2204,8 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 }
 
-/* ==================== 宽屏：hero 左列吸附，搜索+列表右列 ==================== */
-@media (min-width: 900px) {
+/* ==================== 宽屏/横屏：hero 左列吸附，搜索+列表右列 ==================== */
+@media (min-width: 900px), (orientation: landscape) {
   .music-list-content {
     display: flex;
     align-items: flex-start;
@@ -2188,7 +2218,7 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     width: 320px;
     flex-shrink: 0;
     position: sticky;
-    top: calc(var(--mobile-topbar-inset, 60px) + 16px);
+    top: calc(var(--safe-area-inset-top, 0px) + 12px);
     align-items: flex-start;
     padding: 24px 0 12px;
 
