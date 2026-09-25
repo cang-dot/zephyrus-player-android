@@ -1145,8 +1145,8 @@ const isBottomMenuRoute = computed(() => {
 const shouldShowBottomMenu = computed(() => isBottomMenuRoute.value && !playerStore.musicFull);
 const mobileDockContentInset = computed(() => {
   if (!shouldShowBottomMenu.value) return isPlay.value ? 82 : 20;
-  if (!isPlay.value || miniPlayerIdleCollapsed.value) return 88;
-  return 146;
+  if (!isPlay.value || miniPlayerIdleCollapsed.value) return 96;
+  return 154;
 });
 
 const isActive = (itemPath: string) => route.path === itemPath;
@@ -1556,7 +1556,7 @@ onBeforeUnmount(() => {
     position: fixed !important;
     top: auto !important;
     right: 12px;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 86px) !important;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 94px) !important;
     left: 12px !important;
     width: auto !important;
     height: 54px;
@@ -1684,10 +1684,10 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 52px;
-  min-width: 56px;
-  padding: 4px 10px;
-  border-radius: 14px;
+  height: 60px;
+  min-width: 60px;
+  padding: 8px 12px;
+  border-radius: 26px;
   cursor: pointer;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
@@ -1706,11 +1706,11 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
    top 4px = 容器 padding-top，高 40px = 项高。 */
 .nav-slide-indicator {
   position: absolute;
-  top: 2px;
+  top: 3px;
   left: 0;
   z-index: 0;
-  height: 52px;
-  border-radius: 14px;
+  height: 60px;
+  border-radius: 26px;
   background: var(--m-nav-indicator-bg, #4a4540);
   transition:
     transform 0.42s $spring,
