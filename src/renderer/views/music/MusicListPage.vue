@@ -1542,7 +1542,8 @@ onBeforeUnmount(() => {
             y: rect.y,
             w: rect.width,
             h: rect.height,
-            key: enterCoverKey
+            key: enterCoverKey,
+            coverUrl: getCoverImgUrl.value ? getImgUrl(getCoverImgUrl.value, '500y500') : ''
           })
         );
       } catch {

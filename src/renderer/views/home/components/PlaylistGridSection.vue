@@ -6,7 +6,7 @@ import { useRoute, useRouter } from 'vue-router';
 
 import { getPersonalizedPlaylist } from '@/api/home';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
-import { playCoverReturnFlight } from '@/composables/usePlaylistOpenTransition';
+import { beginReturnFlight } from '@/composables/usePlaylistOpenTransition';
 import { getImgUrl } from '@/utils';
 
 interface RecommendedPlaylist {
@@ -52,21 +52,40 @@ function open(item: RecommendedPlaylist, event?: MouseEvent) {
   });
 }
 
-/** 返回主页时：歌单页 hero 封面飞回对应卡片（与 /list 同一套机制，key 前缀 home-pl-） */
+/** 返回主页时：消费歌单页写入的返回矩形，用覆盖层克隆把封面从 hero 飞回卡片
+ *  （fixed 层不受 .playlist-card 的 overflow:hidden 与外层滚动容器裁剪） */
 watch(
   () => route.path,
   (path) => {
-    if (path === '/') {
-      window.setTimeout(() => {
-        playCoverReturnFlight(
-          (key) =>
-            document.querySelector(
-              `.playlist-card[data-key="${CSS.escape(key)}"] .playlist-cover`
-            ) as HTMLElement | null,
-          { keyPrefix: 'home-pl-' }
-        );
-      }, 60);
-    }
+    if (path !== '/') return;
+    window.setTimeout(() => {
+      const raw = sessionStorage.getItem('musicListCoverReturn');
+      if (!raw) return;
+      let payload: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        key?: string;
+        coverUrl?: string;
+      };
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        return;
+      }
+      if (!payload.key?.startsWith('home-pl-')) return;
+      const card = document.querySelector(`.playlist-card[data-key="${CSS.escape(payload.key)}"]`);
+      const cover = card?.querySelector<HTMLElement>('.playlist-cover');
+      const endRect = cover?.getBoundingClientRect();
+      if (!endRect || endRect.width <= 0) return;
+      sessionStorage.removeItem('musicListCoverReturn');
+      beginReturnFlight({
+        heroRect: { x: payload.x, y: payload.y, w: payload.w, h: payload.h },
+        endRect: { x: endRect.x, y: endRect.y, w: endRect.width, h: endRect.height },
+        coverUrl: payload.coverUrl
+      });
+    }, 60);
   }
 );
 
@@ -77,15 +96,6 @@ onMounted(async () => {
   } catch {
     playlists.value = [];
   }
-  window.setTimeout(() => {
-    playCoverReturnFlight(
-      (key) =>
-        document.querySelector(
-          `.playlist-card[data-key="${CSS.escape(key)}"] .playlist-cover`
-        ) as HTMLElement | null,
-      { keyPrefix: 'home-pl-' }
-    );
-  }, 60);
 });
 </script>
 

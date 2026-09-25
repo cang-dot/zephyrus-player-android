@@ -109,6 +109,8 @@ const bgStyle = computed(() => {
   const start = startLayer.value;
   const end = endLayer.value;
   if (!start || !end) return { display: 'none' } as Record<string, string>;
+  // bgColor 为空 = 本次过渡无底色块（如回程封面克隆飞行），只渲染克隆层
+  if (!bgColor.value) return { display: 'none' } as Record<string, string>;
   const scaleX = end.rect.w / start.rect.w;
   const scaleY = end.rect.h / start.rect.h;
   const dx = end.rect.x - start.rect.x;
@@ -271,68 +273,31 @@ export function resolvePlaylistOpen(hero?: TransitionRect | null) {
 }
 
 /**
- * 通用「回程封面飞行」（照搬歌单库页 /list 的实现）：
- * 读取 `musicListCoverReturn`（歌单页卸载时写入的 hero 矩形 + key），
- * 用 `findEl(key)` 找到目标卡片元素，把 hero 封面从记录矩形飞回卡片槽位。
- * key 命名空间由调用方约定（如 `home-pl-<id>` / `home-cloud`），避免与 /list 的键互相消费。
+ * 回程封面克隆飞行（fixed 覆盖层，不受任何容器裁剪）：
+ * 封面克隆从歌单页 hero 矩形飞回主页卡片矩形，随后淡出。由主页侧消费
+ * `musicListCoverReturn` 后调用；不带底色块。
  */
-export function playCoverReturnFlight(
-  findEl: (key: string) => HTMLElement | null,
-  options: { keyPrefix?: string } = {}
-) {
-  if (typeof window === 'undefined') return;
-  const raw = sessionStorage.getItem('musicListCoverReturn');
-  if (!raw) return;
-  const keyPrefix = options.keyPrefix;
-  let src: { x: number; y: number; w: number; h: number; key?: string };
-  try {
-    src = JSON.parse(raw);
-  } catch {
-    return;
-  }
-  // 命名空间不匹配的返回键不消费（留给其它页面处理）
-  if (keyPrefix && (!src.key || !src.key.startsWith(keyPrefix))) return;
-  sessionStorage.removeItem('musicListCoverReturn');
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-  let attempts = 0;
-  const retry = () => {
-    attempts += 1;
-    const el = findEl(src.key ?? '');
-    if (el && el.getBoundingClientRect().width > 0) {
-      runReturnFlight(el, src);
-    } else if (attempts < 42) {
-      requestAnimationFrame(retry);
-    }
-  };
-  requestAnimationFrame(retry);
+export interface ReturnFlightPayload {
+  heroRect: TransitionRect;
+  endRect: TransitionRect;
+  coverUrl?: string;
 }
 
-function runReturnFlight(el: HTMLElement, src: { x: number; y: number; w: number; h: number }) {
-  // 目标卡片若在视口外，先滚到可见，否则飞回根本看不到
-  const initial = el.getBoundingClientRect();
-  if (initial.bottom <= 0 || initial.top >= window.innerHeight) {
-    el.scrollIntoView({ block: 'center', behavior: 'auto' });
-  }
-  const rect = el.getBoundingClientRect();
-  if (!rect.width || !src.w) return;
-  const scale = Math.max(0.05, src.w / rect.width);
-  const dx = src.x + src.w / 2 - (rect.x + rect.width / 2);
-  const dy = src.y + src.h / 2 - (rect.y + rect.height / 2);
-  el.style.transition = 'none';
-  el.style.transformOrigin = 'center';
-  el.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
-  el.style.zIndex = '30';
-  el.style.boxShadow = '0 18px 44px rgba(0, 0, 0, 0.35)';
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      el.style.transition = 'transform 560ms cubic-bezier(0.22, 1, 0.36, 1)';
-      el.style.transform = '';
-      setTimeout(() => {
-        el.style.transition = '';
-        el.style.zIndex = '';
-        el.style.boxShadow = '';
-      }, 600);
-    });
-  });
+export function beginReturnFlight(payload: ReturnFlightPayload): boolean {
+  if (typeof window === 'undefined' || prefersReducedMotion()) return false;
+  if (!payload.heroRect || !payload.endRect) return false;
+  if (payload.heroRect.w <= 0 || payload.endRect.w <= 0) return false;
+
+  resetLayer();
+  coverUrl.value = payload.coverUrl ?? '';
+  bgColor.value = '';
+  assignLayers(
+    { rect: { ...payload.heroRect }, radius: CARD_RADIUS },
+    { rect: { ...payload.endRect }, radius: CARD_RADIUS }
+  );
+  phase.value = 'expanding';
+
+  scheduleReveal();
+  timer = setTimeout(() => resolvePlaylistOpen(), PLAYLIST_OPEN_EXPAND_MS + 320);
+  return true;
 }

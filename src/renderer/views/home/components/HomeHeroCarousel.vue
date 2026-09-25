@@ -4,14 +4,15 @@
  * 两张卡横向分页吸附，右缘露出下一张卡；漫游卡随明暗、云卡恒定深色。
  */
 import { useDocumentVisibility, usePreferredReducedMotion } from '@vueuse/core';
-import { computed, inject, onMounted, type Ref, ref, watch } from 'vue';
+import { computed, inject, onMounted, type Ref, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 
+import { type Announcement, fetchAnnouncements } from '@/api/announcements';
 import { loadServerSongs, type ServerSong, serverSongToSongResult } from '@/api/serverSongs';
 import DitherBackground from '@/components/common/DitherBackground.vue';
 import MoltenMetalBackground from '@/components/common/MoltenMetalBackground.vue';
-import { playCoverReturnFlight } from '@/composables/usePlaylistOpenTransition';
+import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import { playMusic } from '@/hooks/MusicHook';
 import { useIntelligenceModeStore } from '@/store/modules/intelligenceMode';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
@@ -21,7 +22,6 @@ import { getImgUrl } from '@/utils';
 
 const { t } = useI18n();
 const router = useRouter();
-const route = useRoute();
 const intelligenceStore = useIntelligenceModeStore();
 const playerCore = usePlayerCoreStore();
 const playlistStore = usePlaylistStore();
@@ -73,6 +73,21 @@ async function toggleHeart() {
 
 const cloudSongs = ref<ServerSong[]>([]);
 
+/** 公告卡：每次启动拉取一次，取第一篇；拉取失败不渲染 */
+const announcement = ref<Announcement | null>(null);
+
+function openAnnouncement() {
+  const action = announcement.value?.action;
+  if (!action?.id) return;
+  // 应用内深度链接到公告指定的专辑（type=album 走既有专辑链路）
+  navigateToMusicList(router, {
+    id: action.id,
+    type: action.type,
+    name: announcement.value?.title || '',
+    listInfo: { id: action.id, coverImgUrl: '' }
+  });
+}
+
 async function playCloudSong(song: ServerSong) {
   const songs = cloudSongs.value.map(serverSongToSongResult);
   const index = Math.max(
@@ -101,25 +116,15 @@ function openCloudLibrary(event?: MouseEvent) {
   router.push('/music-list/zephyrus-cloud?type=server-library');
 }
 
-/** 返回主页时：云库页 hero 封面飞回云卡（key 前缀 home-cloud） */
-watch(
-  () => route.path,
-  (path) => {
-    if (path === '/') {
-      window.setTimeout(() => {
-        playCoverReturnFlight(
-          (key) =>
-            key === 'home-cloud'
-              ? (document.querySelector('.hero-card.cloud') as HTMLElement | null)
-              : null,
-          { keyPrefix: 'home-cloud' }
-        );
-      }, 60);
-    }
-  }
-);
-
 onMounted(async () => {
+  void fetchAnnouncements()
+    .then((list) => {
+      announcement.value = list[0] ?? null;
+    })
+    .catch(() => {
+      announcement.value = null;
+    });
+
   try {
     const all = await loadServerSongs();
     cloudSongs.value = all.slice(-5).reverse();
@@ -207,6 +212,21 @@ onMounted(async () => {
           <i class="ri-arrow-right-up-line" />
         </button>
       </article>
+
+      <!-- 公告卡：内容每次启动从服务器拉取，按钮深度链接到公告指定的专辑 -->
+      <article v-if="announcement" class="hero-card announce" @click="openAnnouncement">
+        <span class="announce-badge">{{ announcement.title }}</span>
+        <p class="announce-body">{{ announcement.body }}</p>
+        <button
+          v-if="announcement.action?.id"
+          class="hero-play"
+          type="button"
+          :aria-label="announcement.buttonText || announcement.title"
+          @click.stop="openAnnouncement"
+        >
+          <i class="ri-arrow-right-up-line" />
+        </button>
+      </article>
     </div>
   </section>
 </template>
@@ -289,6 +309,40 @@ onMounted(async () => {
     rgba(8, 8, 10, 0.66) 100%
   );
   pointer-events: none;
+}
+
+/* ==================== 公告卡（跟随主题的实色卡） ==================== */
+.hero-card.announce {
+  background: var(--m-surface-container, var(--m-card, #f4f1ec));
+  color: var(--m-text-primary, #20211f);
+}
+
+.announce-badge {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(var(--accent-color-rgb, 119, 131, 110), 0.16);
+  color: var(--accent-color, #77836e);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.announce-body {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 54px;
+  bottom: 66px;
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.72;
+  color: var(--m-text-primary, #20211f);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
 }
 
 /* ==================== 文案与播放按钮 ==================== */
