@@ -3370,4 +3370,17 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
     font-size: 13px;
   }
 }
+
+/* 「•••」胶囊本体形变（宽度/最大高度）：
+   上面 `.floating-topbar.plain-detail-topbar .topbar-pill` 的 chrome 底色过渡优先级
+   比 `.topbar-plain-actions` 高一档，会整体覆盖它的 transition（transition 不叠加），
+   导致形变变成瞬间跳变。这里同优先级 + 后置，把两组过渡合并声明。 */
+.floating-topbar.plain-detail-topbar .topbar-plain-actions {
+  transition:
+    background-color 480ms ease,
+    border-color 480ms ease,
+    color 480ms ease,
+    width 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    max-height 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
 </style>

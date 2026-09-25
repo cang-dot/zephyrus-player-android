@@ -136,7 +136,7 @@ onMounted(async () => {
           :wave-color="[0.92, 0.92, 0.92]"
           :wave-speed="0.05"
           :wave-frequency="3"
-          :wave-amplitude="0.3"
+          :wave-amplitude="0.4"
           :color-num="4"
           :pixel-size="2"
           :enable-mouse-interaction="false"
@@ -250,9 +250,9 @@ onMounted(async () => {
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgba(8, 8, 10, 0.74) 0%,
-    rgba(8, 8, 10, 0.5) 42%,
-    rgba(8, 8, 10, 0.84) 100%
+    rgba(8, 8, 10, 0.55) 0%,
+    rgba(8, 8, 10, 0.26) 46%,
+    rgba(8, 8, 10, 0.66) 100%
   );
   pointer-events: none;
 }

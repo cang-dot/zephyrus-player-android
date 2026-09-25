@@ -670,26 +670,32 @@ watch(
   }
 
   /* 独立出现时由播放栏自身提供实色表面（原为有色毛玻璃，已移除模糊）。
-     歌单页等 chrome 页面（#layout-main 注入 --page-chrome-*）下跟随页面明暗：
-     表面/墨色/主题文字变量一并覆盖——mini-song-title 等用的是 --m-text-*，
-     不覆盖的话浅色主题值会把文字强制成黑色。 */
+     表面完全实色：混墨色时用不透明 rgb（此前 84% + 16%×0.45 会混出约 9% 透明）。
+     墨色走 --mini-ink-rgb 间接：chrome 页面（#layout-main 注入 --page-chrome-*）取页面墨色，
+     无 chrome 时回退主题令牌——深色主题用浅墨，否则 mini-song-title 等恒为近黑、深色下不可见。 */
   &.play-bar-mini:not(.playlist-open) .mobile-mini-controls {
+    --mini-ink-rgb: var(--page-chrome-ink-rgb, 23, 23, 26);
     transition:
       background-color 480ms ease,
       border-color 480ms ease,
       color 480ms ease;
     background: color-mix(
       in srgb,
-      var(--page-chrome-bg, var(--m-surface-container-high, var(--m-card))) 84%,
-      rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.45) 16%
+      var(--page-chrome-bg, var(--m-surface-container-high, var(--m-card))) 88%,
+      rgb(var(--mini-ink-rgb)) 12%
     );
-    border-color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.12);
+    border-color: rgba(var(--mini-ink-rgb), 0.12);
     box-shadow: var(--m-elevation-2);
-    color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
-    --m-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
-    --m-text-muted: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.55);
-    --d-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
-    --d-text-secondary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.55);
+    color: rgba(var(--mini-ink-rgb), 0.92);
+    --m-text-primary: rgba(var(--mini-ink-rgb), 0.92);
+    --m-text-muted: rgba(var(--mini-ink-rgb), 0.55);
+    --d-text-primary: rgba(var(--mini-ink-rgb), 0.92);
+    --d-text-secondary: rgba(var(--mini-ink-rgb), 0.55);
+  }
+
+  /* 深色主题且页面未注入 chrome 墨色时，兜底墨色改浅色，文字随明暗可读 */
+  .dark &.play-bar-mini:not(.playlist-open) .mobile-mini-controls {
+    --mini-ink-rgb: var(--page-chrome-ink-rgb, 240, 236, 228);
   }
 
   &.play-bar-mini {
