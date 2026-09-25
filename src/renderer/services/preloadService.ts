@@ -15,14 +15,7 @@ import {
  * 播放全程只保留当前一个元素,切歌时旧元素已卸载,面板绑定即恢复正确。
  * 预取调用点(playlist.fetchSongs/smartMix)应以此函数做门控。
  */
-export function isIosSafari(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return (
-    /iP(hone|ad|od)/.test(navigator.userAgent) ||
-    // iPadOS 13+ 桌面 UA
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  );
-}
+export { isIosSafari } from '@/utils/platform';
 
 class PreloadService {
   private loadingPromises: Map<string | number, Promise<Howl>> = new Map();

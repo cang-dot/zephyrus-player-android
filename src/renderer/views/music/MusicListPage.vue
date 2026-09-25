@@ -198,6 +198,10 @@ import {
   registerMobileTopbarAction,
   unregisterMobileTopbarAction
 } from '@/composables/useMobileTopbarMenu';
+import {
+  resolvePlaylistOpen,
+  usePlaylistOpenTransition
+} from '@/composables/usePlaylistOpenTransition';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { useDownload } from '@/hooks/useDownload';
 import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
@@ -1443,6 +1447,20 @@ const notifyEnterFlightEnd = () => {
 };
 
 const playCoverEnterTransition = () => {
+  // 歌单跳转过渡（首页/发现页卡片）：覆盖层已完成底色与封面衔接，
+  // 这里只需把封面克隆对齐到真实 hero 位置后收尾；该流程不写 sessionStorage.musicListCoverRect
+  const openTransition = usePlaylistOpenTransition();
+  if (openTransition.isActive()) {
+    const heroCover = pageRootRef.value?.querySelector<HTMLElement>('.hero-cover');
+    const heroRect = heroCover?.getBoundingClientRect();
+    resolvePlaylistOpen(
+      heroRect && heroRect.width > 0
+        ? { x: heroRect.x, y: heroRect.y, w: heroRect.width, h: heroRect.height }
+        : null
+    );
+    return;
+  }
+
   const raw = sessionStorage.getItem('musicListCoverRect');
   if (!raw) return;
   sessionStorage.removeItem('musicListCoverRect');

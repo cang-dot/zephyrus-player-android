@@ -54,7 +54,7 @@
             :name="pageTransitionName"
             :css="!gestureNavigationInProgress"
             @after-enter="pagerBridgeVisible = false"
-            @after-leave="secondaryHostVisible = false"
+            @after-leave="onSecondaryLeave"
           >
             <keep-alive :include="keepAliveInclude">
               <component :is="Component" />
@@ -66,6 +66,24 @@
       <!-- 页面上下边缘：内容渐隐 + 逐渐模糊（顶栏/底栏在其上，自身不受影响） -->
       <div class="page-edge-fade page-edge-fade--top" aria-hidden="true" />
       <div class="page-edge-fade page-edge-fade--bottom" aria-hidden="true" />
+    </div>
+
+    <!-- 歌单跳转过渡覆盖层：底色块从卡片矩形扩展并变色到全屏、封面克隆放大，
+         歌单页挂载后由 MusicListPage 对齐 hero 并淡出（见 usePlaylistOpenTransition） -->
+    <div
+      v-if="playlistOpen.phase.value !== 'idle'"
+      class="playlist-open-layer"
+      :style="{ opacity: playlistOpen.phase.value === 'fadeout' ? '0' : '1' }"
+      aria-hidden="true"
+    >
+      <div class="playlist-open-bg" :style="playlistOpen.bgStyle.value" />
+      <img
+        v-if="playlistOpen.coverSrc.value"
+        class="playlist-open-cover"
+        :src="playlistOpen.coverSrc.value"
+        :style="[playlistOpen.coverStyle.value, { transform: playlistOpen.coverTransform.value }]"
+        alt=""
+      />
     </div>
 
     <!-- 非播放界面打开播放列表/歌曲信息时，底栏之外的页面由半透明遮罩覆盖，
@@ -201,6 +219,7 @@ import { useRoute, useRouter } from 'vue-router';
 import MobileSongActionSheet from '@/components/common/MobileSongActionSheet.vue';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
+import { usePlaylistOpenTransition } from '@/composables/usePlaylistOpenTransition';
 import homeRouter from '@/router/home';
 import otherRouter from '@/router/other';
 import { installMobileBackBridge, registerMobileBackLayer } from '@/services/mobileBackStack';
@@ -450,9 +469,26 @@ if (!menuStore.menus.some((item: any) => item.path === route.path)) {
   secondaryHostVisible.value = true;
 }
 
-const pageTransitionName = computed(() =>
-  pageTransitionDirection.value ? `page-slide-${pageTransitionDirection.value}` : 'page-fade'
-);
+/**
+ * 二级页退场结束：只有「已在底栏页」时才卸载宿主。
+ * 不判断的话，二级页 → 二级页（搜索页 → 搜索结果页）时退场钩子会在路由 watcher
+ * 置 true 之后又把宿主关掉，新页面整页空白（2026-09-25 修复）。
+ */
+const onSecondaryLeave = () => {
+  if (menuStore.menus.some((item: any) => item.path === route.path)) {
+    secondaryHostVisible.value = false;
+  }
+};
+
+const playlistOpen = usePlaylistOpenTransition();
+
+const pageTransitionName = computed(() => {
+  // 歌单跳转过渡：覆盖层负责视觉衔接，二级页自身不做位移与底色过渡（避免双底色闪烁）
+  if (playlistOpen.isActive()) return 'page-none';
+  return pageTransitionDirection.value
+    ? `page-slide-${pageTransitionDirection.value}`
+    : 'page-fade';
+});
 
 // ==================== Tab pager（四页常驻 + 双页跟手） ====================
 const pagerMounted = ref<Record<string, boolean>>({});
@@ -1941,6 +1977,38 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   position: absolute;
   inset: 0;
   background: var(--m-bg, #141414);
+}
+
+/* 歌单跳转过渡期间：二级页自身不做过渡（底色与封面衔接全由覆盖层负责） */
+.page-none-enter-active,
+.page-none-leave-active {
+  transition: none;
+}
+
+/* 歌单跳转过渡覆盖层（z 250：顶栏 100 / 底栏 199 之上，body 上的全屏播放器 100100 之下） */
+.playlist-open-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  overflow: hidden;
+  pointer-events: none;
+  background: transparent;
+  transition: opacity 200ms ease;
+}
+
+.playlist-open-bg {
+  background: var(--page-chrome-bg, var(--m-bg, #141414));
+}
+
+.playlist-open-cover {
+  object-fit: cover;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playlist-open-layer {
+    display: none;
+  }
 }
 
 .page-fade-enter-active {

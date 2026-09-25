@@ -48,7 +48,7 @@
           type="button"
           class="media-card"
           :style="{ '--media-color': card.themeColor }"
-          @click="openMedia(card)"
+          @click="openMedia(card, $event)"
         >
           <span class="media-card-art">
             <img :src="getImgUrl(card.picUrl, '500y500')" :alt="card.name" loading="lazy" />
@@ -71,6 +71,7 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { getHotSinger, getPersonalizedPlaylist, getTopAlbum } from '@/api/home';
+import { beginPlaylistOpen } from '@/composables/usePlaylistOpenTransition';
 import { useArtist } from '@/hooks/useArtist';
 import { getImgUrl } from '@/utils';
 
@@ -109,7 +110,15 @@ const openShortcut = (item: Shortcut) => {
   }
 };
 
-const openMedia = (card: MediaCard) => {
+const openMedia = (card: MediaCard, event?: MouseEvent) => {
+  // 卡片矩形 + 卡片自带主题色 → 覆盖层扩展过渡（跳过取色等待）
+  const el = event?.currentTarget as HTMLElement | null;
+  const rect = el?.getBoundingClientRect();
+  beginPlaylistOpen({
+    rect: rect ? { x: rect.x, y: rect.y, w: rect.width, h: rect.height } : null,
+    coverUrl: card.picUrl,
+    color: card.themeColor
+  });
   router.push({
     path: `/music-list/${card.id}`,
     query: { type: card.kind }

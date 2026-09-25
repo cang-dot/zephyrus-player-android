@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import { getPersonalizedPlaylist } from '@/api/home';
+import { beginPlaylistOpen } from '@/composables/usePlaylistOpenTransition';
 import { getImgUrl } from '@/utils';
 
 interface RecommendedPlaylist {
@@ -19,7 +20,14 @@ const router = useRouter();
 
 const playlists = ref<RecommendedPlaylist[]>([]);
 
-function open(item: RecommendedPlaylist) {
+function open(item: RecommendedPlaylist, event?: MouseEvent) {
+  // 卡片矩形 → 覆盖层底色块扩展过渡（见 usePlaylistOpenTransition）
+  const el = event?.currentTarget as HTMLElement | null;
+  const rect = el?.getBoundingClientRect();
+  beginPlaylistOpen({
+    rect: rect ? { x: rect.x, y: rect.y, w: rect.width, h: rect.height } : null,
+    coverUrl: item.picUrl
+  });
   router.push(`/music-list/${item.id}?type=playlist`);
 }
 
@@ -42,7 +50,7 @@ onMounted(async () => {
         :key="item.id"
         class="playlist-card"
         type="button"
-        @click="open(item)"
+        @click="open(item, $event)"
       >
         <span
           class="playlist-cover"

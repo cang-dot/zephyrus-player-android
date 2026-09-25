@@ -151,16 +151,66 @@ class AudioService {
     }
   }
 
-  /** 恢复被 iOS 后台挂起的 AudioContext（无手势时尽力而为） */
+  /** 恢复被系统挂起的 AudioContext（iOS 后台中断时状态是 'interrupted'，须一并恢复） */
   private resumeSuspendedContext() {
     try {
       const ctx = Howler.ctx as AudioContext | undefined;
-      if (ctx && ctx.state === 'suspended') {
+      // 只判断 'suspended' 会导致 iOS 上永不恢复：WebKit 把后台中断标记为 'interrupted'
+      if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') {
         void ctx.resume().catch(() => {});
       }
+      this.reassertElementPlayback();
     } catch {
       // Howler 尚未初始化时忽略
     }
+  }
+
+  /**
+   * 前后台切换后重新断言元素层状态：
+   * 1) 速率按当前值重写（iOS 恢复被中断的 <audio> 时可能丢失 rate）；
+   * 2) 暂停非当前 Howl 实例中仍在播的元素，避免两份实例同时出声（听感即叠音/倍速）。
+   */
+  private reassertElementPlayback() {
+    const current = this.currentSound as unknown as
+      | { _sounds?: Array<{ _node?: HTMLAudioElement }> }
+      | null;
+    try {
+      const node = current?._sounds?.[0]?._node;
+      if (node && Math.abs((node.playbackRate || 1) - this.playbackRate) > 0.001) {
+        node.playbackRate = this.playbackRate;
+      }
+
+      const allHowls = (Howler as unknown as { _howls?: unknown[] })._howls;
+      if (!Array.isArray(allHowls) || !this.currentSound) return;
+      for (const howl of allHowls) {
+        if (howl === this.currentSound || howl === this.crossfadingSound) continue;
+        const sounds = (howl as { _sounds?: Array<{ _node?: HTMLAudioElement }> })._sounds;
+        sounds?.forEach((item) => {
+          const el = item?._node;
+          if (el && !el.paused) {
+            try {
+              el.pause();
+            } catch {
+              // 元素已销毁时忽略
+            }
+          }
+        });
+      }
+    } catch {
+      // 任何异常都不影响播放主流程
+    }
+  }
+
+  /** 硬停底层音频元素：Howler 的 stop/unload 在 iOS 中断窗口里可能排队而不执行 */
+  hardStopSound(sound: unknown) {
+    const sounds = (sound as { _sounds?: Array<{ _node?: HTMLAudioElement }> } | null)?._sounds;
+    sounds?.forEach((item) => {
+      try {
+        item?._node?.pause();
+      } catch {
+        // 元素已销毁时忽略
+      }
+    });
   }
 
   private initMediaSession() {
@@ -2215,14 +2265,18 @@ class AudioService {
     if (!this.context || this.contextStateMonitoringInitialized) return;
 
     this.context.addEventListener('statechange', async () => {
-      if (this.context?.state === 'suspended' && this.currentSound?.playing()) {
+      const contextState = this.context?.state as string | undefined;
+      if (
+        (contextState === 'suspended' || contextState === 'interrupted') &&
+        this.currentSound?.playing()
+      ) {
         try {
-          await this.context.resume();
+          await this.context?.resume();
         } catch (e) {
           console.error('Failed to resume AudioContext:', e);
           this.emit('audio_error', { type: 'context_suspended', error: e });
         }
-      } else if (this.context?.state === 'closed') {
+      } else if (contextState === 'closed') {
         console.warn('AudioContext was closed unexpectedly');
         this.emit('audio_error', { type: 'context_closed' });
       }

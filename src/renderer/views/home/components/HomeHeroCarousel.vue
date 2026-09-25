@@ -11,6 +11,7 @@ import { useRouter } from 'vue-router';
 import { loadServerSongs, type ServerSong, serverSongToSongResult } from '@/api/serverSongs';
 import DitherBackground from '@/components/common/DitherBackground.vue';
 import MoltenMetalBackground from '@/components/common/MoltenMetalBackground.vue';
+import { beginPlaylistOpen } from '@/composables/usePlaylistOpenTransition';
 import { playMusic } from '@/hooks/MusicHook';
 import { useIntelligenceModeStore } from '@/store/modules/intelligenceMode';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
@@ -81,7 +82,14 @@ async function playCloudSong(song: ServerSong) {
   await playerCore.handlePlayMusic(songs[index], true);
 }
 
-function openCloudLibrary() {
+function openCloudLibrary(event?: MouseEvent) {
+  // 云卡按钮矩形 → 覆盖层扩展过渡（云库封面取自首屏渲染，用卡片自身封面）
+  const el = event?.currentTarget as HTMLElement | null;
+  const rect = el?.getBoundingClientRect();
+  beginPlaylistOpen({
+    rect: rect ? { x: rect.x, y: rect.y, w: rect.width, h: rect.height } : null,
+    coverUrl: cloudSongs.value[0]?.picUrl
+  });
   router.push('/music-list/zephyrus-cloud?type=server-library');
 }
 
@@ -168,7 +176,7 @@ onMounted(async () => {
           class="hero-play"
           type="button"
           :aria-label="t('comp.homeV2.openCloud')"
-          @click="openCloudLibrary"
+          @click="openCloudLibrary($event)"
         >
           <i class="ri-arrow-right-up-line" />
         </button>

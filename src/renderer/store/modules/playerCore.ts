@@ -286,6 +286,9 @@ export const usePlayerCoreStore = defineStore(
       if (currentSound) {
         currentSound.stop();
         currentSound.unload();
+        // Howler 在 iOS 中断窗口里可能把 stop/unload 排队而不真正执行，
+        // 再硬暂停一次底层元素，避免旧歌与新歌同时出声（听感是叠音/倍速）。
+        audioService.hardStopSound(currentSound);
       }
 
       // 验证请求是否仍然有效
@@ -694,6 +697,11 @@ export const usePlayerCoreStore = defineStore(
       }
 
       setTimeout(() => {
+        // 持久化倍速做一次合法性约束：非法值/历史异常值回落到 1x
+        const restoredRate = Number(playbackRate.value);
+        if (!Number.isFinite(restoredRate) || restoredRate < 0.5 || restoredRate > 2) {
+          playbackRate.value = 1;
+        }
         audioService.setPlaybackRate(playbackRate.value);
       }, 2000);
     };
