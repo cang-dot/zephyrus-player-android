@@ -1552,6 +1552,8 @@ onBeforeUnmount(() => {
     height: calc(min(62dvh, 500px) - 56px);
   }
 
+  /* 带底栏页：只给定位——表面沿用无底栏形态（MobilePlayBar 自身的
+     .mobile-mini-controls 实色表面/h-14/圆角），避免两处自绘不一致 */
   :deep(.mobile-play-bar.play-bar-mini.is-menu-show) {
     position: fixed !important;
     top: auto !important;
@@ -1559,11 +1561,6 @@ onBeforeUnmount(() => {
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 88px) !important;
     left: 12px !important;
     width: auto !important;
-    height: 56px;
-    border-radius: 28px;
-    background: var(--m-surface-container, var(--m-card));
-    border: 1px solid var(--m-outline-variant, rgba(128, 128, 128, 0.16));
-    box-shadow: var(--m-elevation-3);
   }
 
   &.player-collapsed :deep(.mobile-play-bar.play-bar-mini.idle-collapsed) {
