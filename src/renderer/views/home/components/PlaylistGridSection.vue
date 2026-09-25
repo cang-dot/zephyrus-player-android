@@ -1,12 +1,12 @@
 <script setup lang="ts">
 /** 为你推荐：精选歌单 2×2 网格卡（封面 + 底部渐变 + 歌单名 + 小字），无「更多」入口 */
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import { getPersonalizedPlaylist } from '@/api/home';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
-import { beginPlaylistOpen } from '@/composables/usePlaylistOpenTransition';
+import { playCoverReturnFlight } from '@/composables/usePlaylistOpenTransition';
 import { getImgUrl } from '@/utils';
 
 interface RecommendedPlaylist {
@@ -18,18 +18,32 @@ interface RecommendedPlaylist {
 
 const { t } = useI18n();
 const router = useRouter();
+const route = useRoute();
 
 const playlists = ref<RecommendedPlaylist[]>([]);
 
 function open(item: RecommendedPlaylist, event?: MouseEvent) {
-  // 卡片矩形 → 覆盖层底色块扩展过渡（见 usePlaylistOpenTransition）
+  // 与歌单库页同一套封面飞行：记录卡片封面矩形（+key），歌单页 hero 从该处飞入
   const el = event?.currentTarget as HTMLElement | null;
-  const rect = el?.getBoundingClientRect();
-  beginPlaylistOpen({
-    rect: rect ? { x: rect.x, y: rect.y, w: rect.width, h: rect.height } : null,
-    coverUrl: item.picUrl
-  });
-  // 与歌单库页同一套预填充：写好列表信息，歌单页 hero 首帧即可渲染（无骨架）
+  const cover = el?.querySelector<HTMLElement>('.playlist-cover');
+  const rect = (cover ?? el)?.getBoundingClientRect();
+  if (rect && rect.width > 0) {
+    try {
+      sessionStorage.setItem(
+        'musicListCoverRect',
+        JSON.stringify({
+          x: rect.x,
+          y: rect.y,
+          w: rect.width,
+          h: rect.height,
+          key: `home-pl-${item.id}`
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+  // 同一套预填充：写好列表信息，歌单页 hero 首帧即可渲染（无骨架）
   navigateToMusicList(router, {
     id: item.id,
     type: 'playlist',
@@ -38,6 +52,24 @@ function open(item: RecommendedPlaylist, event?: MouseEvent) {
   });
 }
 
+/** 返回主页时：歌单页 hero 封面飞回对应卡片（与 /list 同一套机制，key 前缀 home-pl-） */
+watch(
+  () => route.path,
+  (path) => {
+    if (path === '/') {
+      window.setTimeout(() => {
+        playCoverReturnFlight(
+          (key) =>
+            document.querySelector(
+              `.playlist-card[data-key="${CSS.escape(key)}"] .playlist-cover`
+            ) as HTMLElement | null,
+          { keyPrefix: 'home-pl-' }
+        );
+      }, 60);
+    }
+  }
+);
+
 onMounted(async () => {
   try {
     const response = await getPersonalizedPlaylist(8);
@@ -45,6 +77,15 @@ onMounted(async () => {
   } catch {
     playlists.value = [];
   }
+  window.setTimeout(() => {
+    playCoverReturnFlight(
+      (key) =>
+        document.querySelector(
+          `.playlist-card[data-key="${CSS.escape(key)}"] .playlist-cover`
+        ) as HTMLElement | null,
+      { keyPrefix: 'home-pl-' }
+    );
+  }, 60);
 });
 </script>
 
@@ -57,6 +98,7 @@ onMounted(async () => {
         :key="item.id"
         class="playlist-card"
         type="button"
+        :data-key="`home-pl-${item.id}`"
         @click="open(item, $event)"
       >
         <span

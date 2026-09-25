@@ -4,14 +4,14 @@
  * 两张卡横向分页吸附，右缘露出下一张卡；漫游卡随明暗、云卡恒定深色。
  */
 import { useDocumentVisibility, usePreferredReducedMotion } from '@vueuse/core';
-import { computed, inject, onMounted, type Ref, ref } from 'vue';
+import { computed, inject, onMounted, type Ref, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import { loadServerSongs, type ServerSong, serverSongToSongResult } from '@/api/serverSongs';
 import DitherBackground from '@/components/common/DitherBackground.vue';
 import MoltenMetalBackground from '@/components/common/MoltenMetalBackground.vue';
-import { beginPlaylistOpen } from '@/composables/usePlaylistOpenTransition';
+import { playCoverReturnFlight } from '@/composables/usePlaylistOpenTransition';
 import { playMusic } from '@/hooks/MusicHook';
 import { useIntelligenceModeStore } from '@/store/modules/intelligenceMode';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
@@ -21,6 +21,7 @@ import { getImgUrl } from '@/utils';
 
 const { t } = useI18n();
 const router = useRouter();
+const route = useRoute();
 const intelligenceStore = useIntelligenceModeStore();
 const playerCore = usePlayerCoreStore();
 const playlistStore = usePlaylistStore();
@@ -83,15 +84,40 @@ async function playCloudSong(song: ServerSong) {
 }
 
 function openCloudLibrary(event?: MouseEvent) {
-  // 云卡按钮矩形 → 覆盖层扩展过渡（云库封面取自首屏渲染，用卡片自身封面）
+  // 与歌单库页同一套封面飞行：以云卡为源矩形（key: home-cloud），云库页 hero 从该处飞入
   const el = event?.currentTarget as HTMLElement | null;
-  const rect = el?.getBoundingClientRect();
-  beginPlaylistOpen({
-    rect: rect ? { x: rect.x, y: rect.y, w: rect.width, h: rect.height } : null,
-    coverUrl: cloudSongs.value[0]?.picUrl
-  });
+  const card = el?.closest('.hero-card.cloud') as HTMLElement | null;
+  const rect = card?.getBoundingClientRect();
+  if (rect && rect.width > 0) {
+    try {
+      sessionStorage.setItem(
+        'musicListCoverRect',
+        JSON.stringify({ x: rect.x, y: rect.y, w: rect.width, h: rect.height, key: 'home-cloud' })
+      );
+    } catch {
+      /* ignore */
+    }
+  }
   router.push('/music-list/zephyrus-cloud?type=server-library');
 }
+
+/** 返回主页时：云库页 hero 封面飞回云卡（key 前缀 home-cloud） */
+watch(
+  () => route.path,
+  (path) => {
+    if (path === '/') {
+      window.setTimeout(() => {
+        playCoverReturnFlight(
+          (key) =>
+            key === 'home-cloud'
+              ? (document.querySelector('.hero-card.cloud') as HTMLElement | null)
+              : null,
+          { keyPrefix: 'home-cloud' }
+        );
+      }, 60);
+    }
+  }
+);
 
 onMounted(async () => {
   try {
