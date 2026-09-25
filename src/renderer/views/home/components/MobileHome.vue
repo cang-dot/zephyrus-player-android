@@ -1,155 +1,118 @@
 <template>
   <div class="mobile-home">
-    <section class="mode-grid">
-      <button class="mode-card fm" type="button" @click="playPersonalFm">
-        <img v-if="modeCovers.fm" :src="modeCovers.fm" alt="" />
-        <span class="mode-shade" />
-        <span class="mode-copy">
-          <i class="ri-radio-fill" />
-          <b>私人 FM</b>
-          <small>{{ fmLoading ? '正在准备' : '为你连续播放' }}</small>
-        </span>
-      </button>
-      <button class="mode-card" type="button" @click="intelligenceStore.playIntelligenceMode">
-        <img v-if="modeCovers.heart" :src="modeCovers.heart" alt="" />
-        <span class="mode-shade" />
-        <span class="mode-copy">
-          <i class="ri-heart-pulse-fill" />
-          <b>心动模式</b>
-          <small>从喜欢的音乐出发</small>
-        </span>
-      </button>
-      <button class="mode-card random" type="button" @click="openRandomPlaylist">
-        <img v-if="modeCovers.random" :src="modeCovers.random" alt="" />
-        <span class="mode-shade" />
-        <span class="mode-copy">
-          <i class="ri-shuffle-line" />
-          <b>随机歌单</b>
-          <small>换一种播放顺序</small>
-        </span>
-      </button>
+    <mobile-home-hero
+      :covers="wallCovers"
+      :is-heart-mode="isHeartMode"
+      :current-cover-url="currentCoverUrl"
+      :user-name="userName"
+      :fm-loading="fmLoading"
+      @play-heart="playHeartMode"
+      @play-fm="playPersonalFm"
+    />
+
+    <listening-heatmap />
+
+    <section v-if="cloudCards.length" class="home-section">
+      <song-list-card-row
+        :cards="cloudCards"
+        @song-play="onCardSongPlay"
+        @detail="openCloudLibrary"
+      />
     </section>
 
-    <!-- Zephyrus 云端曲库轮播胶囊:新歌即点即听 -->
-    <button
-      v-if="cloudSongs.length"
-      type="button"
-      class="cloud-marquee"
-      @click="openCloudLibrary"
-    >
-      <span class="cloud-marquee-cover" :style="{ backgroundImage: `url(${currentCloudCover})` }" />
-      <Transition name="cloud-marquee-text" mode="out-in">
-        <span :key="currentCloudIndex" class="cloud-marquee-copy">
-          <i class="ri-cloud-line" />
-          <span class="cloud-marquee-lines">
-            <small>嘿，最近 Zephyrus 云新上了</small>
-            <span class="cloud-marquee-name">
-              <b>{{ currentCloudName }}</b>
-              <span class="cloud-marquee-suffix">，点击即听！</span>
-            </span>
-          </span>
-        </span>
-      </Transition>
-      <i class="ri-arrow-right-s-line cloud-marquee-arrow" />
-    </button>
-
-    <section class="daily-section">
-      <header>
-        <div>
-          <small>{{ todayLabel }}</small>
-          <h2>每日推荐歌曲</h2>
-        </div>
-        <button type="button" title="播放全部" @click="playDailySongs">
-          <i class="ri-play-fill" />
+    <section v-if="dailyPlaylists.length" class="home-section">
+      <div class="playlist-cards">
+        <button
+          v-for="playlist in dailyPlaylists"
+          :key="playlist.id"
+          type="button"
+          class="playlist-card"
+          @click="openPlaylist(playlist)"
+        >
+          <img
+            :src="getImgUrl(playlist.picUrl || playlist.coverImgUrl, '300y300')"
+            class="playlist-cover"
+            alt=""
+            loading="lazy"
+          />
+          <span class="playlist-name">{{ playlist.name }}</span>
+          <span v-if="playlist.playCount" class="playlist-count">{{
+            formatPlayCount(playlist.playCount)
+          }}</span>
         </button>
-      </header>
-      <div v-if="!dailySongs.length" class="daily-empty">今日推荐正在准备</div>
-      <song-item
-        v-for="song in dailySongs.slice(0, 12)"
-        :key="song.id"
-        :item="song"
-        home
-        :favorite="false"
-        @play="playSong(song)"
+      </div>
+    </section>
+
+    <section v-if="dailyCards.length" class="home-section">
+      <song-list-card-row
+        :cards="dailyCards"
+        @song-play="onCardSongPlay"
+        @detail="openDailyRecommend"
       />
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import { getPersonalFM, getPersonalizedPlaylist } from '@/api/home';
 import { loadServerSongs, type ServerSong } from '@/api/serverSongs';
-import SongItem from '@/components/common/SongItem.vue';
+import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import { playMusic } from '@/hooks/MusicHook';
+import { useUserStore } from '@/store';
 import { useIntelligenceModeStore } from '@/store/modules/intelligenceMode';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
 import { usePlaylistStore } from '@/store/modules/playlist';
 import { useRecommendStore } from '@/store/modules/recommend';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
+import { resolveSongBadge } from '@/utils/songBadges';
+import ListeningHeatmap from '@/views/home/components/ListeningHeatmap.vue';
+import MobileHomeHero from '@/views/home/components/MobileHomeHero.vue';
+import { type CardSong, type SongListCard } from '@/views/home/components/SongListCardRow.vue';
+import SongListCardRow from '@/views/home/components/SongListCardRow.vue';
 
+const { t } = useI18n();
 const router = useRouter();
 const recommendStore = useRecommendStore();
 const playerCore = usePlayerCoreStore();
 const playlistStore = usePlaylistStore();
 const intelligenceStore = useIntelligenceModeStore();
+const userStore = useUserStore();
 const fmLoading = ref(false);
-// ==================== 云端曲库轮播 ====================
+
+// ==================== Hero ====================
+const isHeartMode = computed(() => playlistStore.playMode === 3);
+const currentCoverUrl = computed(() => playMusic.value?.picUrl || '');
+const userName = computed(
+  () =>
+    (userStore.user as any)?.nickname ||
+    (userStore.user as any)?.profile?.nickname ||
+    t('comp.homeSection.guestName')
+);
+
+/** 照片墙：用户歌单库封面去重（≤30 张），兜底云歌曲/日推封面 */
 const cloudSongs = ref<ServerSong[]>([]);
-const currentCloudIndex = ref(0);
-let cloudTimer: ReturnType<typeof setInterval> | null = null;
-const currentCloudSong = computed(() => cloudSongs.value[currentCloudIndex.value] || null);
-const currentCloudName = computed(() => currentCloudSong.value?.name || '');
-const currentCloudCover = computed(() => currentCloudSong.value?.picUrl || '');
+const wallCovers = computed(() => {
+  const covers: string[] = [];
+  const push = (url?: string) => {
+    if (!url) return;
+    const normalized = getImgUrl(url, '300y300');
+    if (!covers.includes(normalized)) covers.push(normalized);
+  };
+  for (const playlist of userStore.playList as any[])
+    push(playlist?.coverImgUrl || playlist?.picUrl);
+  for (const album of userStore.albumList as any[]) push(album?.picUrl || album?.coverImgUrl);
+  for (const song of cloudSongs.value) push(song?.picUrl);
+  for (const song of dailySongs.value as any[]) push(song?.picUrl || song?.al?.picUrl);
+  return covers.slice(0, 30);
+});
 
-const openCloudLibrary = () => {
-  // 点击进入 Zephyrus 云歌曲列表（复用歌单页），由用户自行选择歌曲播放
-  router.push('/music-list/zephyrus-cloud?type=server-library');
-};
-
-const rotateCloud = () => {
-  if (!cloudSongs.value.length) return;
-  currentCloudIndex.value = (currentCloudIndex.value + 1) % cloudSongs.value.length;
-};
-const heroPlaylists = ref<any[]>([]);
-const dailySongs = computed(() => recommendStore.dailyRecommendSongs);
-const coverFor = (index: number) => {
-  const song = dailySongs.value[index] || dailySongs.value[0];
-  const playlist = heroPlaylists.value[index] || heroPlaylists.value[0];
-  const url =
-    song?.picUrl ||
-    song?.al?.picUrl ||
-    song?.album?.picUrl ||
-    playlist?.picUrl ||
-    playlist?.coverImgUrl;
-  return url ? getImgUrl(url, '512y512') : '';
-};
-const modeCovers = computed(() => ({
-  fm: playMusic.value?.picUrl ? getImgUrl(playMusic.value.picUrl, '512y512') : coverFor(0),
-  heart: coverFor(1),
-  random: coverFor(2)
-}));
-const todayLabel = new Intl.DateTimeFormat(undefined, {
-  month: 'long',
-  day: 'numeric',
-  weekday: 'short'
-}).format(new Date());
-
-function normalizeSong(song: any): SongResult {
-  return {
-    ...song,
-    id: song.id,
-    name: song.name,
-    picUrl: song.picUrl || song.al?.picUrl || song.album?.picUrl,
-    ar: song.ar || song.artists,
-    al: song.al || song.album,
-    source: 'netease',
-    song,
-    playLoading: false
-  } as SongResult;
+async function playHeartMode() {
+  await intelligenceStore.playIntelligenceMode();
 }
 
 async function playPersonalFm() {
@@ -167,340 +130,187 @@ async function playPersonalFm() {
   }
 }
 
-async function openRandomPlaylist() {
-  let playlists = heroPlaylists.value;
-  if (playlists.length < 2) {
-    const response = await getPersonalizedPlaylist(20);
-    playlists = response.data?.result || [];
+// ==================== 数据 ====================
+const dailyPlaylists = ref<any[]>([]);
+const dailySongs = computed(() => recommendStore.dailyRecommendSongs);
+
+function normalizeSong(song: any): SongResult {
+  return {
+    ...song,
+    id: song.id,
+    name: song.name,
+    picUrl: song.picUrl || song.al?.picUrl || song.album?.picUrl,
+    ar: song.ar || song.artists,
+    al: song.al || song.album,
+    source: 'netease',
+    song,
+    playLoading: false
+  } as SongResult;
+}
+
+/** 统一模板的歌曲行徽章：推荐理由 > 音质 > 小众（纯函数见 utils/songBadges） */
+const badgeFor = (song: any): CardSong['badge'] | undefined => resolveSongBadge(song, t);
+
+const toCardSong = (song: any): CardSong => {
+  const normalized = normalizeSong(song);
+  return {
+    id: normalized.id,
+    name: normalized.name || '',
+    cover: normalized.picUrl || '',
+    artist: (normalized.ar || [])
+      .map((artist: any) => artist?.name)
+      .filter(Boolean)
+      .join(' / '),
+    badge: badgeFor(song),
+    raw: song
+  };
+};
+
+const chunkCards = (
+  songs: any[],
+  nameFor: (index: number, songs: any[]) => string,
+  detailable: boolean
+): SongListCard[] => {
+  const cards: SongListCard[] = [];
+  for (let i = 0; i * 3 < songs.length; i++) {
+    const chunk = songs.slice(i * 3, i * 3 + 3);
+    if (!chunk.length) continue;
+    cards.push({
+      id: `card-${i}`,
+      name: nameFor(i, chunk),
+      songs: chunk.map(toCardSong),
+      detailable
+    });
   }
-  if (!playlists.length) return;
-  const item = playlists[Math.floor(Math.random() * playlists.length)];
-  router.push(`/music-list/${item.id}?type=playlist`);
+  return cards;
+};
+
+/** 云歌曲卡：最近上架倒序，每卡 3 首 */
+const cloudCards = computed<SongListCard[]>(() => {
+  const songs = cloudSongs.value.slice(-12).reverse();
+  return chunkCards(
+    songs,
+    (index, chunk) => {
+      const album = chunk[0]?.album;
+      const sameAlbum = chunk.every((song) => song.album === album);
+      return sameAlbum && album ? String(album) : t('comp.homeSection.cloudCard', { n: index + 1 });
+    },
+    true
+  );
+});
+
+/** 每日歌曲推荐卡 */
+const dailyCards = computed<SongListCard[]>(() =>
+  chunkCards(
+    (dailySongs.value as any[]).slice(0, 12),
+    (index) =>
+      index === 0
+        ? t('comp.homeSection.dailyBasis')
+        : t('comp.homeSection.dailyMore', { n: index + 1 }),
+    true
+  )
+);
+
+// ==================== 行为 ====================
+function onCardSongPlay(_card: SongListCard, song: CardSong) {
+  void playerCore.handlePlayMusic(normalizeSong(song.raw), true);
 }
 
-async function playSong(song: SongResult) {
-  await playerCore.handlePlayMusic(normalizeSong(song), true);
+function openCloudLibrary() {
+  router.push('/music-list/zephyrus-cloud?type=server-library');
 }
 
-async function playDailySongs() {
-  const songs = dailySongs.value.map(normalizeSong);
-  if (!songs.length) return;
-  playlistStore.setPlayList(songs, false, false);
-  await playerCore.handlePlayMusic(songs[0], true);
+function openDailyRecommend() {
+  navigateToMusicList(router, {
+    type: 'dailyRecommend',
+    name: t('comp.homeSection.dailyBasis'),
+    songList: (dailySongs.value as any[]).map(normalizeSong)
+  });
+}
+
+function openPlaylist(playlist: any) {
+  router.push(`/music-list/${playlist.id}?type=playlist`);
+}
+
+function formatPlayCount(count: number): string {
+  return new Intl.NumberFormat(undefined, { notation: 'compact' }).format(count);
 }
 
 onMounted(async () => {
   loadServerSongs()
     .then((all) => {
-      cloudSongs.value = all.slice(-5).reverse();
+      cloudSongs.value = all.slice(-12).reverse();
     })
     .catch(() => {});
   await Promise.allSettled([
     recommendStore.refreshIfStale(),
-    getPersonalizedPlaylist(8).then((response) => {
-      heroPlaylists.value = response.data?.result || [];
+    getPersonalizedPlaylist(20).then((response) => {
+      dailyPlaylists.value = response.data?.result || [];
     })
   ]);
-  cloudTimer = setInterval(rotateCloud, 5000);
-});
-
-onBeforeUnmount(() => {
-  if (cloudTimer) clearInterval(cloudTimer);
 });
 </script>
 
-<style scoped lang="scss">
+<style lang="scss" scoped>
 .mobile-home {
-  min-height: 100%;
-  padding: var(--mobile-topbar-inset) 14px 150px;
-  color: var(--m-text-primary, #20211f);
+  padding: 12px 0 8px;
 }
 
-.mode-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+.home-section {
+  margin-bottom: 6px;
 }
 
-.mode-card {
-  position: relative;
-  min-height: 112px;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  border-radius: 30px;
-  background: color-mix(in srgb, var(--accent-color, #77836e) 28%, #727873);
-  color: #fff;
-  text-align: left;
-
-  &.fm {
-    grid-row: span 2;
-    min-height: 234px;
-  }
-
-  &.random {
-    min-height: 112px;
-  }
-
-  > img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transform: scale(1.02);
-  }
-
-  .mode-shade {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, rgba(9, 14, 12, 0.05) 20%, rgba(9, 14, 12, 0.72));
-  }
-
-  .mode-copy {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    align-content: end;
-    justify-items: start;
-    gap: 3px;
-    padding: 16px;
-
-    i {
-      margin-bottom: auto;
-      color: #fff;
-      font-size: 25px;
-    }
-
-    b {
-      font-size: 18px;
-      font-weight: 750;
-    }
-
-    small {
-      color: rgba(255, 255, 255, 0.78);
-    }
-  }
-}
-
-.daily-section {
-  margin-top: 12px;
-  padding: 16px 12px 6px;
-  border: 1px solid color-mix(in srgb, var(--accent-color, #777) 22%, transparent);
-  border-radius: 30px;
-  background: color-mix(in srgb, var(--m-surface, #fff) 91%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-
-  header {
-    display: flex;
-    align-items: end;
-    justify-content: space-between;
-    margin: 0 4px 12px;
-  }
-
-  h2 {
-    margin: 2px 0 0;
-    font-size: 24px;
-    font-weight: 800;
-  }
-
-  small {
-    color: var(--m-text-secondary, #777);
-  }
-
-  header button {
-    width: 38px;
-    height: 38px;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--accent-color) 82%, #fff);
-    color: #fff;
-  }
-}
-
-.daily-empty {
-  padding: 48px 0;
-  color: var(--m-text-secondary, #777);
-  text-align: center;
-}
-
-.daily-section :deep(.home-song-card) {
-  background: transparent !important;
-}
-
-.daily-section :deep(.song-name) {
-  color: var(--m-text-primary, #20211f) !important;
-}
-
-.daily-section :deep(.artist-name),
-.daily-section :deep(.more-btn) {
-  color: var(--m-text-secondary, #777) !important;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .mode-card:active,
-  .daily-section header button:active {
-    transform: scale(0.97);
-    transition: transform 120ms ease-out;
-  }
-}
-
-/* ==================== 云端曲库轮播胶囊 ==================== */
-.cloud-marquee {
+/* 歌单推荐：变体卡横滚（封面+名字+播放数，右缘露下一张） */
+.playlist-cards {
   display: flex;
-  width: 100%;
-  align-items: center;
   gap: 12px;
-  margin-top: 14px;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--m-surface-alt, #f3f0eb) 86%, transparent);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  cursor: pointer;
-  text-align: left;
-  transition:
-    transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    border-color 160ms ease;
+  overflow-x: auto;
+  padding: 2px 16px 10px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
 
-  &:active {
-    transform: scale(0.98);
-    border-color: color-mix(in srgb, var(--accent-color, #888) 40%, transparent);
-  }
-}
-
-.cloud-marquee-cover {
-  width: 44px;
-  height: 44px;
-  flex: 0 0 44px;
-  border-radius: 50%;
-  background-color: rgba(var(--accent-color-rgb, 136, 136, 136), 0.14);
-  background-position: center;
-  background-size: cover;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
-}
-
-.cloud-marquee-copy {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  gap: 10px;
-  overflow: hidden;
-  color: var(--d-text-primary, inherit);
-
-  > i {
-    flex: none;
-    font-size: 18px;
-    color: var(--accent-color);
-  }
-}
-
-/* 两行布局：上行提示语、下行歌名+后缀，避免手机窄屏下歌名被单行挤压截断 */
-.cloud-marquee-lines {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-
-  > small {
-    overflow: hidden;
-    font-size: 11px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    color: var(--m-text-secondary, #777);
-  }
-}
-
-.cloud-marquee-name {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  gap: 4px;
-  font-size: 14px;
-  line-height: 1.25;
-
-  b {
-    min-width: 0;
-    overflow: hidden;
-    font-weight: 650;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    color: var(--accent-color);
+  &::-webkit-scrollbar {
+    display: none;
   }
 
-  .cloud-marquee-suffix {
-    flex: none;
-    font-size: 12px;
-    color: var(--m-text-secondary, #777);
-  }
-}
+  .playlist-card {
+    flex: 0 0 auto;
+    width: 132px;
+    scroll-snap-align: start;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    padding: 0;
 
-.cloud-marquee-arrow {
-  flex: none;
-  color: var(--d-text-muted, #999);
-}
+    .playlist-cover {
+      width: 132px;
+      height: 132px;
+      border-radius: 12px;
+      object-fit: cover;
+      background: rgba(128, 128, 128, 0.12);
+    }
 
-.cloud-marquee-text-enter-active,
-.cloud-marquee-text-leave-active {
-  transition:
-    opacity 260ms ease,
-    transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
-}
+    .playlist-name {
+      display: block;
+      margin-top: 7px;
+      font-size: 12.5px;
+      color: var(--d-text-primary, rgba(0, 0, 0, 0.9));
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
-.cloud-marquee-text-enter-from {
-  opacity: 0;
-  transform: translateX(10px);
-}
+    .playlist-count {
+      display: block;
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--d-text-secondary, rgba(0, 0, 0, 0.45));
+    }
 
-.cloud-marquee-text-leave-to {
-  opacity: 0;
-  transform: translateX(-10px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cloud-marquee-text-enter-active,
-  .cloud-marquee-text-leave-active {
-    transition: opacity 120ms ease;
-    transform: none;
-  }
-}
-
-/* ==================== 横屏左右布局 ==================== */
-/* 宽视口（宽高比 ≥4:3，覆盖手机横屏/平板横屏/电脑窗口）改双栏：
-   左列功能入口与云胶囊，右列每日推荐，避免上半部分组件横向拉伸过大。
-   旧条件 orientation:landscape + max-height:620px 过严，平板/电脑永不命中 */
-@media (min-aspect-ratio: 4/3) {
-  .mobile-home {
-    display: grid;
-    grid-template-columns: minmax(240px, 2fr) minmax(0, 3fr);
-    grid-template-rows: auto auto;
-    gap: 14px;
-    align-items: start;
-  }
-
-  .mode-grid {
-    grid-row: 1;
-    grid-column: 1;
-  }
-
-  .mode-card.fm {
-    min-height: 180px;
-  }
-
-  .cloud-marquee {
-    grid-row: 2;
-    grid-column: 1;
-    margin-top: 0;
-  }
-
-  .daily-section {
-    grid-row: 1 / 3;
-    grid-column: 2;
-    margin-top: 0;
-    max-height: calc(100vh - var(--mobile-topbar-inset, 0px) - 170px);
-    overflow-y: auto;
+    &:active .playlist-cover {
+      transform: scale(0.98);
+    }
   }
 }
 </style>

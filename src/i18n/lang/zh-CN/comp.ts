@@ -123,6 +123,12 @@ export default {
     songs: '首',
     playNow: '立即播放',
     intelligenceMode: '心动模式',
+    greetingMorning: '早上好',
+    greetingNoon: '中午好',
+    greetingAfternoon: '下午好',
+    greetingEvening: '晚上好',
+    heartPlaying: '心动模式播放中',
+    wishes: ['今天也要听点好歌', '愿音乐常伴你左右', '新的一天从好歌开始', '戴上耳机，世界是你的', '今日份的好歌已就位'],
     intelligenceModeOn: '心动中',
     intelligenceModeDesc: '开启智能推荐播放',
     intelligenceModeActiveDesc: '根据你的喜好智能推荐',
@@ -200,6 +206,21 @@ export default {
   },
   userPlayList: {
     title: '{name}的常听'
+  },
+  homeSection: {
+    guestName: '音乐爱好者',
+    listenStats: '听歌统计',
+    heatmapMeta: '共 {total} 次 · 活跃 {days} 天',
+    heatmapLess: '少',
+    heatmapMore: '多',
+    detail: '详情',
+    cloudCard: 'Zephyrus 云 · {n}',
+    dailyBasis: '根据你喜爱的歌曲推荐',
+    dailyMore: '继续推荐 {n}'
+  },
+  homeBadge: {
+    lossless: '无损',
+    niche: '小众推荐'
   },
   musicList: {
     searchSongs: '搜索歌曲',

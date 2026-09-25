@@ -129,6 +129,12 @@ export default {
     songs: 'Songs',
     playNow: 'Play Now',
     intelligenceMode: 'Intelligence Mode',
+    greetingMorning: 'Good morning',
+    greetingNoon: 'Good midday',
+    greetingAfternoon: 'Good afternoon',
+    greetingEvening: 'Good evening',
+    heartPlaying: 'Heart mode playing',
+    wishes: ['Time for some good music', 'May music stay with you', 'Start the day with a great song', 'Headphones on — the world is yours', 'Today’s picks are ready'],
     intelligenceModeOn: 'On Air',
     intelligenceModeDesc: 'Start smart recommendation',
     intelligenceModeActiveDesc: 'Smart recommendations based on your taste',
@@ -206,6 +212,21 @@ export default {
   },
   userPlayList: {
     title: "{name}'s Playlist"
+  },
+  homeSection: {
+    guestName: 'Music lover',
+    listenStats: 'Listening stats',
+    heatmapMeta: '{total} plays · {days} active days',
+    heatmapLess: 'Less',
+    heatmapMore: 'More',
+    detail: 'Detail',
+    cloudCard: 'Zephyrus Cloud · {n}',
+    dailyBasis: 'Based on your favorites',
+    dailyMore: 'More picks {n}'
+  },
+  homeBadge: {
+    lossless: 'Lossless',
+    niche: 'Hidden gem'
   },
   musicList: {
     searchSongs: 'Search Songs',

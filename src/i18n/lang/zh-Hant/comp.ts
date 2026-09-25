@@ -123,6 +123,12 @@ export default {
     songs: '首',
     playNow: '立即播放',
     intelligenceMode: '心動模式',
+    greetingMorning: '早安',
+    greetingNoon: '午安',
+    greetingAfternoon: '午後好',
+    greetingEvening: '晚安',
+    heartPlaying: '心動模式播放中',
+    wishes: ['今天也要聽點好歌', '願音樂常伴你左右', '新的一天從好歌開始', '戴上耳機，世界是你的', '今日份的好歌已就位'],
     intelligenceModeOn: '心動中',
     intelligenceModeDesc: '開啟智慧推薦播放',
     intelligenceModeActiveDesc: '根據你的喜好智慧推薦',
@@ -200,6 +206,21 @@ export default {
   },
   userPlayList: {
     title: '{name}的常聽'
+  },
+  homeSection: {
+    guestName: '音樂愛好者',
+    listenStats: '聽歌統計',
+    heatmapMeta: '共 {total} 次 · 活躍 {days} 天',
+    heatmapLess: '少',
+    heatmapMore: '多',
+    detail: '詳情',
+    cloudCard: 'Zephyrus 雲 · {n}',
+    dailyBasis: '根據你喜愛的歌曲推薦',
+    dailyMore: '繼續推薦 {n}'
+  },
+  homeBadge: {
+    lossless: '無損',
+    niche: '小眾推薦'
   },
   musicList: {
     searchSongs: '搜尋歌曲',
