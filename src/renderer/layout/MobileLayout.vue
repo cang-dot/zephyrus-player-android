@@ -1559,12 +1559,12 @@ onBeforeUnmount(() => {
   }
 
   :deep(.mobile-play-bar.play-bar-mini.is-menu-show) {
-    position: absolute !important;
+    position: fixed !important;
     top: auto !important;
-    right: 6px;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 74px) !important;
-    left: 6px !important;
-    width: calc(100% - 12px) !important;
+    right: 12px;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 76px) !important;
+    left: 12px !important;
+    width: auto !important;
     height: 54px;
     border-radius: 27px;
     background: var(--m-surface-container, var(--m-card));
