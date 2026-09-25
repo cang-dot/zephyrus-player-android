@@ -3273,6 +3273,10 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   background: rgba(var(--page-chrome-ink-rgb, 128, 128, 128), 0.12);
   border-color: rgba(var(--page-chrome-ink-rgb, 128, 128, 128), 0.14);
   color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+  transition:
+    background-color 480ms ease,
+    border-color 480ms ease,
+    color 480ms ease;
 }
 
 .topbar-plain-actions {

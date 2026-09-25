@@ -674,6 +674,10 @@ watch(
      表面/墨色/主题文字变量一并覆盖——mini-song-title 等用的是 --m-text-*，
      不覆盖的话浅色主题值会把文字强制成黑色。 */
   &.play-bar-mini:not(.playlist-open) .mobile-mini-controls {
+    transition:
+      background-color 480ms ease,
+      border-color 480ms ease,
+      color 480ms ease;
     background: color-mix(
       in srgb,
       var(--page-chrome-bg, var(--m-surface-container-high, var(--m-card))) 84%,

@@ -210,7 +210,7 @@ import { SongResult } from '@/types/music';
 import type { PosterSubject } from '@/types/share';
 import { calculateAnimationDelay, getImgUrl, isMobile } from '@/utils';
 import { getLoginErrorMessage, hasPermission } from '@/utils/auth';
-import { getPageChromeForCover, pageChromeVariables } from '@/utils/pageChrome';
+import { fallbackPageChrome, getPageChromeForCover, pageChromeVariables } from '@/utils/pageChrome';
 import {
   getMissingTrackIds,
   isSameMusicListSource,
@@ -854,6 +854,13 @@ const getCoverImgUrl = computed(() => {
 const pageRootRef = ref<HTMLElement | null>(null);
 
 const applyPageChrome = async () => {
+  // 先同步铺一层兜底底色（进入即无闪烁），真实封面取色到达后由 CSS transition 渐变
+  if (pageRootRef.value && !pageRootRef.value.style.getPropertyValue('--page-chrome-bg')) {
+    const fallbackVars = pageChromeVariables(fallbackPageChrome());
+    for (const [key, value] of Object.entries(fallbackVars)) {
+      pageRootRef.value.style.setProperty(key, value);
+    }
+  }
   const chrome = await getPageChromeForCover(getCoverImgUrl.value);
   const vars = pageChromeVariables(chrome);
   const apply = (el: HTMLElement | null) => {
@@ -2125,7 +2132,9 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
 /* ==================== Apple Music 风格 hero（后置覆盖 legacy 同名规则） ==================== */
 .music-list-page {
-  background: var(--page-chrome-bg, var(--m-bg, var(--bg-color)));
+  /* 进页/取色到达时底色渐变过渡，而不是硬切 */
+  background-color: var(--page-chrome-bg, var(--m-bg, var(--bg-color)));
+  transition: background-color 480ms ease;
   color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.94);
 }
 

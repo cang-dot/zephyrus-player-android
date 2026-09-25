@@ -336,6 +336,11 @@ const playReturnFlight = () => {
       : null
   ) as HTMLElement | null;
   if (!el) return;
+  // 目标卡片若在视口外，先滚到可见，否则飞回根本看不到
+  const initial = el.getBoundingClientRect();
+  if (initial.bottom <= 0 || initial.top >= window.innerHeight) {
+    el.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }
   const rect = el.getBoundingClientRect();
   if (!rect.width || !src.w) return;
   const scale = Math.max(0.05, src.w / rect.width);
@@ -344,15 +349,19 @@ const playReturnFlight = () => {
   el.style.transition = 'none';
   el.style.transformOrigin = 'center';
   el.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
-  el.style.zIndex = '5';
+  el.style.zIndex = '30';
+  el.style.boxShadow = '0 18px 44px rgba(0, 0, 0, 0.35)';
+  el.style.borderRadius = '14px';
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      el.style.transition = 'transform 420ms cubic-bezier(0.32, 0.72, 0, 1)';
+      el.style.transition = 'transform 560ms cubic-bezier(0.22, 1, 0.36, 1)';
       el.style.transform = '';
       setTimeout(() => {
         el.style.transition = '';
         el.style.zIndex = '';
-      }, 480);
+        el.style.boxShadow = '';
+        el.style.borderRadius = '';
+      }, 600);
     });
   });
 };
@@ -361,8 +370,8 @@ watch(
   () => route.path,
   (path) => {
     if (path === '/list') {
-      void nextTick(playReturnFlight);
       applyPendingMru();
+      window.setTimeout(playReturnFlight, 140);
     }
   }
 );
@@ -370,7 +379,7 @@ watch(
 onMounted(() => {
   void ensureSourcesLoaded();
   window.addEventListener('zephyrus:cover-flight-end', applyPendingMru);
-  void nextTick(playReturnFlight);
+  window.setTimeout(playReturnFlight, 140);
 });
 
 onBeforeUnmount(() => {
