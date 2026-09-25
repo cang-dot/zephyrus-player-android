@@ -121,7 +121,15 @@
 
 <script lang="ts" setup>
 import { useMessage } from 'naive-ui';
-import { computed, defineAsyncComponent, nextTick, onMounted, ref, watch } from 'vue';
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch
+} from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { fetchPlatformAccountData } from '@/api/platformQrApi';
@@ -310,8 +318,64 @@ async function ensureSourcesLoaded() {
   );
 }
 
+/** 详情页关闭后：卡片从 hero 封面位置飞回自己（可能已重排的）槽位 */
+const playReturnFlight = () => {
+  const raw = sessionStorage.getItem('musicListCoverReturn');
+  if (!raw) return;
+  sessionStorage.removeItem('musicListCoverReturn');
+  if (prefersReducedMotion()) return;
+  let src: { x: number; y: number; w: number; h: number; key?: string };
+  try {
+    src = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  const el = (
+    src.key
+      ? document.querySelector(`.cover-card[data-key="${CSS.escape(String(src.key))}"] .cover-img`)
+      : null
+  ) as HTMLElement | null;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  if (!rect.width || !src.w) return;
+  const scale = Math.max(0.05, src.w / rect.width);
+  const dx = src.x + src.w / 2 - (rect.x + rect.width / 2);
+  const dy = src.y + src.h / 2 - (rect.y + rect.height / 2);
+  el.style.transition = 'none';
+  el.style.transformOrigin = 'center';
+  el.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+  el.style.zIndex = '5';
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      el.style.transition = 'transform 420ms cubic-bezier(0.32, 0.72, 0, 1)';
+      el.style.transform = '';
+      setTimeout(() => {
+        el.style.transition = '';
+        el.style.zIndex = '';
+      }, 480);
+    });
+  });
+};
+
+watch(
+  () => route.path,
+  (path) => {
+    if (path === '/list') {
+      void nextTick(playReturnFlight);
+      applyPendingMru();
+    }
+  }
+);
+
 onMounted(() => {
   void ensureSourcesLoaded();
+  window.addEventListener('zephyrus:cover-flight-end', applyPendingMru);
+  void nextTick(playReturnFlight);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('zephyrus:cover-flight-end', applyPendingMru);
+  if (pendingMruTimer) clearTimeout(pendingMruTimer);
 });
 
 watch(
@@ -515,9 +579,24 @@ const onSourceFilterChange = async (next: string | number) => {
   }
 };
 
+// 打开详情时挂起的 MRU 变更：等封面飞入动画结束再应用，
+// 否则卡片先重排、而飞入动画还停在原位置，视觉脱节
+let pendingMruItem: any = null;
+let pendingMruTimer: ReturnType<typeof setTimeout> | null = null;
+
+const applyPendingMru = () => {
+  if (pendingMruTimer) {
+    clearTimeout(pendingMruTimer);
+    pendingMruTimer = null;
+  }
+  if (!pendingMruItem) return;
+  touchCardMru(pendingMruItem);
+  pendingMruItem = null;
+};
+
 const handleItemClick = (item: any) => {
-  touchCardMru(item);
   if (item.isLocal) {
+    touchCardMru(item);
     router.push('/local-music');
     return;
   }
@@ -532,8 +611,20 @@ const handleItemClick = (item: any) => {
     const rect = cardImg.getBoundingClientRect();
     sessionStorage.setItem(
       'musicListCoverRect',
-      JSON.stringify({ x: rect.x, y: rect.y, w: rect.width, h: rect.height })
+      JSON.stringify({
+        x: rect.x,
+        y: rect.y,
+        w: rect.width,
+        h: rect.height,
+        key: cardKey(item)
+      })
     );
+    pendingMruItem = item;
+    if (pendingMruTimer) clearTimeout(pendingMruTimer);
+    // 兜底：详情页异常未回事件时也能落地（动画 420ms + 余量）
+    pendingMruTimer = setTimeout(applyPendingMru, 1500);
+  } else {
+    touchCardMru(item);
   }
 
   const sourceId = String(

@@ -1426,21 +1426,36 @@ watch(
 );
 
 // ==================== 封面飞入过渡：列表页卡片 → hero ====================
+/** 本次进入的源卡片 key：关闭时据此把封面飞回列表页（含重排后的新位置） */
+let enterCoverKey = '';
+let enterFlightTimer: ReturnType<typeof setTimeout> | null = null;
+
+const notifyEnterFlightEnd = () => {
+  // 列表页收到后才会应用 MRU 重排——避免卡片先移走、动画还停在原地
+  window.dispatchEvent(new Event('zephyrus:cover-flight-end'));
+};
+
 const playCoverEnterTransition = () => {
   const raw = sessionStorage.getItem('musicListCoverRect');
   if (!raw) return;
   sessionStorage.removeItem('musicListCoverRect');
-  if (prefersReducedMotion()) return;
-  const cover = pageRootRef.value?.querySelector<HTMLElement>('.hero-cover');
-  if (!cover) return;
-  let src: { x: number; y: number; w: number; h: number };
+  let src: { x: number; y: number; w: number; h: number; key?: string };
   try {
     src = JSON.parse(raw);
   } catch {
     return;
   }
+  enterCoverKey = src.key || '';
+  const cover = pageRootRef.value?.querySelector<HTMLElement>('.hero-cover');
+  if (!cover || prefersReducedMotion()) {
+    notifyEnterFlightEnd();
+    return;
+  }
   const rect = cover.getBoundingClientRect();
-  if (!rect.width || !src.w) return;
+  if (!rect.width || !src.w) {
+    notifyEnterFlightEnd();
+    return;
+  }
   const scale = Math.max(0.05, src.w / rect.width);
   const dx = src.x + src.w / 2 - (rect.x + rect.width / 2);
   const dy = src.y + src.h / 2 - (rect.y + rect.height / 2);
@@ -1455,6 +1470,7 @@ const playCoverEnterTransition = () => {
       cover.style.opacity = '';
     });
   });
+  enterFlightTimer = setTimeout(notifyEnterFlightEnd, 460);
 };
 
 // hero 进入即渲染：挂载后立刻播封面飞入（不再等接口返回，避免与骨架屏脱节）
@@ -1479,6 +1495,28 @@ onMounted(() => {
 onBeforeUnmount(() => {
   unregisterMobileTopbarAction(`${topbarActionPrefix}-poster`);
   unregisterMobileTopbarAction(`${topbarActionPrefix}-more`);
+  if (enterFlightTimer) clearTimeout(enterFlightTimer);
+  // 关闭回程动画：记录 hero 封面此刻的屏幕矩形，列表页据 key 飞回（重排后的）卡片位
+  if (enterCoverKey) {
+    const cover = pageRootRef.value?.querySelector<HTMLElement>('.hero-cover');
+    const rect = cover?.getBoundingClientRect();
+    if (rect && rect.width > 0) {
+      try {
+        sessionStorage.setItem(
+          'musicListCoverReturn',
+          JSON.stringify({
+            x: rect.x,
+            y: rect.y,
+            w: rect.width,
+            h: rect.height,
+            key: enterCoverKey
+          })
+        );
+      } catch {
+        /* 忽略持久化失败 */
+      }
+    }
+  }
   const layout = document.getElementById('layout-main');
   if (layout) {
     layout.style.removeProperty('--page-chrome-bg');
