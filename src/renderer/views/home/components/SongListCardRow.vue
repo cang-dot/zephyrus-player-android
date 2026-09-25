@@ -123,11 +123,18 @@ const { t } = useI18n();
 }
 
 /* 单卡内部横滑：3 行一屏，所有歌曲在卡内左右滑动 */
+/* 单卡内部横滑：3 行一屏；组宽 = 卡内宽 - 56px，右缘露出下一组首格封面 */
+.song-card.internal {
+  /* 加宽到屏幕宽度（左右各留 16px 页边距；外层轨道已通栏 + 16px 内边距） */
+  width: calc(100vw - 32px);
+}
+
 .song-card-rows.internal-scroll {
   display: grid;
   grid-auto-flow: column;
   grid-template-rows: repeat(3, auto);
-  grid-auto-columns: 100%;
+  grid-auto-columns: calc(100% - 56px);
+  column-gap: 14px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
@@ -139,7 +146,21 @@ const { t } = useI18n();
 
   .card-song-row {
     scroll-snap-align: start;
-    padding: 6px;
+    padding: 7px 6px;
+  }
+
+  /* 内滑模式下歌曲项加宽 */
+  .card-song-cover {
+    width: 48px;
+    height: 48px;
+  }
+
+  .card-song-name {
+    font-size: 14px;
+  }
+
+  .card-song-artist {
+    font-size: 12px;
   }
 }
 
