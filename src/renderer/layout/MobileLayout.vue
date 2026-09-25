@@ -1438,7 +1438,7 @@ onBeforeUnmount(() => {
   }
 
   &.visible {
-    height: 54px;
+    height: 72px;
     pointer-events: auto;
   }
 
@@ -1489,8 +1489,8 @@ onBeforeUnmount(() => {
   }
 
   &.visible.player-open {
-    height: 54px;
-    border-radius: 30px;
+    height: 72px;
+    border-radius: 36px;
   }
 
   &.playlist-open {
