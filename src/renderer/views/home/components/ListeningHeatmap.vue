@@ -123,18 +123,17 @@ const ariaLabel = computed(() =>
   display: flex;
   gap: 3px;
 
-  /* 列均分撑满整幅宽度：已有数据之前是完整空白补位 */
+  /* 完整 16 周网格：已有数据之前是空白补位；固定小格样式 */
   .heatmap-column {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    flex: 1;
-    min-width: 0;
+    flex-shrink: 0;
   }
 
   .heatmap-cell {
-    width: 100%;
-    aspect-ratio: 1;
+    width: 11px;
+    height: 11px;
     border-radius: 3px;
     background: rgba(128, 128, 128, 0.14);
   }

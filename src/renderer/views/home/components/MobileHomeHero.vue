@@ -9,8 +9,6 @@
       "
       aria-hidden="true"
     />
-    <!-- 遮罩：保证文字可读 -->
-    <div class="hero-shade" aria-hidden="true" />
     <div v-if="isHeartMode" class="hero-blur" aria-hidden="true" />
 
     <div class="hero-content">
@@ -115,24 +113,6 @@ onMounted(() => {
 }
 
 /* 遮罩：左侧文字可读，整体压暗，底部加重 */
-.hero-shade {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(
-      to top,
-      rgba(0, 0, 0, 0.72) 0%,
-      rgba(0, 0, 0, 0.18) 46%,
-      rgba(0, 0, 0, 0.2) 100%
-    ),
-    linear-gradient(
-      to right,
-      rgba(0, 0, 0, 0.5) 0%,
-      rgba(0, 0, 0, 0.1) 46%,
-      rgba(0, 0, 0, 0.42) 100%
-    );
-  pointer-events: none;
-}
 
 /* 右侧加重模糊（按钮区），向左过渡为透明 */
 .hero-blur {
