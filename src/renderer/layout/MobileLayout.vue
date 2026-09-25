@@ -34,7 +34,7 @@
       @touchmove="onContentTouchMove"
     >
       <!-- Tab pager：四页常驻（首次激活挂载），横滑时当前页与相邻页 1:1 双页跟手 -->
-      <div v-show="isBottomMenuRoute" class="tab-pager">
+      <div v-show="isBottomMenuRoute || pagerBridgeVisible" class="tab-pager">
         <div
           v-for="(tab, index) in menuStore.menus"
           :key="tab.path"
@@ -50,7 +50,11 @@
       <!-- 二级页（非底栏路由） -->
       <div v-if="!isBottomMenuRoute && !backgroundUnmounted" class="secondary-page-host">
         <router-view v-slot="{ Component }">
-          <Transition :name="pageTransitionName" :css="!gestureNavigationInProgress">
+          <Transition
+            :name="pageTransitionName"
+            :css="!gestureNavigationInProgress"
+            @after-enter="pagerBridgeVisible = false"
+          >
             <keep-alive :include="keepAliveInclude">
               <component :is="Component" />
             </keep-alive>
@@ -421,6 +425,18 @@ const miniPlayerIdleCollapsed = ref(false);
 const playlistSurfaceMounted = ref(false);
 const playlistSurfaceExpanded = ref(false);
 const gestureNavigationInProgress = ref(false);
+// 离开底栏页时保留列表页垫在下面：二级页淡入/滑入期间也能看到身后的列表（背景渐变过渡）
+const pagerBridgeVisible = ref(false);
+watch(
+  () => route.path,
+  (path, previous) => {
+    const isBottomPath = (value?: string) =>
+      Boolean(value) && menuStore.menus.some((item: any) => item.path === value);
+    if (isBottomPath(previous) && !isBottomPath(path)) pagerBridgeVisible.value = true;
+    else if (isBottomPath(path)) pagerBridgeVisible.value = false;
+  }
+);
+
 const pageTransitionName = computed(() =>
   pageTransitionDirection.value ? `page-slide-${pageTransitionDirection.value}` : 'page-fade'
 );

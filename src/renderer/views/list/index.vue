@@ -330,12 +330,31 @@ const playReturnFlight = () => {
   } catch {
     return;
   }
-  const el = (
-    src.key
-      ? document.querySelector(`.cover-card[data-key="${CSS.escape(String(src.key))}"] .cover-img`)
-      : null
-  ) as HTMLElement | null;
+  const findEl = () =>
+    (src.key
+      ? document.querySelector(`.cover-card[data-key="${CSS.escape(String(src.key))}"] .cover-wrap`)
+      : null) as HTMLElement | null;
+  let el = findEl();
   if (!el) return;
+  // 等元素可见（返回瞬间可能仍在 leave 过渡或未布局），最多等约 0.7s
+  let attempts = 0;
+  if (el.getBoundingClientRect().width <= 0 && attempts < 42) {
+    const retry = () => {
+      attempts += 1;
+      const next = findEl();
+      if (next && next.getBoundingClientRect().width > 0) {
+        runReturnFlight(next, src);
+      } else if (attempts < 42) {
+        requestAnimationFrame(retry);
+      }
+    };
+    requestAnimationFrame(retry);
+    return;
+  }
+  runReturnFlight(el, src);
+};
+
+const runReturnFlight = (el: HTMLElement, src: { x: number; y: number; w: number; h: number }) => {
   // 目标卡片若在视口外，先滚到可见，否则飞回根本看不到
   const initial = el.getBoundingClientRect();
   if (initial.bottom <= 0 || initial.top >= window.innerHeight) {
@@ -351,7 +370,6 @@ const playReturnFlight = () => {
   el.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
   el.style.zIndex = '30';
   el.style.boxShadow = '0 18px 44px rgba(0, 0, 0, 0.35)';
-  el.style.borderRadius = '14px';
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       el.style.transition = 'transform 560ms cubic-bezier(0.22, 1, 0.36, 1)';
@@ -360,7 +378,6 @@ const playReturnFlight = () => {
         el.style.transition = '';
         el.style.zIndex = '';
         el.style.boxShadow = '';
-        el.style.borderRadius = '';
       }, 600);
     });
   });
@@ -371,7 +388,7 @@ watch(
   (path) => {
     if (path === '/list') {
       applyPendingMru();
-      window.setTimeout(playReturnFlight, 140);
+      window.setTimeout(playReturnFlight, 200);
     }
   }
 );
@@ -379,7 +396,7 @@ watch(
 onMounted(() => {
   void ensureSourcesLoaded();
   window.addEventListener('zephyrus:cover-flight-end', applyPendingMru);
-  window.setTimeout(playReturnFlight, 140);
+  window.setTimeout(playReturnFlight, 200);
 });
 
 onBeforeUnmount(() => {
