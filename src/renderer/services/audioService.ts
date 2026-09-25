@@ -3,6 +3,7 @@ import { Howl, Howler } from 'howler';
 import type { AudioOutputDevice } from '@/types/audio';
 import type { SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
+import { isIosSafari } from '@/utils/platform';
 import {
   type SeekPlaybackSnapshot,
   shouldRestorePlayback,
@@ -50,6 +51,10 @@ class AudioService {
   private adaptiveEqIntensity = Number(localStorage.getItem('adaptiveEqIntensity') || 0.65);
 
   private bypass = false;
+  /** iOS 专用：静音镜像元素与其监听清理（它承担分析图输入，出声元素保持未接图） */
+  private analysisMirror: HTMLAudioElement | null = null;
+  private analysisMirrorCleanup: (() => void) | null = null;
+  private analysisMirrorTimer: number | null = null;
 
   private playbackRate = 1.0; // 添加播放速度属性
 
@@ -128,6 +133,10 @@ class AudioService {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         this.syncPlaybackStateFromElement();
+        // 回前台：镜像重新对齐（后台期间已暂停，省电且避免抢占 iOS 媒体会话）
+        this.syncAnalysisMirror();
+      } else {
+        this.analysisMirror?.pause();
       }
       this.resumeSuspendedContext();
     });
@@ -512,6 +521,91 @@ class AudioService {
     });
   }
 
+  /**
+   * iOS 专用：确保存在一个与出声元素同步的静音镜像元素，用作分析图输入。
+   * 元素只创建一次（createMediaElementSource 与元素一一绑定且不可逆），换歌时只换 src。
+   */
+  private ensureAnalysisMirror(audioNode: HTMLMediaElement): HTMLAudioElement {
+    const src = audioNode.currentSrc || audioNode.src;
+    if (this.analysisMirror) {
+      const mirror = this.analysisMirror;
+      mirror.pause();
+      if (src && mirror.src !== src) mirror.src = src;
+      this.syncAnalysisMirror();
+      return mirror;
+    }
+
+    const mirror = document.createElement('audio');
+    mirror.muted = true;
+    mirror.volume = 0;
+    mirror.preload = 'auto';
+    mirror.setAttribute('playsinline', '');
+    mirror.crossOrigin = 'anonymous';
+    if (src) mirror.src = src;
+    mirror.style.cssText =
+      'position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none';
+    document.body.appendChild(mirror);
+    this.analysisMirror = mirror;
+
+    const follow = () => this.syncAnalysisMirror();
+    const onPause = () => mirror.pause();
+    audioNode.addEventListener('play', follow);
+    audioNode.addEventListener('playing', follow);
+    audioNode.addEventListener('seeked', follow);
+    audioNode.addEventListener('pause', onPause);
+    this.analysisMirrorCleanup = () => {
+      audioNode.removeEventListener('play', follow);
+      audioNode.removeEventListener('playing', follow);
+      audioNode.removeEventListener('seeked', follow);
+      audioNode.removeEventListener('pause', onPause);
+    };
+
+    // 漂移兜底：高倍速/长时间播放时定期对齐
+    this.analysisMirrorTimer = window.setInterval(() => this.syncAnalysisMirror(), 3000);
+    this.syncAnalysisMirror();
+    return mirror;
+  }
+
+  /** 把镜像对齐到当前出声元素（暂停态只同步位置；播放态对齐后继续播） */
+  private syncAnalysisMirror() {
+    const mirror = this.analysisMirror;
+    if (!mirror) return;
+    const main = this.currentSound as unknown as { _sounds?: Array<{ _node?: HTMLMediaElement }> } | null;
+    const audioNode = main?._sounds?.[0]?._node;
+    if (!audioNode) return;
+    try {
+      mirror.playbackRate = audioNode.playbackRate || 1;
+      if (Math.abs(mirror.currentTime - audioNode.currentTime) > 0.25) {
+        mirror.currentTime = audioNode.currentTime;
+      }
+      if (audioNode.paused) mirror.pause();
+      else void mirror.play().catch(() => {});
+    } catch {
+      // 元素尚未可播时忽略
+    }
+  }
+
+  /** 释放镜像元素（上下文关闭或停止播放时） */
+  private releaseAnalysisMirror() {
+    this.analysisMirrorCleanup?.();
+    this.analysisMirrorCleanup = null;
+    if (this.analysisMirrorTimer !== null) {
+      clearInterval(this.analysisMirrorTimer);
+      this.analysisMirrorTimer = null;
+    }
+    const mirror = this.analysisMirror;
+    this.analysisMirror = null;
+    if (!mirror) return;
+    try {
+      mirror.pause();
+      mirror.removeAttribute('src');
+      mirror.load();
+    } catch {
+      // 元素已销毁时忽略
+    }
+    mirror.remove();
+  }
+
   private async disposeEQ(keepContext = false) {
     try {
       // 断开高潮检测器和鼓点检测器
@@ -542,6 +636,8 @@ class AudioService {
 
       // 如果不需要保持上下文，则关闭它
       if (!keepContext && this.context) {
+        // 上下文关闭后镜像元素的 MediaElementSource 失效，一并释放（下首歌重建）
+        this.releaseAnalysisMirror();
         try {
           await this.context.close();
           this.context = null;
@@ -728,6 +824,12 @@ class AudioService {
         throw new Error('无法获取音频元素节点');
       }
 
+      // iOS：出声元素绝不能接进 Web Audio 图——页面进后台时系统会挂起 AudioContext，
+      // 接了图就等于没声音（且 MediaElementSource 不可逆）。改用**静音镜像元素**接图，
+      // 分析与视觉响应照常；出声仍走未接图的 Howler 元素，从而保住后台播放。
+      // 其他平台维持原样（出声元素接图，EQ 生效）。
+      const analyzedNode = isIosSafari() ? this.ensureAnalysisMirror(audioNode) : audioNode;
+
       this.context = Howler.ctx as AudioContext;
       if (!this.context || this.context.state === 'closed') {
         Howler.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -751,12 +853,14 @@ class AudioService {
       // Howler 跨曲复用 html5 元素，crossfade 也会先给新元素建源，
       // 这里再建一次会抛 InvalidStateError（表现为退化成直通播放、失去鼓点/频谱）。
       // 复用同上下文已存在的源节点即可，图连接仍然整套重建。
-      const existingSource = (audioNode as any).source as MediaElementAudioSourceNode | undefined;
+      const existingSource = (analyzedNode as any).source as
+        | MediaElementAudioSourceNode
+        | undefined;
       if (existingSource?.context === this.context) {
         this.source = existingSource;
       } else {
-        this.source = this.context.createMediaElementSource(audioNode);
-        (audioNode as any).source = this.source;
+        this.source = this.context.createMediaElementSource(analyzedNode);
+        (analyzedNode as any).source = this.source;
       }
 
       const gainNode = this.context.createGain();

@@ -686,6 +686,9 @@ watch(
     box-shadow: var(--m-elevation-2);
     color: rgba(var(--mini-ink-rgb), 0.92);
     --m-text-primary: rgba(var(--mini-ink-rgb), 0.92);
+    /* 列表按钮（.mini-list-icon）用的是 --m-text-secondary：必须一并覆盖，
+       否则 chrome 暗色页面上按钮仍是浅色主题的近黑，看不见 */
+    --m-text-secondary: rgba(var(--mini-ink-rgb), 0.72);
     --m-text-muted: rgba(var(--mini-ink-rgb), 0.55);
     --d-text-primary: rgba(var(--mini-ink-rgb), 0.92);
     --d-text-secondary: rgba(var(--mini-ink-rgb), 0.55);

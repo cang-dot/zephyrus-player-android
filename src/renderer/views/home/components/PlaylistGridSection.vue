@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import { getPersonalizedPlaylist } from '@/api/home';
+import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import { beginPlaylistOpen } from '@/composables/usePlaylistOpenTransition';
 import { getImgUrl } from '@/utils';
 
@@ -28,7 +29,13 @@ function open(item: RecommendedPlaylist, event?: MouseEvent) {
     rect: rect ? { x: rect.x, y: rect.y, w: rect.width, h: rect.height } : null,
     coverUrl: item.picUrl
   });
-  router.push(`/music-list/${item.id}?type=playlist`);
+  // 与歌单库页同一套预填充：写好列表信息，歌单页 hero 首帧即可渲染（无骨架）
+  navigateToMusicList(router, {
+    id: item.id,
+    type: 'playlist',
+    name: item.name,
+    listInfo: item
+  });
 }
 
 onMounted(async () => {

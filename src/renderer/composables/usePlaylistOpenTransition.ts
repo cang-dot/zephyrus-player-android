@@ -1,17 +1,18 @@
 /**
- * 歌单跳转过渡（首页/发现页/云卡 → 歌单页）单例。
+ * 歌单跳转过渡（首页/发现页/云卡 → 歌单页，以及返回）单例。
  *
- * 点击卡片后立刻做两件事：
- * 1) 把目标歌单的 chrome 底色写进 #layout-main 与 :root —— 歌单页自身的
- *    `background-color 480ms` 过渡因此从点击瞬间起跑，与覆盖层同步收敛；
- * 2) 显示覆盖层：底色块从卡片矩形扩展并变色到全屏、封面克隆同步放大，
- *    歌单页挂载后由 `resolve(heroRect)` 把封面克隆对齐到真实 hero 再淡出交接。
+ * 去程：点击卡片后立刻把目标歌单的 chrome 底色写进 #layout-main 与 :root
+ * （歌单页自身的 `background-color 480ms` 因此从点击瞬间起跑、与覆盖层同步收敛），
+ * 覆盖层底色块从卡片矩形扩展并变色到全屏、封面克隆放大到 hero；
+ * 歌单页挂载后由 `resolvePlaylistOpen(heroRect)` 对齐并淡出。
  *
- * 降级：`prefers-reduced-motion: reduce`、拿不到卡片矩形、非浏览器环境时返回 false，
- * 调用方照常 router.push（沿用既有二级页过渡）。
- * 由 MobileLayout 渲染覆盖层，MusicListPage 负责 resolve。
+ * 回程：`beginPlaylistOpenReturn()` 由歌单页卸载前调用——底色块从全屏收缩回
+ * 记住的源卡片矩形再淡出，与去程镜像。
+ *
+ * 降级：`prefers-reduced-motion: reduce`、拿不到卡片矩形、非浏览器环境返回 false，
+ * 调用方照常路由跳转（沿用既有二级页过渡）。
  */
-import { computed, ref, shallowRef } from 'vue';
+import { computed, nextTick, ref, shallowRef } from 'vue';
 
 import { getImgUrl } from '@/utils';
 import {
@@ -38,28 +39,43 @@ export interface PlaylistOpenSource {
   color?: string;
 }
 
-/** 底色块扩展时长 */
+interface LayerState {
+  rect: TransitionRect;
+  radius: number;
+}
+
+/** 底色块扩展/收缩时长 */
 export const PLAYLIST_OPEN_EXPAND_MS = 360;
 /** 交接对齐时长 */
 const ALIGN_MS = 140;
 /** 覆盖层淡出时长 */
 const FADE_MS = 200;
-const FALLBACK_RADIUS = 24;
+const CARD_RADIUS = 20;
 
 const phase = ref<'idle' | 'expanding' | 'fadeout'>('idle');
-const sourceRect = shallowRef<TransitionRect | null>(null);
+const startLayer = shallowRef<LayerState | null>(null);
+const endLayer = shallowRef<LayerState | null>(null);
 const heroRect = shallowRef<TransitionRect | null>(null);
 const coverUrl = ref('');
+const bgColor = ref('');
 const reveal = ref(false);
 
+/** 记住去程的源矩形与最终底色，供回程镜像使用 */
+let lastRect: TransitionRect | null = null;
+let lastColor = '';
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const viewport = () => ({ w: window.innerWidth, h: window.innerHeight });
+const viewportRect = (): TransitionRect => ({
+  x: 0,
+  y: 0,
+  w: window.innerWidth,
+  h: window.innerHeight
+});
 
-/** 目标 chrome 变量写到布局根与 :root（歌单页同样写这三处，保证同源） */
+/** 目标 chrome 变量写到布局根与 :root（歌单页自己也会写这三处，保证同源） */
 function applyChromeToLayout(chrome: PageChrome) {
   const vars = pageChromeVariables(chrome);
   const targets = [document.getElementById('layout-main'), document.documentElement];
@@ -67,61 +83,73 @@ function applyChromeToLayout(chrome: PageChrome) {
     if (!el) return;
     Object.entries(vars).forEach(([name, value]) => el.style.setProperty(name, value));
   });
+  return vars['--page-chrome-bg'] ?? '';
 }
 
-/** 覆盖层底色块：卡片矩形 → 全屏（scale 展开，圆角同步收到 0） */
+/** 遮罩带参数由「起止层」决定：去程卡片→全屏，回程全屏→卡片 */
+function assignLayers(start: LayerState, end: LayerState) {
+  startLayer.value = start;
+  endLayer.value = end;
+}
+
+/** 下一帧揭示目标态；不依赖 phase（极快交接也要把目标态上屏），隐藏页用定时器兜底 */
+function scheduleReveal() {
+  const flip = () => {
+    if (phase.value !== 'idle') reveal.value = true;
+  };
+  void nextTick().then(() => {
+    requestAnimationFrame(() => requestAnimationFrame(flip));
+    setTimeout(flip, 60);
+  });
+}
+
 const bgStyle = computed(() => {
-  const rect = sourceRect.value;
-  if (!rect) return { display: 'none' } as Record<string, string>;
-  const { w, h } = viewport();
-  const scaleX = (reveal.value ? w / rect.w : 1).toFixed(4);
-  const scaleY = (reveal.value ? h / rect.h : 1).toFixed(4);
+  const start = startLayer.value;
+  const end = endLayer.value;
+  if (!start || !end) return { display: 'none' } as Record<string, string>;
+  const scaleX = end.rect.w / start.rect.w;
+  const scaleY = end.rect.h / start.rect.h;
+  const dx = end.rect.x - start.rect.x;
+  const dy = end.rect.y - start.rect.y;
   return {
     position: 'absolute',
-    left: `${rect.x}px`,
-    top: `${rect.y}px`,
-    width: `${rect.w}px`,
-    height: `${rect.h}px`,
-    borderRadius: reveal.value ? '0px' : `${FALLBACK_RADIUS}px`,
+    left: `${start.rect.x}px`,
+    top: `${start.rect.y}px`,
+    width: `${start.rect.w}px`,
+    height: `${start.rect.h}px`,
+    backgroundColor: bgColor.value || 'var(--page-chrome-bg, var(--m-bg, #141414))',
     transformOrigin: 'top left',
-    transform: `scale(${scaleX}, ${scaleY})`,
+    borderRadius: reveal.value ? `${end.radius}px` : `${start.radius}px`,
+    transform: reveal.value ? `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${scaleX.toFixed(4)}, ${scaleY.toFixed(4)})` : 'none',
+    willChange: 'transform',
     transition: reveal.value
       ? `transform ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1), border-radius ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`
       : 'none'
   } as Record<string, string>;
 });
 
-/** 封面克隆：卡片矩形 → hero 矩形（hero 未知时先放大到估算位置，resolve 时精确对齐） */
+/** 封面克隆的解析后地址（模板直接用，避免布局层再引入 getImgUrl） */
+const coverSrc = computed(() => (coverUrl.value ? getImgUrl(coverUrl.value, '500y500') : ''));
+
 const coverStyle = computed(() => {
-  const rect = sourceRect.value;
-  if (!rect || !coverUrl.value) return { display: 'none' } as Record<string, string>;
-  if (!reveal.value) {
-    return {
-      position: 'absolute',
-      left: `${rect.x}px`,
-      top: `${rect.y}px`,
-      width: `${rect.w}px`,
-      height: `${rect.h}px`,
-      borderRadius: '20px',
-      transition: 'none'
-    } as Record<string, string>;
-  }
+  const start = startLayer.value;
+  if (!start || !coverUrl.value) return { display: 'none' } as Record<string, string>;
   return {
     position: 'absolute',
-    left: `${rect.x}px`,
-    top: `${rect.y}px`,
-    width: `${rect.w}px`,
-    height: `${rect.h}px`,
-    borderRadius: '20px',
+    left: `${start.rect.x}px`,
+    top: `${start.rect.y}px`,
+    width: `${start.rect.w}px`,
+    height: `${start.rect.h}px`,
+    borderRadius: `${CARD_RADIUS}px`,
     transition: `transform ${ALIGN_MS}ms ease, border-radius ${PLAYLIST_OPEN_EXPAND_MS}ms ease`
   } as Record<string, string>;
 });
 
-/** 封面克隆的 transform（相对源矩形 → hero 矩形；未测到 hero 时用估算位置） */
+/** 封面克隆 transform：卡片矩形 → hero 矩形（未测到 hero 时用估算位置） */
 const coverTransform = computed(() => {
-  const rect = sourceRect.value;
-  if (!rect || !reveal.value) return 'none';
-  const { w, h } = viewport();
+  const start = startLayer.value;
+  if (!start || !reveal.value) return 'none';
+  const { w, h } = { w: window.innerWidth, h: window.innerHeight };
   const target = heroRect.value ?? {
     x: w * 0.5 - Math.min(w * 0.68, 320) / 2,
     // hero 位于顶栏下方：按视口高度估算，resolve 时以真实 hero 矩形覆盖
@@ -129,28 +157,26 @@ const coverTransform = computed(() => {
     w: Math.min(w * 0.68, 320),
     h: Math.min(w * 0.68, 320)
   };
-  const scale = Math.max(0.01, target.w / rect.w);
-  const dx = target.x - rect.x;
-  const dy = target.y - rect.y;
+  const scale = Math.max(0.01, target.w / start.rect.w);
+  const dx = target.x - start.rect.x;
+  const dy = target.y - start.rect.y;
   return `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${scale.toFixed(4)})`;
 });
 
-function clear() {
+function resetLayer() {
   if (timer) {
     clearTimeout(timer);
     timer = undefined;
   }
   phase.value = 'idle';
-  sourceRect.value = null;
+  startLayer.value = null;
+  endLayer.value = null;
   heroRect.value = null;
   coverUrl.value = '';
   reveal.value = false;
 }
 
-/** 封面克隆的解析后地址（模板直接用，避免在布局层再引入 getImgUrl） */
-const coverSrc = computed(() => (coverUrl.value ? getImgUrl(coverUrl.value, '500y500') : ''));
-
-/** 是否正在进行歌单跳转过渡（MobileLayout 据此跳过二级页自带的位移动画/底色闪动） */
+/** 是否正在进行歌单跳转过渡（布局层据此跳过二级页自带的位移/底色过渡） */
 function isActive() {
   return phase.value !== 'idle';
 }
@@ -158,8 +184,6 @@ function isActive() {
 export function usePlaylistOpenTransition() {
   return {
     phase,
-    sourceRect,
-    coverUrl,
     coverSrc,
     bgStyle,
     coverStyle,
@@ -168,38 +192,53 @@ export function usePlaylistOpenTransition() {
   };
 }
 
-/**
- * 开始过渡。返回 false 表示降级（调用方直接 router.push 即可）。
- */
+/** 开始去程过渡。返回 false 表示降级（调用方直接路由跳转即可）。 */
 export function beginPlaylistOpen(source: PlaylistOpenSource): boolean {
   if (typeof window === 'undefined' || prefersReducedMotion()) return false;
   const rect = source.rect;
   if (!rect || rect.w <= 0 || rect.h <= 0) return false;
 
-  clear();
-  sourceRect.value = { ...rect };
+  resetLayer();
   coverUrl.value = source.coverUrl ?? '';
+  assignLayers({ rect: { ...rect }, radius: CARD_RADIUS }, { rect: viewportRect(), radius: 0 });
   phase.value = 'expanding';
 
   const parsed = parseRepresentativeCssColor(source.color);
-  applyChromeToLayout(parsed ? resolvePageChrome(parsed) : fallbackPageChrome());
+  const initial = parsed ? resolvePageChrome(parsed) : fallbackPageChrome();
+  bgColor.value = applyChromeToLayout(initial) || bgColor.value;
   if (!parsed && coverUrl.value) {
     void getPageChromeForCover(coverUrl.value)
       .then((chrome) => {
-        if (phase.value !== 'idle') applyChromeToLayout(chrome);
+        bgColor.value = applyChromeToLayout(chrome) || bgColor.value;
       })
       .catch(() => {});
   }
 
-  // 两帧后再置 reveal，确保初始态已上屏、transform 过渡生效
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      if (phase.value === 'expanding') reveal.value = true;
-    });
-  });
+  // 记住源矩形与底色，供回程镜像
+  lastRect = { ...rect };
+  lastColor = bgColor.value;
 
-  // 兜底：目标页迟迟不 resolve 时也要收尾，避免覆盖层卡死
+  scheduleReveal();
+  // 兜底：目标页迟迟不 resolve 也要收尾，避免覆盖层卡死
   timer = setTimeout(() => resolvePlaylistOpen(), PLAYLIST_OPEN_EXPAND_MS + 900);
+  return true;
+}
+
+/**
+ * 歌单页卸载前调用：镜像回程——底色块从全屏收缩回源卡片矩形再淡出。
+ */
+export function beginPlaylistOpenReturn(): boolean {
+  if (typeof window === 'undefined' || prefersReducedMotion()) return false;
+  if (!lastRect || !lastColor) return false;
+
+  resetLayer();
+  coverUrl.value = '';
+  bgColor.value = lastColor;
+  assignLayers({ rect: viewportRect(), radius: 0 }, { rect: { ...lastRect }, radius: CARD_RADIUS });
+  phase.value = 'expanding';
+
+  scheduleReveal();
+  timer = setTimeout(() => resolvePlaylistOpen(), PLAYLIST_OPEN_EXPAND_MS + 420);
   return true;
 }
 
@@ -210,8 +249,9 @@ export function beginPlaylistOpen(source: PlaylistOpenSource): boolean {
 export function resolvePlaylistOpen(hero?: TransitionRect | null) {
   if (phase.value === 'idle') return;
   if (hero && hero.w > 0 && hero.h > 0) heroRect.value = { ...hero };
+  // 极端情况下（交接极快）reveal 还没翻：直接置真，让覆盖层先到目标态再淡出
   reveal.value = true;
   phase.value = 'fadeout';
   if (timer) clearTimeout(timer);
-  timer = setTimeout(clear, FADE_MS + 80);
+  timer = setTimeout(resetLayer, FADE_MS + 80);
 }

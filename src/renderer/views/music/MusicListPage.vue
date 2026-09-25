@@ -199,6 +199,7 @@ import {
   unregisterMobileTopbarAction
 } from '@/composables/useMobileTopbarMenu';
 import {
+  beginPlaylistOpenReturn,
   resolvePlaylistOpen,
   usePlaylistOpenTransition
 } from '@/composables/usePlaylistOpenTransition';
@@ -1518,6 +1519,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  // 歌单跳转回程：底色块从全屏收缩回源卡片矩形再淡出（与去程镜像）
+  beginPlaylistOpenReturn();
   unregisterMobileTopbarAction(`${topbarActionPrefix}-poster`);
   unregisterMobileTopbarAction(`${topbarActionPrefix}-more`);
   if (enterFlightTimer) clearTimeout(enterFlightTimer);

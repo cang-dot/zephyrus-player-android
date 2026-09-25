@@ -1,7 +1,6 @@
 import { Howl } from 'howler';
 
 import { isElectron } from '@/utils';
-import { isIosSafari } from '@/utils/platform';
 
 import { isAndroidNative } from './androidNative';
 
@@ -42,10 +41,6 @@ const PROBE_CACHE_MAX = 96;
 export function isWebAnalysisPlatform(): boolean {
   if (isElectron || isAndroidNative()) return false;
   if (typeof window === 'undefined') return false;
-  // iOS Safari：一旦 createMediaElementSource 接进 Web Audio 图，页面进后台时系统会把
-  // AudioContext 挂起为 'interrupted'——既中断播放，又让回前台后的"是否在播"判断失效
-  // 而触发重建播放（叠音/倍速听感）。iOS 一律走纯 HTMLAudioElement 直通路径。
-  if (isIosSafari()) return false;
   const capacitor = (window as any).Capacitor;
   return !(capacitor?.isNativePlatform?.() === true);
 }

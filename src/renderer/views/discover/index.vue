@@ -71,6 +71,7 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { getHotSinger, getPersonalizedPlaylist, getTopAlbum } from '@/api/home';
+import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import { beginPlaylistOpen } from '@/composables/usePlaylistOpenTransition';
 import { useArtist } from '@/hooks/useArtist';
 import { getImgUrl } from '@/utils';
@@ -119,9 +120,12 @@ const openMedia = (card: MediaCard, event?: MouseEvent) => {
     coverUrl: card.picUrl,
     color: card.themeColor
   });
-  router.push({
-    path: `/music-list/${card.id}`,
-    query: { type: card.kind }
+  // 与歌单库页同一套预填充：写好列表信息，歌单页 hero 首帧即可渲染（无骨架）
+  navigateToMusicList(router, {
+    id: card.id,
+    type: card.kind,
+    name: card.name,
+    listInfo: card
   });
 };
 
