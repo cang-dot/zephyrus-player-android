@@ -47,7 +47,7 @@
         </div>
 
         <!-- Main Content -->
-        <div v-else-if="userDetail">
+        <div v-else-if="userDetail?.profile">
           <!-- Hero -->
           <section class="relative w-full h-[300px] md:h-[340px] overflow-hidden">
             <div

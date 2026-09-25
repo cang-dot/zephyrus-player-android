@@ -62,6 +62,10 @@
           </Transition>
         </router-view>
       </div>
+
+      <!-- 页面上下边缘：内容渐隐 + 逐渐模糊（顶栏/底栏在其上，自身不受影响） -->
+      <div class="page-edge-fade page-edge-fade--top" aria-hidden="true" />
+      <div class="page-edge-fade page-edge-fade--bottom" aria-hidden="true" />
     </div>
 
     <!-- 非播放界面打开播放列表/歌曲信息时，底栏之外的页面由半透明遮罩覆盖，
@@ -1175,9 +1179,9 @@ const shouldShowBottomMenu = computed(
     !playerStore.playListDrawerVisible
 );
 const mobileDockContentInset = computed(() => {
-  if (!shouldShowBottomMenu.value) return isPlay.value ? 82 : 20;
-  if (!isPlay.value || miniPlayerIdleCollapsed.value) return 90;
-  return 148;
+  if (!shouldShowBottomMenu.value) return isPlay.value ? 78 : 16;
+  if (!isPlay.value || miniPlayerIdleCollapsed.value) return 86;
+  return 144;
 });
 
 const isActive = (itemPath: string) => route.path === itemPath;
@@ -1352,7 +1356,7 @@ onBeforeUnmount(() => {
   position: relative;
   background: var(--m-bg, var(--bg-color));
   --mobile-dock-inset: 12px;
-  --mobile-dock-gap: 6px;
+  --mobile-dock-gap: 2px;
 }
 
 .mobile-layout[data-theme='dark'],
@@ -1392,6 +1396,34 @@ onBeforeUnmount(() => {
   background: var(--m-bg, #141414);
   will-change: transform;
   padding-bottom: var(--mobile-dock-content-inset, 0px);
+}
+
+/* 页面上下边缘：内容渐隐 + 逐渐模糊（沿边缘最强，向内容方向淡出）。
+   两条遮罩带在 .mobile-content 内、z 低于顶栏(100)与底栏(199)，因此顶栏/底栏/迷你栏不受影响。 */
+.page-edge-fade {
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 60;
+  pointer-events: none;
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+.page-edge-fade--top {
+  top: 0;
+  height: calc(var(--mobile-topbar-inset, 60px) + 12px);
+  background: linear-gradient(180deg, var(--m-bg, #141414) 8%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 10%, rgba(0, 0, 0, 0.5) 58%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 10%, rgba(0, 0, 0, 0.5) 58%, transparent 100%);
+}
+
+.page-edge-fade--bottom {
+  bottom: 0;
+  height: calc(var(--mobile-dock-content-inset, 144px) + 6px);
+  background: linear-gradient(0deg, var(--m-bg, #141414) 8%, transparent 100%);
+  -webkit-mask-image: linear-gradient(0deg, #000 10%, rgba(0, 0, 0, 0.5) 58%, transparent 100%);
+  mask-image: linear-gradient(0deg, #000 10%, rgba(0, 0, 0, 0.5) 58%, transparent 100%);
 }
 
 /* 二级页宿主：独立滚动容器（原共享滚动改每页自治） */
@@ -1571,7 +1603,7 @@ onBeforeUnmount(() => {
     position: fixed;
     top: auto;
     right: 12px;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 64px);
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 60px);
     left: 12px;
     height: calc(min(62dvh, 500px) - 56px);
   }
@@ -1582,7 +1614,7 @@ onBeforeUnmount(() => {
     position: fixed !important;
     top: auto !important;
     right: 12px;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 80px) !important;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 76px) !important;
     left: 12px !important;
     width: auto !important;
   }
@@ -1815,7 +1847,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* 图标 */
 .glow-item-icon {
-  font-size: 21px;
+  font-size: 24px;
   color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
   transition:
     color 0.35s $spring-smooth,

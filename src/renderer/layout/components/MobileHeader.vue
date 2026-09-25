@@ -1582,7 +1582,9 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   gap: 8px;
   /* 圆形按钮贴边：水平方向不留容器内边距（2026-09-17 沐苍要求），
      胶囊由 flex 拉伸占据圆形按钮之间的全部宽度 */
-  padding: 0;
+  /* 水平留出与迷你播放栏/底栏相同的内边距（--mobile-dock-inset），三者左右边缘对齐；
+     此前「圆形按钮贴边、容器不留内边距」的历史写法已按 2026-09-25 要求作废 */
+  padding: 0 var(--mobile-dock-inset, 12px);
   padding-top: calc(var(--safe-area-inset-top, 0px) + 8px);
   padding-bottom: 8px;
   pointer-events: none; /* allow scroll-through on gaps */

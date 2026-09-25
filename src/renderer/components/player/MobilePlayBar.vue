@@ -651,7 +651,7 @@ watch(
   }
 
   &.is-menu-show {
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 60px);
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 56px);
   }
 
   &.is-menu-show .mobile-mini-controls {
@@ -666,7 +666,7 @@ watch(
     -webkit-backdrop-filter: none;
   }
   &.is-menu-hide {
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 4px);
   }
 
   /* 独立出现时由播放栏自身提供实色表面（原为有色毛玻璃，已移除模糊）。
@@ -728,7 +728,7 @@ watch(
 
   &.playlist-mounted.play-bar-mini.is-menu-hide {
     right: 0;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 4px);
     left: 0;
     width: 100%;
     height: 56px;
@@ -741,7 +741,7 @@ watch(
 
   &.playlist-open.play-bar-mini.is-menu-hide {
     right: 12px;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 12px);
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
     left: 12px;
     width: calc(100% - 24px);
     height: min(62dvh, 500px);
