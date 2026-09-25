@@ -44,6 +44,23 @@
       </div>
     </template>
 
+    <template v-else-if="variant === 'song-list'">
+      <div class="loading-list">
+        <div v-for="index in rows" :key="index" class="loading-row" :style="delayStyle(index)">
+          <span class="loading-index">{{ String(index).padStart(2, '0') }}</span>
+          <span class="loading-shape loading-cover" />
+          <span class="loading-copy">
+            <i
+              class="loading-shape loading-line"
+              :class="{ 'loading-line--wide': index % 3 === 1 }"
+            />
+            <i class="loading-shape loading-line loading-line--short" />
+          </span>
+          <span class="loading-shape loading-dot" />
+        </div>
+      </div>
+    </template>
+
     <template v-else-if="variant === 'music-list'">
       <!-- Apple Music 风格：居中封面方块 + 文字条 + 动作胶囊行 + 序号行列表 -->
       <div class="loading-hero">
@@ -95,7 +112,7 @@
 <script setup lang="ts">
 withDefaults(
   defineProps<{
-    variant: 'music-list' | 'artist' | 'user';
+    variant: 'music-list' | 'artist' | 'user' | 'song-list';
     rows?: number;
     label?: string;
   }>(),

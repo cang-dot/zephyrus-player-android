@@ -2,13 +2,7 @@
   <div ref="pageRootRef" class="music-list-page" data-no-page-swipe>
     <n-scrollbar ref="scrollbarRef" class="flex-1 min-h-0" @scroll="handleScroll">
       <div class="music-list-content">
-        <page-loading-placeholder
-          v-if="loading || !dataMatchesRoute"
-          variant="music-list"
-          :label="t('common.loading')"
-        />
-
-        <section v-else-if="initialLoadError" class="list-error" role="alert">
+        <section v-if="initialLoadError" class="list-error" role="alert">
           <i class="ri-error-warning-line" aria-hidden="true" />
           <p>{{ initialLoadError }}</p>
           <button type="button" @click="fetchData">
@@ -18,8 +12,9 @@
         </section>
 
         <template v-else>
-          <!-- Apple Music 风格 hero：大封面 + 标题 + 作者 + 元信息 + 动作行 -->
-          <section class="list-hero">
+          <!-- Apple Music 风格 hero：歌单信息在导航前已预填，进入即渲染——
+               封面飞入动画无需等待接口，只有下方歌曲列表区域走骨架 -->
+          <section v-if="heroReady" class="list-hero">
             <img
               :src="getImgUrl(getCoverImgUrl, '500y500')"
               class="hero-cover"
@@ -100,7 +95,16 @@
           </section>
 
           <!-- List Content -->
-          <section v-if="!loading && !initialLoadError" class="song-list-section">
+          <!-- 仅歌曲列表区域骨架：hero 已即时可见，加载不再打断封面动画 -->
+          <section
+            v-if="loading || !dataMatchesRoute"
+            class="song-list-skeleton"
+            aria-hidden="true"
+          >
+            <page-loading-placeholder variant="song-list" :rows="8" />
+          </section>
+
+          <section v-else class="song-list-section">
             <div v-if="filteredSongs.length === 0 && searchKeyword" class="empty-state">
               <i class="ri-search-line"></i>
               <p>{{ t('comp.musicList.noSearchResults') }}</p>
@@ -164,12 +168,6 @@
     <play-bottom />
     <poster-share-modal v-model:visible="showPosterModal" :lyrics="[]" :subject="posterSubject" />
     <ai-playlist-panel v-model:visible="showAiPlaylistPanel" />
-    <list-more-sheet
-      v-model:visible="showMoreSheet"
-      :actions="moreSheetActions"
-      :title="name"
-      :origin="moreSheetOrigin"
-    />
   </div>
 </template>
 
@@ -190,7 +188,6 @@ import {
 import { fetchPlatformPlaylistTracks } from '@/api/platformQrApi';
 import { getUserPlaylist } from '@/api/user';
 import playlistPlaceholder from '@/assets/icon_512.png';
-import ListMoreSheet from '@/components/common/ListMoreSheet.vue';
 import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
@@ -467,6 +464,9 @@ const dataMatchesRoute = computed(() => {
 });
 const isAlbum = computed(() => route.query.type === 'album' || route.query.type === 'server-album');
 
+/** hero 可渲染：歌单名/封面在导航前已由 musicStore 预填（navigateToMusicList） */
+const heroReady = computed(() => Boolean(name.value || getCoverImgUrl.value));
+
 const name = computed(() => {
   if (isDailyRecommend.value) return t('comp.recommendSinger.songlist');
   return musicStore.currentMusicListName || '';
@@ -578,11 +578,8 @@ const buildPosterSubject = (): PosterSubject => {
   };
 };
 
-// ==================== 顶栏（简洁形态）：分享 + 更多；其余动作进页内更多面板 ====================
-const showMoreSheet = ref(false);
+// ==================== 顶栏（简洁形态）：胶囊承载分享+更多；其余动作随胶囊变形进菜单 ====================
 const searchInListOpen = ref(false);
-/** 「更多」触发胶囊的矩形：菜单由该胶囊形变展开 */
-const moreSheetOrigin = ref<{ x: number; y: number; w: number; h: number } | null>(null);
 
 const registerMusicListTopbar = () => {
   registerMobileTopbarAction({
@@ -590,6 +587,7 @@ const registerMusicListTopbar = () => {
     routePath: '/music-list/*',
     label: t('comp.musicList.posterShare', '分享'),
     icon: 'ri-share-line',
+    kind: 'capsule',
     run: () => openPosterForSubject(buildPosterSubject())
   });
   registerMobileTopbarAction({
@@ -597,15 +595,24 @@ const registerMusicListTopbar = () => {
     routePath: '/music-list/*',
     label: t('common.more', '更多'),
     icon: 'ri-more-2-fill',
-    run: () => {
-      void loadUserPlaylistsForTopbar();
-      const capsule = document.querySelector('.topbar-plain-actions')?.getBoundingClientRect();
-      moreSheetOrigin.value = capsule
-        ? { x: capsule.x, y: capsule.y, w: capsule.width, h: capsule.height }
-        : null;
-      showMoreSheet.value = true;
-    }
+    kind: 'capsule',
+    opensMenu: true,
+    run: () => undefined
   });
+  // 菜单动作：动态项（收藏态/视图/排序值）随依赖变化整体重注册
+  const menuIds = [
+    'more-collect',
+    'more-search',
+    'more-locate',
+    'more-layout',
+    'more-sort',
+    'more-addall',
+    'more-description',
+    'more-ai'
+  ];
+  menuIds.forEach(unregisterMobileTopbarAction);
+  void loadUserPlaylistsForTopbar();
+  for (const action of moreSheetActions.value) registerMobileTopbarAction(action);
 };
 
 /** hero 副标题：专辑 → 歌手（点击进歌手页），歌单 → 创建者昵称 */
@@ -1450,12 +1457,16 @@ const playCoverEnterTransition = () => {
   });
 };
 
+// hero 进入即渲染：挂载后立刻播封面飞入（不再等接口返回，避免与骨架屏脱节）
+onMounted(() => {
+  void nextTick(playCoverEnterTransition);
+});
+
+// 菜单动作含动态 label/icon/二级值（收藏态、视图、排序、用户歌单），变化后重注册
 watch(
-  [loading, dataMatchesRoute],
-  ([isLoading, matches]) => {
-    if (!isLoading && matches) void nextTick(playCoverEnterTransition);
-  },
-  { immediate: true }
+  [isCollected, isCompactLayout, sortBy, userPlaylistOptions, currentPlayingIndex, listDescription],
+  () => registerMusicListTopbar(),
+  { flush: 'post' }
 );
 
 onMounted(() => {
@@ -1907,7 +1918,8 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   content: '';
   position: absolute;
   right: 0;
-  bottom: 0;
+  /* 取两版中间值：行底与 wrap 底（6px 间距）的中心 */
+  bottom: 3px;
   left: 42px;
   height: 1px;
   background: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.12);
@@ -2243,5 +2255,10 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     flex: 1;
     min-width: 0;
   }
+}
+
+/* 仅歌曲列表区域的骨架容器：hero 即时可见，加载不再打断封面动画 */
+.song-list-skeleton {
+  min-height: 55dvh;
 }
 </style>

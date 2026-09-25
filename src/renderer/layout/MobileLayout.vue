@@ -1142,7 +1142,13 @@ const isBottomMenuRoute = computed(() => {
   const menuPaths = menuStore.menus.map((item: any) => item.path);
   return menuPaths.includes(route.path);
 });
-const shouldShowBottomMenu = computed(() => isBottomMenuRoute.value && !playerStore.musicFull);
+const shouldShowBottomMenu = computed(
+  () =>
+    isBottomMenuRoute.value &&
+    !playerStore.musicFull &&
+    // 播放列表打开时隐藏底栏：播放栏切回无底栏形态，自行形变为播放列表表面
+    !playerStore.playListDrawerVisible
+);
 const mobileDockContentInset = computed(() => {
   if (!shouldShowBottomMenu.value) return isPlay.value ? 82 : 20;
   if (!isPlay.value || miniPlayerIdleCollapsed.value) return 90;
@@ -1558,7 +1564,7 @@ onBeforeUnmount(() => {
     position: fixed !important;
     top: auto !important;
     right: 12px;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 88px) !important;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 80px) !important;
     left: 12px !important;
     width: auto !important;
   }
