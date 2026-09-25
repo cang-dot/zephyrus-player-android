@@ -48,12 +48,13 @@
       </div>
 
       <!-- 二级页（非底栏路由） -->
-      <div v-if="!isBottomMenuRoute && !backgroundUnmounted" class="secondary-page-host">
+      <div v-if="secondaryHostVisible && !backgroundUnmounted" class="secondary-page-host">
         <router-view v-slot="{ Component }">
           <Transition
             :name="pageTransitionName"
             :css="!gestureNavigationInProgress"
             @after-enter="pagerBridgeVisible = false"
+            @after-leave="secondaryHostVisible = false"
           >
             <keep-alive :include="keepAliveInclude">
               <component :is="Component" />
@@ -427,6 +428,9 @@ const playlistSurfaceExpanded = ref(false);
 const gestureNavigationInProgress = ref(false);
 // 离开底栏页时保留列表页垫在下面：二级页淡入/滑入期间也能看到身后的列表（背景渐变过渡）
 const pagerBridgeVisible = ref(false);
+// 二级页宿主：进入二级页时挂载；返回底栏页时保持挂载直到退场动画结束再卸载
+// （v-if 直接跟随路由会让宿主瞬间消失，退场过渡永远看不到）
+const secondaryHostVisible = ref(false);
 watch(
   () => route.path,
   (path, previous) => {
@@ -434,8 +438,13 @@ watch(
       Boolean(value) && menuStore.menus.some((item: any) => item.path === value);
     if (isBottomPath(previous) && !isBottomPath(path)) pagerBridgeVisible.value = true;
     else if (isBottomPath(path)) pagerBridgeVisible.value = false;
+    if (!isBottomPath(path)) secondaryHostVisible.value = true;
   }
 );
+
+if (!menuStore.menus.some((item: any) => item.path === route.path)) {
+  secondaryHostVisible.value = true;
+}
 
 const pageTransitionName = computed(() =>
   pageTransitionDirection.value ? `page-slide-${pageTransitionDirection.value}` : 'page-fade'

@@ -388,7 +388,7 @@ watch(
   (path) => {
     if (path === '/list') {
       applyPendingMru();
-      window.setTimeout(playReturnFlight, 200);
+      window.setTimeout(playReturnFlight, 60);
     }
   }
 );
@@ -396,7 +396,7 @@ watch(
 onMounted(() => {
   void ensureSourcesLoaded();
   window.addEventListener('zephyrus:cover-flight-end', applyPendingMru);
-  window.setTimeout(playReturnFlight, 200);
+  window.setTimeout(playReturnFlight, 60);
 });
 
 onBeforeUnmount(() => {
