@@ -1562,7 +1562,7 @@ onBeforeUnmount(() => {
     position: absolute !important;
     top: auto !important;
     right: 6px;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 62px) !important;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 74px) !important;
     left: 6px !important;
     width: calc(100% - 12px) !important;
     height: 54px;
