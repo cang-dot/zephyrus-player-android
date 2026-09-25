@@ -1145,8 +1145,8 @@ const isBottomMenuRoute = computed(() => {
 const shouldShowBottomMenu = computed(() => isBottomMenuRoute.value && !playerStore.musicFull);
 const mobileDockContentInset = computed(() => {
   if (!shouldShowBottomMenu.value) return isPlay.value ? 82 : 20;
-  if (!isPlay.value || miniPlayerIdleCollapsed.value) return 76;
-  return 134;
+  if (!isPlay.value || miniPlayerIdleCollapsed.value) return 88;
+  return 146;
 });
 
 const isActive = (itemPath: string) => route.path === itemPath;
@@ -1556,7 +1556,7 @@ onBeforeUnmount(() => {
     position: fixed !important;
     top: auto !important;
     right: 12px;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 76px) !important;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 86px) !important;
     left: 12px !important;
     width: auto !important;
     height: 54px;
@@ -1684,27 +1684,20 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 40px;
-  min-width: 40px;
-  padding: 0 8px;
-  border-radius: 9999px;
+  height: 52px;
+  min-width: 56px;
+  padding: 4px 10px;
+  border-radius: 14px;
   cursor: pointer;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   transition:
-    padding 0.45s $spring,
-    min-width 0.45s $spring,
-    transform 0.3s $spring;
+    transform 0.3s $spring,
+    background-color 0.24s ease;
 
   &:active {
-    transform: scale(0.88);
-  }
-
-  /* 选中项扩大以容纳文字 */
-  &.active {
-    padding: 0 14px;
-    min-width: auto;
+    transform: scale(0.94);
   }
 }
 
@@ -1713,11 +1706,11 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
    top 4px = 容器 padding-top，高 40px = 项高。 */
 .nav-slide-indicator {
   position: absolute;
-  top: 4px;
+  top: 2px;
   left: 0;
   z-index: 0;
-  height: 40px;
-  border-radius: 9999px;
+  height: 52px;
+  border-radius: 14px;
   background: var(--m-nav-indicator-bg, #4a4540);
   transition:
     transform 0.42s $spring,
@@ -1772,8 +1765,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 /* 拖动中辉光悬停到的项:布局与选中态一致(label 入流、项加宽),
    由 item 自带的 padding/min-width 弹簧过渡平滑展开;图标颜色加深 */
 .mobile-glow-nav.nav-dragging .glow-nav-item.hover-pick {
-  padding: 0 14px;
-  min-width: auto;
+  background: rgba(128, 128, 128, 0.16);
 }
 
 .mobile-glow-nav.nav-dragging .glow-nav-item.hover-pick .glow-item-icon {
@@ -1793,15 +1785,16 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   position: relative;
   z-index: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 2px;
   transform-style: preserve-3d;
   perspective: 600px;
 }
 
 /* 图标 */
 .glow-item-icon {
-  font-size: 23px;
+  font-size: 21px;
   color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
   transition:
     color 0.35s $spring-smooth,
@@ -1812,8 +1805,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
    现为实心深色胶囊，必须用 --m-nav-indicator-fg（纯白）；
    沿用强调色会在深底上对比不足。 */
 .glow-nav-item.active .glow-item-icon {
-  color: var(--m-nav-indicator-fg, #fff);
-  transform: scale(1.1);
+  color: var(--accent-color, #888);
+  transform: scale(1.04);
 }
 
 /* hover 态 */
@@ -1826,13 +1819,17 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* 文字标签 — 仅选中时弹出；坐在实心胶囊上，用胶囊前景色 */
 .glow-item-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--m-nav-indicator-fg, #fff);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
   white-space: nowrap;
   letter-spacing: 0.01em;
   max-width: 120px;
   overflow: hidden;
+}
+
+.glow-nav-item.active .glow-item-label {
+  color: var(--accent-color, #888);
 }
 
 /* 文字弹入弹出动画 */
