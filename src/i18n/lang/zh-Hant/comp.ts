@@ -156,6 +156,22 @@ export default {
       toplist: '排行榜'
     }
   },
+  homeV2: {
+    roamTitle: '歌曲漫遊',
+    roamSubtitle: '從喜歡的歌開始',
+    cloudTitle: 'Zephyrus雲',
+    cloudSubtitle: '開發者收集的封禁／付費歌曲',
+    cloudEmpty: '雲庫整理中',
+    openCloud: '開啟雲庫',
+    playAria: '開始心動模式',
+    pauseAria: '暫停',
+    recommendTitle: '根據你喜愛的歌曲推薦',
+    loginHint: '登入後查看每日推薦',
+    forYouTitle: '為你推薦',
+    badge: '精選歌單',
+    tagLossless: '無損',
+    tagNiche: '小眾推薦'
+  },
   modularHome: {
     done: '完成',
     addBlock: '新增功能',

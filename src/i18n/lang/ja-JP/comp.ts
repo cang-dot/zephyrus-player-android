@@ -163,6 +163,22 @@ export default {
       toplist: 'ランキング'
     }
   },
+  homeV2: {
+    roamTitle: '楽曲ローミング',
+    roamSubtitle: '好きな曲から始める',
+    cloudTitle: 'Zephyrusクラウド',
+    cloudSubtitle: '開発者が集めた配信停止・有料楽曲',
+    cloudEmpty: 'クラウドを整理中',
+    openCloud: 'クラウドライブラリを開く',
+    playAria: 'お気に入りモードを開始',
+    pauseAria: '一時停止',
+    recommendTitle: 'お気に入りの曲からのおすすめ',
+    loginHint: 'ログインすると毎日のおすすめを表示します',
+    forYouTitle: 'あなたへのおすすめ',
+    badge: '特選プレイリスト',
+    tagLossless: 'ロスレス',
+    tagNiche: 'ニッチなおすすめ'
+  },
   modularHome: {
     done: '完了',
     addBlock: '機能を追加',

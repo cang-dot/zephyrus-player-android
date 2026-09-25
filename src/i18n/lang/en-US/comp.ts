@@ -162,6 +162,22 @@ export default {
       toplist: 'Top Charts'
     }
   },
+  homeV2: {
+    roamTitle: 'Song Roam',
+    roamSubtitle: 'Start from songs you love',
+    cloudTitle: 'Zephyrus Cloud',
+    cloudSubtitle: 'Banned and paid tracks collected by the developer',
+    cloudEmpty: 'Cloud library is being prepared',
+    openCloud: 'Open cloud library',
+    playAria: 'Start Heartbeat mode',
+    pauseAria: 'Pause',
+    recommendTitle: 'Based on songs you love',
+    loginHint: 'Sign in to see daily recommendations',
+    forYouTitle: 'For You',
+    badge: 'Featured playlist',
+    tagLossless: 'Lossless',
+    tagNiche: 'Niche pick'
+  },
   modularHome: {
     done: 'Done',
     addBlock: 'Add Feature',

@@ -161,6 +161,22 @@ export default {
       toplist: '순위'
     }
   },
+  homeV2: {
+    roamTitle: '곡 로밍',
+    roamSubtitle: '좋아하는 곡에서 시작',
+    cloudTitle: 'Zephyrus 클라우드',
+    cloudSubtitle: '개발자가 모은 차단·유료 곡',
+    cloudEmpty: '클라우드 정리 중',
+    openCloud: '클라우드 라이브러리 열기',
+    playAria: '하트비트 모드 시작',
+    pauseAria: '일시정지',
+    recommendTitle: '좋아하는 곡 기반 추천',
+    loginHint: '로그인하면 매일 추천을 볼 수 있어요',
+    forYouTitle: '당신을 위한 추천',
+    badge: '추천 플레이리스트',
+    tagLossless: '무손실',
+    tagNiche: '숨은 곡 추천'
+  },
   modularHome: {
     done: '완료',
     addBlock: '기능 추가',
