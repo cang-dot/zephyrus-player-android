@@ -868,7 +868,13 @@ class AudioService {
       gainNode.gain.value = 1;
 
       this.source.connect(gainNode);
-      gainNode.connect(this.context.destination);
+      // iOS 镜像路径：图只服务分析（鼓点/高潮/频谱），**绝不能接 destination**——
+      // 元素一旦接图，muted/volume 只挡元素直出，图输出照样是有声的，
+      // 接了 destination 就是「两轨声音」。出声由未接图的 Howler 元素负责
+      // （EQ 因此不作用于声音，平台级取舍见 ios-web-audio 记忆）。
+      if (!isIosSafari()) {
+        gainNode.connect(this.context.destination);
+      }
 
       // 挂高潮/鼓点检测器（styleEngine 与各皮肤只认 gainNode，无需感知音源变化）
       climaxDetector.connect(this.context, this.gainNode);
@@ -1952,13 +1958,20 @@ class AudioService {
                   }
 
                   if (this.currentSound) {
-                    this.currentSound.stop();
-                    this.currentSound.unload();
+                    const oldSound = this.currentSound;
+                    oldSound.stop();
+                    oldSound.unload();
+                    // Howler 在加载/中断窗口里可能把 stop/unload 排队而不真正执行，
+                    // 硬暂停底层元素，避免旧实例继续出声（两轨/倍速听感）。
+                    this.hardStopSound(oldSound);
                   }
 
                   this.currentSound = newSound;
                   this.currentTrack = track;
                   this.pendingSound = null;
+
+                  // 双实例兜底：换歌完成后短暂延迟再断言一次「只有当前实例在播」
+                  setTimeout(() => this.reassertElementPlayback(), 900);
                 } else {
                   await this.setupEQ(newSound);
                   if (playbackGeneration !== this.playbackGeneration) {
