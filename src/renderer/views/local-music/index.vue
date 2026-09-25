@@ -19,7 +19,6 @@
         v-model="activeTab"
         :tabs="tabs.map((tab) => ({ key: tab.key, label: tab.label }))"
         :page-path="embedded ? '/list' : '/local-music'"
-        :topbar="false"
         full-width
         class="tab-bar-glow"
       />

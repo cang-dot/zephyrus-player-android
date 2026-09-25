@@ -619,7 +619,7 @@ const showPageCapsule = computed(
   () =>
     !isSearchPage.value &&
     !route.path.startsWith('/music-list') &&
-    !['/', '/discover', '/user', '/list'].includes(route.path)
+    !['/', '/discover', '/user'].includes(route.path)
 );
 const usesWideDetailTopbar = computed(
   () => route.path.startsWith('/music-list/') || route.path.startsWith('/artist/detail/')

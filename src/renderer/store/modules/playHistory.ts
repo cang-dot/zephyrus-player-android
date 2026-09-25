@@ -75,11 +75,9 @@ export const usePlayHistoryStore = defineStore(
       const index = musicHistory.value.findIndex((item) => item.id === music.id);
       if (index !== -1) {
         musicHistory.value[index].count = (musicHistory.value[index].count || 0) + 1;
-        // 听歌热力图依赖逐次时间戳（旧存量没有，不回填）
-        (musicHistory.value[index] as any).lastPlayedAt = Date.now();
         musicHistory.value.unshift(musicHistory.value.splice(index, 1)[0]);
       } else {
-        musicHistory.value.unshift({ ...music, count: 1, lastPlayedAt: Date.now() } as SongResult);
+        musicHistory.value.unshift({ ...music, count: 1 });
       }
       if (musicHistory.value.length > MAX_HISTORY_SIZE) {
         musicHistory.value.pop();

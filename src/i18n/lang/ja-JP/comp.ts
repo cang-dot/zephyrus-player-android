@@ -130,12 +130,6 @@ export default {
     songs: '曲',
     playNow: '今すぐ再生',
     intelligenceMode: 'インテリジェンスモード',
-    greetingMorning: 'おはようございます',
-    greetingNoon: 'こんにちは',
-    greetingAfternoon: 'お疲れさまです',
-    greetingEvening: 'こんばんは',
-    heartPlaying: 'ハートモード再生中',
-    wishes: ['今日も良い音楽を', '音楽があなたと共にありますように', '良い曲から始める一日', 'ヘッドホンをすれば世界はあなたのもの', '今日のおすすめは準備完了'],
     intelligenceModeOn: '再生中',
     intelligenceModeDesc: 'スマート推薦を開始',
     intelligenceModeActiveDesc: 'あなたの好みに基づくスマート推薦',
@@ -213,22 +207,6 @@ export default {
   },
   userPlayList: {
     title: '{name}のよく聞く音楽'
-  },
-  homeSection: {
-    guestName: '音楽好き',
-    listenStats: 'リスニング統計',
-    heatmapMeta: '合計 {total} 回 · {days} 日利用',
-    heatmapLess: '少ない',
-    heatmapMore: '多い',
-    detail: '詳細',
-    cloudCard: 'Zephyrus クラウド · {n}',
-    cloudTitle: 'Zephyrus クラウド',
-    dailyBasis: 'お気に入りの曲からのおすすめ',
-    dailyMore: 'おすすめ続き {n}'
-  },
-  homeBadge: {
-    lossless: 'ロスレス',
-    niche: 'マイナーおすすめ'
   },
   musicList: {
     searchSongs: '楽曲を検索',

@@ -128,12 +128,6 @@ export default {
     songs: '곡',
     playNow: '지금 재생',
     intelligenceMode: '하트 모드',
-    greetingMorning: '좋은 아침이에요',
-    greetingNoon: '안녕하세요',
-    greetingAfternoon: '수고했어요',
-    greetingEvening: '좋은 밤이에요',
-    heartPlaying: '하트 모드 재생 중',
-    wishes: ['오늘도 좋은 음악을', '음악이 당신과 함께하길', '좋은 노래로 시작하는 하루', '헤드폰을 쓰면 세상이 당신 것', '오늘의 좋은 곡이 준비됐어요'],
     intelligenceModeOn: '재생 중',
     intelligenceModeDesc: '스마트 추천 시작',
     intelligenceModeActiveDesc: '취향에 맞는 스마트 추천',
@@ -211,22 +205,6 @@ export default {
   },
   userPlayList: {
     title: '{name}의 자주 듣는 음악'
-  },
-  homeSection: {
-    guestName: '음악 애호가',
-    listenStats: '청취 통계',
-    heatmapMeta: '총 {total}회 · {days}일 활동',
-    heatmapLess: '적음',
-    heatmapMore: '많음',
-    detail: '상세',
-    cloudCard: 'Zephyrus 클라우드 · {n}',
-    cloudTitle: 'Zephyrus 클라우드',
-    dailyBasis: '좋아하는 노래 기반 추천',
-    dailyMore: '추천 계속 {n}'
-  },
-  homeBadge: {
-    lossless: '무손실',
-    niche: '마이너 추천'
   },
   musicList: {
     searchSongs: '곡 검색',
