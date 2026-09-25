@@ -1145,8 +1145,8 @@ const isBottomMenuRoute = computed(() => {
 const shouldShowBottomMenu = computed(() => isBottomMenuRoute.value && !playerStore.musicFull);
 const mobileDockContentInset = computed(() => {
   if (!shouldShowBottomMenu.value) return isPlay.value ? 82 : 20;
-  if (!isPlay.value || miniPlayerIdleCollapsed.value) return 96;
-  return 154;
+  if (!isPlay.value || miniPlayerIdleCollapsed.value) return 90;
+  return 148;
 });
 
 const isActive = (itemPath: string) => route.path === itemPath;
@@ -1328,7 +1328,7 @@ onBeforeUnmount(() => {
   position: relative;
   background: var(--m-bg, var(--bg-color));
   --mobile-dock-inset: 12px;
-  --mobile-dock-gap: 12px;
+  --mobile-dock-gap: 6px;
 }
 
 .mobile-layout[data-theme='dark'],
@@ -1556,11 +1556,11 @@ onBeforeUnmount(() => {
     position: fixed !important;
     top: auto !important;
     right: 12px;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 94px) !important;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 88px) !important;
     left: 12px !important;
     width: auto !important;
-    height: 54px;
-    border-radius: 27px;
+    height: 56px;
+    border-radius: 28px;
     background: var(--m-surface-container, var(--m-card));
     border: 1px solid var(--m-outline-variant, rgba(128, 128, 128, 0.16));
     box-shadow: var(--m-elevation-3);
@@ -1649,7 +1649,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 .mobile-bottom-dock .mobile-glow-nav-wrap {
   position: absolute;
-  bottom: 3px;
+  bottom: 1px;
 }
 
 /* 底栏外层的径向模糊辉光已移除（噪声大且与实心胶囊语汇冲突）。
@@ -1706,7 +1706,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
    top 4px = 容器 padding-top，高 40px = 项高。 */
 .nav-slide-indicator {
   position: absolute;
-  top: 3px;
+  top: 4px;
   left: 0;
   z-index: 0;
   height: 60px;
