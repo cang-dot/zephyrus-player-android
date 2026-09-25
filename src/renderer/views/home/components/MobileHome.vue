@@ -15,6 +15,7 @@
     <section v-if="cloudCards.length" class="home-section">
       <song-list-card-row
         :cards="cloudCards"
+        internal-scroll
         @song-play="onCardSongPlay"
         @detail="openCloudLibrary"
       />
@@ -269,7 +270,6 @@ onMounted(async () => {
   overflow-x: auto;
   padding: 2px 16px 10px;
   scroll-padding: 0 16px;
-  touch-action: pan-x;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
 

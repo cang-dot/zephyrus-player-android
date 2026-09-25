@@ -1,16 +1,5 @@
 <template>
   <section class="mobile-home-hero">
-    <!-- 心动模式：背景渐变为当前歌曲封面 -->
-    <div
-      class="hero-heart-cover"
-      :class="{ visible: isHeartMode && currentCoverUrl }"
-      :style="
-        currentCoverUrl ? { backgroundImage: `url(${getImgUrl(currentCoverUrl, '512y512')})` } : {}
-      "
-      aria-hidden="true"
-    />
-    <div v-if="isHeartMode" class="hero-blur" aria-hidden="true" />
-
     <div class="hero-content">
       <p class="hero-greeting">{{ greeting }}</p>
       <h1 class="hero-name">{{ userName }}</h1>
@@ -39,8 +28,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-
-import { getImgUrl } from '@/utils';
 
 withDefaults(
   defineProps<{
@@ -97,36 +84,7 @@ onMounted(() => {
     var(--m-bg, #111);
 }
 
-/* 心动模式：当前歌曲封面渐变铺满 */
-.hero-heart-cover {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  opacity: 0;
-  transition: opacity 600ms ease;
-  transform: scale(1.04);
-}
-
-.hero-heart-cover.visible {
-  opacity: 1;
-}
-
 /* 遮罩：左侧文字可读，整体压暗，底部加重 */
-
-/* 右侧加重模糊（按钮区），向左过渡为透明 */
-.hero-blur {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 46%;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  mask-image: linear-gradient(to right, transparent 0%, rgb(0 0 0 / 0.9) 55%);
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, rgb(0 0 0 / 0.9) 55%);
-  pointer-events: none;
-}
 
 .hero-content {
   position: absolute;
@@ -135,7 +93,7 @@ onMounted(() => {
   flex-direction: column;
   justify-content: flex-end;
   padding: 18px 18px 16px;
-  color: #fff;
+  color: var(--m-text-primary, rgba(0, 0, 0, 0.92));
 }
 
 .hero-greeting {
@@ -148,7 +106,6 @@ onMounted(() => {
   font-size: 24px;
   font-weight: 800;
   letter-spacing: 0.3px;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
 }
 
 .hero-wish {

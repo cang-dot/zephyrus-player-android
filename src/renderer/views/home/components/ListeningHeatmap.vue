@@ -122,18 +122,20 @@ const ariaLabel = computed(() =>
 .heatmap-grid {
   display: flex;
   gap: 3px;
+  justify-content: space-between;
 
-  /* 完整 16 周网格：已有数据之前是空白补位；固定小格样式 */
+  /* 完整 16 周网格；列上限 18px，剩余空间均匀分到列间 → 左右边距对称 */
   .heatmap-column {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    flex-shrink: 0;
+    flex: 0 1 18px;
+    min-width: 0;
   }
 
   .heatmap-cell {
-    width: 11px;
-    height: 11px;
+    width: 100%;
+    aspect-ratio: 1;
     border-radius: 3px;
     background: rgba(128, 128, 128, 0.14);
   }

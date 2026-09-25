@@ -103,7 +103,6 @@ const { t } = useI18n();
   overflow-x: auto;
   padding: 2px 16px 10px;
   scroll-padding: 0 16px;
-  touch-action: pan-x;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
 
@@ -130,7 +129,6 @@ const { t } = useI18n();
   grid-template-rows: repeat(3, auto);
   grid-auto-columns: 100%;
   overflow-x: auto;
-  touch-action: pan-x;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   margin: 0 -6px;
