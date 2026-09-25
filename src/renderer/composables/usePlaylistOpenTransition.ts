@@ -58,6 +58,8 @@ const endLayer = shallowRef<LayerState | null>(null);
 const heroRect = shallowRef<TransitionRect | null>(null);
 const coverUrl = ref('');
 const bgColor = ref('');
+/** reveal 后过渡到的颜色：去程不变（=歌单页 chrome 底），回程渐变成主页底色 */
+const bgEndColor = ref('');
 const reveal = ref(false);
 
 /** 记住去程的源矩形与最终底色，供回程镜像使用 */
@@ -117,13 +119,13 @@ const bgStyle = computed(() => {
     top: `${start.rect.y}px`,
     width: `${start.rect.w}px`,
     height: `${start.rect.h}px`,
-    backgroundColor: bgColor.value || 'var(--page-chrome-bg, var(--m-bg, #141414))',
+        backgroundColor: reveal.value ? bgEndColor.value || bgColor.value : bgColor.value,
     transformOrigin: 'top left',
     borderRadius: reveal.value ? `${end.radius}px` : `${start.radius}px`,
     transform: reveal.value ? `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${scaleX.toFixed(4)}, ${scaleY.toFixed(4)})` : 'none',
     willChange: 'transform',
     transition: reveal.value
-      ? `transform ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1), border-radius ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`
+      ? `transform ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1), border-radius ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1), background-color ${PLAYLIST_OPEN_EXPAND_MS}ms ease`
       : 'none'
   } as Record<string, string>;
 });
@@ -163,6 +165,13 @@ const coverTransform = computed(() => {
   return `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${scale.toFixed(4)})`;
 });
 
+/** 主页底色（回程收缩的终点色）：从布局根读取当前主题的 --m-bg */
+function resolveHomeBgColor(): string {
+  const layout = document.querySelector('.mobile-layout');
+  const value = layout ? getComputedStyle(layout).getPropertyValue('--m-bg').trim() : '';
+  return value || 'var(--m-bg, #141414)';
+}
+
 function resetLayer() {
   if (timer) {
     clearTimeout(timer);
@@ -172,7 +181,8 @@ function resetLayer() {
   startLayer.value = null;
   endLayer.value = null;
   heroRect.value = null;
-  coverUrl.value = '';
+    coverUrl.value = '';
+  bgEndColor.value = '';
   reveal.value = false;
 }
 
@@ -203,13 +213,15 @@ export function beginPlaylistOpen(source: PlaylistOpenSource): boolean {
   assignLayers({ rect: { ...rect }, radius: CARD_RADIUS }, { rect: viewportRect(), radius: 0 });
   phase.value = 'expanding';
 
-  const parsed = parseRepresentativeCssColor(source.color);
+    const parsed = parseRepresentativeCssColor(source.color);
   const initial = parsed ? resolvePageChrome(parsed) : fallbackPageChrome();
   bgColor.value = applyChromeToLayout(initial) || bgColor.value;
+  bgEndColor.value = bgColor.value;
   if (!parsed && coverUrl.value) {
     void getPageChromeForCover(coverUrl.value)
       .then((chrome) => {
         bgColor.value = applyChromeToLayout(chrome) || bgColor.value;
+        bgEndColor.value = bgColor.value;
       })
       .catch(() => {});
   }
@@ -231,9 +243,11 @@ export function beginPlaylistOpenReturn(): boolean {
   if (typeof window === 'undefined' || prefersReducedMotion()) return false;
   if (!lastRect || !lastColor) return false;
 
-  resetLayer();
+    resetLayer();
   coverUrl.value = '';
   bgColor.value = lastColor;
+  // 回程终点色 = 主页底色：收缩过程中从歌单页 chrome 色渐变过来，落定时无缝融入页面
+  bgEndColor.value = resolveHomeBgColor();
   assignLayers({ rect: viewportRect(), radius: 0 }, { rect: { ...lastRect }, radius: CARD_RADIUS });
   phase.value = 'expanding';
 

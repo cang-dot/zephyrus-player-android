@@ -1447,11 +1447,15 @@ const notifyEnterFlightEnd = () => {
   window.dispatchEvent(new Event('zephyrus:cover-flight-end'));
 };
 
+/** 本页是否经「背景扩展过渡」打开（决定返回时是否播放主页的填充过渡块） */
+let enteredViaOpenTransition = false;
+
 const playCoverEnterTransition = () => {
   // 歌单跳转过渡（首页/发现页卡片）：覆盖层已完成底色与封面衔接，
   // 这里只需把封面克隆对齐到真实 hero 位置后收尾；该流程不写 sessionStorage.musicListCoverRect
   const openTransition = usePlaylistOpenTransition();
   if (openTransition.isActive()) {
+    enteredViaOpenTransition = true;
     const heroCover = pageRootRef.value?.querySelector<HTMLElement>('.hero-cover');
     const heroRect = heroCover?.getBoundingClientRect();
     resolvePlaylistOpen(
@@ -1519,8 +1523,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  // 歌单跳转回程：底色块从全屏收缩回源卡片矩形再淡出（与去程镜像）
-  beginPlaylistOpenReturn();
+  // 歌单跳转回程：仅当本页经「背景扩展过渡」打开时才收缩回源卡片；
+  // 歌单库等其它入口有各自的封面飞回机制，不应触发主页的填充过渡块
+  if (enteredViaOpenTransition) beginPlaylistOpenReturn();
   unregisterMobileTopbarAction(`${topbarActionPrefix}-poster`);
   unregisterMobileTopbarAction(`${topbarActionPrefix}-more`);
   if (enterFlightTimer) clearTimeout(enterFlightTimer);
