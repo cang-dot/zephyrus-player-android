@@ -19,6 +19,7 @@
         v-model="activeTab"
         :tabs="tabs.map((tab) => ({ key: tab.key, label: tab.label }))"
         :page-path="embedded ? '/list' : '/local-music'"
+        :topbar="false"
         full-width
         class="tab-bar-glow"
       />
@@ -36,7 +37,9 @@
           @click="reparseSessionFiles"
         >
           <i :class="reparseBusy ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'" />
-          {{ reparseBusy ? `重新解析中 ${reparseProgress}/${sessionFiles.size}` : '重新解析元数据' }}
+          {{
+            reparseBusy ? `重新解析中 ${reparseProgress}/${sessionFiles.size}` : '重新解析元数据'
+          }}
         </button>
         <input
           ref="audioFileInput"
@@ -61,7 +64,10 @@
       >
         <i class="ri-folder-music-fill empty-icon" />
         <p class="empty-text">{{ t('localMusic.emptyState') }}</p>
-        <button class="empty-action" @click="isWebBrowser ? audioFileInput?.click() : handleAddFolder()">
+        <button
+          class="empty-action"
+          @click="isWebBrowser ? audioFileInput?.click() : handleAddFolder()"
+        >
           <i :class="isWebBrowser ? 'ri-upload-2-line' : 'ri-folder-add-line'" />
           {{ isWebBrowser ? '导入音乐文件' : t('localMusic.scanFolder') }}
         </button>
@@ -500,8 +506,8 @@ import { usePlayerStore } from '@/store/modules/player';
 import type { LocalMusicEntry } from '@/types/localMusic';
 import type { SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
-import type { SortKey } from '@/utils/localMusicUtils';
 import { parseAudioFileMetadata } from '@/utils/audioMetadata';
+import type { SortKey } from '@/utils/localMusicUtils';
 import { filterByKeyword, sortMusicList, toSongResult } from '@/utils/localMusicUtils';
 
 const route = useRoute();
@@ -519,7 +525,8 @@ const isMobileNative = !isElectron;
 // ==================== 网页版:本地音频文件导入 + 拖拽 ====================
 // 会话级能力(blob URL 刷新失效):条目入 IndexedDB 但标记 fileUrl,
 // 播放走 blob URL;刷新后这些条目自动清除
-const isWebBrowser = isElectron === false && !(window as any).AndroidNative && typeof window !== 'undefined';
+const isWebBrowser =
+  isElectron === false && !(window as any).AndroidNative && typeof window !== 'undefined';
 const dropActive = ref(false);
 const audioFileInput = ref<HTMLInputElement | null>(null);
 const sessionFiles = ref<Set<string>>(new Set());
@@ -1547,7 +1554,9 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+  transition:
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 0.2s ease;
 }
 
 .web-import-btn--ghost {

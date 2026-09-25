@@ -1,13 +1,28 @@
 <template>
   <div class="list-page">
     <div class="list-scroll">
+      <!-- 桌面端页内来源胶囊条；移动端筛选移入下方手风琴，顶栏搜索框拉长填充 -->
       <glow-tabs
         :model-value="playlistSourceFilter"
         :tabs="playlistSourceTabs"
         scrollable
         page-path="/list"
+        :topbar="false"
         class="playlist-source-tabs"
         @update:model-value="onSourceFilterChange"
+      />
+
+      <!-- 移动端手风琴来源选择（含本地二级子页签） -->
+      <source-accordion
+        v-if="isMobile"
+        class="list-source-accordion"
+        :sources="accordionSources"
+        :model-value="playlistSourceFilter"
+        :local-tabs="localTabItems"
+        :local-tab="localTab"
+        :total-count="items.length"
+        @update:model-value="onSourceFilterChange"
+        @update:local-tab="setLocalTab"
       />
 
       <local-music-view
@@ -129,9 +144,10 @@ import { getUserPlaylist } from '@/api/user';
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
+import SourceAccordion from '@/components/common/SourceAccordion.vue';
 import { useUserStore } from '@/store';
 import { type MusicPlatform, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
-import { getImgUrl } from '@/utils';
+import { getImgUrl, isMobile } from '@/utils';
 import {
   orderPlaylistCards,
   PLAYLIST_CARD_MRU_KEY,
@@ -328,6 +344,31 @@ const playlistSourceTabs = computed(() => [
   { key: 'qq', label: 'QQ 音乐', platform: 'qq' },
   { key: 'kugou', label: '酷狗音乐', platform: 'kugou' }
 ]);
+
+// ==================== 移动端手风琴来源选择 ====================
+/** 各来源的库内条目数（本地视图整视图替换，不计） */
+const accordionSources = computed(() =>
+  playlistSourceTabs.value.map((tab) => ({
+    ...tab,
+    count: tab.key === 'local' ? 0 : buildItems(String(tab.key)).length
+  }))
+);
+
+const localTabItems = computed(() => [
+  { key: 'songs', label: '歌曲' },
+  { key: 'artists', label: '歌手' },
+  { key: 'albums', label: '专辑' }
+]);
+
+const localTab = computed(() =>
+  typeof route.query.localTab === 'string' ? route.query.localTab : 'songs'
+);
+
+const setLocalTab = (value: string | number) => {
+  void router.replace({
+    query: { ...route.query, source: 'local', localTab: String(value) }
+  });
+};
 
 const platformName = (platform: MusicPlatform) =>
   ({ netease: '网易云', qq: 'QQ 音乐', kugou: '酷狗音乐', spotify: 'Spotify' })[platform];
@@ -591,6 +632,11 @@ const handleItemClick = (item: any) => {
 .playlist-source-tabs {
   display: flex;
   margin: 0 16px 16px;
+}
+
+/* 手风琴来源选择仅移动端使用（v-if=isMobile）；桌面保持页内胶囊条 */
+.list-source-accordion {
+  display: block;
 }
 
 /* ── FILTER 三段编排(OUT 原地缩淡 / IN 从空槽长出;MOVE 由 JS FLIP 驱动) ── */

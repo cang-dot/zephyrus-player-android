@@ -6,7 +6,7 @@
       'safe-area-top': hasSafeArea,
       'is-search': isSearchPage,
       'has-back': showBack,
-      'menu-expanded': topbarMenu.expanded.value,
+      'menu-expanded': topbarMenu.expanded.value || plainMenuOpen,
       'filter-expanded': searchTypeExpanded,
       'create-expanded': createPlaylistExpanded,
       'assist-expanded': showSearchAssist,
@@ -333,23 +333,66 @@
 
     <!-- 右侧动作胶囊随路由切换：缩回再展开的形变过渡 -->
     <Transition name="topbar-pill-morph" mode="out-in">
-      <!-- /music-list 简洁顶栏：右胶囊只承载注册动作（分享/更多，仿 Apple Music 专辑页） -->
+      <!-- /music-list 简洁顶栏：分享/更多窄胶囊；点「更多」时胶囊容器本体
+           原地变形为操作菜单（同 /list 创建歌单胶囊的形变套路） -->
       <div
         v-if="usesPlainDetailTopbar"
         key="plain-detail"
         class="topbar-pill topbar-action-pill topbar-plain-actions"
+        :class="{ expanded: plainMenuOpen }"
+        :style="plainMenuStyle"
       >
-        <button
-          v-for="action in topbarMenu.actions.value"
-          :key="action.id"
-          type="button"
-          class="plain-action-btn"
-          :title="action.label"
-          :aria-label="action.label"
-          @click="action.run()"
-        >
-          <i :class="action.icon" />
-        </button>
+        <div v-if="!plainMenuOpen" class="plain-actions-row">
+          <button
+            v-for="action in plainCapsuleActions"
+            :key="action.id"
+            type="button"
+            class="plain-action-btn"
+            :title="action.label"
+            :aria-label="action.label"
+            @click="runPlainAction(action)"
+          >
+            <i :class="action.icon" />
+          </button>
+        </div>
+        <div v-else class="plain-menu">
+          <template v-if="!plainMenuLevelAction">
+            <button
+              v-for="action in plainMenuActions"
+              :key="action.id"
+              type="button"
+              class="plain-menu-row"
+              @click="runPlainAction(action)"
+            >
+              <i :class="action.icon" />
+              <span class="plain-menu-label">{{ action.label }}</span>
+              <i v-if="action.options?.length" class="ri-arrow-right-s-line plain-menu-arrow" />
+            </button>
+          </template>
+          <template v-else>
+            <button
+              type="button"
+              class="plain-menu-row plain-menu-sub-header"
+              @click="plainMenuLevel = null"
+            >
+              <i class="ri-arrow-left-s-line" />
+              <span class="plain-menu-label">{{ plainMenuLevelAction.label }}</span>
+            </button>
+            <button
+              v-for="option in plainMenuLevelAction.options"
+              :key="option.key"
+              type="button"
+              class="plain-menu-row"
+              @click="runPlainOption(option.key)"
+            >
+              <span class="plain-menu-label">{{ option.label }}</span>
+              <i
+                v-if="String(option.key) === String(plainMenuLevelAction.value)"
+                class="ri-check-line plain-menu-arrow"
+              />
+            </button>
+          </template>
+        </div>
       </div>
 
       <button
@@ -523,8 +566,9 @@
   </div>
 
   <div
-    v-if="topbarMenu.expanded.value || searchTypeExpanded || showSearchAssist"
+    v-if="topbarMenu.expanded.value || searchTypeExpanded || showSearchAssist || plainMenuOpen"
     class="morph-dismiss-layer"
+    :class="{ 'plain-menu-blur': plainMenuOpen }"
     @pointerdown="closeFloatingMenus"
   />
 </template>
@@ -542,7 +586,7 @@ import { getSearchSuggestions } from '@/api/search';
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
-import { useMobileTopbarMenu } from '@/composables/useMobileTopbarMenu';
+import { type MobileTopbarAction, useMobileTopbarMenu } from '@/composables/useMobileTopbarMenu';
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import { SEARCH_TYPES } from '@/const/bar-const';
 import { registerMobileBackLayer } from '@/services/mobileBackStack';
@@ -575,13 +619,68 @@ const showPageCapsule = computed(
   () =>
     !isSearchPage.value &&
     !route.path.startsWith('/music-list') &&
-    !['/', '/discover', '/user'].includes(route.path)
+    !['/', '/discover', '/user', '/list'].includes(route.path)
 );
 const usesWideDetailTopbar = computed(
   () => route.path.startsWith('/music-list/') || route.path.startsWith('/artist/detail/')
 );
 /** /music-list 简洁顶栏：无标题胶囊、无搜索胶囊，右胶囊只承载注册动作（分享/更多） */
 const usesPlainDetailTopbar = computed(() => route.path.startsWith('/music-list'));
+
+// /music-list 简洁顶栏的胶囊变形菜单：按钮态 ⇄ 菜单态原地切换（同 /list 创建胶囊套路）
+const plainMenuOpen = ref(false);
+const plainMenuLevel = ref<string | null>(null);
+const plainCapsuleActions = computed(() =>
+  topbarMenu.actions.value.filter((action) => action.kind === 'capsule')
+);
+const plainMenuActions = computed(() =>
+  topbarMenu.actions.value.filter((action) => action.kind !== 'capsule' && !action.opensMenu)
+);
+const plainMenuLevelAction = computed(
+  () => plainMenuActions.value.find((action) => action.id === plainMenuLevel.value) ?? null
+);
+
+function runPlainAction(action: MobileTopbarAction) {
+  if (action.opensMenu) {
+    plainMenuOpen.value = !plainMenuOpen.value;
+    plainMenuLevel.value = null;
+    return;
+  }
+  if (action.options?.length) {
+    plainMenuLevel.value = action.id;
+    return;
+  }
+  action.run();
+  plainMenuOpen.value = false;
+  plainMenuLevel.value = null;
+}
+
+function runPlainOption(key: string | number) {
+  plainMenuLevelAction.value?.select?.(key);
+  plainMenuOpen.value = false;
+  plainMenuLevel.value = null;
+}
+
+function closePlainMenu() {
+  plainMenuOpen.value = false;
+  plainMenuLevel.value = null;
+}
+
+/** 胶囊⇄菜单的形变尺寸：JS 计算纯 px 内联驱动（min()/dvh 在部分渲染环境无效回落） */
+const plainMenuStyle = computed(() =>
+  plainMenuOpen.value
+    ? {
+        width: `${Math.min(320, Math.round(window.innerWidth * 0.78))}px`,
+        maxHeight: `${Math.min(460, Math.round(window.innerHeight * 0.58))}px`,
+        height: 'auto'
+      }
+    : { width: '88px', maxHeight: '40px', height: 'auto' }
+);
+
+watch(
+  () => route.path,
+  () => closePlainMenu()
+);
 const usesLegacyContentTopbar = computed(() => showPageCapsule.value);
 const isSearchResultPage = computed(() => route.path === '/mobile-search-result');
 
@@ -951,6 +1050,7 @@ const closeFloatingMenus = () => {
   expandedMorphActionId.value = null;
   closeSearchAssist();
   if (createPlaylistExpanded.value) closeCreatePlaylist();
+  closePlainMenu();
 };
 
 // ==================== 顶栏胶囊路由过渡 ====================
@@ -2275,6 +2375,13 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   background: transparent;
 }
 
+/* 简洁顶栏的胶囊菜单展开时：背景模糊 + 轻压暗，菜单（顶栏 z300）浮在其上 */
+.morph-dismiss-layer.plain-menu-blur {
+  background: rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+}
+
 /* 页面名 */
 .topbar-title-pill {
   flex-shrink: 0;
@@ -3154,9 +3261,10 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
 }
 
 /* /music-list 简洁顶栏：胶囊底色随页面 chrome（封面混色底），动作双钮一胶囊；
-   两侧留出安全距离 */
+   两侧留出安全距离；顶部对齐——菜单展开时返回钮不被垂直居中 */
 .floating-topbar.plain-detail-topbar {
   justify-content: space-between;
+  align-items: flex-start;
   padding-left: 12px;
   padding-right: 12px;
 }
@@ -3169,13 +3277,27 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
 
 .topbar-plain-actions {
   display: flex;
-  align-items: center;
-  width: auto;
-  height: 40px;
-  gap: 2px;
-  padding: 0 8px;
+  align-items: stretch;
+  /* 尺寸由 :style 内联驱动（JS 算纯 px），此处只管形变过渡与溢出 */
+  overflow: hidden;
   border-radius: 20px;
+  padding: 0;
   justify-content: flex-start;
+  transition:
+    width 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    max-height 320ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* 胶囊容器本体变形为操作菜单（右缘锚定，向左/向下展开） */
+  &.expanded {
+    overflow-y: auto;
+  }
+
+  .plain-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 5px;
+  }
 
   .plain-action-btn {
     display: flex;
@@ -3196,6 +3318,52 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
     &:active {
       transform: scale(0.94);
     }
+  }
+
+  .plain-menu {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 4px;
+  }
+
+  .plain-menu-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 12px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+
+    i {
+      font-size: 18px;
+    }
+
+    &:active {
+      background: rgba(var(--page-chrome-ink-rgb, 255, 255, 255), 0.08);
+    }
+  }
+
+  .plain-menu-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .plain-menu-arrow {
+    opacity: 0.55;
+  }
+
+  .plain-menu-sub-header {
+    color: rgba(var(--page-chrome-ink-rgb, 255, 255, 255), 0.6);
+    font-size: 13px;
   }
 }
 </style>

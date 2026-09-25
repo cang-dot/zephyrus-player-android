@@ -1,6 +1,7 @@
 <template>
+  <!-- 桌面端页内胶囊条；移动端要么注册顶栏（topbar）要么整段不渲染（页面自备移动 UI） -->
   <div
-    v-if="!useTopbar"
+    v-if="!isMobile"
     class="glow-tabs"
     :class="{
       'glow-tabs--full': fullWidth,
@@ -23,7 +24,11 @@
           class="glow-tab-logo"
           :platform="tab.platform"
           :size="13"
-          :color="String(modelValue) === String(tab.key) ? 'var(--accent-color, #888)' : 'var(--cover-text-muted, #9a9590)'"
+          :color="
+            String(modelValue) === String(tab.key)
+              ? 'var(--accent-color, #888)'
+              : 'var(--cover-text-muted, #9a9590)'
+          "
         />
       </div>
     </button>
@@ -44,11 +49,11 @@ import {
 } from 'vue';
 import { useRoute } from 'vue-router';
 
+import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import {
   registerMobileTopbarGroup,
   unregisterMobileTopbarGroup
 } from '@/composables/useMobileTopbarMenu';
-import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import { isMobile } from '@/utils';
 export interface GlowTabItem {
   key: string | number;
@@ -67,11 +72,14 @@ const props = withDefaults(
     /** 组件所属页面路径。Tab pager 的四个页面常驻且启动即预挂载相邻页，
      *  挂载/激活时 route.path 可能仍是别的页面，pager 页必须显式声明归属 */
     pagePath?: string;
+    /** 移动端是否注册进顶栏形变胶囊（false = 只渲染桌面页内胶囊条） */
+    topbar?: boolean;
   }>(),
   {
     fullWidth: false,
     scrollable: false,
-    pagePath: ''
+    pagePath: '',
+    topbar: true
   }
 );
 
@@ -82,7 +90,7 @@ const emit = defineEmits<{
 const route = useRoute();
 const instance = getCurrentInstance();
 const registryId = `glow-tabs-${instance?.uid ?? Math.random().toString(36).slice(2)}`;
-const useTopbar = isMobile;
+const useTopbar = computed(() => isMobile && props.topbar);
 
 // 顶栏注册跟随「页面可见性」而非生命周期时机：Tab pager 常驻页不走
 // keep-alive 生命周期，onActivated 只在首次挂载时跑一次，若那一刻
