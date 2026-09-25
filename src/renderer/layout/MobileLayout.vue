@@ -1495,8 +1495,8 @@ onBeforeUnmount(() => {
   }
 
   &.visible.player-open {
-    height: 112px;
-    border-radius: 32px;
+    height: 54px;
+    border-radius: 30px;
   }
 
   &.playlist-open {
@@ -1562,9 +1562,14 @@ onBeforeUnmount(() => {
     position: absolute !important;
     top: auto !important;
     right: 6px;
-    bottom: 48px !important;
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + 62px) !important;
     left: 6px !important;
     width: calc(100% - 12px) !important;
+    height: 54px;
+    border-radius: 27px;
+    background: var(--m-surface-container, var(--m-card));
+    border: 1px solid var(--m-outline-variant, rgba(128, 128, 128, 0.16));
+    box-shadow: var(--m-elevation-3);
   }
 
   &.player-collapsed :deep(.mobile-play-bar.play-bar-mini.idle-collapsed) {

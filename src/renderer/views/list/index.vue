@@ -1,35 +1,123 @@
 <template>
   <div class="list-page">
     <div class="list-scroll">
-      <!-- 桌面端页内来源胶囊条；移动端筛选移入下方手风琴，顶栏搜索框拉长填充 -->
-      <glow-tabs
-        :model-value="playlistSourceFilter"
-        :tabs="playlistSourceTabs"
-        scrollable
-        page-path="/list"
-        :topbar="false"
-        class="playlist-source-tabs"
-        @update:model-value="onSourceFilterChange"
-      />
+      <!-- 最近常听：最近打开的四个歌单（上限四个） -->
+      <section v-if="recentItems.length" class="list-strip recent-strip">
+        <header class="strip-header static">
+          <i class="ri-history-line strip-icon" />
+          <span class="strip-title">最近常听</span>
+        </header>
+        <div class="cover-grid strip-grid">
+          <div
+            v-for="item in recentItems"
+            :key="cardKey(item)"
+            :data-key="cardKey(item)"
+            class="cover-card"
+            @click.stop="handleItemClick(item)"
+          >
+            <div class="cover-wrap">
+              <img
+                v-if="item.src"
+                :src="getImgUrl(item.src, '300y300')"
+                :alt="item.alt"
+                draggable="false"
+                class="cover-img"
+                loading="lazy"
+              />
+              <div v-else class="cover-placeholder">
+                <i class="ri-disc-line text-3xl" />
+              </div>
+              <div class="cover-play-overlay">
+                <i class="ri-play-fill" />
+              </div>
+            </div>
+            <div class="cover-text">
+              <p class="cover-name">
+                {{ item.alt }}
+                <platform-logo
+                  class="cover-name-logo"
+                  :platform="item.platform"
+                  :size="12"
+                  color="var(--cover-text-muted, var(--m-text-muted, #9a9590))"
+                />
+              </p>
+              <span class="cover-kind">{{
+                `${item.type === 'album' ? '专辑' : '歌单'}${coverKindCountSuffix(item)}`
+              }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
-      <!-- 移动端手风琴来源选择（含本地二级子页签） -->
-      <source-accordion
-        v-if="isMobile"
-        class="list-source-accordion"
-        :sources="accordionSources"
-        :model-value="playlistSourceFilter"
-        :local-tabs="localTabItems"
-        :local-tab="localTab"
-        :total-count="items.length"
-        @update:model-value="onSourceFilterChange"
-        @update:local-tab="setLocalTab"
-      />
-
-      <local-music-view
-        v-if="playlistSourceFilter === 'local'"
-        embedded
-        class="embedded-local-music"
-      />
+      <!-- 来源收纳条：每个来源一个可折叠分区 -->
+      <section
+        v-for="strip in sourceStrips"
+        :key="strip.key"
+        class="list-strip"
+        :class="{ expanded: openStrips.includes(strip.key) }"
+      >
+        <button type="button" class="strip-header pressable" @click="toggleStrip(strip.key)">
+          <platform-logo
+            v-if="strip.platform !== 'local'"
+            :platform="strip.platform"
+            :size="16"
+            color="var(--accent-color, #888)"
+          />
+          <i v-else class="ri-hard-drive-3-line strip-icon" />
+          <span class="strip-title">{{ strip.label }}</span>
+          <span class="strip-count">{{ strip.count }}</span>
+          <i class="ri-arrow-down-s-line strip-arrow" />
+        </button>
+        <div class="strip-body">
+          <div class="strip-inner">
+            <local-music-view
+              v-if="strip.key === 'local' && openStrips.includes('local')"
+              embedded
+              class="embedded-local-music"
+            />
+            <div v-else class="cover-grid strip-grid">
+              <div
+                v-for="item in strip.items"
+                :key="cardKey(item)"
+                :data-key="cardKey(item)"
+                class="cover-card"
+                @click.stop="handleItemClick(item)"
+              >
+                <div class="cover-wrap">
+                  <img
+                    v-if="item.src"
+                    :src="getImgUrl(item.src, '300y300')"
+                    :alt="item.alt"
+                    draggable="false"
+                    class="cover-img"
+                    loading="lazy"
+                  />
+                  <div v-else class="cover-placeholder">
+                    <i class="ri-disc-line text-3xl" />
+                  </div>
+                  <div class="cover-play-overlay">
+                    <i class="ri-play-fill" />
+                  </div>
+                </div>
+                <div class="cover-text">
+                  <p class="cover-name">
+                    {{ item.alt }}
+                    <platform-logo
+                      class="cover-name-logo"
+                      :platform="item.platform"
+                      :size="12"
+                      color="var(--cover-text-muted, var(--m-text-muted, #9a9590))"
+                    />
+                  </p>
+                  <span class="cover-kind">{{
+                    `${item.type === 'album' ? '专辑' : '歌单'}${coverKindCountSuffix(item)}`
+                  }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <!-- 未登录 / 全部来源加载失败：状态提示块。
            「全部」下仍会渲染本地歌曲入口卡，故提示块独立于网格之外。 -->
@@ -63,56 +151,6 @@
         </div>
       </div>
 
-      <!-- Cover Grid -->
-      <div v-else-if="items.length > 0" ref="gridRef" class="cover-grid">
-        <div
-          v-for="item in items"
-          :key="cardKey(item)"
-          :data-key="cardKey(item)"
-          class="cover-card"
-          @click.stop="handleItemClick(item)"
-        >
-          <div class="cover-wrap">
-            <img
-              v-if="item.src"
-              :src="getImgUrl(item.src, '300y300')"
-              :alt="item.alt"
-              draggable="false"
-              class="cover-img"
-              loading="lazy"
-            />
-            <div v-else class="cover-placeholder">
-              <i class="ri-disc-line text-3xl" />
-            </div>
-            <div class="cover-play-overlay">
-              <i class="ri-play-fill" />
-            </div>
-          </div>
-          <div class="cover-text">
-            <p class="cover-name">
-              {{ item.alt }}
-              <platform-logo
-                class="cover-name-logo"
-                :platform="item.isLocal ? 'local' : item.platform"
-                :size="12"
-                color="var(--cover-text-muted, var(--m-text-muted, #9a9590))"
-              />
-            </p>
-            <span class="cover-kind">{{
-              item.isLocal
-                ? '本地歌曲'
-                : `${item.type === 'album' ? '专辑' : '歌单'}${coverKindCountSuffix(item)}`
-            }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Empty state -->
-      <div v-else-if="!stateNotice && playlistSourceFilter !== 'local'" class="empty-state">
-        <i class="ri-disc-line"></i>
-        <p>暂无歌单或专辑</p>
-      </div>
-
       <!-- 部分来源加载失败：不阻断已加载内容，以横幅提示 -->
       <div v-if="partialErrors.length" class="partial-error">
         <i class="ri-error-warning-line" />
@@ -136,21 +174,20 @@
 
 <script lang="ts" setup>
 import { useMessage } from 'naive-ui';
-import { computed, defineAsyncComponent, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { fetchPlatformAccountData } from '@/api/platformQrApi';
 import { getUserPlaylist } from '@/api/user';
-import GlowTabs from '@/components/common/GlowTabs.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PlatformLogo from '@/components/common/PlatformLogo.vue';
-import SourceAccordion from '@/components/common/SourceAccordion.vue';
 import { useUserStore } from '@/store';
 import { type MusicPlatform, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
-import { getImgUrl, isMobile } from '@/utils';
+import { getImgUrl } from '@/utils';
 import {
   orderPlaylistCards,
   PLAYLIST_CARD_MRU_KEY,
+  playlistCardKey,
   readPlaylistCardMru,
   touchPlaylistCardMru
 } from '@/utils/playlistCardMru';
@@ -168,8 +205,6 @@ const playlistSourceFilter = computed<'all' | MusicPlatform | 'local'>({
   get: () => (typeof route.query.source === 'string' ? route.query.source : 'all') as any,
   set: (source) => void router.replace({ query: { ...route.query, source } })
 });
-
-const gridRef = ref<HTMLElement>();
 
 /** 封面卡稳定标识:跨来源筛选切换时同卡同 key,是 FILTER MOVE 段 FLIP 的前提 */
 const cardKey = (item: any) => `${item.accountId}-${item.type}-${item.id}`;
@@ -206,11 +241,7 @@ function describeLoadError(error: unknown): string {
 }
 
 /** 当前筛选下的来源账号；local 视图不参与 */
-const relevantAccounts = computed(() => {
-  const source = playlistSourceFilter.value;
-  if (source === 'local') return [];
-  return accountStore.accounts.filter((account) => source === 'all' || account.platform === source);
-});
+const relevantAccounts = computed(() => accountStore.accounts);
 
 const notLoggedIn = computed(
   () => playlistSourceFilter.value !== 'local' && relevantAccounts.value.length === 0
@@ -231,7 +262,6 @@ const allSourcesFailed = computed(
 );
 
 const showSkeleton = computed(() => {
-  if (playlistSourceFilter.value === 'local') return false;
   if (!relevantAccounts.value.length) return false;
   return relevantAccounts.value.every(
     (account) => accountLoadStates.value[account.accountId]?.status === 'loading'
@@ -239,18 +269,12 @@ const showSkeleton = computed(() => {
 });
 
 const stateNotice = computed(() => {
-  if (playlistSourceFilter.value === 'local') return null;
   if (notLoggedIn.value) {
-    const source = playlistSourceFilter.value;
-    const label = source === 'all' ? '任意音乐平台' : platformName(source as MusicPlatform);
     return {
       kind: 'login' as const,
       icon: 'ri-user-line',
       title: '暂未登录',
-      desc:
-        source === 'all'
-          ? '登录网易云 / QQ 音乐 / 酷狗后，这里会显示对应账号的歌单与专辑。'
-          : `登录${label}后，这里会显示该平台的歌单与专辑。`
+      desc: '登录网易云 / QQ 音乐 / 酷狗后，这里会显示对应账号的歌单与专辑。'
     };
   }
   if (allSourcesFailed.value) {
@@ -280,8 +304,6 @@ const retryFailedSources = () => {
 };
 
 async function ensureSourcesLoaded() {
-  const source = playlistSourceFilter.value;
-  if (source === 'local') return;
   const sequence = ++loadSequence;
   const targets = relevantAccounts.value;
   if (!targets.length) {
@@ -331,47 +353,39 @@ onMounted(() => {
 });
 
 watch(
-  [playlistSourceFilter, () => accountStore.accounts.map((account) => account.accountId).join(',')],
+  () => accountStore.accounts.map((account) => account.accountId).join(','),
   () => {
     void ensureSourcesLoaded();
   }
 );
 
-const playlistSourceTabs = computed(() => [
-  { key: 'all', label: '全部', platform: 'all' },
-  { key: 'local', label: '本地', platform: 'local' },
-  { key: 'netease', label: '网易云', platform: 'netease' },
-  { key: 'qq', label: 'QQ 音乐', platform: 'qq' },
-  { key: 'kugou', label: '酷狗音乐', platform: 'kugou' }
+// ==================== 来源收纳条 ====================
+const sourceStrips = computed(() => [
+  { key: 'netease', label: '网易云', platform: 'netease', items: buildItems('netease') },
+  { key: 'qq', label: 'QQ 音乐', platform: 'qq', items: buildItems('qq') },
+  { key: 'kugou', label: '酷狗音乐', platform: 'kugou', items: buildItems('kugou') },
+  { key: 'local', label: '本地音乐', platform: 'local', items: [] as any[], count: 0 }
 ]);
 
-// ==================== 移动端手风琴来源选择 ====================
-/** 各来源的库内条目数（本地视图整视图替换，不计） */
-const accordionSources = computed(() =>
-  playlistSourceTabs.value.map((tab) => ({
-    ...tab,
-    count: tab.key === 'local' ? 0 : buildItems(String(tab.key)).length
-  }))
-);
+const openStrips = ref<string[]>(['netease']);
 
-const localTabItems = computed(() => [
-  { key: 'songs', label: '歌曲' },
-  { key: 'artists', label: '歌手' },
-  { key: 'albums', label: '专辑' }
-]);
-
-const localTab = computed(() =>
-  typeof route.query.localTab === 'string' ? route.query.localTab : 'songs'
-);
-
-const setLocalTab = (value: string | number) => {
-  void router.replace({
-    query: { ...route.query, source: 'local', localTab: String(value) }
-  });
+const toggleStrip = (key: string) => {
+  openStrips.value = openStrips.value.includes(key)
+    ? openStrips.value.filter((candidate) => candidate !== key)
+    : [...openStrips.value, key];
 };
 
-const platformName = (platform: MusicPlatform) =>
-  ({ netease: '网易云', qq: 'QQ 音乐', kugou: '酷狗音乐', spotify: 'Spotify' })[platform];
+// ==================== 最近常听：最近打开的四个歌单 ====================
+const recentItems = computed<any[]>(() => {
+  const index = new Map<string, any>();
+  for (const item of buildItems('all')) {
+    if (!item.isLocal) index.set(playlistCardKey(item), item);
+  }
+  return cardMru.value.keys
+    .map((key) => index.get(key))
+    .filter((item): item is any => Boolean(item))
+    .slice(0, 4);
+});
 
 /**
  * 类型小字的曲目数后缀：网易云歌单原生带 trackCount，QQ/酷狗由服务端网关
@@ -456,106 +470,6 @@ const buildItems = (source: string) => {
   return source === 'all' ? orderPlaylistCards(result, cardMru.value) : result;
 };
 
-const items = computed(() => buildItems(playlistSourceFilter.value));
-
-// ==================== FILTER 三段编排(OUT → MOVE → IN,规格 §5) ====================
-const FILTER_OUT_MS = 250;
-const FILTER_MOVE_MS = 200;
-const FILTER_IN_MS = 150;
-let filterBusy = false;
-
-const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-const prefersReducedMotion = () =>
-  typeof window !== 'undefined' &&
-  !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
-const onSourceFilterChange = async (next: string | number) => {
-  const source = String(next);
-  if (filterBusy || source === playlistSourceFilter.value) return;
-  const grid = gridRef.value;
-
-  // 「本地」是整视图替换(网格让位给 local-music-view),不做卡片级三段编排,
-  // 仅给被替换的网格一个快速淡出,呼应「卡片不凭空消失」
-  const viewSwap = source === 'local' || playlistSourceFilter.value === 'local';
-  if (!grid || viewSwap || prefersReducedMotion()) {
-    if (grid && viewSwap && !prefersReducedMotion()) {
-      grid.animate([{ opacity: 1 }, { opacity: 0 }], {
-        duration: 150,
-        easing: 'ease-out',
-        fill: 'forwards'
-      });
-      await wait(150);
-    }
-    playlistSourceFilter.value = source as any;
-    return;
-  }
-
-  filterBusy = true;
-  try {
-    const prevKeys = new Set(items.value.map(cardKey));
-    const nextKeys = new Set(buildItems(source).map(cardKey));
-
-    // ── OUT:被筛掉的卡原地缩淡(不位移 = 「被移除」而非「搬走」),同时记录留存卡 First 位置 ──
-    const outCards: HTMLElement[] = [];
-    const stayRects = new Map<HTMLElement, DOMRect>();
-    grid.querySelectorAll<HTMLElement>('[data-key]').forEach((el) => {
-      if (nextKeys.has(el.dataset.key || '')) stayRects.set(el, el.getBoundingClientRect());
-      else outCards.push(el);
-    });
-    if (!outCards.length && !stayRects.size) {
-      playlistSourceFilter.value = source as any;
-      return;
-    }
-    outCards.forEach((el) => el.classList.add('card-out'));
-    await wait(FILTER_OUT_MS);
-
-    // ── 数据切换:Vue 渲染新集合;nextTick 后仍在同帧,新卡先压住避免闪现 ──
-    playlistSourceFilter.value = source as any;
-    await nextTick();
-
-    const inCards: HTMLElement[] = [];
-    grid.querySelectorAll<HTMLElement>('[data-key]').forEach((el) => {
-      if (!prevKeys.has(el.dataset.key || '')) {
-        el.classList.add('card-pending');
-        inCards.push(el);
-      }
-    });
-
-    // ── MOVE:留存卡 FLIP 弹簧滑到新槽位(轻微错峰) ──
-    let moveIndex = 0;
-    stayRects.forEach((first, el) => {
-      if (!el.isConnected) return;
-      const last = el.getBoundingClientRect();
-      const dx = first.left - last.left;
-      const dy = first.top - last.top;
-      if (!dx && !dy) return;
-      el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], {
-        duration: FILTER_MOVE_MS,
-        delay: Math.min(moveIndex * 20, 40),
-        easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
-      });
-      moveIndex += 1;
-    });
-    await wait(FILTER_MOVE_MS + 40);
-
-    // ── IN:新卡从自己的空槽长出(back-out,逐卡 30ms 错峰) ──
-    inCards.forEach((el, i) => {
-      el.classList.remove('card-pending');
-      el.classList.add('card-in');
-      el.style.animationDelay = `${i * 30}ms`;
-    });
-    await wait(FILTER_IN_MS + inCards.length * 30 + 60);
-    inCards.forEach((el) => {
-      el.classList.remove('card-in');
-      el.style.animationDelay = '';
-    });
-  } finally {
-    // 兜底:任何异常路径都不允许永久锁死筛选
-    filterBusy = false;
-  }
-};
-
 const handleItemClick = (item: any) => {
   touchCardMru(item);
   if (item.isLocal) {
@@ -634,11 +548,6 @@ const handleItemClick = (item: any) => {
   margin: 0 16px 16px;
 }
 
-/* 手风琴来源选择仅移动端使用（v-if=isMobile）；桌面保持页内胶囊条 */
-.list-source-accordion {
-  display: block;
-}
-
 /* ── FILTER 三段编排(OUT 原地缩淡 / IN 从空槽长出;MOVE 由 JS FLIP 驱动) ── */
 .cover-card.card-out {
   pointer-events: none;
@@ -669,6 +578,7 @@ const handleItemClick = (item: any) => {
 
 .cover-grid {
   animation: grid-fade-in 150ms ease-out;
+  margin: 0 16px;
 }
 
 @keyframes grid-fade-in {
@@ -974,3 +884,19 @@ const handleItemClick = (item: any) => {
   }
 }
 </style>
+
+/* ==================== 来源收纳条 ==================== */ .list-strip { margin: 0 16px 14px;
+border-radius: 16px; background: rgba(128, 128, 128, 0.08); border: 1px solid rgba(128, 128, 128,
+0.12); overflow: hidden; } .recent-strip { background: transparent; border: 0; padding-top: 4px; }
+.strip-header { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px;
+border: 0; background: transparent; color: var(--d-text-primary, rgba(0, 0, 0, 0.92)); font-size:
+15px; font-weight: 700; cursor: pointer; text-align: left; .strip-icon { font-size: 17px; color:
+var(--accent-color, #888); } .strip-title { flex: 1; min-width: 0; overflow: hidden; text-overflow:
+ellipsis; white-space: nowrap; } .strip-count { font-size: 12px; font-weight: 400; color:
+var(--d-text-secondary, rgba(0, 0, 0, 0.45)); } .strip-arrow { font-size: 18px; color:
+var(--d-text-secondary, rgba(0, 0, 0, 0.5)); transition: transform 260ms cubic-bezier(0.32, 0.72, 0,
+1); } } .list-strip.expanded .strip-header .strip-arrow { transform: rotate(180deg); } .strip-body {
+display: grid; grid-template-rows: 0fr; transition: grid-template-rows 420ms cubic-bezier(0.32,
+0.72, 0, 1); } .list-strip.expanded .strip-body { grid-template-rows: 1fr; } .strip-inner {
+overflow: hidden; padding-bottom: 0; } .list-strip.expanded .strip-inner { padding-bottom: 10px; }
+.strip-grid { margin: 0 8px; } .embedded-local-music { margin: 0 8px; }

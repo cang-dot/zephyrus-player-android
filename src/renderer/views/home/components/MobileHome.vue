@@ -254,7 +254,7 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 .mobile-home {
-  padding: 12px 0 8px;
+  padding: 12px 0 calc(var(--mobile-dock-content-inset, 134px) + 8px);
   overflow-x: clip;
   --page-pl: 16px;
 }
