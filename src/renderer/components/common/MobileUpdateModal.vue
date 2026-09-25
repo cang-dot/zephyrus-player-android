@@ -302,13 +302,11 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 玻璃表面：与 SharedSongCard 同一配方（Teleport 到 body，不依赖 .mobile 令牌作用域） */
+/* 实色表面（毛玻璃已下线；Teleport 到 body，不依赖 .mobile 令牌作用域） */
 .update-sheet {
-  background: rgba(28, 28, 32, 0.96);
+  background: #1c1c20;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-bottom: none;
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
   box-shadow:
     0 -16px 48px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);

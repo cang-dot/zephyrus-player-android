@@ -90,7 +90,7 @@
   --d-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
   --d-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
   --d-overlay: rgba(0, 0, 0, 0.7);
-  --d-glass-bg: rgba(22, 22, 22, 0.8);
+  --d-glass-bg: #161616;
   --d-glass-border: rgba(255, 255, 255, 0.08);
 }
 
@@ -127,7 +127,7 @@
   --d-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
   --d-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.1);
   --d-overlay: rgba(0, 0, 0, 0.5);
-  --d-glass-bg: rgba(255, 255, 255, 0.8);
+  --d-glass-bg: #ffffff;
   --d-glass-border: rgba(0, 0, 0, 0.06);
 }
 
@@ -164,7 +164,7 @@
   --d-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.07);
   --d-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.09);
   --d-overlay: rgba(0, 0, 0, 0.4);
-  --d-glass-bg: rgba(248, 249, 250, 0.85);
+  --d-glass-bg: #f8f9fa;
   --d-glass-border: rgba(0, 0, 0, 0.05);
 }
 
@@ -287,7 +287,8 @@
   --d-transition-all: all var(--d-duration-normal) var(--d-ease-out);
 
   /* ── 玻璃材质（ backdrop-filter） ── */
-  --d-glass-blur: blur(20px) saturate(180%);
+  /* 毛玻璃已下线：UI 面一律实色，模糊令牌置空（调用点无需改动） */
+  --d-glass-blur: none;
 }
 
 /* PC 端：有左侧菜单，左边距为 0 */

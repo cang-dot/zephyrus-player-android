@@ -1059,8 +1059,8 @@ defineExpose({
 
 .control-btn {
   @apply w-9 h-9 flex items-center justify-center rounded cursor-pointer transition-all duration-300;
-  background: rgba(142, 142, 142, 0.192);
-  backdrop-filter: blur(12px);
+  background: #2a2a2c;
+  backdrop-filter: none;
 
   i {
     @apply text-xl;

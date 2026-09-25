@@ -117,7 +117,7 @@ watch(
   align-items: flex-end;
   justify-content: center;
   background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
+  backdrop-filter: none;
 }
 
 .shub-sheet {

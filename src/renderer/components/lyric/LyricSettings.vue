@@ -696,7 +696,7 @@ defineExpose({
   --d-text-primary: #f8f9fa;
   --d-text-secondary: #adb5bd;
   --d-text-muted: #6c757d;
-  --d-glass-bg: rgba(22, 22, 22, 0.82);
+  --d-glass-bg: #161616;
   --d-glass-border: rgba(255, 255, 255, 0.08);
 }
 
@@ -1075,8 +1075,8 @@ defineExpose({
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
+  background: #ffffff;
+  backdrop-filter: none;
   border: none;
   cursor: pointer;
   display: flex;

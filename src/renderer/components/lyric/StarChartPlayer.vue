@@ -968,8 +968,8 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 50%;
   color: #fff;
-  background: rgba(18, 18, 18, 0.7);
-  backdrop-filter: blur(14px);
+  background: #121212;
+  backdrop-filter: none;
   cursor: pointer;
   transition:
     transform 180ms var(--m-ease-out, ease-out),
@@ -1022,8 +1022,8 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   z-index: 45;
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(18px);
+  background: #0b0b0b;
+  backdrop-filter: none;
 }
 
 .scrolling-lyrics-overlay {

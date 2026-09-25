@@ -1,12 +1,15 @@
 <template>
-  <div class="eq-control p-4 rounded-2xl w-full" style="
-    background: color-mix(in srgb, var(--m-surface-alt, #f3f0eb) 86%, transparent);
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-  ">
+  <div
+    class="eq-control p-4 rounded-2xl w-full"
+    style="
+      background: var(--m-surface-alt, #f3f0eb);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    "
+  >
     <div class="eq-header flex justify-between items-center mb-4">
-      <h3 class="text-base font-semibold" style="color: var(--m-text-primary, #f0ece4);">
+      <h3 class="text-base font-semibold" style="color: var(--m-text-primary, #f0ece4)">
         {{ t('player.eq.title') }}
         <n-tag type="warning" size="small" round v-if="!isElectron">
           桌面版可用，网页端不支持
@@ -22,18 +25,22 @@
 
     <div
       class="adaptive-eq-row flex items-center gap-3 mb-4 rounded-xl p-3"
-      style="background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.08);"
+      style="background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.08)"
     >
       <div class="min-w-0 flex-1">
-        <div class="font-medium text-sm" style="color: var(--m-text-primary, #f0ece4);">AI 动态均衡器</div>
-        <div class="text-xs" style="color: var(--m-text-muted, rgba(255,255,255,0.55));">
+        <div class="font-medium text-sm" style="color: var(--m-text-primary, #f0ece4)">
+          AI 动态均衡器
+        </div>
+        <div class="text-xs" style="color: var(--m-text-muted, rgba(255, 255, 255, 0.55))">
           根据实时频段自动平滑调整，限制在安全增益范围内
         </div>
       </div>
       <n-switch v-model:value="isAdaptiveEnabled" @update:value="toggleAdaptiveEQ" />
     </div>
     <div v-if="isAdaptiveEnabled" class="adaptive-eq-intensity flex items-center gap-3 mb-4">
-      <span class="text-xs" style="color: var(--m-text-muted, rgba(255,255,255,0.55));">强度</span>
+      <span class="text-xs" style="color: var(--m-text-muted, rgba(255, 255, 255, 0.55))"
+        >强度</span
+      >
       <n-slider
         v-model:value="adaptiveIntensity"
         :min="0"
@@ -41,12 +48,14 @@
         :step="0.05"
         @update:value="updateAdaptiveIntensity"
       />
-      <span class="w-10 text-right text-xs" style="color: var(--m-text-muted, rgba(255,255,255,0.55));"
+      <span
+        class="w-10 text-right text-xs"
+        style="color: var(--m-text-muted, rgba(255, 255, 255, 0.55))"
         >{{ Math.round(adaptiveIntensity * 100) }}%</span
       >
     </div>
 
-    <div class="eq-presets mb-2 relative h-10" style="max-width: 100%; overflow: hidden;">
+    <div class="eq-presets mb-2 relative h-10" style="max-width: 100%; overflow: hidden">
       <n-scrollbar x-scrollable>
         <n-space :size="6" :wrap="false">
           <n-tag
@@ -65,7 +74,12 @@
       </n-scrollbar>
     </div>
 
-    <button v-if="isEnabled" type="button" class="eq-advanced-toggle" @click="showManualEq = !showManualEq">
+    <button
+      v-if="isEnabled"
+      type="button"
+      class="eq-advanced-toggle"
+      @click="showManualEq = !showManualEq"
+    >
       <span>手动调音(10 段)</span>
       <i :class="showManualEq ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" />
     </button>
@@ -73,15 +87,17 @@
     <div
       v-show="showManualEq && isEnabled"
       class="eq-sliders flex justify-between items-end gap-0.5 rounded-xl p-2 h-[300px] w-full"
-      style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.06);"
+      style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.06)"
     >
       <div
         v-for="freq in frequencies"
         :key="freq"
-        class="eq-slider flex flex-col items-center h-full" style="flex: 1 1 0; min-width: 0;"
+        class="eq-slider flex flex-col items-center h-full"
+        style="flex: 1 1 0; min-width: 0"
       >
         <div
-          class="freq-label font-medium text-center whitespace-nowrap m-2 h-5" style="color: var(--m-text-muted, rgba(255,255,255,0.55)); font-size: 11px;"
+          class="freq-label font-medium text-center whitespace-nowrap m-2 h-5"
+          style="color: var(--m-text-muted, rgba(255, 255, 255, 0.55)); font-size: 11px"
         >
           {{ formatFreq(freq) }}
         </div>
@@ -96,7 +112,8 @@
           class="eq-vslider flex-1 my-3"
         />
         <div
-          class="gain-value font-medium text-center whitespace-nowrap my-1 h-4" style="color: var(--m-text-muted, rgba(255,255,255,0.55)); font-size: 10px;"
+          class="gain-value font-medium text-center whitespace-nowrap my-1 h-4"
+          style="color: var(--m-text-muted, rgba(255, 255, 255, 0.55)); font-size: 10px"
         >
           {{ eqValues[freq.toString()] }}dB
         </div>

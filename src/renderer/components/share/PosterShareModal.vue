@@ -998,10 +998,10 @@ onBeforeUnmount(() => {
   padding: 10px 16px 14px;
   border: 1px solid color-mix(in srgb, #fff 14%, transparent);
   border-radius: 24px;
-  background: rgba(24, 25, 27, 0.72);
+  background: #18191b;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(16px) saturate(145%);
-  -webkit-backdrop-filter: blur(16px) saturate(145%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 
   &::-webkit-scrollbar {
     width: 3px;
@@ -1270,8 +1270,8 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 12px 24px;
   border-radius: 24px;
-  background: rgba(20, 20, 25, 0.95);
-  backdrop-filter: blur(20px);
+  background: #141419;
+  backdrop-filter: none;
   color: #fff;
   font-size: 14px;
   z-index: 100000;

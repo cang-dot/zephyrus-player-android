@@ -122,22 +122,20 @@ defineExpose({ showInvite });
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   padding: 20px;
 }
 
-/* 玻璃卡片：与 SharedSongCard 同一表面配方 */
+/* 实色卡片（毛玻璃已下线） */
 .lt-invite-card {
   position: relative;
   width: min(360px, calc(100vw - 40px));
   border-radius: 20px;
   padding: 28px 22px 22px;
   color: #f5f5f7;
-  background: rgba(28, 28, 32, 0.96);
+  background: #1c1c20;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
   box-shadow:
     0 16px 48px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);

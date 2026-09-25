@@ -88,7 +88,9 @@
 
           <!-- 初始态 -->
           <p v-else class="hint">
-            选择一种策略，AI 会结合{{ strategy === 'favorites' ? '你最近收藏的 50 首' : '你关注的音乐人' }}为你挑一份新歌单。
+            选择一种策略，AI 会结合{{
+              strategy === 'favorites' ? '你最近收藏的 50 首' : '你关注的音乐人'
+            }}为你挑一份新歌单。
           </p>
 
           <footer class="panel-footer">
@@ -108,12 +110,12 @@ import { computed, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { createPlaylist, updatePlaylistTracks } from '@/api/music';
-import {
-  generateAiPlaylist,
-  type AiPlaylistResult,
-  type AiPlaylistStrategy
-} from '@/features/ai/aiPlaylist';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
+import {
+  type AiPlaylistResult,
+  type AiPlaylistStrategy,
+  generateAiPlaylist
+} from '@/features/ai/aiPlaylist';
 import { usePlayerStore } from '@/store/modules/player';
 
 const visible = defineModel<boolean>({ type: Boolean, default: false });
@@ -163,8 +165,7 @@ async function generate() {
 function playResult() {
   const songs = selectedSongs.value;
   if (!songs.length) return;
-  const name =
-    strategy.value === 'favorites' ? 'AI 歌单 · 风格联想' : 'AI 歌单 · 关注音乐人';
+  const name = strategy.value === 'favorites' ? 'AI 歌单 · 风格联想' : 'AI 歌单 · 关注音乐人';
   navigateToMusicList(router, {
     songList: songs as any,
     name,
@@ -200,7 +201,9 @@ async function saveToCloud() {
     }
     message.success(
       `已创建「${name}」并写入 ${neteaseIds.length} 首` +
-        (songs.length > neteaseIds.length ? `（${songs.length - neteaseIds.length} 首非网易云歌曲未包含）` : '')
+        (songs.length > neteaseIds.length
+          ? `（${songs.length - neteaseIds.length} 首非网易云歌曲未包含）`
+          : '')
     );
   } catch (err: any) {
     message.error(err?.message || '保存云端歌单失败');
@@ -232,7 +235,7 @@ async function saveToCloud() {
   border-radius: 22px 22px 0 0;
   background: var(--m-glass-bg, rgba(24, 24, 28, 0.94));
   color: var(--m-text-primary, #f0ece4);
-  backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: none;
   box-shadow: 0 -18px 48px rgba(0, 0, 0, 0.4);
 }
 

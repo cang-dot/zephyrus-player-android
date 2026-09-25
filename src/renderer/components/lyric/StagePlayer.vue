@@ -906,8 +906,8 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(20px);
+  background: #1a1a1e;
+  backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.8);
   cursor: pointer;

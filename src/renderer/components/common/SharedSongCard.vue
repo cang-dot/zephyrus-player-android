@@ -321,8 +321,8 @@ defineExpose({ showSongCard, showCollectionCard });
   justify-content: center;
   padding: 22px;
   background: rgba(8, 9, 12, 0.62);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   pointer-events: auto;
 }
 
@@ -333,10 +333,10 @@ defineExpose({ showSongCard, showCollectionCard });
   display: flex;
   flex-direction: column;
   border-radius: 22px;
-  background: rgba(22, 24, 30, 0.72);
+  background: #16181e;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(28px) saturate(160%);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 24px 70px rgba(0, 0, 0, 0.5);
@@ -372,9 +372,9 @@ defineExpose({ showSongCard, showCollectionCard });
   font-weight: 600;
   letter-spacing: 0.08em;
   color: rgba(255, 255, 255, 0.92);
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: #1f1f24;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   padding: 5px 11px;
   border-radius: 999px;
 }
@@ -387,9 +387,9 @@ defineExpose({ showSongCard, showCollectionCard });
   height: 30px;
   border-radius: 999px;
   border: none;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: #1f1f24;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   color: rgba(255, 255, 255, 0.8);
   font-size: 17px;
   display: flex;

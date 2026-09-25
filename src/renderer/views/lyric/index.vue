@@ -223,10 +223,10 @@ body,
   position: relative;
   font-family: var(--lyric-font-family, inherit);
 
-  // 未锁定：保持半透明黑色背景
+  // 未锁定：实色底（毛玻璃已下线）
   &:not(.locked) {
-    background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(12px);
+    background: #1c1c1c;
+    backdrop-filter: none;
   }
 
   // 锁定：默认完全透明
@@ -235,22 +235,22 @@ body,
     border-color: transparent;
   }
 
-  // 锁定 + 悬停：半透明黑色背景 + 阴影
+  // 锁定 + 悬停：实色底 + 阴影
   &.locked:hover {
-    background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(12px);
+    background: #1c1c1c;
+    backdrop-filter: none;
     border-color: rgba(255, 255, 255, 0.08);
     box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
   }
 
   // 浅色主题
   &.light:not(.locked) {
-    background: rgba(255, 255, 255, 0.85);
+    background: #ffffff;
     border-color: rgba(0, 0, 0, 0.08);
   }
 
   &.light.locked:hover {
-    background: rgba(255, 255, 255, 0.85);
+    background: #ffffff;
     border-color: rgba(0, 0, 0, 0.08);
     box-shadow: 0 0 40px rgba(0, 0, 0, 0.15);
   }
@@ -289,8 +289,8 @@ body,
     gap: 8px;
     padding: 10px 22px;
     border-radius: 10px;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(12px);
+    background: #1c1c1c;
+    backdrop-filter: none;
     font-size: 14px;
     color: rgba(255, 255, 255, 0.9);
     user-select: none;

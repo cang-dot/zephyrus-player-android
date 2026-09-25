@@ -241,11 +241,11 @@ onUnmounted(() => {
 
   &-header {
     @apply flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-900;
-    backdrop-filter: blur(10px);
-    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: none;
+    background-color: #ffffff;
 
     .dark & {
-      background-color: rgba(18, 18, 18, 0.7);
+      background-color: #121212;
     }
 
     .title {

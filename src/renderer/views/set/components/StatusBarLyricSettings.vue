@@ -442,7 +442,7 @@ onBeforeUnmount(() => {
   padding: 0 13px;
   border-color: color-mix(in srgb, #fff 24%, transparent);
   background: color-mix(in srgb, var(--accent-color) 10%, var(--m-glass-bg));
-  backdrop-filter: blur(18px);
+  backdrop-filter: none;
 }
 .position-grid {
   display: grid;

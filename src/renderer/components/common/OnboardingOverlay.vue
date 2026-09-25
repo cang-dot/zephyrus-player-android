@@ -1454,8 +1454,8 @@ const glowStyleB = computed(() => {
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.82);
-  backdrop-filter: blur(28px) saturate(140%);
-  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   transition: background-color 0.45s ease;
 }
 

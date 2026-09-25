@@ -2375,11 +2375,11 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
   background: transparent;
 }
 
-/* 简洁顶栏的胶囊菜单展开时：背景模糊 + 轻压暗，菜单（顶栏 z300）浮在其上 */
+/* 简洁顶栏的胶囊菜单展开时：轻压暗（毛玻璃已下线，仅保留压暗层），菜单（顶栏 z300）浮在其上 */
 .morph-dismiss-layer.plain-menu-blur {
   background: rgba(0, 0, 0, 0.26);
-  backdrop-filter: blur(18px) saturate(120%);
-  -webkit-backdrop-filter: blur(18px) saturate(120%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* 页面名 */
@@ -3270,7 +3270,12 @@ $collapse: cubic-bezier(0.5, 0, 0.75, 0.2);
 }
 
 .floating-topbar.plain-detail-topbar .topbar-pill {
-  background: rgba(var(--page-chrome-ink-rgb, 128, 128, 128), 0.12);
+  /* 实色化：与页面 chrome 底色混出不透明表面（原来只有 12% 墨色，是半透明） */
+  background: color-mix(
+    in srgb,
+    var(--page-chrome-bg, var(--m-surface-container, var(--m-card))) 86%,
+    rgb(var(--page-chrome-ink-rgb, 128, 128, 128)) 14%
+  );
   border-color: rgba(var(--page-chrome-ink-rgb, 128, 128, 128), 0.14);
   color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
   transition:

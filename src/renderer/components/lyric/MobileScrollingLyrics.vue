@@ -724,11 +724,11 @@ onBeforeUnmount(() => {
   z-index: 40;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--player-style-background, #111) 42%, transparent);
+  background: var(--player-style-background, #111);
   color: var(--player-ink, #fff);
   pointer-events: none;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .lyrics-loading-overlay i {

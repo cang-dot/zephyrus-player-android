@@ -81,19 +81,19 @@ function handleDecline() {
   justify-content: center;
   padding: 24px;
   background: rgba(0, 0, 0, 0.66);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
-/* 玻璃卡片：与 SharedSongCard 同一配方；琥珀为警示语义色 */
+/* 实色卡片（毛玻璃已下线）；琥珀为警示语义色 */
 .photosensitivity-card {
   width: min(92vw, 400px);
   padding: 28px 24px 22px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
-  background: rgba(28, 28, 32, 0.96);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  background: #1c1c20;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow:
     0 16px 48px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);

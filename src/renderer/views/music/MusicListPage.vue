@@ -1925,10 +1925,10 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     padding: 8px;
     border: 1px solid var(--cover-border, rgba(128, 128, 128, 0.12));
     border-radius: 18px;
-    background: var(--m-glass-bg, rgba(255, 255, 255, 0.58));
+    background: var(--m-glass-bg, var(--m-surface-container, #fff));
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-    backdrop-filter: blur(24px) saturate(165%);
-    -webkit-backdrop-filter: blur(24px) saturate(165%);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 
     .list-search-wrap {
       min-width: 0;

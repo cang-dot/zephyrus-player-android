@@ -2824,8 +2824,8 @@ onUnmounted(() => {
 .player-settings-overlay {
   z-index: 100200 !important;
   background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .player-settings-overlay.embedded {
@@ -3072,10 +3072,10 @@ onUnmounted(() => {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.055);
+  background: #232326;
   box-shadow: none;
-  backdrop-filter: blur(24px) saturate(1.25);
-  -webkit-backdrop-filter: blur(24px) saturate(1.25);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   transition:
     border-radius 300ms cubic-bezier(0.32, 0.72, 0, 1),
     box-shadow 300ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -3277,12 +3277,12 @@ onUnmounted(() => {
   margin: -4px 0 12px;
   padding: 7px 10px;
   border-radius: 12px;
-  background: rgba(20, 18, 18, 0.82);
+  background: #141212;
   color: rgba(255, 255, 255, 0.5);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .metaphor-result {

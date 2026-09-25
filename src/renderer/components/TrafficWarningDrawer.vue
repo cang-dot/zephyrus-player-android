@@ -95,11 +95,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 玻璃表面：与 SharedSongCard 同一配方 */
+/* 实色表面（毛玻璃已下线） */
 .traffic-sheet {
-  background: rgba(28, 28, 32, 0.96);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  background: #1c1c20;
   box-shadow:
     0 16px 48px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);

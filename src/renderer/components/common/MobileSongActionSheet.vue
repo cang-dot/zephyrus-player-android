@@ -87,7 +87,11 @@
               <i class="ri-share-forward-line"></i>
               <span>分享歌曲</span>
             </button>
-            <button class="sheet-action-btn" :class="{ 'downloading': isDownloadingSong }" @click="handleDownload">
+            <button
+              class="sheet-action-btn"
+              :class="{ downloading: isDownloadingSong }"
+              @click="handleDownload"
+            >
               <i v-if="isDownloadingSong" class="ri-loader-4-line is-spinning"></i>
               <i v-else class="ri-download-2-line"></i>
               <span>{{ isDownloadingSong ? downloadProgressText : '下载歌曲' }}</span>
@@ -134,6 +138,7 @@ import type {
 } from '@/composables/useMobileSongActionSurface';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { playMusic } from '@/hooks/MusicHook';
+import { useDownload } from '@/hooks/useDownload';
 import { isLocalSong } from '@/hooks/useLocalMusic';
 import { activeAudioFormat } from '@/services/nativeAudioPlayer';
 import { useLocalMusicStore } from '@/store/modules/localMusic';
@@ -142,7 +147,6 @@ import type { PosterSubject } from '@/types/share';
 import { getImgUrl } from '@/utils';
 import { formatAudioSegments } from '@/utils/audioFormat';
 
-import { useDownload } from '@/hooks/useDownload';
 import InlinePlaylistPicker from './InlinePlaylistPicker.vue';
 import SongMetadataEditor from './SongMetadataEditor.vue';
 
@@ -383,8 +387,8 @@ const handleAction = (action: string) => {
   inset: 0;
   z-index: 99999;
   background: rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   display: flex;
   align-items: flex-end;
   justify-content: center;

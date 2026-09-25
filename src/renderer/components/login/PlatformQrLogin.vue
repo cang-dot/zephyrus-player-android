@@ -382,13 +382,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.9);
+  background: #ffffff;
   color: #1a1a1a;
   font-size: 13px;
-  backdrop-filter: blur(4px);
+  backdrop-filter: none;
 
   &--scanned {
-    background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.9);
+    background: rgb(var(--accent-color-rgb, 136, 136, 136));
     color: #fff;
 
     i {

@@ -385,8 +385,8 @@ const handleLoginError = (error: string) => {
   border-radius: var(--d-radius-2xl);
   background: var(--cover-surface, var(--d-surface));
   box-shadow: 0 18px 56px var(--cover-shadow, rgba(0, 0, 0, 0.14));
-  backdrop-filter: blur(24px) saturate(170%);
-  -webkit-backdrop-filter: blur(24px) saturate(170%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .login-platform-picker {

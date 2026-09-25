@@ -469,9 +469,9 @@ onMounted(() => {
 .hero-bg {
   position: absolute;
   inset: 0;
-  background: var(--cover-surface, rgba(255, 255, 255, 0.55));
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: var(--cover-surface, var(--m-surface, var(--d-surface, #fff)));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   opacity: 1;
   transition: opacity 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }

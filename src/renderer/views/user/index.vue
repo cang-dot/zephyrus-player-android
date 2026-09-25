@@ -1039,9 +1039,9 @@ const handleLoginError = (error: string) => {
 .hero-bg {
   position: absolute;
   inset: 0;
-  background: var(--cover-surface, rgba(255, 255, 255, 0.55));
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: var(--cover-surface, var(--m-surface, var(--d-surface, #fff)));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   opacity: 1;
   transition: opacity 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
@@ -1252,10 +1252,10 @@ const handleLoginError = (error: string) => {
 .glass-section,
 .listening-overview article {
   border: 1px solid color-mix(in srgb, var(--m-border, #d8d3cc) 34%, transparent);
-  background: color-mix(in srgb, var(--m-surface, #f7f5f1) 78%, transparent);
+  background: var(--m-surface, #f7f5f1);
   box-shadow: 0 10px 28px color-mix(in srgb, var(--m-shadow, #000) 12%, transparent);
-  backdrop-filter: blur(22px) saturate(120%);
-  -webkit-backdrop-filter: blur(22px) saturate(120%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .profile-glass {

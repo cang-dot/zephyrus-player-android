@@ -161,8 +161,8 @@ const delayStyle = (index: number) => ({ '--loading-index': index }) as Record<s
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--m-white, #fff) 22%, transparent),
     0 14px 34px rgba(0, 0, 0, 0.06);
-  backdrop-filter: blur(24px) saturate(155%);
-  -webkit-backdrop-filter: blur(24px) saturate(155%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .loading-shape {

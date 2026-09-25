@@ -485,14 +485,14 @@ const handleDeleteSong = (song: SongResult) => {
   .fixed-overlay {
     z-index: 190;
     background: rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 
     &.playback-overlay {
       z-index: 10000020;
       background: rgba(0, 0, 0, 0.22);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
     }
   }
 

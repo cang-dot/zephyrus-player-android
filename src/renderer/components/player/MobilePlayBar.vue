@@ -679,12 +679,10 @@ watch(
       background-color 480ms ease,
       border-color 480ms ease,
       color 480ms ease;
-    background: color-mix(
-      in srgb,
-      var(--page-chrome-bg, var(--m-surface-container-high, var(--m-card))) 88%,
-      rgb(var(--mini-ink-rgb)) 12%
-    );
-    border-color: rgba(var(--mini-ink-rgb), 0.12);
+    /* 与底栏同一表面材质：背景/描边直接对齐 .mobile-bottom-dock::before 的令牌
+       （有底栏的页面两者并排显示，必须同色；无底栏的 chrome 页面回落页面混色底） */
+    background: var(--page-chrome-bg, var(--m-surface-container, var(--m-card)));
+    border-color: var(--m-outline-variant, var(--m-border));
     box-shadow: var(--m-elevation-2);
     color: rgba(var(--mini-ink-rgb), 0.92);
     --m-text-primary: rgba(var(--mini-ink-rgb), 0.92);

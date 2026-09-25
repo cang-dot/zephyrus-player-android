@@ -569,14 +569,15 @@ const formatTime = (ms: number) => {
   pointer-events: none;
 }
 
+/* 毛玻璃已下线：边缘渐隐条带随 blur 一起失效（保留元素与布局，效果改由内容自身淡出承担） */
 .blur-soft {
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .blur-strong {
-  backdrop-filter: blur(11px);
-  -webkit-backdrop-filter: blur(11px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .edge-top.blur-soft {

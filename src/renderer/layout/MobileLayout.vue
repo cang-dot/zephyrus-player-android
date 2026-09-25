@@ -1322,26 +1322,19 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 :global(:root) {
-  --player-glass-background: color-mix(
-    in srgb,
-    var(--accent-color, #777) 7%,
-    rgba(18, 18, 20, 0.16)
-  );
-  --player-glass-background-active: color-mix(
-    in srgb,
-    var(--accent-color, #777) 10%,
-    rgba(18, 18, 20, 0.22)
-  );
-  --player-glass-background-fallback: color-mix(
-    in srgb,
-    var(--accent-color, #777) 14%,
-    rgba(24, 24, 26, 0.52)
-  );
+  /* 毛玻璃已下线（2026-09-25）：播放器/评论等 UI 面一律实色，模糊令牌置空。
+     底色由原来的半透明 rgba 换成同色系实色，调用点（顶栏胶囊、播放器底部、
+     设置面板、播放列表抽屉、评论面板）无需改动即变为实色。 */
+  --player-glass-background: color-mix(in srgb, var(--accent-color, #777) 7%, #121214);
+  --player-glass-background-active: color-mix(in srgb, var(--accent-color, #777) 10%, #17171a);
+  --player-glass-background-fallback: color-mix(in srgb, var(--accent-color, #777) 14%, #1c1c1e);
   --player-glass-border: color-mix(in srgb, #fff 10%, transparent);
   --player-glass-border-active: color-mix(in srgb, var(--accent-color, #777) 18%, #fff 12%);
   --player-glass-text: rgba(255, 255, 255, 0.94);
   --player-glass-text-secondary: rgba(255, 255, 255, 0.76);
-  --player-glass-filter: blur(12px) saturate(118%);
+  --player-glass-filter: none;
+  --comments-glass-filter: none;
+  --comments-glass-background: #101013;
   --player-glass-feedback-duration: 220ms;
 }
 

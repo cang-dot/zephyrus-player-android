@@ -475,8 +475,8 @@ onMounted(() => {
       bottom: calc(100% + 8px);
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(8px);
+      background: #111214;
+      backdrop-filter: none;
       border-radius: 8px;
       padding: 6px 10px;
       white-space: nowrap;
