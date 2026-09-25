@@ -222,6 +222,7 @@ export default {
     heatmapMore: '多い',
     detail: '詳細',
     cloudCard: 'Zephyrus クラウド · {n}',
+    cloudTitle: 'Zephyrus クラウド',
     dailyBasis: 'お気に入りの曲からのおすすめ',
     dailyMore: 'おすすめ続き {n}'
   },

@@ -215,6 +215,7 @@ export default {
     heatmapMore: '多',
     detail: '詳情',
     cloudCard: 'Zephyrus 雲 · {n}',
+    cloudTitle: 'Zephyrus 雲',
     dailyBasis: '根據你喜愛的歌曲推薦',
     dailyMore: '繼續推薦 {n}'
   },

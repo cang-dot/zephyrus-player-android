@@ -185,18 +185,18 @@ const chunkCards = (
   return cards;
 };
 
-/** 云歌曲卡：最近上架倒序，每卡 3 首 */
+/** 云歌曲：单卡内部横滑展示全部歌曲 */
 const cloudCards = computed<SongListCard[]>(() => {
   const songs = cloudSongs.value.slice(-12).reverse();
-  return chunkCards(
-    songs,
-    (index, chunk) => {
-      const album = chunk[0]?.album;
-      const sameAlbum = chunk.every((song) => song.album === album);
-      return sameAlbum && album ? String(album) : t('comp.homeSection.cloudCard', { n: index + 1 });
-    },
-    true
-  );
+  if (!songs.length) return [];
+  return [
+    {
+      id: 'cloud-all',
+      name: t('comp.homeSection.cloudTitle'),
+      songs: songs.map(toCardSong),
+      detailable: true
+    }
+  ];
 });
 
 /** 每日歌曲推荐卡 */
@@ -254,6 +254,8 @@ onMounted(async () => {
 <style lang="scss" scoped>
 .mobile-home {
   padding: 12px 0 8px;
+  overflow-x: clip;
+  --page-pl: 16px;
 }
 
 .home-section {
@@ -266,6 +268,8 @@ onMounted(async () => {
   gap: 12px;
   overflow-x: auto;
   padding: 2px 16px 10px;
+  scroll-padding: 0 16px;
+  touch-action: pan-x;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
 

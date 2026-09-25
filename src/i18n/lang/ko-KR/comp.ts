@@ -220,6 +220,7 @@ export default {
     heatmapMore: '많음',
     detail: '상세',
     cloudCard: 'Zephyrus 클라우드 · {n}',
+    cloudTitle: 'Zephyrus 클라우드',
     dailyBasis: '좋아하는 노래 기반 추천',
     dailyMore: '추천 계속 {n}'
   },

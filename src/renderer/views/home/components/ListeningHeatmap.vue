@@ -98,10 +98,7 @@ const ariaLabel = computed(() =>
 <style lang="scss" scoped>
 .listening-heatmap {
   margin: 4px 16px 18px;
-  padding: 14px;
-  border-radius: 14px;
-  background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.08);
-  border: 1px solid rgba(128, 128, 128, 0.12);
+  /* 无卡片底：直接落在页面上 */
 }
 
 .heatmap-header {
@@ -125,45 +122,21 @@ const ariaLabel = computed(() =>
 .heatmap-grid {
   display: flex;
   gap: 3px;
-  overflow-x: auto;
-  scrollbar-width: none;
 
-  &::-webkit-scrollbar {
-    display: none;
-  }
-
+  /* 列均分撑满整幅宽度：已有数据之前是完整空白补位 */
   .heatmap-column {
     display: flex;
     flex-direction: column;
     gap: 3px;
+    flex: 1;
+    min-width: 0;
   }
 
   .heatmap-cell {
-    width: 11px;
-    height: 11px;
+    width: 100%;
+    aspect-ratio: 1;
     border-radius: 3px;
     background: rgba(128, 128, 128, 0.14);
-    flex-shrink: 0;
-
-    &.level-1 {
-      background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.28);
-    }
-
-    &.level-2 {
-      background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.5);
-    }
-
-    &.level-3 {
-      background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.75);
-    }
-
-    &.level-4 {
-      background: var(--accent-color, #888);
-    }
-
-    &.future {
-      opacity: 0.25;
-    }
   }
 }
 

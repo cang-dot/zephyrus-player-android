@@ -221,6 +221,7 @@ export default {
     heatmapMore: 'More',
     detail: 'Detail',
     cloudCard: 'Zephyrus Cloud · {n}',
+    cloudTitle: 'Zephyrus Cloud',
     dailyBasis: 'Based on your favorites',
     dailyMore: 'More picks {n}'
   },

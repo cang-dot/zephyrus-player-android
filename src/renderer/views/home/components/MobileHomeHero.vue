@@ -1,21 +1,5 @@
 <template>
   <section class="mobile-home-hero">
-    <!-- 背景：用户歌单库封面无限滚动照片墙 -->
-    <div class="hero-wall" aria-hidden="true">
-      <div class="wall-track" :style="{ animationPlayState: wallPaused ? 'paused' : 'running' }">
-        <div v-for="copy in 2" :key="copy" class="wall-row">
-          <img
-            v-for="(cover, i) in covers"
-            :key="`${copy}-${i}`"
-            :src="getImgUrl(cover, '200y200')"
-            class="wall-cover"
-            alt=""
-            draggable="false"
-            loading="lazy"
-          />
-        </div>
-      </div>
-    </div>
     <!-- 心动模式：背景渐变为当前歌曲封面 -->
     <div
       class="hero-heart-cover"
@@ -25,10 +9,9 @@
       "
       aria-hidden="true"
     />
-    <!-- 遮罩：左侧保证文字可读，向右加重暗化 -->
+    <!-- 遮罩：保证文字可读 -->
     <div class="hero-shade" aria-hidden="true" />
-    <!-- 右侧加重模糊（心动模式按钮区域） -->
-    <div class="hero-blur" aria-hidden="true" />
+    <div v-if="isHeartMode" class="hero-blur" aria-hidden="true" />
 
     <div class="hero-content">
       <p class="hero-greeting">{{ greeting }}</p>
@@ -56,15 +39,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { getImgUrl } from '@/utils';
 
 withDefaults(
   defineProps<{
-    /** 照片墙封面（用户歌单库，已去重） */
-    covers: string[];
     isHeartMode?: boolean;
     /** 心动模式下渐变铺满的当前歌曲封面 */
     currentCoverUrl?: string;
@@ -72,7 +53,6 @@ withDefaults(
     fmLoading?: boolean;
   }>(),
   {
-    covers: () => [],
     isHeartMode: false,
     currentCoverUrl: '',
     userName: '',
@@ -99,18 +79,8 @@ const pickWish = () => {
   wishText.value = list.length ? list[Math.floor(Math.random() * list.length)] : '';
 };
 pickWish();
-
-/** 页面不可见时暂停照片墙动画 */
-const wallPaused = ref(false);
-const onVisibilityChange = () => {
-  wallPaused.value = document.hidden;
-};
 onMounted(() => {
-  document.addEventListener('visibilitychange', onVisibilityChange);
   pickWish();
-});
-onBeforeUnmount(() => {
-  document.removeEventListener('visibilitychange', onVisibilityChange);
 });
 </script>
 
@@ -119,43 +89,14 @@ onBeforeUnmount(() => {
   position: relative;
   height: 232px;
   overflow: hidden;
-  background: var(--m-bg, #111);
-}
-
-.hero-wall {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-
-  .wall-track {
-    display: flex;
-    width: max-content;
-    animation: hero-wall-scroll 70s linear infinite;
-  }
-
-  .wall-row {
-    display: flex;
-    gap: 8px;
-    padding-right: 8px;
-    flex-shrink: 0;
-  }
-
-  .wall-cover {
-    width: 108px;
-    height: 108px;
-    object-fit: cover;
-    flex-shrink: 0;
-    background: rgba(128, 128, 128, 0.12);
-  }
-}
-
-@keyframes hero-wall-scroll {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
+  background:
+    linear-gradient(
+      160deg,
+      rgba(var(--accent-color-rgb, 136, 136, 136), 0.4) 0%,
+      rgba(var(--accent-color-rgb, 136, 136, 136), 0.12) 46%,
+      rgba(0, 0, 0, 0.5) 100%
+    ),
+    var(--m-bg, #111);
 }
 
 /* 心动模式：当前歌曲封面渐变铺满 */

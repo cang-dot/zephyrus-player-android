@@ -1,7 +1,12 @@
 <template>
   <div class="song-list-card-row">
-    <div class="cards-track">
-      <section v-for="card in cards" :key="card.id" class="song-card">
+    <div class="cards-track" data-horizontal-scroll>
+      <section
+        v-for="card in cards"
+        :key="card.id"
+        class="song-card"
+        :class="{ internal: internalScroll }"
+      >
         <header class="song-card-header">
           <h3 class="song-card-title">{{ card.name }}</h3>
           <button
@@ -13,7 +18,11 @@
             {{ t('comp.homeSection.detail') }}<i class="ri-arrow-right-s-line" />
           </button>
         </header>
-        <div class="song-card-rows">
+        <div
+          class="song-card-rows"
+          :class="{ 'internal-scroll': internalScroll }"
+          data-horizontal-scroll
+        >
           <button
             v-for="song in card.songs"
             :key="song.id"
@@ -67,7 +76,11 @@ export interface SongListCard {
   detailable?: boolean;
 }
 
-defineProps<{ cards: SongListCard[] }>();
+defineProps<{
+  cards: SongListCard[];
+  /** 卡片内部横向滑动展示全部歌曲（单卡模式，如 Zephyrus 云） */
+  internalScroll?: boolean;
+}>();
 
 const emit = defineEmits<{
   'song-play': [card: SongListCard, song: CardSong];
@@ -88,7 +101,9 @@ const { t } = useI18n();
   display: flex;
   gap: 12px;
   overflow-x: auto;
-  padding: 2px var(--page-pl, 1rem) 10px;
+  padding: 2px 16px 10px;
+  scroll-padding: 0 16px;
+  touch-action: pan-x;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
 
@@ -103,8 +118,31 @@ const { t } = useI18n();
   scroll-snap-align: start;
   padding: 12px 14px;
   border-radius: 16px;
-  background: rgba(var(--accent-color-rgb, 136, 136, 136), 0.09);
-  border: 1px solid rgba(128, 128, 128, 0.12);
+  /* 透明底：与页面背景融为一体 */
+  background: transparent;
+  border: 1px solid rgba(128, 128, 128, 0.14);
+}
+
+/* 单卡内部横滑：3 行一屏，所有歌曲在卡内左右滑动 */
+.song-card-rows.internal-scroll {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(3, auto);
+  grid-auto-columns: 100%;
+  overflow-x: auto;
+  touch-action: pan-x;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  margin: 0 -6px;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  .card-song-row {
+    scroll-snap-align: start;
+    padding: 6px;
+  }
 }
 
 .song-card-header {
