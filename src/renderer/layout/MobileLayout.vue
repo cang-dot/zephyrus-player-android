@@ -134,13 +134,7 @@
             >
               <div class="glow-item-content">
                 <i class="iconfont glow-item-icon" :class="item.meta.icon" />
-                <Transition name="label-pop">
-                  <span
-                    v-if="(isActive(item.path) && !navGlow.enlarged) || pickPath === item.path"
-                    class="glow-item-label"
-                    >{{ t(item.meta.title) }}</span
-                  >
-                </Transition>
+                <span class="glow-item-label">{{ t(item.meta.title) }}</span>
               </div>
             </router-link>
 

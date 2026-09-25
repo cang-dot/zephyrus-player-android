@@ -35,11 +35,9 @@
   --m-elevation-2: 0 3px 10px rgba(0, 0, 0, 0.09);
   --m-elevation-3: 0 6px 18px rgba(0, 0, 0, 0.12);
 
-  /* ── 底栏选中胶囊（实心偏深，非径向辉光） ──
-     固定配方：强调色只占 40%，混入暖深灰压掉饱和度——
-     强调色本身已被 adjustForAccent 提亮，占比过高会显得过艳。 */
-  --m-nav-indicator-bg: color-mix(in srgb, var(--accent-color, #888888) 40%, #2a2724 60%);
-  --m-nav-indicator-fg: #ffffff;
+  /* ── 底栏选中胶囊（淡灰底 + 强调色图标/文字） ── */
+  --m-nav-indicator-bg: rgba(128, 128, 128, 0.16);
+  --m-nav-indicator-fg: var(--accent-color, #888888);
 
   /* 旧名保留为别名，避免既有引用断裂；新代码请直接用上面的 surface-container-* */
   --m-glass-bg: var(--m-surface-container);
@@ -73,8 +71,8 @@
   --m-elevation-3: 0 6px 18px rgba(0, 0, 0, 0.4);
 
   /* 与浅色同一配方：强调色 40% + 暖深灰 60%，纯白前景 */
-  --m-nav-indicator-bg: color-mix(in srgb, var(--accent-color, #888888) 40%, #2a2724 60%);
-  --m-nav-indicator-fg: #ffffff;
+  --m-nav-indicator-bg: rgba(128, 128, 128, 0.18);
+  --m-nav-indicator-fg: var(--accent-color, #888888);
 
   /* 旧名别名 */
   --m-glass-bg: var(--m-surface-container);
