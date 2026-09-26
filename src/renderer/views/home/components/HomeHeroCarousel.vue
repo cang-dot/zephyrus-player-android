@@ -18,6 +18,7 @@ import { usePlayerCoreStore } from '@/store/modules/playerCore';
 import { usePlaylistStore } from '@/store/modules/playlist';
 import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl } from '@/utils';
+import { isIosSafari } from '@/utils/platform';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -75,17 +76,57 @@ const cloudSongs = ref<ServerSong[]>([]);
 /** 公告卡：每次启动拉取一次，取第一篇；拉取失败不渲染 */
 const announcement = ref<Announcement | null>(null);
 
+/** 手机设备（含 iOS Safari / 安卓浏览器 / App 内 WebView）：跳转优先走深链唤起 App */
+function isPhoneDevice(): boolean {
+  if (isIosSafari()) return true;
+  return /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+}
+
 function openAnnouncement() {
   const action = announcement.value?.action;
   if (!action) return;
-  // 公告跳转直达网易云专辑页（购买在网易云完成），不被应用内专辑页接住：
-  // type=album + id 按网易云 web 专辑页拼链接；action.url 可显式指定任意地址。
-  const url =
-    action.type === 'album' && action.id
-      ? `https://music.163.com/#/album?id=${action.id}`
-      : action.url;
-  if (!url) return;
-  window.open(url, '_blank', 'noopener,noreferrer');
+  const albumId = action.id;
+  const webUrl =
+    action.type === 'album' && albumId ? `https://music.163.com/#/album?id=${albumId}` : action.url;
+  if (!webUrl) return;
+
+  // 电脑（桌面浏览器/Electron）：新开网页
+  if (!isPhoneDevice()) {
+    window.open(webUrl, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  // 手机：先尝试 orpheus 深链唤起网易云音乐 App（appUrl 可在公告 JSON 里覆盖）；
+  // 约 1.8s 后页面仍在（App 未唤起/未安装）则回退打开网页
+  const appUrl = action.appUrl || (albumId ? `orpheus://album/${albumId}` : '');
+  if (!appUrl) {
+    window.location.href = webUrl;
+    return;
+  }
+
+  let settled = false;
+  const cleanup = () => {
+    document.removeEventListener('visibilitychange', onVisibility);
+    window.removeEventListener('pagehide', onHide);
+    if (timer) clearTimeout(timer);
+  };
+  const onVisibility = () => {
+    if (document.visibilityState === 'hidden') settled = true;
+    cleanup();
+  };
+  const onHide = () => {
+    settled = true;
+    cleanup();
+  };
+  const timer = setTimeout(() => {
+    if (!settled && document.visibilityState === 'visible') {
+      window.location.href = webUrl;
+    }
+    cleanup();
+  }, 1800);
+  document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('pagehide', onHide);
+  window.location.href = appUrl;
 }
 
 async function playCloudSong(song: ServerSong) {
