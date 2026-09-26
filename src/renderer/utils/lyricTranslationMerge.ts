@@ -90,3 +90,41 @@ export function mergeTranslationFeatures(lines: ILyricText[]): ILyricText[] {
     return { ...line, text: split.main, trText: split.translation };
   });
 }
+
+/**
+ * 双语整行交替合并（春晓《长大就好了》专属，配合 songTitle.isChunxiaoAlbumSongId 启用）：
+ * 歌词为「中文行 → 英文行」整行交替演唱（间隔数秒、各自成行）——
+ * 把紧随中文行之后的英文行并入其 trText，时长扩展到英文行结束，删除英文行。
+ */
+export function mergeBilingualAlternation(lines: ILyricText[]): ILyricText[] {
+  const out: ILyricText[] = [];
+  let index = 0;
+  while (index < lines.length) {
+    const current = lines[index];
+    const next = lines[index + 1];
+    const canPair =
+      next &&
+      !current.trText &&
+      !next.trText &&
+      !current.isBG &&
+      !next.isBG &&
+      current.startTime !== undefined &&
+      isCjkDominated(current.text) &&
+      isLatinDominated(next.text);
+    if (canPair) {
+      const pairStart = current.startTime ?? 0;
+      const nextEnd = (next.startTime ?? 0) + (next.duration ?? 0);
+      const currentEnd = pairStart + (current.duration ?? 0);
+      out.push({
+        ...current,
+        trText: next.text,
+        duration: Math.max(currentEnd, nextEnd) - pairStart
+      });
+      index += 2;
+      continue;
+    }
+    out.push(current);
+    index += 1;
+  }
+  return out;
+}

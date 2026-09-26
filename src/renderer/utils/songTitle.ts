@@ -29,6 +29,11 @@ const CHUNXIAO_ALBUM_SONG_IDS = new Set([
   '3438657953'
 ]);
 
+/** 是否为春晓《长大就好了》曲目（歌词/歌名的双语专属解析据此启用） */
+export function isChunxiaoAlbumSongId(id: string | number | null | undefined): boolean {
+  return id != null && CHUNXIAO_ALBUM_SONG_IDS.has(String(id));
+}
+
 export interface SongTitleParts {
   main: string;
   suffix: string;

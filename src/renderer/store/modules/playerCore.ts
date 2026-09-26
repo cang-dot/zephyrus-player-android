@@ -16,6 +16,8 @@ import type { AudioOutputDevice } from '@/types/audio';
 import type { Platform, SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 import { getImageLinearBackground } from '@/utils/linearColor';
+import { mergeBilingualAlternation } from '@/utils/lyricTranslationMerge';
+import { isChunxiaoAlbumSongId } from '@/utils/songTitle';
 
 import { usePlayHistoryStore } from './playHistory';
 
@@ -353,6 +355,11 @@ export const usePlayerCoreStore = defineStore(
 
       // 设置歌词和背景色
       music.lyric = lyrics;
+      // 春晓《长大就好了》：中英双语整行交替演唱——英文行并入中文行的 trText
+      if (isChunxiaoAlbumSongId(music.id)) {
+        lyrics.lrcArray = mergeBilingualAlternation(lyrics.lrcArray);
+        lyrics.lrcTimeArray = lyrics.lrcArray.map((l) => (l.startTime ?? 0) / 1000);
+      }
       music.backgroundColor = backgroundColor;
       music.primaryColor = primaryColor;
       music.playLoading = true;
@@ -394,6 +401,10 @@ export const usePlayerCoreStore = defineStore(
         }
 
         updatedPlayMusic.lyric = lyrics;
+        if (isChunxiaoAlbumSongId(updatedPlayMusic.id)) {
+          lyrics.lrcArray = mergeBilingualAlternation(lyrics.lrcArray);
+          lyrics.lrcTimeArray = lyrics.lrcArray.map((l) => (l.startTime ?? 0) / 1000);
+        }
 
         // 本地歌曲：确保 URL 正确编码（统一格式：local:///编码后的路径）
         // 仅对已是 local:// 的来源改写;网页会话条目的 blob: URL 原样保留
