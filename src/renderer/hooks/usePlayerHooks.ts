@@ -15,6 +15,7 @@ import type { ILyric, ILyricText, LyricFormat, LyricSource, SongResult } from '@
 import { getImgUrl, isElectron } from '@/utils';
 import { normalizeAudioUrl } from '@/utils/audioUrl';
 import { getImageLinearBackground } from '@/utils/linearColor';
+import { mergeTranslationFeatures } from '@/utils/lyricTranslationMerge';
 import { isUsableLyric } from '@/utils/lyricValidation';
 import { mergeAuxiliaryLyrics, parseTimedLyrics } from '@/utils/timedLyrics';
 
@@ -281,6 +282,8 @@ function createProviderLyric(
   source: LyricSource
 ): ILyric {
   const result = parseTimedLyrics(lyric, { format, source });
+  // 「原文+翻译」特征合并：内联全角括号 / 同时间轴双行 → text + trText（AMLL 主/翻译结构）
+  mergeTranslationFeatures(result.lrcArray);
   mergeAuxiliaryLyrics(result, translation, 'trText', format);
   mergeAuxiliaryLyrics(result, romanization, 'romaText', format);
   return result;

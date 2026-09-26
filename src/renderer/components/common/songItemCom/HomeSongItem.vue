@@ -29,7 +29,7 @@
     <template #content>
       <div class="song-info">
         <n-ellipsis class="song-name" :class="{ 'is-playing': isPlaying }">
-          {{ item.name }}
+          <song-title-text :name="item.name" :song-id="item.id" />
         </n-ellipsis>
         <n-ellipsis class="artist-name">
           <template v-for="(artist, artistIndex) in artists" :key="artist.id || artistIndex">
@@ -58,6 +58,7 @@
 import { NEllipsis, NImage } from 'naive-ui';
 import { computed, ref } from 'vue';
 
+import SongTitleText from '@/components/common/SongTitleText.vue';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 

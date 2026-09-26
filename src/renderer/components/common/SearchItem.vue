@@ -43,7 +43,7 @@
       <h3
         class="line-clamp-1 text-sm font-bold text-neutral-800 transition-colors duration-200 group-hover:text-[var(--accent-color)] dark:text-neutral-200 dark:group-hover:text-white md:text-base"
       >
-        {{ item.name }}
+        <song-title-text :name="item.name" :song-id="item.id" />
       </h3>
       <p class="line-clamp-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
         {{ item.desc }}
@@ -65,6 +65,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
+import SongTitleText from '@/components/common/SongTitleText.vue';
 import MvPlayer from '@/components/MvPlayer.vue';
 import { usePlayerStore } from '@/store/modules/player';
 import { usePlayHistoryStore } from '@/store/modules/playHistory';

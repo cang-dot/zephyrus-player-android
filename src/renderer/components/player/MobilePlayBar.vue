@@ -52,7 +52,9 @@
           @pointercancel="cancelCoverLongPress"
         />
         <div class="mini-song-text">
-          <span class="mini-song-title">{{ playMusic.name }}</span>
+          <span class="mini-song-title"
+            ><song-title-text :name="playMusic.name" :song-id="playMusic.id"
+          /></span>
           <span class="mini-song-separator">-</span>
           <span class="mini-song-artist">
             <template v-for="(artists, artistsindex) in artistList" :key="artistsindex">
@@ -95,6 +97,7 @@
 import type { CSSProperties, Ref } from 'vue';
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import SongTitleText from '@/components/common/SongTitleText.vue';
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';

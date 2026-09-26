@@ -120,7 +120,12 @@
             class="artwork-info"
             :style="infoTransitionStyle"
           >
-            <strong class="artwork-info-name">{{ playMusic?.name || 'Zephyrus' }}</strong>
+            <strong class="artwork-info-name"
+              ><song-title-text
+                :name="playMusic?.name || 'Zephyrus'"
+                :song-id="playMusic?.id"
+                hide-suffix
+            /></strong>
             <span v-if="artistText" class="artwork-info-artist">{{ artistText }}</span>
           </div>
         </div>
@@ -174,6 +179,7 @@ import { useI18n } from 'vue-i18n';
 
 import Aurora from '@/components/Aurora.vue';
 import MobileCommentsOverlay from '@/components/comment/MobileCommentsOverlay.vue';
+import SongTitleText from '@/components/common/SongTitleText.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';

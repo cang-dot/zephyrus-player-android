@@ -41,8 +41,8 @@
             class="text-ellipsis"
             line-clamp="1"
             :class="{ 'text-[var(--accent-color)]': isPlaying }"
-            >{{ item.name }}</n-ellipsis
-          >
+            ><song-title-text :name="item.name" :song-id="item.id"
+          /></n-ellipsis>
         </div>
         <div class="song-item-content-name">
           <n-ellipsis class="text-ellipsis" line-clamp="1">
@@ -82,6 +82,7 @@
 import { NCheckbox, NEllipsis, NImage } from 'naive-ui';
 import { computed, ref } from 'vue';
 
+import SongTitleText from '@/components/common/SongTitleText.vue';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 

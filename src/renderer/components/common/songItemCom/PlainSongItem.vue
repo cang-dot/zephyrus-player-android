@@ -45,7 +45,7 @@
       <div class="plain-content">
         <div class="plain-title">
           <n-ellipsis line-clamp="1" :class="{ 'plain-title-playing': isPlaying }">
-            {{ item.name }}
+            <song-title-text :name="item.name" :song-id="item.id" />
           </n-ellipsis>
         </div>
         <div v-if="artists.length" class="plain-artist">
@@ -75,6 +75,7 @@
 import { NCheckbox, NEllipsis, NImage } from 'naive-ui';
 import { computed, ref } from 'vue';
 
+import SongTitleText from '@/components/common/SongTitleText.vue';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
 
