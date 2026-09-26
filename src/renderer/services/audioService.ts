@@ -55,6 +55,8 @@ class AudioService {
   private analysisMirror: HTMLAudioElement | null = null;
   private analysisMirrorCleanup: (() => void) | null = null;
   private analysisMirrorTimer: number | null = null;
+  /** 镜像路径（图未接 destination）：音量必须落在出声元素而非 gain 节点 */
+  private analysisOnlyGraph = false;
 
   private playbackRate = 1.0; // 添加播放速度属性
 
@@ -181,12 +183,23 @@ class AudioService {
    */
   private reassertElementPlayback() {
     const current = this.currentSound as unknown as
-      | { _sounds?: Array<{ _node?: HTMLAudioElement }> }
+      | {
+          _sounds?: Array<{ _node?: HTMLAudioElement }>;
+          volume?: () => number;
+        }
       | null;
     try {
       const node = current?._sounds?.[0]?._node;
       if (node && Math.abs((node.playbackRate || 1) - this.playbackRate) > 0.001) {
         node.playbackRate = this.playbackRate;
+      }
+      // iOS 中断恢复可能把元素音量重置回满值 → 「声音突然变大一下」：
+      // 按该 Howl 自己的音量重新落到元素上
+      if (node && typeof current?.volume === 'function') {
+        const intendedVolume = Number(current.volume());
+        if (Number.isFinite(intendedVolume) && Math.abs((node.volume || 1) - intendedVolume) > 0.001) {
+          node.volume = intendedVolume;
+        }
       }
 
       const allHowls = (Howler as unknown as { _howls?: unknown[] })._howls;
@@ -627,6 +640,7 @@ class AudioService {
         }
       });
       this.filters = [];
+      this.analysisOnlyGraph = false;
 
       // 清理增益节点
       if (this.gainNode) {
@@ -829,6 +843,7 @@ class AudioService {
       // 分析与视觉响应照常；出声仍走未接图的 Howler 元素，从而保住后台播放。
       // 其他平台维持原样（出声元素接图，EQ 生效）。
       const analyzedNode = isIosSafari() ? this.ensureAnalysisMirror(audioNode) : audioNode;
+      this.analysisOnlyGraph = isIosSafari();
 
       this.context = Howler.ctx as AudioContext;
       if (!this.context || this.context.state === 'closed') {
@@ -2473,11 +2488,13 @@ class AudioService {
     const linearVolume = normalizedVolume;
 
     // 将音量应用到所有相关节点
-    if (this.gainNode) {
-      // 立即设置音量
+    if (this.gainNode && !this.analysisOnlyGraph) {
+      // 图已接 destination（非 iOS 镜像路径）：音量走 gain 节点
       this.gainNode.gain.cancelScheduledValues(this.context!.currentTime);
       this.gainNode.gain.setValueAtTime(linearVolume, this.context!.currentTime);
     } else {
+      // 镜像路径（gainNode 未接 destination）或无图：音量必须落在出声元素上，
+      // 否则 iOS 上元素恒为 Howl 创建时的满音量，音量滑杆形同虚设
       this.currentSound?.volume(linearVolume);
     }
 
