@@ -12,7 +12,6 @@ import { type Announcement, fetchAnnouncements } from '@/api/announcements';
 import { loadServerSongs, type ServerSong, serverSongToSongResult } from '@/api/serverSongs';
 import DitherBackground from '@/components/common/DitherBackground.vue';
 import MoltenMetalBackground from '@/components/common/MoltenMetalBackground.vue';
-import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import { playMusic } from '@/hooks/MusicHook';
 import { useIntelligenceModeStore } from '@/store/modules/intelligenceMode';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
@@ -78,14 +77,15 @@ const announcement = ref<Announcement | null>(null);
 
 function openAnnouncement() {
   const action = announcement.value?.action;
-  if (!action?.id) return;
-  // 应用内深度链接到公告指定的专辑（type=album 走既有专辑链路）
-  navigateToMusicList(router, {
-    id: action.id,
-    type: action.type,
-    name: announcement.value?.title || '',
-    listInfo: { id: action.id, coverImgUrl: '' }
-  });
+  if (!action) return;
+  // 公告跳转直达网易云专辑页（购买在网易云完成），不被应用内专辑页接住：
+  // type=album + id 按网易云 web 专辑页拼链接；action.url 可显式指定任意地址。
+  const url =
+    action.type === 'album' && action.id
+      ? `https://music.163.com/#/album?id=${action.id}`
+      : action.url;
+  if (!url) return;
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 async function playCloudSong(song: ServerSong) {
@@ -213,12 +213,12 @@ onMounted(async () => {
         </button>
       </article>
 
-      <!-- 公告卡：内容每次启动从服务器拉取，按钮深度链接到公告指定的专辑 -->
+      <!-- 公告卡：内容每次启动从服务器拉取，按钮直达网易云专辑页（不被应用内捕获） -->
       <article v-if="announcement" class="hero-card announce" @click="openAnnouncement">
         <span class="announce-badge">{{ announcement.title }}</span>
         <p class="announce-body">{{ announcement.body }}</p>
         <button
-          v-if="announcement.action?.id"
+          v-if="announcement.action"
           class="hero-play"
           type="button"
           :aria-label="announcement.buttonText || announcement.title"

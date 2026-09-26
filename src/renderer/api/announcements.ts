@@ -7,8 +7,13 @@ const API_BASE = 'https://www.mucang.xyz';
 const ANNOUNCEMENTS_JSON_URL = `${API_BASE}/server-music/announcements.json`;
 
 export interface AnnouncementAction {
+  /**
+   * 'album' + id = 打开网易云 web 专辑页（window.open 新标签）；
+   * 'url' = 直接打开 action.url 指定的任意地址。
+   */
   type: string;
-  id: number | string;
+  id?: number | string;
+  url?: string;
 }
 
 export interface Announcement {
