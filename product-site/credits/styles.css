@@ -1,0 +1,494 @@
+/* 致谢站 · 与产品站共用同一套暗色色板（product-site/styles.css） */
+:root {
+  --bg: #090b09;
+  --bg-soft: #101410;
+  --surface: #171d18;
+  --ink: #f2f7f0;
+  --ink-dim: rgba(242, 247, 240, 0.62);
+  --acid: #b9f78b;
+  --coral: #ff785c;
+  --cyan: #7edbce;
+  --max: 1180px;
+  --head-h: 58px;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ── 顶栏 ─────────────────────────────── */
+.site-head {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--head-h);
+  padding: 0 28px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.brand {
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.14em;
+}
+
+.brand span {
+  margin-left: 6px;
+  font-weight: 500;
+  color: var(--acid);
+}
+
+.head-nav {
+  display: flex;
+  gap: 22px;
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+.head-nav a:hover { color: var(--ink); }
+
+/* ── 首屏：全屏卡片墙 + 悬浮标题 ─────────────────────────── */
+.wall-hero {
+  position: relative;
+  height: 100svh;
+  min-height: 620px;
+  overflow: hidden;
+}
+
+.hero-float {
+  position: absolute;
+  left: 50%;
+  top: clamp(88px, 17vh, 170px);
+  z-index: 3;
+  width: min(var(--max), calc(100% - 56px));
+  margin: 0;
+  padding: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.hero-float a { pointer-events: auto; }
+
+.hero-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background:
+    linear-gradient(100deg, rgba(9, 11, 9, 0.86) 20%, rgba(9, 11, 9, 0.38) 46%, transparent 66%),
+    linear-gradient(to top, rgba(9, 11, 9, 0.85), transparent 36%);
+  pointer-events: none;
+}
+
+.wall-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  z-index: 3;
+  margin: 0;
+  font-size: 11.5px;
+  text-align: center;
+  letter-spacing: 0.12em;
+  color: var(--ink-dim);
+}
+
+.wall-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  perspective: 1200px;
+  background:
+    radial-gradient(ellipse 78% 82% at 50% 46%, #000 40%, transparent 100%),
+    linear-gradient(to top, #000 4%, transparent 100%);
+  -webkit-mask-image:
+    radial-gradient(ellipse 78% 82% at 50% 46%, #000 40%, transparent 100%);
+  mask-image:
+    radial-gradient(ellipse 78% 82% at 50% 46%, #000 40%, transparent 100%);
+  transition: filter 0.45s ease;
+}
+
+.kicker {
+  margin: 0 0 18px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--acid);
+}
+
+.hero h1 {
+  margin: 0 0 22px;
+  font-size: clamp(40px, 7vw, 84px);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+}
+
+.hero h1 em {
+  font-style: normal;
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--acid);
+}
+
+.hero .sub {
+  max-width: 560px;
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--ink-dim);
+}
+
+.hero-meta {
+  display: flex;
+  gap: 28px;
+  margin-top: 34px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
+
+.hero-meta b {
+  margin-right: 6px;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.hero-links {
+  display: flex;
+  gap: 18px;
+  margin-top: 30px;
+}
+
+.hero-links a {
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  font-size: 12.5px;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.hero-links a:hover {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
+/* ── 漂移卡片墙 ─────────────────────────── */
+.wall-viewport.is-dimmed {
+  filter: brightness(0.35) blur(3px);
+}
+
+.wall-viewport {
+  filter: brightness(1);
+  transition: filter 0.45s ease;
+}
+
+.wall-plane {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  gap: 16px;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.dw-col {
+  position: relative;
+  will-change: transform;
+}
+
+/* ── 卡片：左 LOGO + 右介绍 + 品牌色底 ─────────── */
+.tile {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 260px;
+  height: 150px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  cursor: pointer;
+  user-select: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 14px 34px -14px rgba(0, 0, 0, 0.55);
+  transition:
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 420ms ease,
+    box-shadow 420ms ease;
+}
+
+.tile:hover {
+  transform: translateZ(40px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 26px 60px -18px rgba(0, 0, 0, 0.75);
+}
+
+.tile-logo {
+  display: grid;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 19px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.tile-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tile-text {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.tile-text b {
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #fff;
+}
+
+.tile-text small {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.78);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.tile-lic {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* ── 详情层（面板即飞行体：同一对象 FLIP） ────────────────── */
+.detail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  perspective: 1400px;
+  background: rgba(4, 6, 4, 0.6);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition:
+    background-color 0.3s ease,
+    backdrop-filter 0.3s ease,
+    -webkit-backdrop-filter 0.3s ease;
+}
+
+/* 飞行期：层透明只留面板自身，落定后背景渐入 */
+.detail-backdrop.clear {
+  background: rgba(4, 6, 4, 0);
+  -webkit-backdrop-filter: blur(0px);
+  backdrop-filter: blur(0px);
+}
+
+.detail-backdrop[hidden] { display: none; }
+
+.detail-panel {
+  position: relative;
+  width: min(680px, 94vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 30px 32px 26px;
+  border-radius: 24px;
+  color: #fff;
+  transform-origin: center;
+  will-change: transform;
+  box-shadow: 0 40px 110px -30px rgba(0, 0, 0, 0.8);
+}
+
+/* 面板内容随飞行淡入/淡出（背景全程连续） */
+.detail-panel :is(.detail-close, .detail-head, .detail-tagline, .detail-desc, .detail-link) {
+  transition: opacity 0.5s ease 0.22s;
+}
+
+.detail-panel.no-content :is(.detail-close, .detail-head, .detail-tagline, .detail-desc, .detail-link) {
+  opacity: 0;
+  transition: none;
+}
+
+.detail-panel.is-closing :is(.detail-close, .detail-head, .detail-tagline, .detail-desc, .detail-link) {
+  opacity: 0;
+  transition: opacity 0.28s ease;
+}
+
+.detail-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.detail-close:hover { background: rgba(255, 255, 255, 0.22); }
+
+.detail-head {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.detail-logo {
+  display: grid;
+  flex: none;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.detail-logo img { width: 100%; height: 100%; object-fit: cover; }
+
+.detail-head h2 {
+  margin: 0 0 4px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.detail-author { margin: 0; font-size: 12.5px; color: rgba(255, 255, 255, 0.66); }
+
+.license-badge {
+  margin-left: auto;
+  padding: 4px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.detail-tagline {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.detail-desc {
+  margin: 0 0 18px;
+  font-size: 13px;
+  line-height: 1.85;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.detail-link {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: background 0.2s ease;
+}
+
+.detail-link:hover { background: rgba(255, 255, 255, 0.22); }
+
+/* ── 结尾 ─────────────────────────────── */
+.outro {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 80px 28px 90px;
+  text-align: center;
+}
+
+.outro p {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  line-height: 1.9;
+  color: var(--ink-dim);
+}
+
+.outro b { color: var(--ink); }
+
+.outro-note { font-size: 12px; opacity: 0.7; }
+
+.outro a { border-bottom: 1px solid var(--acid); color: var(--acid); }
+
+/* ── 页脚 ─────────────────────────────── */
+.site-foot {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  padding: 26px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+
+/* ── 降级与移动端 ─────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .wall-viewport { perspective: none; }
+  .wall-plane { transform: none !important; }
+  .tile, .detail-panel, .detail-backdrop { transition: none !important; }
+}
+
+@media (max-width: 720px) {
+  .hero-float { top: 64px; width: calc(100% - 40px); }
+  .hero-scrim {
+    background:
+      linear-gradient(to bottom, rgba(9, 11, 9, 0.8) 0%, rgba(9, 11, 9, 0.4) 44%, transparent 62%),
+      linear-gradient(to top, rgba(9, 11, 9, 0.85), transparent 36%);
+  }
+  .head-nav { gap: 14px; }
+  .tile { width: 208px; height: 128px; padding: 13px; gap: 10px; }
+  .tile-logo { width: 38px; height: 38px; border-radius: 10px; }
+  .detail-panel { padding: 24px 22px 20px; }
+}

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>致谢与开源许可 · Zephyrus Player</title>
+  <meta name="description" content="Zephyrus Player 所引用与借鉴的开源项目致谢录：33 个项目支撑着这台播放器。" />
+  <link rel="icon" href="../public/zephyrus-icon.png" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="site-head">
+    <a class="brand" href="../">ZEPHYRUS<span>PLAYER</span></a>
+    <nav class="head-nav">
+      <a href="../">产品站</a>
+      <a href="https://mucang.xyz/zephyrus/docs/">文档</a>
+      <a href="https://github.com/cang-dot/zephyrus-player-android" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="wall-hero">
+      <div class="wall-viewport" id="wall-viewport">
+        <div class="wall-plane" id="wall-plane"></div>
+      </div>
+      <div class="hero-scrim" aria-hidden="true"></div>
+      <section class="hero hero-float">
+        <p class="kicker">ZEPHYRUS PLAYER · ACKNOWLEDGMENTS</p>
+        <h1>站在巨人的<br /><em>肩膀</em>之上。</h1>
+        <p class="sub">
+          这台播放器由 33 个开源项目与开放服务托举——从歌词渲染的每一帧，
+          到音源解锁的每一次匹配。这一页，属于它们。
+        </p>
+        <div class="hero-meta">
+          <span><b>33</b> 项目</span>
+          <span><b>5</b> 个篇章</span>
+          <span><b>AGPL-3.0</b> 开源</span>
+        </div>
+        <div class="hero-links">
+          <a href="https://mucang.xyz/zephyrus/" target="_blank" rel="noopener">产品站</a>
+          <a href="https://mucang.xyz/zephyrus/docs/" target="_blank" rel="noopener">使用文档</a>
+          <a href="https://github.com/cang-dot/zephyrus-player-android" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </section>
+      <p class="wall-hint">拖动或移动鼠标环视 · 点击卡片查看详情</p>
+    </section>
+
+    <div class="detail-backdrop" id="detail" hidden>
+      <article class="detail-panel" id="detail-panel">
+        <button class="detail-close" id="detail-close" type="button" aria-label="关闭">
+          <i>✕</i>
+        </button>
+        <div class="detail-head">
+          <span class="detail-logo" id="d-logo"></span>
+          <div>
+            <h2 id="d-name"></h2>
+            <p class="detail-author" id="d-author"></p>
+          </div>
+          <span class="license-badge" id="d-license"></span>
+        </div>
+        <p class="detail-tagline" id="d-tagline"></p>
+        <p class="detail-desc" id="d-desc"></p>
+        <a class="detail-link" id="d-link" target="_blank" rel="noopener">
+          项目主页 <span>↗</span>
+        </a>
+      </article>
+    </div>
+
+    <section class="outro">
+      <p>
+        本项目以 <b>AGPL-3.0-only</b> 发布。上述项目的许可证以各自仓库为准；
+        若您的作品出现在本页且希望调整署名方式，请通过 GitHub 与我们联系。
+      </p>
+      <p class="outro-note">
+        本站的漂移卡片墙结构改编自
+        <a href="https://vue-bits.dev/components/drift-wall" target="_blank" rel="noopener">vue-bits</a>
+        的 Drift Wall 组件（MIT），3D 过渡由 three.js 渲染。
+      </p>
+    </section>
+  </main>
+
+  <footer class="site-foot">
+    <span>Zephyrus Player</span>
+    <span>·</span>
+    <span>致谢与开源许可</span>
+  </footer>
+
+  <script>
+    window.__errs = [];
+    window.addEventListener("error", function (e) {
+      window.__errs.push("err: " + String((e && e.message) || e) + " @ " + String((e && e.filename) || "?") + ":" + String((e && e.lineno) || "?"));
+    });
+    window.addEventListener("unhandledrejection", function (e) {
+      window.__errs.push("rej: " + String((e.reason && e.reason.message) || e.reason));
+    });
+  </script>
+  <script src="./data.js"></script>
+  <script type="module" src="./app.js?v=4"></script>
+</body>
+</html>
