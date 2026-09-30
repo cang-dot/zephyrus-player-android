@@ -61,15 +61,6 @@ onMounted(() => {
     width: 100%;
   }
 
-  .home-col-side {
-    max-height: calc(100vh - var(--mobile-topbar-inset, 60px) - 170px);
-    overflow-y: auto;
-    overscroll-behavior-y: contain;
-    scrollbar-width: none;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
-  }
+  /* 侧列不做独立滚动：内容自然撑开，随页面一起滚动 */
 }
 </style>

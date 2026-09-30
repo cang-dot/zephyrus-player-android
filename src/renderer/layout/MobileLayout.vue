@@ -361,6 +361,21 @@ const capturePlayerTransitionOrigin = () => {
       borderColor: capsuleStyle.borderColor,
       boxShadow: capsuleStyle.boxShadow
     });
+    // 转场期播放面的 clip-path 基准（视口坐标系）：内容被胶囊矩形裁切、随放大逐步揭示
+    const surfaceEl = layoutMainRef.value;
+    if (surfaceEl) {
+      surfaceEl.style.setProperty('--morph-inset-top', `${capsuleRect.top}px`);
+      surfaceEl.style.setProperty('--morph-inset-left', `${capsuleRect.left}px`);
+      surfaceEl.style.setProperty(
+        '--morph-inset-right',
+        `${Math.max(0, window.innerWidth - capsuleRect.right)}px`
+      );
+      surfaceEl.style.setProperty(
+        '--morph-inset-bottom',
+        `${Math.max(0, window.innerHeight - capsuleRect.bottom)}px`
+      );
+      surfaceEl.style.setProperty('--morph-radius', `${capsuleRect.height / 2}px`);
+    }
   }
 };
 provide('capturePlayerTransitionOrigin', capturePlayerTransitionOrigin);
@@ -412,6 +427,16 @@ onBeforeUnmount(() => {
   if (playerSurfaceClassReleaseTimer) clearTimeout(playerSurfaceClassReleaseTimer);
   layoutMainRef.value?.style.removeProperty('--player-open-progress');
   layoutMainRef.value?.style.removeProperty('--player-surface-reveal');
+  for (const key of [
+    '--morph-inset-top',
+    '--morph-inset-left',
+    '--morph-inset-right',
+    '--morph-inset-bottom',
+    '--morph-radius',
+    '--player-morph-bg'
+  ]) {
+    layoutMainRef.value?.style.removeProperty(key);
+  }
   document.body.classList.remove('mobile-player-surface-active');
   document.body.classList.remove('mobile-player-surface-morphing');
 });
@@ -1948,7 +1973,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   border: 1px solid transparent;
 }
 
-/* 转场期全屏播放面背景透明：背景由胶囊放大层承担，open 态（morphing 移除）恢复自身底色 */
+/* 转场期全屏播放面：背景透明（由胶囊放大层承担）+ 内容被胶囊矩形 clip-path
+ * 裁切、随 progress 放大逐步揭示；open 态（morphing 移除）裁切与透明一并解除 */
 :global(body.mobile-player-surface-morphing .n-drawer-container:has(#mobile-drawer-target)),
 :global(body.mobile-player-surface-morphing #mobile-drawer-target.default-player-v2),
 :global(body.mobile-player-surface-morphing .error-mobile-player),
@@ -1960,6 +1986,23 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 :global(body.mobile-player-surface-morphing .neon-mobile-player),
 :global(body.mobile-player-surface-morphing .smoke-mobile-player) {
   background: transparent !important;
+}
+
+:global(body.mobile-player-surface-morphing #mobile-drawer-target.default-player-v2),
+:global(body.mobile-player-surface-morphing .stage-mobile-player),
+:global(body.mobile-player-surface-morphing .rain-mobile-player),
+:global(body.mobile-player-surface-morphing .star-chart-player),
+:global(body.mobile-player-surface-morphing .frenzy-mobile-player),
+:global(body.mobile-player-surface-morphing .eerie-mobile-player),
+:global(body.mobile-player-surface-morphing .neon-mobile-player),
+:global(body.mobile-player-surface-morphing .smoke-mobile-player) {
+  clip-path: inset(
+    calc(var(--morph-inset-top, 0px) * (1 - var(--player-open-progress, 1)))
+    calc(var(--morph-inset-right, 0px) * (1 - var(--player-open-progress, 1)))
+    calc(var(--morph-inset-bottom, 0px) * (1 - var(--player-open-progress, 1)))
+    calc(var(--morph-inset-left, 0px) * (1 - var(--player-open-progress, 1)))
+    round calc(var(--morph-radius, 0px) * (1 - var(--player-open-progress, 1)))
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {

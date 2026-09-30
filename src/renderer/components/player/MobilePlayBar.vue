@@ -277,18 +277,22 @@ const getMiniSwipeLimit = () => Math.min(36, Math.max(28, window.innerWidth * 0.
 const miniSwipeProgress = computed(() =>
   Math.min(Math.abs(miniSwipeOffset.value) / getMiniSwipeLimit(), 1)
 );
+// 转场一经开始（含拖拽第一帧）迷你条立即让位给胶囊放大层；关闭落定（idle）后还原
+const miniSurfaceHidden = computed(
+  () => playerTransition.state.value !== 'idle' || playerTransition.progress.value > 0
+);
 const miniSwipeStyle = computed(() => ({
   transform: `translate3d(${miniSwipeOffset.value}px, ${miniVerticalOffset.value}px, 0) scale(${1 - miniSwipeProgress.value * 0.012})`,
-  opacity: String(1 - miniSwipeProgress.value * 0.12),
-  pointerEvents: playerTransition.progress.value > 0.08 ? ('none' as const) : undefined,
+  opacity: miniSurfaceHidden.value ? '0' : String(1 - miniSwipeProgress.value * 0.12),
+  pointerEvents: miniSurfaceHidden.value || playerTransition.progress.value > 0.08
+    ? ('none' as const)
+    : undefined,
   '--mini-swipe-rotation': `${miniSwipeOffset.value * 0.018}deg`,
   '--mini-swipe-content-shift': `${miniSwipeOffset.value * 0.05}px`,
   '--mini-swipe-stretch': String(1 + miniSwipeProgress.value * 0.08),
   '--mini-swipe-glow-x': `${miniSwipeOffset.value * 0.7}px`,
   '--mini-swipe-glow-opacity': String(miniSwipeProgress.value * 0.32)
 }));
-// 转场收尾后迷你条整体让位给全屏层;布尔塌缩,避免模板逐帧依赖裸 progress
-const miniSurfaceHidden = computed(() => playerTransition.progress.value > 0.98);
 
 const miniPlaybackControlsStyle = computed<CSSProperties>(() => ({
   opacity: String(1 - Math.min(1, Math.max(0, (playerTransition.progress.value - 0.12) / 0.42))),

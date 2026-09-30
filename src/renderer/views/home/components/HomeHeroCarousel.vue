@@ -44,6 +44,23 @@ const bgPaused = computed(
     (pagerActivePath ? pagerActivePath.value !== '/' : false)
 );
 
+/**
+ * 鼠标滚轮切卡：竖向滚轮增量转为轨道 smooth 横向滚动，stop 后由 snap 吸附到最近卡
+ * （instant 赋值会被 mandatory snap 逐次弹回起点，必须走平滑滚动）。
+ * 触屏不受影响；轨道已到端点时不拦截，滚轮放行给页面竖向滚动。
+ */
+function onHeroWheel(event: WheelEvent) {
+  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+  const track = event.currentTarget as HTMLElement;
+  const maxScroll = track.scrollWidth - track.clientWidth;
+  if (maxScroll <= 0) return;
+  const atStart = track.scrollLeft <= 0 && event.deltaY < 0;
+  const atEnd = track.scrollLeft >= maxScroll - 1 && event.deltaY > 0;
+  if (atStart || atEnd) return;
+  track.scrollBy({ left: event.deltaY, behavior: "smooth" });
+  event.preventDefault();
+}
+
 const moltenFailed = ref(false);
 const ditherFailed = ref(false);
 
@@ -177,7 +194,7 @@ onMounted(async () => {
 
 <template>
   <section class="hero-carousel">
-    <div class="hero-track" data-horizontal-scroll>
+    <div class="hero-track" data-horizontal-scroll @wheel="onHeroWheel">
       <article class="hero-card roam">
         <molten-metal-background
           v-if="!moltenFailed"

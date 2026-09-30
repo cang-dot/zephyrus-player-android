@@ -86,6 +86,22 @@ h2 {
   }
 }
 
+/* 宽屏/横屏：不再横滑，改为平铺网格全部展开 */
+@media (min-aspect-ratio: 4/3) {
+  .recent-track {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 10px;
+    padding: 2px 16px 6px;
+    overflow-x: visible;
+    scroll-snap-type: none;
+  }
+
+  .recent-track .recent-card {
+    width: auto;
+  }
+}
+
 .recent-card {
   display: grid;
   flex: 0 0 132px;
