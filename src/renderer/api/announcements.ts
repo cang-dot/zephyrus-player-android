@@ -23,6 +23,8 @@ export interface Announcement {
   id: string | number;
   title: string;
   body: string;
+  /** 公告日期（YYYY-MM-DD），卡片上展示 */
+  date?: string;
   buttonText?: string;
   action?: AnnouncementAction;
 }

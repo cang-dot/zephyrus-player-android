@@ -80,10 +80,18 @@ const heartPlaying = computed(() => heartActive.value && playerCore.isPlaying);
 const heartLabel = computed(() =>
   heartPlaying.value ? t('comp.homeV2.pauseAria') : t('comp.homeV2.playAria')
 );
+// 心动模式启动链路（拉喜欢列表→心动歌单→起播）较慢：点击即进入加载态并防重复点击
+const heartLoading = ref(false);
 
 async function toggleHeart() {
+  if (heartLoading.value) return;
   if (!heartActive.value) {
-    await intelligenceStore.playIntelligenceMode();
+    heartLoading.value = true;
+    try {
+      await intelligenceStore.playIntelligenceMode();
+    } finally {
+      heartLoading.value = false;
+    }
     return;
   }
   if (playerCore.isPlaying) {
@@ -226,8 +234,16 @@ onMounted(async () => {
           <p>{{ t('comp.homeV2.roamSubtitle') }}</p>
         </div>
 
-        <button class="hero-play" type="button" :aria-label="heartLabel" @click="toggleHeart">
-          <i :class="heartPlaying ? 'ri-pause-fill' : 'ri-play-fill'" />
+        <button
+          class="hero-play"
+          type="button"
+          :class="{ 'is-loading': heartLoading }"
+          :aria-label="heartLabel"
+          :disabled="heartLoading"
+          @click="toggleHeart"
+        >
+          <i v-if="heartLoading" class="ri-loader-4-line is-spinning" />
+          <i v-else :class="heartPlaying ? 'ri-pause-fill' : 'ri-play-fill'" />
         </button>
       </article>
 
@@ -279,6 +295,7 @@ onMounted(async () => {
       <!-- 公告卡：内容每次启动从服务器拉取，按钮直达网易云专辑页（不被应用内捕获） -->
       <article v-if="announcement" class="hero-card announce" @click="openAnnouncement">
         <span class="announce-badge">{{ announcement.title }}</span>
+        <span v-if="announcement.date" class="announce-date">{{ announcement.date }}</span>
         <p class="announce-body">{{ announcement.body }}</p>
         <button
           v-if="announcement.action"
@@ -403,6 +420,15 @@ onMounted(async () => {
   letter-spacing: 0.08em;
 }
 
+.announce-date {
+  position: absolute;
+  right: 16px;
+  top: 18px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--m-text-tertiary, rgba(32, 33, 31, 0.5));
+}
+
 .announce-body {
   position: absolute;
   left: 16px;
@@ -455,6 +481,7 @@ onMounted(async () => {
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.26);
   color: #111;
+  transition: transform 140ms var(--m-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 
   i {
     font-size: 22px;
@@ -462,6 +489,21 @@ onMounted(async () => {
 
   &:active {
     transform: scale(0.94);
+  }
+
+  &.is-loading {
+    pointer-events: none;
+    opacity: 0.85;
+
+    .is-spinning {
+      animation: hero-play-spin 900ms linear infinite;
+    }
+  }
+}
+
+@keyframes hero-play-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
