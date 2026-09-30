@@ -105,7 +105,13 @@ import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl, setAnimationClass } from '@/utils';
-import { shouldOpenMobilePlayer } from '@/utils/mobileGestureThresholds';
+import {
+  MORPH_SCREEN_MARGIN,
+  MORPH_SETTLE_PROGRESS,
+  MORPH_STRETCH_PIXELS,
+  rubberband,
+  shouldOpenMobilePlayer
+} from '@/utils/mobileGestureThresholds';
 
 const shouldShowMobileMenu = inject('shouldShowMobileMenu') as Ref<boolean>;
 const playlistSurfaceMounted = inject('playlistSurfaceMounted', ref(false)) as Ref<boolean>;
@@ -381,7 +387,13 @@ const onMiniPointerMove = (event: PointerEvent) => {
     verticalSamples.push({ y: event.clientY, time: now });
     verticalSamples = verticalSamples.filter((sample) => now - sample.time <= 100);
     if (deltaY < 0 && !miniPointerStartedCollapsed) {
-      const progress = Math.min(1, Math.max(0, -deltaY / Math.max(240, window.innerHeight * 0.68)));
+      // 顶边 1:1 跟手：行程 = 胶囊顶 → 限高圆角矩形顶；越界部分走橡皮筋阻尼
+      const capsuleTop = playerTransition.capsuleSource.value?.top ?? window.innerHeight * 0.86;
+      const travel = Math.max(120, capsuleTop - MORPH_SCREEN_MARGIN);
+      const raw = -deltaY / travel;
+      const progress = Math.min(MORPH_SETTLE_PROGRESS, raw);
+      const overshootPx = Math.max(0, raw - MORPH_SETTLE_PROGRESS) * travel;
+      const stretch = overshootPx > 0 ? rubberband(overshootPx, travel) / MORPH_STRETCH_PIXELS : 0;
       const first = verticalSamples[0];
       const velocity =
         verticalSamples.length > 1
@@ -389,6 +401,7 @@ const onMiniPointerMove = (event: PointerEvent) => {
             Math.max(1, now - first.time)
           : 0;
       playerTransition.setDragging(progress, (velocity * 1000) / Math.max(1, window.innerHeight));
+      playerTransition.setStretch(stretch);
       miniVerticalOffset.value = 0;
     } else {
       miniVerticalOffset.value = Math.max(-42, Math.min(42, deltaY));

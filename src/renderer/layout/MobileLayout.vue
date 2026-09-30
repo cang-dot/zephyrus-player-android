@@ -206,7 +206,6 @@
 </template>
 
 <script setup lang="ts">
-import type { CSSProperties } from 'vue';
 import {
   type Component,
   computed,
@@ -234,6 +233,11 @@ import { useMenuStore } from '@/store/modules/menu';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { shouldCommitMobilePageSwipe } from '@/utils/mobileGestureThresholds';
+import {
+  MORPH_SCREEN_MARGIN,
+  MORPH_SETTLE_PROGRESS,
+  MORPH_STRETCH_PIXELS
+} from '@/utils/mobileGestureThresholds';
 
 import MobileHeader from './components/MobileHeader.vue';
 const MobilePlayBar = defineAsyncComponent(() => import('@/components/player/MobilePlayBar.vue'));
@@ -361,21 +365,6 @@ const capturePlayerTransitionOrigin = () => {
       borderColor: capsuleStyle.borderColor,
       boxShadow: capsuleStyle.boxShadow
     });
-    // 转场期播放面的 clip-path 基准（视口坐标系）：内容被胶囊矩形裁切、随放大逐步揭示
-    const surfaceEl = layoutMainRef.value;
-    if (surfaceEl) {
-      surfaceEl.style.setProperty('--morph-inset-top', `${capsuleRect.top}px`);
-      surfaceEl.style.setProperty('--morph-inset-left', `${capsuleRect.left}px`);
-      surfaceEl.style.setProperty(
-        '--morph-inset-right',
-        `${Math.max(0, window.innerWidth - capsuleRect.right)}px`
-      );
-      surfaceEl.style.setProperty(
-        '--morph-inset-bottom',
-        `${Math.max(0, window.innerHeight - capsuleRect.bottom)}px`
-      );
-      surfaceEl.style.setProperty('--morph-radius', `${capsuleRect.height / 2}px`);
-    }
   }
 };
 provide('capturePlayerTransitionOrigin', capturePlayerTransitionOrigin);
@@ -388,12 +377,16 @@ const syncPlayerSurfaceProgress = () => {
   const progressValue = String(progress);
   const revealValue = String(reveal);
   const surfaceEl = layoutMainRef.value;
+  // 变量同时写 #layout-main 与 body：播放面可能 Teleport 到 body 的 drawer 容器，
+  // 只挂 layout-main 会让那条路径的 CSS 拿不到进度（fallback 值导致裁切/透明失效）
   if (progressValue !== lastPlayerSurfaceProgress) {
     surfaceEl?.style.setProperty('--player-open-progress', progressValue);
+    document.body.style.setProperty('--player-open-progress', progressValue);
     lastPlayerSurfaceProgress = progressValue;
   }
   if (revealValue !== lastPlayerSurfaceReveal) {
     surfaceEl?.style.setProperty('--player-surface-reveal', revealValue);
+    document.body.style.setProperty('--player-surface-reveal', revealValue);
     lastPlayerSurfaceReveal = revealValue;
   }
   if (surfaceActive) {
@@ -427,15 +420,10 @@ onBeforeUnmount(() => {
   if (playerSurfaceClassReleaseTimer) clearTimeout(playerSurfaceClassReleaseTimer);
   layoutMainRef.value?.style.removeProperty('--player-open-progress');
   layoutMainRef.value?.style.removeProperty('--player-surface-reveal');
-  for (const key of [
-    '--morph-inset-top',
-    '--morph-inset-left',
-    '--morph-inset-right',
-    '--morph-inset-bottom',
-    '--morph-radius',
-    '--player-morph-bg'
-  ]) {
-    layoutMainRef.value?.style.removeProperty(key);
+  document.body.style.removeProperty('--player-open-progress');
+  document.body.style.removeProperty('--player-surface-reveal');
+  for (const key of ['--clip-top', '--clip-right', '--clip-bottom', '--clip-left', '--clip-radius', '--player-morph-bg']) {
+    document.body.style.removeProperty(key);
   }
   document.body.classList.remove('mobile-player-surface-active');
   document.body.classList.remove('mobile-player-surface-morphing');
@@ -477,26 +465,64 @@ const dockTransitionStyle = computed(() => {
 });
 
 /* ══ 胶囊放大层：开/关转场期间迷你条胶囊克隆矩形放大到全屏 ══
- * progress 由手势(setDragging)/弹簧(animateTo/close)驱动——中途松手回弹、
- * 反向关闭自然可逆。open 态卸载，全屏面自身背景接管（同色无缝）。 */
+ * 三段几何：progress 0→0.85 胶囊→限高圆角矩形（顶边 1:1 跟手，stretch 提供越界阻尼），
+ * 0.85→1 限高矩形→全屏（松手弹簧展开）。progress 由手势/弹簧驱动，天然可逆。 */
+const morphViewport = { w: 0, h: 0 };
 const playerMorphLayerActive = computed(() => {
   const state = playerTransition.state.value;
   return state !== 'idle' && state !== 'open';
 });
-const playerMorphLayerStyle = computed<CSSProperties | undefined>(() => {
+/** 计算当前 progress+stretch 的目标矩形（视口坐标） */
+const computeMorphRect = () => {
   const source = playerTransition.capsuleSource.value;
   const progress = playerTransition.progress.value;
-  if (!source) return undefined;
-  const scaleX = window.innerWidth / source.width;
-  const scaleY = window.innerHeight / source.height;
+  const stretchPx = playerTransition.stretch.value * MORPH_STRETCH_PIXELS;
+  if (!source) return null;
+  morphViewport.w = window.innerWidth;
+  morphViewport.h = window.innerHeight;
+  const limit = {
+    left: MORPH_SCREEN_MARGIN,
+    top: MORPH_SCREEN_MARGIN,
+    width: morphViewport.w - MORPH_SCREEN_MARGIN * 2,
+    height: morphViewport.h - MORPH_SCREEN_MARGIN * 2,
+    radius: 34
+  };
+  let rect: { left: number; top: number; width: number; height: number; radius: number };
+  if (progress <= MORPH_SETTLE_PROGRESS) {
+    const t = Math.max(0, progress / MORPH_SETTLE_PROGRESS);
+    rect = {
+      left: source.left + (limit.left - source.left) * t,
+      top: source.top + (limit.top - source.top) * t - stretchPx,
+      width: source.width + (limit.width - source.width) * t,
+      height: source.height + (limit.height - source.height) * t + stretchPx,
+      radius: source.radius + (limit.radius - source.radius) * t
+    };
+  } else {
+    const t = Math.min(1, (progress - MORPH_SETTLE_PROGRESS) / (1 - MORPH_SETTLE_PROGRESS));
+    rect = {
+      left: limit.left * (1 - t),
+      top: limit.top * (1 - t),
+      width: limit.width + (morphViewport.w - limit.width) * t,
+      height: limit.height + (morphViewport.h - limit.height) * t,
+      radius: limit.radius * (1 - t)
+    };
+  }
+  return rect;
+};
+const playerMorphLayerStyle = computed(() => {
+  const source = playerTransition.capsuleSource.value;
+  const rect = computeMorphRect();
+  if (!source || !rect) return undefined;
+  const scaleX = rect.width / source.width;
+  const scaleY = rect.height / source.height;
   return {
     left: `${source.left}px`,
     top: `${source.top}px`,
     width: `${source.width}px`,
     height: `${source.height}px`,
-    transform: `translate3d(${-source.left * progress}px, ${-source.top * progress}px, 0) scale(${scaleX + (1 - scaleX) * (1 - progress)}, ${scaleY + (1 - scaleY) * (1 - progress)})`,
+    transform: `translate3d(${rect.left - source.left}px, ${rect.top - source.top}px, 0) scale(${scaleX}, ${scaleY})`,
     transformOrigin: '0 0',
-    borderRadius: `${source.radius * (1 - progress)}px`
+    borderRadius: `${rect.radius}px`
   };
 });
 // 胶囊皮肤（底色恒定垫底 / 播放器底色随进度盖上来 / 边框阴影快速淡出）
@@ -510,6 +536,56 @@ const playerMorphSkinStyle = computed(() => {
     boxShadow: source.boxShadow,
     opacity: String(Math.max(0, 1 - playerTransition.progress.value * 3))
   };
+});
+// 裁切矩形同步：把 morph 矩形以 CSS 变量写给播放面的 clip-path（挂 body，任何挂载路径可达）
+const syncMorphClip = () => {
+  const rect = computeMorphRect();
+  const surface = document.body.style;
+  if (!rect) {
+    ['--clip-top', '--clip-right', '--clip-bottom', '--clip-left', '--clip-radius'].forEach((key) =>
+      surface.removeProperty(key)
+    );
+    return;
+  }
+  surface.setProperty('--clip-top', `${Math.max(0, rect.top)}px`);
+  surface.setProperty('--clip-right', `${Math.max(0, morphViewport.w - rect.left - rect.width)}px`);
+  surface.setProperty('--clip-bottom', `${Math.max(0, morphViewport.h - rect.top - rect.height)}px`);
+  surface.setProperty('--clip-left', `${Math.max(0, rect.left)}px`);
+  surface.setProperty('--clip-radius', `${rect.radius}px`);
+};
+watch([playerTransition.progress, playerTransition.stretch], syncMorphClip, { flush: 'post' });
+// 伸长量弹簧：松手后从当前值指数衰减到 0（与 progress 弹簧同量级的收敛节奏）
+let stretchFrame = 0;
+let stretchLast = 0;
+const settleStretch = (now: number) => {
+  const dt = Math.min(0.05, Math.max(0.001, (now - stretchLast) / 1000));
+  stretchLast = now;
+  const next = playerTransition.stretch.value * Math.exp(-dt / 0.09);
+  playerTransition.setStretch(next);
+  if (next > 0.002) {
+    stretchFrame = requestAnimationFrame(settleStretch);
+  } else {
+    playerTransition.setStretch(0);
+    stretchFrame = 0;
+  }
+};
+watch(
+  () => playerTransition.state.value,
+  (state) => {
+    if ((state === 'opening' || state === 'closing') && playerTransition.stretch.value > 0.002) {
+      if (stretchFrame) cancelAnimationFrame(stretchFrame);
+      stretchLast = performance.now();
+      stretchFrame = requestAnimationFrame(settleStretch);
+    } else if (state === 'idle' || state === 'open') {
+      if (stretchFrame) cancelAnimationFrame(stretchFrame);
+      stretchFrame = 0;
+      playerTransition.setStretch(0);
+    }
+  },
+  { flush: 'sync' }
+);
+onBeforeUnmount(() => {
+  if (stretchFrame) cancelAnimationFrame(stretchFrame);
 });
 
 type PageTransitionDirection = 'next' | 'prev';
@@ -1996,12 +2072,14 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 :global(body.mobile-player-surface-morphing .eerie-mobile-player),
 :global(body.mobile-player-surface-morphing .neon-mobile-player),
 :global(body.mobile-player-surface-morphing .smoke-mobile-player) {
+  /* 裁切矩形由 JS 逐帧写入 body 变量（与 morph 层三段几何+阻尼伸长一致）；
+   * 挂 body 保证 Teleport 到 body 的播放面（drawer 容器路径）同样可达 */
   clip-path: inset(
-    calc(var(--morph-inset-top, 0px) * (1 - var(--player-open-progress, 1)))
-    calc(var(--morph-inset-right, 0px) * (1 - var(--player-open-progress, 1)))
-    calc(var(--morph-inset-bottom, 0px) * (1 - var(--player-open-progress, 1)))
-    calc(var(--morph-inset-left, 0px) * (1 - var(--player-open-progress, 1)))
-    round calc(var(--morph-radius, 0px) * (1 - var(--player-open-progress, 1)))
+    var(--clip-top, 0px)
+    var(--clip-right, 0px)
+    var(--clip-bottom, 0px)
+    var(--clip-left, 0px)
+    round var(--clip-radius, 0px)
   );
 }
 

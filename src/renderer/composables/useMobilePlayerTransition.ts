@@ -31,6 +31,8 @@ const surfaceMode = ref<MobilePlayerSurfaceMode>('controls');
 const sheetProgress = ref(0);
 const sourceRect = ref<MobilePlayerSurfaceRect | null>(null);
 const capsuleSource = ref<MobilePlayerCapsuleSource | null>(null);
+/** 限高圆角矩形之上的阻尼伸长（0..~0.6）：顶边越过限高后的橡皮筋量，渲染层消费 */
+const stretch = ref(0);
 let frame = 0;
 let sheetFrame = 0;
 let controlsHideTimer: ReturnType<typeof setTimeout> | undefined;
@@ -167,6 +169,10 @@ const setCapsuleSource = (source: MobilePlayerCapsuleSource | null) => {
   capsuleSource.value = source ? { ...source } : null;
 };
 
+const setStretch = (value: number) => {
+  stretch.value = Math.min(0.6, Math.max(0, value));
+};
+
 const close = (velocity = 0, complete?: () => void) => {
   animateTo(0, velocity, complete);
 };
@@ -213,6 +219,7 @@ const finishClose = (complete?: () => void) => {
     controlsVisible.value = false;
     sourceRect.value = null;
     capsuleSource.value = null;
+    stretch.value = 0;
   });
 };
 
@@ -300,6 +307,7 @@ export function useMobilePlayerTransition() {
     sheetProgress: readonly(sheetProgress),
     sourceRect: readonly(sourceRect),
     capsuleSource: readonly(capsuleSource),
+    stretch: readonly(stretch),
     setDragging,
     animateTo,
     close,
@@ -313,6 +321,7 @@ export function useMobilePlayerTransition() {
     setSheetProgress,
     setSourceRect,
     setCapsuleSource,
+    setStretch,
     animateSheet,
     cancelAllAnimations
   };

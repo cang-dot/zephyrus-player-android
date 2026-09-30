@@ -449,12 +449,11 @@ const artworkTransitionStyle = computed(() => {
     willChange: 'transform'
   };
 });
-// 镜像播放器背景到 #layout-main：开/关转场期胶囊放大层用它在飞行中过渡到全屏底色
+// 镜像播放器背景到 body：开/关转场期胶囊放大层用它在飞行中过渡到全屏底色
 watch(
   () => surfaceStyle.value['--default-player-background'],
   (color) => {
-    const host = document.getElementById('layout-main');
-    if (host) host.style.setProperty('--player-morph-bg', String(color));
+    document.body.style.setProperty('--player-morph-bg', String(color));
   },
   { immediate: true }
 );
