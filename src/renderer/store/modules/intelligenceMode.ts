@@ -36,8 +36,10 @@ export const useIntelligenceModeStore = defineStore('intelligenceMode', () => {
     const playlistStore = usePlaylistStore();
     const { t } = i18n.global;
 
-    // 检查是否使用cookie登录
-    if (!userStore.user || userStore.loginType !== 'cookie') {
+    // 心动模式需要有效登录凭据（喜欢列表/心动歌单接口走 token cookie）。
+    // 扫码登录与 Cookie 登录凭据等价（QrLogin 成功后同样写入 token），
+    // 只有 Uid 登录没有凭据，不能调用。
+    if (!userStore.user || userStore.loginType === 'uid') {
       message.warning(t('player.playBar.intelligenceMode.needCookieLogin'));
       return;
     }

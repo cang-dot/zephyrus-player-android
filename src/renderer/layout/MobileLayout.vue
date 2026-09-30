@@ -510,18 +510,15 @@ const computeMorphRect = () => {
   return rect;
 };
 const playerMorphLayerStyle = computed(() => {
-  const source = playerTransition.capsuleSource.value;
   const rect = computeMorphRect();
-  if (!source || !rect) return undefined;
-  const scaleX = rect.width / source.width;
-  const scaleY = rect.height / source.height;
+  if (!rect) return undefined;
+  // 直接布局插值（不用 scale）：非等比缩放会把圆角拉成椭圆角，
+  // 逐帧写 left/top/width/height 让 border-radius 始终是标准圆角
   return {
-    left: `${source.left}px`,
-    top: `${source.top}px`,
-    width: `${source.width}px`,
-    height: `${source.height}px`,
-    transform: `translate3d(${rect.left - source.left}px, ${rect.top - source.top}px, 0) scale(${scaleX}, ${scaleY})`,
-    transformOrigin: '0 0',
+    left: `${rect.left}px`,
+    top: `${rect.top}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
     borderRadius: `${rect.radius}px`
   };
 });
@@ -2032,7 +2029,6 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   z-index: 250;
   overflow: hidden;
   pointer-events: none;
-  will-change: transform;
 }
 
 .player-morph-fill,

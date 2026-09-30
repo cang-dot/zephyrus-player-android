@@ -72,7 +72,7 @@ export default {
     advancedControls: '更多设置',
     intelligenceMode: {
       title: '心动模式',
-      needCookieLogin: '请使用 Cookie 方式登录后使用心动模式',
+      needCookieLogin: '请先登录（扫码或 Cookie）后使用心动模式',
       noFavoritePlaylist: '未找到我喜欢的音乐歌单',
       noLikedSongs: '您还没有喜欢的歌曲',
       loading: '正在加载心动模式',
