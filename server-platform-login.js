@@ -2059,7 +2059,10 @@ function normalizeQqAlbum(item) {
     name: item.albumName ?? item.album_name ?? item.name ?? item.title ?? '',
     picUrl: item.picUrl ?? item.pic_url ?? item.coverUrl ?? '',
     size: item.songNum ?? item.song_num ?? item.songnum ?? item.total ?? 0,
-    artist: { name: item.singerName ?? item.singer_name ?? item.singername ?? item.artist ?? '' }
+    artist: {
+      id: item.singerMid ?? item.singer_mid ?? item.singermid ?? 0,
+      name: item.singerName ?? item.singer_name ?? item.singername ?? item.artist ?? ''
+    }
   };
 }
 
@@ -2097,10 +2100,15 @@ function normalizeQqSong(item) {
   };
   const rawDuration = Number(firstOwnValue(item, ['interval', 'duration', 'dt']));
   const duration = rawDuration > 0 && rawDuration < 1000 ? rawDuration * 1000 : rawDuration;
-  const artists = (artistNames.length ? artistNames : ['未知歌手']).map((artist, index) => ({
-    id: index,
-    name: artist
-  }));
+  // 保留歌手 mid（可导航到歌手页）；缺失时回退数组下标（历史行为）
+  const artists = (artistNames.length ? artistNames : ['未知歌手']).map((artist, index) => {
+    const name = typeof artist === 'string' ? artist : artist.name;
+    const mid =
+      Array.isArray(rawSinger) && typeof rawSinger[index] === 'object' && rawSinger[index]
+        ? firstOwnValue(rawSinger[index], ['mid', 'singer_mid', 'singermid'])
+        : '';
+    return { id: mid || index, name };
+  });
   return {
     id: `qq:${platformId}`,
     name,
@@ -2313,6 +2321,83 @@ router.get('/qq/search', async (req, res) => {
   } catch (error) {
     console.error('[platformLogin] QQ search error:', error.message);
     return res.status(502).json({ code: 502, msg: 'QQ 搜索服务暂时不可用，请稍后重试' });
+  }
+});
+
+// GET /platform/qq/album?id=<albumMid> — 专辑详情 + 曲目（未签名通道实测可用）
+router.get('/qq/album', async (req, res) => {
+  const albumMid = String(req.query.id || req.query.albumMid || '').trim();
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(albumMid)) {
+    return res.status(400).json({ code: 400, msg: '缺少 QQ 专辑 ID' });
+  }
+  try {
+    const data = await qqMusicApi(
+      '',
+      'music.musichallAlbum.AlbumSongList',
+      'GetAlbumSongList',
+      { albumMid, albumID: 0, begin: 0, num: 200, order: 2 }
+    );
+    const songs = (data?.songList || [])
+      .map((entry) => entry?.songInfo || entry)
+      .map(normalizeQqSong)
+      .filter(Boolean);
+    return res.json({
+      code: 200,
+      data: {
+        album: {
+          id: albumMid,
+          name: songs[0]?.al?.name ? songs[0].al.name : '',
+          // 专辑封面按公开 CDN 规则拼（500x500 详情页尺寸）
+          picUrl: `https://y.gtimg.cn/music/photo_new/T002R500x500M000${albumMid}.jpg`,
+          artist: {
+            id: songs[0]?.ar?.[0]?.id || 0,
+            name: songs[0]?.ar?.[0]?.name || ''
+          }
+        },
+        songs
+      }
+    });
+  } catch (error) {
+    console.error('[platformLogin] QQ album error:', error.message);
+    return res.status(502).json({ code: 502, msg: 'QQ 专辑加载失败，请稍后重试' });
+  }
+});
+
+// GET /platform/qq/singer/songs?mid=<singermid>&limit=30&offset=0 — 歌手热门歌曲
+router.get('/qq/singer/songs', async (req, res) => {
+  const singerMid = String(req.query.mid || req.query.singerMid || '').trim();
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(singerMid)) {
+    return res.status(400).json({ code: 400, msg: '缺少 QQ 歌手 ID' });
+  }
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 30));
+  const offset = Math.max(0, Number(req.query.offset) || 0);
+  try {
+    const data = await qqMusicApi(
+      '',
+      'music.web_singer_info_svr',
+      'get_singer_detail_info',
+      { sort: 5, singermid: singerMid, sin: offset, num: limit }
+    );
+    const songs = (data?.songlist || []).map(normalizeQqSong).filter(Boolean);
+    const singerInfo = data?.singer_info || {};
+    return res.json({
+      code: 200,
+      data: {
+        artist: {
+          id: singerMid,
+          mid: singerMid,
+          name: singerInfo.name || '',
+          picUrl: `https://y.gtimg.cn/music/photo_new/T001R500x500M000${singerMid}.jpg`,
+          fans: singerInfo.fans || 0
+        },
+        songs,
+        total: data?.total_song || songs.length,
+        hasMore: Boolean(data?.total_song && offset + songs.length < data.total_song)
+      }
+    });
+  } catch (error) {
+    console.error('[platformLogin] QQ singer songs error:', error.message);
+    return res.status(502).json({ code: 502, msg: 'QQ 歌手歌曲加载失败，请稍后重试' });
   }
 });
 

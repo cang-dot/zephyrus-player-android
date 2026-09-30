@@ -21,7 +21,7 @@ import { useI18n } from 'vue-i18n';
 
 import { isServerSongResult } from '@/api/serverSongs';
 import type { SongResult } from '@/types/music';
-import { getImgUrl, isElectron } from '@/utils';
+import { coverCrossOriginAttr, getImgUrl, isElectron } from '@/utils';
 import { hasPermission } from '@/utils/auth';
 
 const { t } = useI18n();
@@ -49,6 +49,7 @@ const emits = defineEmits([
   'toggle-dislike',
   'goto-artist',
   'goto-album',
+  'match-netease',
   'remove'
 ]);
 
@@ -64,6 +65,11 @@ const album = computed(() => {
   return song.al || song.album || song.song?.album;
 });
 const isServerItem = computed(() => isServerSongResult(props.item));
+// 跨平台歌曲（QQ/酷狗等）才显示「匹配网易云播放」
+const isCrossPlatformItem = computed(() => {
+  const song = props.item as any;
+  return Boolean(song?.platform && song.platform !== 'netease' && song.platformId);
+});
 
 // 渲染歌曲预览
 const renderSongPreview = () => {
@@ -78,7 +84,7 @@ const renderSongPreview = () => {
         class: 'w-10 h-10 rounded-lg flex-shrink-0',
         previewDisabled: true,
         imgProps: {
-          crossorigin: 'anonymous'
+          crossorigin: coverCrossOriginAttr(props.item.picUrl || props.item.al?.picUrl)
         }
       }),
       h(
@@ -160,6 +166,15 @@ const dropdownOptions = computed<MenuOption[]>(() => {
       key: 'playNext',
       icon: () => h('i', { class: 'iconfont ri-play-list-2-line' })
     },
+    ...(isCrossPlatformItem.value
+      ? [
+          {
+            label: t('songItem.menu.matchNetease'),
+            key: 'matchNetease',
+            icon: () => h('i', { class: 'iconfont ri-netease-cloud-music-line' })
+          }
+        ]
+      : []),
     {
       type: 'divider',
       key: 'd_artist'
@@ -250,6 +265,9 @@ const handleSelect = (key: string | number) => {
       break;
     case 'playNext':
       emits('play-next');
+      break;
+    case 'matchNetease':
+      emits('match-netease');
       break;
     case 'addToPlaylist':
       openPlaylistDrawer?.(props.item);

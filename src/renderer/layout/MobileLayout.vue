@@ -109,11 +109,6 @@
         'player-full': playerTransition.state.value === 'open'
       }"
       :style="dockTransitionStyle"
-      @click.capture="onDockClickCapture"
-      @pointerdown="onDockPointerDown"
-      @pointermove="onDockPointerMove"
-      @pointerup="onDockPointerUp"
-      @pointercancel="onDockPointerCancel"
     >
       <!-- 播放条与导航共用同一个 Dock 玻璃表面。 -->
       <mobile-play-bar v-if="isPlay" @idle-collapse-change="miniPlayerIdleCollapsed = $event" />
@@ -174,6 +169,20 @@
         </div>
       </Transition>
     </div>
+
+    <!-- 胶囊放大层：转场期迷你条胶囊克隆放大到全屏，作为全屏播放面的飞行背景
+         （封面 FLIP 在其上飞行；open 态由播放面自身背景接管） -->
+    <div
+      v-if="playerMorphLayerActive"
+      class="player-morph-layer"
+      :style="playerMorphLayerStyle"
+      aria-hidden="true"
+    >
+      <div class="player-morph-fill player-morph-base" :style="playerMorphBaseStyle" />
+      <div class="player-morph-fill player-morph-playerbg" :style="playerMorphBgFillStyle" />
+      <div class="player-morph-skin" :style="playerMorphSkinStyle" />
+    </div>
+
     <mobile-player-bottom-surface v-if="isPlay" />
     <mobile-song-action-sheet
       v-if="mobileSongActionRequest && !isPlay"
@@ -187,6 +196,7 @@
       @update:show="(visible) => !visible && songActionSurface.close()"
       @play="invokeSongAction('play')"
       @play-next="invokeSongAction('playNext')"
+      @match-netease="invokeSongAction('matchNetease')"
       @favorite="invokeSongAction('favorite')"
       @remove="invokeSongAction('remove')"
       @goto-artist="(id) => invokeSongAction('gotoArtist', id)"
@@ -196,6 +206,7 @@
 </template>
 
 <script setup lang="ts">
+import type { CSSProperties } from 'vue';
 import {
   type Component,
   computed,
@@ -222,10 +233,7 @@ import { installMobileBackBridge, registerMobileBackLayer } from '@/services/mob
 import { useMenuStore } from '@/store/modules/menu';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
-import {
-  shouldCommitMobilePageSwipe,
-  shouldOpenMobilePlayer
-} from '@/utils/mobileGestureThresholds';
+import { shouldCommitMobilePageSwipe } from '@/utils/mobileGestureThresholds';
 
 import MobileHeader from './components/MobileHeader.vue';
 const MobilePlayBar = defineAsyncComponent(() => import('@/components/player/MobilePlayBar.vue'));
@@ -292,11 +300,11 @@ watch(
   }
 );
 const invokeSongAction = (
-  action: 'play' | 'playNext' | 'favorite' | 'remove' | 'gotoArtist' | 'gotoAlbum',
-  id?: number
+  action: 'play' | 'playNext' | 'favorite' | 'remove' | 'gotoArtist' | 'gotoAlbum' | 'matchNetease',
+  id?: number | string
 ) => {
   const callback = songActionSurface.request.value?.callbacks?.[action] as
-    | ((id?: number) => void | Promise<void>)
+    | ((id?: number | string) => void | Promise<void>)
     | undefined;
   if (callback) void callback(id);
 };
@@ -324,20 +332,6 @@ const capturePlayerTransitionOrigin = () => {
     playerSourceReleaseFrame = 0;
   }
   playerTransitionStartedWithMenu.value = isBottomMenuRoute.value;
-  const identity = document
-    .querySelector<HTMLElement>('.mobile-play-bar .mini-song-info')
-    ?.getBoundingClientRect();
-  playerTransition.setIdentitySourceRect(
-    identity && identity.width > 0 && identity.height > 0
-      ? {
-          left: identity.left,
-          top: identity.top,
-          width: identity.width,
-          height: identity.height,
-          borderRadius: identity.height / 2
-        }
-      : null
-  );
   const cover = document
     .querySelector<HTMLElement>('.mobile-play-bar .mini-song-cover')
     ?.getBoundingClientRect();
@@ -352,6 +346,22 @@ const capturePlayerTransitionOrigin = () => {
         }
       : null
   );
+  // 胶囊放大层源：迷你条胶囊的几何与外观（computed 取值随页面 chrome/明暗自动正确）
+  const capsuleEl = document.querySelector<HTMLElement>('.mobile-play-bar .mobile-mini-controls');
+  const capsuleRect = capsuleEl?.getBoundingClientRect();
+  if (capsuleEl && capsuleRect && capsuleRect.width > 0 && capsuleRect.height > 0) {
+    const capsuleStyle = getComputedStyle(capsuleEl);
+    playerTransition.setCapsuleSource({
+      left: capsuleRect.left,
+      top: capsuleRect.top,
+      width: capsuleRect.width,
+      height: capsuleRect.height,
+      radius: capsuleRect.height / 2,
+      background: capsuleStyle.backgroundColor,
+      borderColor: capsuleStyle.borderColor,
+      boxShadow: capsuleStyle.boxShadow
+    });
+  }
 };
 provide('capturePlayerTransitionOrigin', capturePlayerTransitionOrigin);
 provide('playerTransitionStartedWithMenu', playerTransitionStartedWithMenu);
@@ -415,6 +425,10 @@ watch(
     if ((state === 'dragging' || state === 'opening') && previous === 'idle') {
       capturePlayerTransitionOrigin();
     }
+    // 从已展开态开始收起时重采胶囊源：全屏期间迷你条可能因收起态/页面切换移位
+    if (state === 'closing' && previous === 'open') {
+      capturePlayerTransitionOrigin();
+    }
   },
   { flush: 'sync' }
 );
@@ -435,6 +449,42 @@ watch(
 const dockTransitionStyle = computed(() => {
   if (!playerTransitionStartedWithMenu.value) return undefined;
   return { opacity: '1' };
+});
+
+/* ══ 胶囊放大层：开/关转场期间迷你条胶囊克隆矩形放大到全屏 ══
+ * progress 由手势(setDragging)/弹簧(animateTo/close)驱动——中途松手回弹、
+ * 反向关闭自然可逆。open 态卸载，全屏面自身背景接管（同色无缝）。 */
+const playerMorphLayerActive = computed(() => {
+  const state = playerTransition.state.value;
+  return state !== 'idle' && state !== 'open';
+});
+const playerMorphLayerStyle = computed<CSSProperties | undefined>(() => {
+  const source = playerTransition.capsuleSource.value;
+  const progress = playerTransition.progress.value;
+  if (!source) return undefined;
+  const scaleX = window.innerWidth / source.width;
+  const scaleY = window.innerHeight / source.height;
+  return {
+    left: `${source.left}px`,
+    top: `${source.top}px`,
+    width: `${source.width}px`,
+    height: `${source.height}px`,
+    transform: `translate3d(${-source.left * progress}px, ${-source.top * progress}px, 0) scale(${scaleX + (1 - scaleX) * (1 - progress)}, ${scaleY + (1 - scaleY) * (1 - progress)})`,
+    transformOrigin: '0 0',
+    borderRadius: `${source.radius * (1 - progress)}px`
+  };
+});
+// 胶囊皮肤（底色恒定垫底 / 播放器底色随进度盖上来 / 边框阴影快速淡出）
+const playerMorphBaseStyle = computed(() => ({ background: playerTransition.capsuleSource.value?.background }));
+const playerMorphBgFillStyle = computed(() => ({ opacity: String(playerTransition.progress.value) }));
+const playerMorphSkinStyle = computed(() => {
+  const source = playerTransition.capsuleSource.value;
+  if (!source) return undefined;
+  return {
+    borderColor: source.borderColor,
+    boxShadow: source.boxShadow,
+    opacity: String(Math.max(0, 1 - playerTransition.progress.value * 3))
+  };
 });
 
 type PageTransitionDirection = 'next' | 'prev';
@@ -867,91 +917,8 @@ onBeforeUnmount(() => {
 // - 竖屏：返回状态栏高度（含挖孔避让）
 // - 横屏沉浸：返回挖孔安全区域高度
 
-// Dock 的纵向手势与迷你播放栏横向切歌分离。只有确认纵向意图后才捕获指针。
-let dockPointerId: number | null = null;
-let dockStartX = 0;
-let dockStartY = 0;
-let dockAxis: 'none' | 'horizontal' | 'vertical' = 'none';
-let dockSamples: Array<{ y: number; time: number }> = [];
-let suppressDockClick = false;
-
-const dockVelocity = () => {
-  if (dockSamples.length < 2) return 0;
-  const first = dockSamples[0];
-  const last = dockSamples[dockSamples.length - 1];
-  return (last.y - first.y) / Math.max(1, last.time - first.time);
-};
-
-const onDockPointerDown = (event: PointerEvent) => {
-  if (
-    !event.isPrimary ||
-    !isPlay.value ||
-    playerStore.musicFull ||
-    // 播放列表/歌曲信息展开时，Dock 上的纵向滑动属于列表滚动，
-    // 不能触发"上滑打开播放界面"的形变（否则顶栏在遮罩上闪烁、底栏上浮）。
-    playerStore.playListDrawerVisible ||
-    songActionSurface.visible.value ||
-    (event.target instanceof Element && event.target.closest('.mobile-play-bar'))
-  )
-    return;
-  dockPointerId = event.pointerId;
-  dockStartX = event.clientX;
-  dockStartY = event.clientY;
-  dockAxis = 'none';
-  dockSamples = [{ y: event.clientY, time: performance.now() }];
-  suppressDockClick = false;
-  capturePlayerTransitionOrigin();
-};
-
-const onDockPointerMove = (event: PointerEvent) => {
-  if (dockPointerId !== event.pointerId) return;
-  const deltaX = event.clientX - dockStartX;
-  const deltaY = event.clientY - dockStartY;
-  if (dockAxis === 'none' && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
-    dockAxis = Math.abs(deltaY) > Math.abs(deltaX) * 1.08 ? 'vertical' : 'horizontal';
-    if (dockAxis === 'vertical') {
-      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-      suppressDockClick = true;
-    }
-  }
-  if (dockAxis !== 'vertical') return;
-  event.preventDefault();
-  const now = performance.now();
-  dockSamples.push({ y: event.clientY, time: now });
-  dockSamples = dockSamples.filter((sample) => now - sample.time <= 100);
-  playerTransition.setDragging(
-    Math.min(1, Math.max(0, -deltaY / Math.max(240, window.innerHeight * 0.68))),
-    (-dockVelocity() * 1000) / Math.max(1, window.innerHeight)
-  );
-};
-
-const releaseDockPointer = (event: PointerEvent, cancelled = false) => {
-  if (dockPointerId !== event.pointerId) return;
-  const target = event.currentTarget as HTMLElement;
-  if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
-  const velocity = dockVelocity();
-  const shouldOpen =
-    !cancelled &&
-    dockAxis === 'vertical' &&
-    shouldOpenMobilePlayer(playerTransition.progress.value, -velocity);
-  if (dockAxis === 'vertical') {
-    if (shouldOpen) playerStore.setMusicFull(true);
-    if (shouldOpen) playerTransition.animateTo(1, -velocity);
-    else playerTransition.close(-velocity);
-    if (shouldOpen && navigator.vibrate) navigator.vibrate(8);
-  }
-  dockPointerId = null;
-  dockAxis = 'none';
-};
-
-const onDockPointerUp = (event: PointerEvent) => releaseDockPointer(event);
-const onDockPointerCancel = (event: PointerEvent) => releaseDockPointer(event, true);
-const onDockClickCapture = (event: MouseEvent) => {
-  if (!suppressDockClick) return;
-  event.preventDefault();
-  event.stopPropagation();
-  suppressDockClick = false;
-};
+// 「上滑打开播放界面」手势只挂在迷你播放条的胶囊本体上
+// （MobilePlayBar 的 .mobile-mini-controls），底栏导航区不再触发。
 
 // ── 底栏辉光跟手横滑选页:按住图标辉光立即扩大,横拖时辉光跟手预览目标项
 //    (不切页),松手提交;普通轻点完全交给 router-link 原生行为。 ──
@@ -1081,7 +1048,7 @@ const onNavPointerMove = (event: PointerEvent) => {
   if (!navDragging) {
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 14) return;
     if (Math.abs(dy) > Math.abs(dx) * 1.2) {
-      // 纵向意图:取消预览,交回 Dock(上滑打开播放界面);click 不拦
+      // 纵向意图:取消预览即可,导航区没有纵向手势(上滑开播放面只在迷你条上)
       navPickPointerId = null;
       pickPath.value = '';
       hideNavGlow();
@@ -1955,6 +1922,50 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 .page-none-enter-active,
 .page-none-leave-active {
   transition: none;
+}
+
+/* 胶囊放大层（z 250：底栏/迷你条之上，全屏播放面 9998 之下；pointer-events 穿透，
+ * 迷你条手势照常工作）。转场期它承担全屏背景，播放面自身背景在 morphing 期置透明。 */
+.player-morph-layer {
+  position: fixed;
+  z-index: 250;
+  overflow: hidden;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.player-morph-fill,
+.player-morph-skin {
+  position: absolute;
+  inset: 0;
+}
+
+.player-morph-playerbg {
+  background: var(--player-morph-bg, var(--page-chrome-bg, #171d18));
+}
+
+.player-morph-skin {
+  border: 1px solid transparent;
+}
+
+/* 转场期全屏播放面背景透明：背景由胶囊放大层承担，open 态（morphing 移除）恢复自身底色 */
+:global(body.mobile-player-surface-morphing .n-drawer-container:has(#mobile-drawer-target)),
+:global(body.mobile-player-surface-morphing #mobile-drawer-target.default-player-v2),
+:global(body.mobile-player-surface-morphing .error-mobile-player),
+:global(body.mobile-player-surface-morphing .stage-mobile-player),
+:global(body.mobile-player-surface-morphing .rain-mobile-player),
+:global(body.mobile-player-surface-morphing .star-chart-player),
+:global(body.mobile-player-surface-morphing .frenzy-mobile-player),
+:global(body.mobile-player-surface-morphing .eerie-mobile-player),
+:global(body.mobile-player-surface-morphing .neon-mobile-player),
+:global(body.mobile-player-surface-morphing .smoke-mobile-player) {
+  background: transparent !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-morph-layer {
+    display: none;
+  }
 }
 
 /* 歌单跳转过渡覆盖层（z 250：顶栏 100 / 底栏 199 之上，body 上的全屏播放器 100100 之下） */

@@ -26,11 +26,12 @@
         :src="getImgUrl(item.picUrl, '100y100')"
         class="song-item-img"
         preview-disabled
-        :img-props="{
-          crossorigin: 'anonymous'
-        }"
+        :img-props="{ crossorigin: coverCrossOriginAttr(item.picUrl) }"
         @load="onImageLoad"
       />
+      <div v-else class="song-item-img song-item-img-placeholder">
+        <i class="ri-music-2-line"></i>
+      </div>
     </template>
 
     <!-- 内容插槽 -->
@@ -95,7 +96,7 @@ import { computed, ref } from 'vue';
 
 import SongTitleText from '@/components/common/SongTitleText.vue';
 import type { SongResult } from '@/types/music';
-import { getImgUrl } from '@/utils';
+import { coverCrossOriginAttr, getImgUrl } from '@/utils';
 
 import BaseSongItem from './BaseSongItem.vue';
 
@@ -147,6 +148,19 @@ const onMenuClick = (event: MouseEvent) => baseItem.value?.openItemMenu(event);
     height: 2.5rem;
     margin-right: 8px;
     border-radius: var(--d-radius-md);
+  }
+
+  .song-item-img-placeholder {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    background: var(--d-surface-active, rgba(128, 128, 128, 0.16));
+    color: var(--d-text-tertiary, var(--d-text-secondary));
+
+    i {
+      font-size: 1.1rem;
+    }
   }
 
   .song-item-content {

@@ -29,6 +29,7 @@
       @update:show="showDropdown = $event"
       @play="requestPlay"
       @play-next="handlePlayNext"
+      @match-netease="playAsNetease(item)"
       @download="downloadMusic(item)"
       @download-lyric="downloadLyric(item)"
       @bind-local-lyric="bindLocalLyric"
@@ -49,6 +50,7 @@ import {
   useMobileSongActionSurface
 } from '@/composables/useMobileSongActionSurface';
 import { isLocalSong, useLocalMusic } from '@/hooks/useLocalMusic';
+import { useMatchNeteasePlay } from '@/hooks/useNeteaseMatchPlay';
 import { useSongItem } from '@/hooks/useSongItem';
 import { usePlayerStore } from '@/store/modules/player';
 import type { SongResult } from '@/types/music';
@@ -103,6 +105,7 @@ const {
   downloadLyric
 } = useSongItem(props);
 const { loadLocalLyrics } = useLocalMusic();
+const { playAsNetease } = useMatchNeteasePlay();
 
 const requestPlay = () => {
   emits('play', props.item);
@@ -164,7 +167,8 @@ const openMobileActionSheet = () => {
       favorite: toggleFavorite,
       remove: () => emits('remove-song', props.item.id),
       gotoArtist: handleArtistClick,
-      gotoAlbum: handleAlbumClick
+      gotoAlbum: handleAlbumClick,
+      matchNetease: () => playAsNetease(props.item)
     }
   });
 };

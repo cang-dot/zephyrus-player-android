@@ -34,9 +34,7 @@
         :src="getImgUrl(item.picUrl, '100y100')"
         class="plain-cover"
         preview-disabled
-        :img-props="{
-          crossorigin: 'anonymous'
-        }"
+        :img-props="{ crossorigin: coverCrossOriginAttr(item.picUrl) }"
         @load="onImageLoad"
       />
     </template>
@@ -77,7 +75,7 @@ import { computed, ref } from 'vue';
 
 import SongTitleText from '@/components/common/SongTitleText.vue';
 import type { SongResult } from '@/types/music';
-import { getImgUrl } from '@/utils';
+import { coverCrossOriginAttr, getImgUrl } from '@/utils';
 
 import BaseSongItem from './BaseSongItem.vue';
 

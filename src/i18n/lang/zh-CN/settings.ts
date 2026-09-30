@@ -97,6 +97,8 @@ export default {
     gdmusicInfo: 'GD音乐台可自动解析多个平台音源，自动选择最佳结果',
     autoPlay: '自动播放',
     autoPlayDesc: '重新打开应用时是否自动继续播放',
+    autoMatchNetease: 'QQ/酷狗歌曲自动匹配网易云音源',
+    autoMatchNeteaseDesc: '播放 QQ、酷狗歌曲时按歌名与歌手匹配网易云版本，使用网易云的播放地址（失败时回退原平台）',
     audioDevice: '音频输出设备',
     audioDeviceDesc: '选择音频输出设备，如扬声器、耳机或蓝牙设备',
     testAudio: '测试',

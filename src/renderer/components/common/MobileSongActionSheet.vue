@@ -26,7 +26,7 @@
               :src="getImgUrl(coverUrl, '200y200')"
               class="sheet-song-cover"
               preview-disabled
-              :img-props="{ crossorigin: 'anonymous' }"
+              :img-props="{ crossorigin: coverCrossOriginAttr(coverUrl) }"
             />
             <div class="sheet-song-info">
               <div class="sheet-song-name">{{ item.name }}</div>
@@ -51,6 +51,14 @@
             <button class="sheet-action-btn" @click="handleAction('playNext')">
               <i class="ri-play-list-2-line"></i>
               <span>{{ t('songItem.menu.playNext') }}</span>
+            </button>
+            <button
+              v-if="isCrossPlatformItem"
+              class="sheet-action-btn"
+              @click="handleAction('matchNetease')"
+            >
+              <i class="ri-netease-cloud-music-line"></i>
+              <span>{{ t('songItem.menu.matchNetease') }}</span>
             </button>
             <button
               v-if="firstArtistId"
@@ -144,7 +152,7 @@ import { activeAudioFormat } from '@/services/nativeAudioPlayer';
 import { useLocalMusicStore } from '@/store/modules/localMusic';
 import type { SongResult } from '@/types/music';
 import type { PosterSubject } from '@/types/share';
-import { getImgUrl } from '@/utils';
+import { coverCrossOriginAttr, getImgUrl } from '@/utils';
 import { formatAudioSegments } from '@/utils/audioFormat';
 
 import InlinePlaylistPicker from './InlinePlaylistPicker.vue';
@@ -168,8 +176,9 @@ const emit = defineEmits<{
   'play-next': [];
   favorite: [];
   remove: [];
-  'goto-artist': [id: number];
-  'goto-album': [id: number];
+  'goto-artist': [id: number | string];
+  'goto-album': [id: number | string];
+  'match-netease': [];
 }>();
 
 const artistNames = computed(() => {
@@ -202,6 +211,12 @@ const firstArtistId = computed(() => {
     return artists[0]?.id;
   }
   return undefined;
+});
+
+// 跨平台歌曲（QQ/酷狗等）才显示「匹配网易云播放」
+const isCrossPlatformItem = computed(() => {
+  const song = props.item as any;
+  return Boolean(song?.platform && song.platform !== 'netease' && song.platformId);
 });
 
 const album = computed(() => props.item.al || props.item.album || props.item.song?.album);
@@ -347,6 +362,9 @@ const handleAction = (action: string) => {
       break;
     case 'playNext':
       emit('play-next');
+      break;
+    case 'matchNetease':
+      emit('match-netease');
       break;
     case 'favorite':
       emit('favorite');

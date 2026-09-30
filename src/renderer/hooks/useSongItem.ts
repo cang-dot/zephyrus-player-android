@@ -196,8 +196,20 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
   };
 
   // 处理艺术家点击
-  const handleArtistClick = (id: number) => {
-    navigateToArtist(id);
+  const handleArtistClick = (id: number | string) => {
+    // QQ/酷狗等跨平台歌曲：歌手 id 为非数字 mid 时跳平台歌手页（网关 qq/singer/songs）
+    const platform = (props.item as any).platform;
+    if (platform && platform !== 'netease' && typeof id === 'string' && !/^\d+$/.test(id)) {
+      const artist = (props.item.ar || props.item.artists || []).find(
+        (item) => String(item.id) === id
+      );
+      const name = artist?.name || '';
+      navigate(
+        `/artist/detail/${id}?platform=qq&name=${encodeURIComponent(name)}`
+      );
+      return;
+    }
+    navigateToArtist(Number(id));
   };
 
   // 处理专辑点击

@@ -526,7 +526,7 @@
         >
           <i class="ri-close-line" />
         </button>
-        <div class="player-header-song-pill lyric-selection-active" :style="playerSongMorphStyle">
+        <div class="player-header-song-pill lyric-selection-active">
           <span>
             <strong>{{ t('player.share.selectLyrics') || '选择歌词' }}</strong>
             <small>已选择 {{ lyricSelection.selectedCount.value }} 句</small>
@@ -734,7 +734,6 @@ const playerHeaderVisible = computed(
 type HeaderMorphRect = { left: number; top: number; width: number; height: number };
 const playerHeaderOrigins = ref<{
   close: HeaderMorphRect;
-  song: HeaderMorphRect;
   settings: HeaderMorphRect;
 } | null>(null);
 // 播放器头层的显隐与 pointer-events 全部由 class + --player-open-progress 在
@@ -771,15 +770,6 @@ const playerCloseMorphStyle = computed<CSSProperties>(() =>
     height: 42
   })
 );
-const playerSongMorphStyle = computed<CSSProperties>(() => {
-  const width = Math.min(260, Math.max(176, window.innerWidth - 130));
-  return morphFromHeaderRect(playerHeaderOrigins.value?.song, {
-    left: (window.innerWidth - width) / 2,
-    top: headerTargetTop(),
-    width,
-    height: 42
-  });
-});
 const playerSettingsMorphStyle = computed<CSSProperties>(() =>
   morphFromHeaderRect(playerHeaderOrigins.value?.settings, {
     left: window.innerWidth - 54,
@@ -928,7 +918,6 @@ const capturePlayerHeaderOrigins = () => {
   if (!center) return;
   playerHeaderOrigins.value = {
     close: back || search || center,
-    song: center,
     settings: action || search || center
   };
 };

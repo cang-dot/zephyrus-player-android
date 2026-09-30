@@ -82,6 +82,7 @@
       @update:show="(visible) => !visible && songActionSurface.close()"
       @play="invokeSongAction('play')"
       @play-next="invokeSongAction('playNext')"
+      @match-netease="invokeSongAction('matchNetease')"
       @favorite="invokeSongAction('favorite')"
       @remove="invokeSongAction('remove')"
       @goto-artist="(id) => invokeSongAction('gotoArtist', id)"
@@ -138,11 +139,18 @@ const embeddedSongActionRequest = computed(() => {
   return embedded.value && songActionSurface.visible.value ? current : null;
 });
 const invokeSongAction = (
-  action: 'play' | 'playNext' | 'favorite' | 'remove' | 'gotoArtist' | 'gotoAlbum',
-  id?: number
+  action:
+    | 'play'
+    | 'playNext'
+    | 'favorite'
+    | 'remove'
+    | 'gotoArtist'
+    | 'gotoAlbum'
+    | 'matchNetease',
+  id?: number | string
 ) => {
   const callback = songActionSurface.request.value?.callbacks?.[action] as
-    | ((id?: number) => void | Promise<void>)
+    | ((id?: number | string) => void | Promise<void>)
     | undefined;
   if (callback) void callback(id);
   songActionSurface.close();

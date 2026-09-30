@@ -269,6 +269,7 @@ import { useRoute } from 'vue-router';
 
 import { getArtistAlbums, getArtistDetail, getArtistTopSongs } from '@/api/artist';
 import { getMusicDetail } from '@/api/music';
+import { fetchQqSingerHotSongs } from '@/api/platformQrApi';
 import GlowTabs from '@/components/common/GlowTabs.vue';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
@@ -300,6 +301,10 @@ const { confirmPlaylistReplace } = usePlaylistConfirm();
 const message = useMessage();
 
 const artistId = computed(() => Number(route.params.id));
+// QQ 歌手：路由带 ?platform=qq&singerMID=xx&name=xx（QQ 歌手 mid 是字符串，不走网易云数字 id）
+const isQqArtist = computed(
+  () => route.query.platform === 'qq' && Boolean(String(route.query.singerMID || '').trim())
+);
 const activeTab = ref('songs');
 
 const scrollbarRef = ref<any>(null);
@@ -328,11 +333,14 @@ const handleScroll = (e: Event) => {
   }
 };
 
-// Tab configuration
-const tabs = computed(() => [
-  { value: 'songs', label: t('artist.hotSongs') },
-  { value: 'albums', label: t('artist.albums') }
-]);
+// Tab configuration（QQ 歌手暂只提供热门歌曲，无专辑数据源）
+const tabs = computed(() => {
+  const list: Array<{ value: string; label: string }> = [
+    { value: 'songs', label: t('artist.hotSongs') }
+  ];
+  if (!isQqArtist.value) list.push({ value: 'albums', label: t('artist.albums') });
+  return list;
+});
 
 // 歌手信息
 const artistInfo = ref<IArtist>();
@@ -404,6 +412,10 @@ const handleAlbumClick = async (album: any) => {
 
 // 加载歌手信息
 const loadArtistInfo = async () => {
+  if (isQqArtist.value) {
+    await loadQqArtistInfo();
+    return;
+  }
   if (!artistId.value) return;
 
   // 滚动到顶部
@@ -444,6 +456,47 @@ const loadArtistInfo = async () => {
     });
   } catch (error) {
     console.error('加载歌手信息失败:', error);
+  } finally {
+    loading.value = false;
+  }
+};
+
+// QQ 歌手：走网关 qq/singer/songs（热门排序，归一化结果已是全量 SongResult，无需二次详情）
+const loadQqArtistInfo = async () => {
+  // mid 优先取 query.singerMID，兼容直接把 mid 放进路径参数的入口
+  const mid = String(route.query.singerMID || route.params.id || '').trim();
+  const fallbackName = String(route.query.name || '').trim();
+  const cacheKey = `artist_qq_${mid}`;
+  if (artistDataCache.has(cacheKey)) {
+    const cachedData = artistDataCache.get(cacheKey);
+    artistInfo.value = cachedData.artistInfo;
+    songs.value = cachedData.songs;
+    songPage.value = cachedData.songPage;
+    return;
+  }
+  loading.value = true;
+  try {
+    nextTick(() => {
+      scrollbarRef.value?.scrollTo(0, 0);
+    });
+    const result = await fetchQqSingerHotSongs(mid, 50, 0);
+    artistInfo.value = {
+      id: 0,
+      name: result.artist.name || fallbackName || '未知歌手',
+      picUrl: result.artist.picUrl,
+      cover: result.artist.picUrl
+    } as IArtist;
+    songs.value = result.songs;
+    albums.value = [];
+    songPage.value = { page: 1, pageSize: 50, hasMore: false };
+    albumPage.value = { page: 1, pageSize: 50, hasMore: false };
+    artistDataCache.set(cacheKey, {
+      artistInfo: artistInfo.value,
+      songs: [...songs.value],
+      songPage: { ...songPage.value }
+    });
+  } catch (error) {
+    console.error('加载 QQ 歌手信息失败:', error);
   } finally {
     loading.value = false;
   }

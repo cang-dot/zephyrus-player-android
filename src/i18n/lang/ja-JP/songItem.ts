@@ -23,6 +23,7 @@ export default {
   menu: {
     play: '再生',
     playNext: '次に再生',
+    matchNetease: 'NetEase マッチで再生',
     download: '楽曲をダウンロード',
     downloadLyric: '歌詞をダウンロード',
     addToPlaylist: 'プレイリストに追加',
@@ -37,6 +38,7 @@ export default {
     downloadFailed: 'ダウンロードに失敗しました',
     downloadQueued: 'ダウンロードキューに追加しました',
     addedToNextPlay: '次の再生に追加しました',
+    noNeteaseMatch: 'マッチする NetEase の楽曲が見つかりません',
     getUrlFailed:
       '音楽ダウンロードアドレスの取得に失敗しました。ログインしているか確認してください',
     noLyric: 'この楽曲には歌詞がありません',

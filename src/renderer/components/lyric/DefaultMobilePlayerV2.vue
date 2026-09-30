@@ -114,12 +114,7 @@
               :style="[artworkTransitionStyle, artworkFrameStyle]"
             />
           </div>
-          <div
-            v-if="showTrackInfo"
-            ref="artworkInfoRef"
-            class="artwork-info"
-            :style="infoTransitionStyle"
-          >
+          <div v-if="showTrackInfo" class="artwork-info">
             <strong class="artwork-info-name"
               ><song-title-text
                 :name="playMusic?.name || 'Zephyrus'"
@@ -454,47 +449,15 @@ const artworkTransitionStyle = computed(() => {
     willChange: 'transform'
   };
 });
-const artworkInfoRef = ref<HTMLElement | null>(null);
-// 大标题从迷你栏歌曲信息行位置 FLIP 反演入场:p=0(及 reveal 起点附近)精确
-// 覆盖迷你文字,与大封面共同构成"同一元素变形"的连续路径,随弹簧飞向目标位
-// 目标行 rect 按布局签名缓存:转场逐帧只算 transform,测量仅在布局因素
-// (视口/横竖屏/自定义项/切歌)变化时重做一次,消除逐帧强制同步布局
-let infoRectCache: { key: string; rect: DOMRect } | null = null;
-const infoTransitionStyle = computed(() => {
-  const source = playerTransition.identitySourceRect.value;
-  const progress = playerTransition.progress.value;
-  const el = artworkInfoRef.value;
-  if (!source || !el || progress >= 0.999) return {};
-  const key = [
-    width.value,
-    height.value,
-    isLandscape.value,
-    controlsShown.value,
-    lyricsExpanded.value,
-    artworkSize.value,
-    artworkAlign.value,
-    showArtwork.value,
-    showTrackInfo.value,
-    playMusic.value?.id ?? ''
-  ].join('|');
-  if (!infoRectCache || infoRectCache.key !== key) {
-    infoRectCache = { key, rect: el.getBoundingClientRect() };
-  }
-  const target = infoRectCache.rect;
-  if (!target.width || !target.height) return {};
-  // 迷你行由 40px 方形封面撑高,文字起点在封面右侧(40px + 间距)
-  const textLeft = source.left + source.height + 12;
-  const scale = Math.min(1, (source.height * 0.62) / Math.max(1, target.height));
-  const dx = textLeft - target.left;
-  const dy = source.top + source.height / 2 - (target.top + target.height / 2);
-  return {
-    transform: `translate3d(${dx * (1 - progress)}px, ${dy * (1 - progress)}px, 0) scale(${scale + (1 - scale) * progress})`,
-    transformOrigin: 'left center',
-    // 重排进度:0=与迷你行相同的单行形态,1=全屏两行形态(收起时反向播放)
-    '--morph-p': String(progress),
-    willChange: 'transform'
-  };
-});
+// 镜像播放器背景到 #layout-main：开/关转场期胶囊放大层用它在飞行中过渡到全屏底色
+watch(
+  () => surfaceStyle.value['--default-player-background'],
+  (color) => {
+    const host = document.getElementById('layout-main');
+    if (host) host.style.setProperty('--player-morph-bg', String(color));
+  },
+  { immediate: true }
+);
 
 const isVisible = computed({
   get: () => props.modelValue !== false,
@@ -679,12 +642,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   font-size: clamp(20px, 2.8vh, 26px);
   font-weight: 700;
-  /* 展开中:从迷你行文字色渐变到全屏墨色(重排进度的前半程完成变色) */
-  color: color-mix(
-    in srgb,
-    var(--m-text-primary, #2c2c2c) calc((1 - var(--morph-p, 1)) * 100%),
-    var(--player-ink, #fff)
-  );
+  color: var(--player-ink, #fff);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -692,16 +650,9 @@ onBeforeUnmount(() => {
 .artwork-info-artist {
   overflow: hidden;
   font-size: 14px;
-  color: color-mix(
-    in srgb,
-    var(--m-text-muted, #9a9590) calc((1 - var(--morph-p, 1)) * 100%),
-    rgba(var(--player-ink-rgb, 255, 255, 255), 0.62)
-  );
+  color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.62);
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* 单行⇄两行重排:p=0 时升入歌名行形成单行,p=1 落回两行排布 */
-  transform: translateY(calc((1 - var(--morph-p, 1)) * -22px));
-  opacity: clamp(0, calc(var(--morph-p, 1) * 1.6 - 0.12), 1);
 }
 
 .background-preset-layer {

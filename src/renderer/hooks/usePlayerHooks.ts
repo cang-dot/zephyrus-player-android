@@ -4,7 +4,7 @@ import { createDiscreteApi } from 'naive-ui';
 import i18n from '@/../i18n/renderer';
 import { isCrossPlatformSong } from '@/api/crossPlatformSearch';
 import { type GDMusicLyricResponse, getLyricByPlatform, searchFromGDMusic } from '@/api/gdmusic';
-import { resolveKugouNeteaseMatch } from '@/api/kugouPlayback';
+import { resolveNeteaseMatch } from '@/api/kugouPlayback';
 import { fetchLrclibLyric } from '@/api/lrclibLyrics';
 import { getMusicLrc, getMusicUrl, getParsingMusicUrl } from '@/api/music';
 import { fetchKugouLyric, fetchMatchedQqLyric, fetchQqLyric } from '@/api/platformQrApi';
@@ -100,18 +100,22 @@ export const getSongUrl = async (
       return await resolveCachedPlaybackUrl(songData.playMusicUrl, songData);
     }
 
-    // 酷狗歌单通常只提供“歌手 - 歌名.mp3”，优先用拆解后的信息匹配网易云。
-    // 保留原始歌曲对象，匹配失败时仍可回退到酷狗音源。
-    if (songData.platform === 'kugou' && songData.platformId) {
+    // QQ/酷狗等跨平台歌曲：开启开关时优先匹配网易云音源（酷狗歌单通常只提供
+    // "歌手 - 歌名.mp3"；QQ 在 Web 端无 UNM 通道）。保留原歌曲对象，匹配失败回退。
+    if (
+      settingsStore.setData.autoMatchNetease !== false &&
+      songData.platformId &&
+      (songData.platform === 'kugou' || songData.platform === 'qq')
+    ) {
       try {
-        const matchedSong = await resolveKugouNeteaseMatch(songData);
+        const matchedSong = await resolveNeteaseMatch(songData);
         if (matchedSong) {
           const matchedUrl = await getSongUrl(matchedSong.id, matchedSong, isDownloaded, requestId);
           if (matchedUrl) return matchedUrl;
         }
       } catch (error) {
         if ((error as Error).message === 'Request cancelled') throw error;
-        console.warn('[kugouPlayback] 网易云播放地址失败，回退酷狗音源:', error);
+        console.warn('[autoMatchNetease] 网易云播放地址失败，回退原平台音源:', error);
       }
     }
 

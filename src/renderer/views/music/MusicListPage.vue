@@ -185,7 +185,7 @@ import {
   subscribePlaylist,
   updatePlaylistTracks
 } from '@/api/music';
-import { fetchPlatformPlaylistTracks } from '@/api/platformQrApi';
+import { fetchPlatformPlaylistTracks, fetchQqAlbumDetail } from '@/api/platformQrApi';
 import { getUserPlaylist } from '@/api/user';
 import playlistPlaceholder from '@/assets/icon_512.png';
 import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
@@ -321,7 +321,25 @@ const fetchData = async () => {
   loading.value = true;
   try {
     let data: any;
-    if (type === 'album') {
+    if (type === 'album' && platform === 'qq') {
+      const result = await fetchQqAlbumDetail(sourceId || String(id));
+      if (requestId !== detailRequestId) return;
+      if (!result.songs.length) throw new Error('这张专辑暂时没有可播放的歌曲');
+      const currentInfo = musicStore.currentListInfo || {};
+      musicStore.setCurrentMusicList(
+        result.songs,
+        String(result.album.name || currentInfo.name || name.value),
+        {
+          ...currentInfo,
+          ...result.album,
+          id: sourceId || String(id),
+          platform: 'qq',
+          type: 'album',
+          _sourceContext: routeSourceContext.value || currentInfo._sourceContext
+        },
+        false
+      );
+    } else if (type === 'album') {
       if (platform && platform !== 'netease') {
         throw new Error('该平台暂不支持加载专辑详情');
       }
@@ -1403,7 +1421,11 @@ const handleSortChange = (key: SortType) => {
 
 const checkCollectionStatus = () => {
   const type = route.query.type as string;
-  if (type === 'playlist' && listInfo.value?.id) {
+  // QQ 专辑收藏会拿 QQ mid 打网易云接口，禁用收藏入口
+  const platform = typeof route.query.platform === 'string' ? route.query.platform : '';
+  if (platform && platform !== 'netease') {
+    canCollect.value = false;
+  } else if (type === 'playlist' && listInfo.value?.id) {
     canCollect.value = true;
     isCollected.value = listInfo.value.subscribed || false;
   } else if (type === 'album' && listInfo.value?.id) {

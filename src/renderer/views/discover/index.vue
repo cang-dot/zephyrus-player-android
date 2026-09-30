@@ -271,7 +271,8 @@ onMounted(async () => {
   padding: 0 0 8px;
   scrollbar-width: none;
   scroll-snap-type: x proximity;
-  touch-action: pan-x;
+  /* 双轴显式声明：横滑滚轨道、竖滑交回页面滚动（pan-x 会吞掉页面竖滚） */
+  touch-action: pan-x pan-y;
   overscroll-behavior-x: contain;
 }
 .artist-rail::-webkit-scrollbar {

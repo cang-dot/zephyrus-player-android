@@ -23,6 +23,7 @@ export default {
   menu: {
     play: 'Play',
     playNext: 'Play Next',
+    matchNetease: 'Play with Netease match',
     download: 'Download',
     downloadLyric: 'Download Lyrics',
     addToPlaylist: 'Add to Playlist',
@@ -37,6 +38,7 @@ export default {
     downloadFailed: 'Download failed',
     downloadQueued: 'Added to download queue',
     addedToNextPlay: 'Added to play next',
+    noNeteaseMatch: 'No matching Netease song found',
     getUrlFailed: 'Failed to get music download URL, please check if logged in',
     noLyric: 'No lyrics available for this song',
     lyricDownloaded: 'Lyrics downloaded successfully',

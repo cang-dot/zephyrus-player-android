@@ -63,6 +63,17 @@
       </setting-item>
 
       <setting-item
+        :title="t('settings.playback.autoMatchNetease')"
+        :description="t('settings.playback.autoMatchNeteaseDesc')"
+        mode="direct"
+      >
+        <n-switch v-model:value="setData.autoMatchNetease">
+          <template #checked>{{ t('common.on') }}</template>
+          <template #unchecked>{{ t('common.off') }}</template>
+        </n-switch>
+      </setting-item>
+
+      <setting-item
         v-if="isElectron"
         :title="t('settings.playback.audioDevice')"
         :description="t('settings.playback.audioDeviceDesc')"

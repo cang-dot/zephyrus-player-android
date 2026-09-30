@@ -11,6 +11,17 @@ export interface MobilePlayerSurfaceRect {
   height: number;
   borderRadius: number;
 }
+/** 胶囊放大层的源：迷你条胶囊的几何 + 外观（供 MobileLayout 的 morph 层 1:1 起跳） */
+export interface MobilePlayerCapsuleSource {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  radius: number;
+  background: string;
+  borderColor: string;
+  boxShadow: string;
+}
 
 const state = ref<MobilePlayerTransitionState>('idle');
 const progress = ref(0);
@@ -19,7 +30,7 @@ const controlsVisible = ref(false);
 const surfaceMode = ref<MobilePlayerSurfaceMode>('controls');
 const sheetProgress = ref(0);
 const sourceRect = ref<MobilePlayerSurfaceRect | null>(null);
-const identitySourceRect = ref<MobilePlayerSurfaceRect | null>(null);
+const capsuleSource = ref<MobilePlayerCapsuleSource | null>(null);
 let frame = 0;
 let sheetFrame = 0;
 let controlsHideTimer: ReturnType<typeof setTimeout> | undefined;
@@ -46,7 +57,7 @@ const cancelAllAnimations = (resetTransientState = false) => {
   clearControlsHideTimer();
   if (resetTransientState) {
     sourceRect.value = null;
-    identitySourceRect.value = null;
+    capsuleSource.value = null;
     releaseVelocity.value = 0;
   }
 };
@@ -152,8 +163,8 @@ const setSourceRect = (rect: MobilePlayerSurfaceRect | null) => {
   sourceRect.value = rect ? { ...rect } : null;
 };
 
-const setIdentitySourceRect = (rect: MobilePlayerSurfaceRect | null) => {
-  identitySourceRect.value = rect ? { ...rect } : null;
+const setCapsuleSource = (source: MobilePlayerCapsuleSource | null) => {
+  capsuleSource.value = source ? { ...source } : null;
 };
 
 const close = (velocity = 0, complete?: () => void) => {
@@ -201,7 +212,7 @@ const finishClose = (complete?: () => void) => {
     state.value = 'idle';
     controlsVisible.value = false;
     sourceRect.value = null;
-    identitySourceRect.value = null;
+    capsuleSource.value = null;
   });
 };
 
@@ -288,7 +299,7 @@ export function useMobilePlayerTransition() {
     surfaceMode: readonly(surfaceMode),
     sheetProgress: readonly(sheetProgress),
     sourceRect: readonly(sourceRect),
-    identitySourceRect: readonly(identitySourceRect),
+    capsuleSource: readonly(capsuleSource),
     setDragging,
     animateTo,
     close,
@@ -301,7 +312,7 @@ export function useMobilePlayerTransition() {
     setSurfaceMode,
     setSheetProgress,
     setSourceRect,
-    setIdentitySourceRect,
+    setCapsuleSource,
     animateSheet,
     cancelAllAnimations
   };

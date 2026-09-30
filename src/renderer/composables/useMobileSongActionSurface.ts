@@ -9,8 +9,9 @@ export interface MobileSongActionCallbacks {
   playNext?: () => void;
   favorite?: () => void | Promise<void>;
   remove?: () => void;
-  gotoArtist?: (id: number) => void;
-  gotoAlbum?: (id: number) => void;
+  gotoArtist?: (id: number | string) => void;
+  gotoAlbum?: (id: number | string) => void;
+  matchNetease?: () => boolean | void | Promise<boolean | void>;
 }
 
 export interface MobileSongActionRequest {

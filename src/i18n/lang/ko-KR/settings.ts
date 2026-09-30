@@ -100,6 +100,9 @@ export default {
     gdmusicInfo: 'GD 뮤직은 여러 플랫폼 음원을 자동으로 해석하고 최적의 결과를 자동 선택합니다',
     autoPlay: '자동 재생',
     autoPlayDesc: '앱을 다시 열 때 자동으로 재생을 계속할지 여부',
+    autoMatchNetease: 'QQ/쿠고 곡을 NetEase 음원으로 자동 매칭',
+    autoMatchNeteaseDesc:
+      'QQ·쿠고 곡 재생 시 곡명과 아티스트로 NetEase 버전을 매칭하여 해당 음원을 사용합니다 (실패 시 원래 플랫폼으로 대체)',
     audioDevice: '오디오 출력 장치',
     audioDeviceDesc: '스피커, 헤드폰 또는 블루투스 장치와 같은 오디오 출력 장치 선택',
     testAudio: '테스트',

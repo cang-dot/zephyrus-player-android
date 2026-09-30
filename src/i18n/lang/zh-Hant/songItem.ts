@@ -23,6 +23,7 @@ export default {
   menu: {
     play: '播放',
     playNext: '下一首播放',
+    matchNetease: '匹配網易雲播放',
     download: '下載歌曲',
     downloadLyric: '下載歌詞',
     addToPlaylist: '新增至播放清單',
@@ -37,6 +38,7 @@ export default {
     downloadFailed: '下載失敗',
     downloadQueued: '已加入下載佇列',
     addedToNextPlay: '已新增至下一首播放',
+    noNeteaseMatch: '未找到匹配的網易雲歌曲',
     getUrlFailed: '取得音樂下載位址失敗，請檢查是否登入',
     noLyric: '該歌曲暫無歌詞',
     lyricDownloaded: '歌詞下載成功',

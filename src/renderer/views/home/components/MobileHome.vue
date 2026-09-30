@@ -1,7 +1,9 @@
 <template>
   <div class="mobile-home">
+    <!-- hero 提升为直接子节点：宽屏双栏下贯穿整行，窄屏单列仍是首块 -->
+    <home-hero-carousel class="animate-item" />
+
     <div class="home-col home-col-main">
-      <home-hero-carousel class="animate-item" />
       <recent-play-row v-if="recentSongs.length" class="animate-item" />
     </div>
 
@@ -43,7 +45,7 @@ onMounted(() => {
   color: var(--m-text-primary, #20211f);
 }
 
-/* 宽视口（≥4:3，含手机横屏/平板/电脑窗口）双栏：主列 hero+最近播放，侧列推荐+歌单 */
+/* 宽视口（≥4:3，含手机横屏/平板/电脑窗口）双栏：hero 整行贯穿 + 主列最近播放，侧列推荐+歌单 */
 @media (min-aspect-ratio: 4/3) {
   .mobile-home {
     display: grid;
@@ -51,6 +53,12 @@ onMounted(() => {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     align-items: start;
     padding-right: 0;
+  }
+
+  /* hero 轮播独占整行，卡片不再被侧栏挤压截断 */
+  .hero-carousel {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .home-col-side {

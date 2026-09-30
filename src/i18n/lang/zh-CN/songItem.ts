@@ -23,6 +23,7 @@ export default {
   menu: {
     play: '播放',
     playNext: '下一首播放',
+    matchNetease: '匹配网易云播放',
     download: '下载歌曲',
     downloadLyric: '下载歌词',
     addToPlaylist: '添加到歌单',
@@ -37,6 +38,7 @@ export default {
     downloadFailed: '下载失败',
     downloadQueued: '已加入下载队列',
     addedToNextPlay: '已添加到下一首播放',
+    noNeteaseMatch: '未找到匹配的网易云歌曲',
     getUrlFailed: '获取音乐下载地址失败，请检查是否登录',
     noLyric: '该歌曲暂无歌词',
     lyricDownloaded: '歌词下载成功',

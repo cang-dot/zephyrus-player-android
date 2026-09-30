@@ -136,6 +136,9 @@ h2 {
   scroll-padding-inline: 16px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
+  /* 双轴显式声明：横滑滚轨道、竖滑交回页面滚动 */
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
 
   &::-webkit-scrollbar {
     display: none;

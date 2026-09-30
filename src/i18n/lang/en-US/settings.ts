@@ -101,6 +101,9 @@ export default {
       'GD Music Station intelligently resolves music from multiple platforms automatically',
     autoPlay: 'Auto Play',
     autoPlayDesc: 'Auto resume playback when reopening the app',
+    autoMatchNetease: 'Auto match Netease source for QQ/Kugou songs',
+    autoMatchNeteaseDesc:
+      'When playing QQ/Kugou songs, match a Netease version by title and artist and use its stream (falls back to the original platform on failure)',
     audioDevice: 'Audio Output Device',
     audioDeviceDesc: 'Select audio output device such as speakers, headphones or Bluetooth devices',
     testAudio: 'Test',

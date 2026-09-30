@@ -97,6 +97,8 @@ export default {
     gdmusicInfo: 'GD音樂台可自動解析多個平台音源，自動選擇最佳結果',
     autoPlay: '自動播放',
     autoPlayDesc: '重新開啟應用程式時是否自動繼續播放',
+    autoMatchNetease: 'QQ/酷狗歌曲自動匹配網易雲音源',
+    autoMatchNeteaseDesc: '播放 QQ、酷狗歌曲時按歌名與歌手匹配網易雲版本，使用網易雲的播放位址（失敗時回退原平台）',
     audioDevice: '音訊輸出裝置',
     audioDeviceDesc: '選擇音訊輸出裝置，如揚聲器、耳機或藍牙裝置',
     testAudio: '測試',

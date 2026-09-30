@@ -365,6 +365,33 @@ export const usePlaylistStore = defineStore(
     };
 
     /**
+     * 队列内替换歌曲（匹配网易云播放等场景）：按 oldSong 的 id+source 定位后原位替换，
+     * 索引不变；随机模式同步 originalPlayList。找不到时退化为 addToNextPlay。
+     */
+    const replacePlayListSong = (oldSong: SongResult, newSong: SongResult) => {
+      const index = playList.value.findIndex(
+        (item) => item.id === oldSong.id && item.source === oldSong.source
+      );
+      if (index === -1) {
+        addToNextPlay(newSong);
+        return;
+      }
+      const list = [...playList.value];
+      list.splice(index, 1, newSong);
+      playList.value = list;
+      if (playMode.value === 2 && originalPlayList.value.length > 0) {
+        const originalIndex = originalPlayList.value.findIndex(
+          (item) => item.id === oldSong.id && item.source === oldSong.source
+        );
+        if (originalIndex !== -1) {
+          const original = [...originalPlayList.value];
+          original.splice(originalIndex, 1, newSong);
+          originalPlayList.value = original;
+        }
+      }
+    };
+
+    /**
      * 从播放列表移除歌曲
      */
     const removeFromPlayList = (id: number | string) => {
@@ -768,6 +795,7 @@ export const usePlaylistStore = defineStore(
       // Actions
       setPlayList,
       addToNextPlay,
+      replacePlayListSong,
       removeFromPlayList,
       clearPlayAll,
       togglePlayMode,

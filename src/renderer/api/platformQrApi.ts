@@ -286,6 +286,81 @@ export interface QqLyricPayload {
   romanization: string;
 }
 
+export interface QqAlbumDetail {
+  album: {
+    id: string;
+    name: string;
+    picUrl: string;
+    artist?: { id?: number | string; name?: string };
+  };
+  songs: SongResult[];
+}
+
+export interface QqSingerSongs {
+  artist: {
+    id: string;
+    mid: string;
+    name: string;
+    picUrl: string;
+    fans?: number;
+  };
+  songs: SongResult[];
+  total?: number;
+  hasMore?: boolean;
+}
+
+/**
+ * QQ 专辑详情 + 曲目（未签名通道，无需登录 Cookie）
+ */
+export async function fetchQqAlbumDetail(id: string): Promise<QqAlbumDetail> {
+  if (!id.trim()) throw new Error('QQ 专辑 ID 为空');
+  try {
+    const response = await gatewayRequest.get('/platform/qq/album', {
+      params: { id, noCache: Date.now() },
+      timeout: 20000
+    });
+    const json = response.data;
+    if (json.code !== 200 || !json.data) {
+      throw new Error(json.msg || 'QQ 专辑加载失败');
+    }
+    return {
+      album: json.data.album,
+      songs: Array.isArray(json.data.songs) ? json.data.songs : []
+    };
+  } catch (error) {
+    throw gatewayError(error, 'QQ 专辑加载');
+  }
+}
+
+/**
+ * QQ 歌手热门歌曲（未签名通道，无需登录 Cookie）
+ */
+export async function fetchQqSingerHotSongs(
+  mid: string,
+  limit = 50,
+  offset = 0
+): Promise<QqSingerSongs> {
+  if (!mid.trim()) throw new Error('QQ 歌手 ID 为空');
+  try {
+    const response = await gatewayRequest.get('/platform/qq/singer/songs', {
+      params: { mid, limit, offset, noCache: Date.now() },
+      timeout: 20000
+    });
+    const json = response.data;
+    if (json.code !== 200 || !json.data) {
+      throw new Error(json.msg || 'QQ 歌手歌曲加载失败');
+    }
+    return {
+      artist: json.data.artist,
+      songs: Array.isArray(json.data.songs) ? json.data.songs : [],
+      total: json.data.total,
+      hasMore: Boolean(json.data.hasMore)
+    };
+  } catch (error) {
+    throw gatewayError(error, 'QQ 歌手歌曲加载');
+  }
+}
+
 export interface KugouLyricPayload {
   platform: 'kugou';
   format: 'krc';

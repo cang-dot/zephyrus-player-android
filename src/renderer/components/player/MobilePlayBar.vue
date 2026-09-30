@@ -40,7 +40,7 @@
       @pointercancel="onMiniPointerCancel"
     >
       <!-- 歌曲信息 -->
-      <div class="mini-song-info" :style="miniSongInfoStyle" @click="onMiniSongInfoClick">
+      <div class="mini-song-info" @click="onMiniSongInfoClick">
         <n-image
           :src="getImgUrl(playMusic?.picUrl, '100y100')"
           class="mini-song-cover"
@@ -95,7 +95,7 @@
 
 <script lang="ts" setup>
 import type { CSSProperties, Ref } from 'vue';
-import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 import SongTitleText from '@/components/common/SongTitleText.vue';
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
@@ -289,71 +289,7 @@ const miniSwipeStyle = computed(() => ({
 }));
 // 转场收尾后迷你条整体让位给全屏层;布尔塌缩,避免模板逐帧依赖裸 progress
 const miniSurfaceHidden = computed(() => playerTransition.progress.value > 0.98);
-// 当前播放器样式是否 default:决定迷你信息行的 morph 目标
-// default → 中心大封面/大标题接管;其余样式 → 底部控制区信息行接管
-const playerStyleIsDefault = ref(true);
-const refreshPlayerStyle = () => {
-  try {
-    const raw = localStorage.getItem('music-full-config');
-    playerStyleIsDefault.value =
-      ((raw ? JSON.parse(raw).playerStyle : 'default') || 'default') === 'default';
-  } catch {
-    playerStyleIsDefault.value = true;
-  }
-};
-refreshPlayerStyle();
-onMounted(() => window.addEventListener('music-full-config-updated', refreshPlayerStyle));
-onBeforeUnmount(() => window.removeEventListener('music-full-config-updated', refreshPlayerStyle));
 
-// 转场期迷你行 morph:
-// default:原地不动,与大封面/大标题(p=0 起精确覆盖迷你行位置)交叉淡化——
-//          淡出窗口与全屏层 reveal(--player-surface-reveal 起点 0.035)同步;
-// 其余样式:飞向底部控制区信息行落点,0.86-0.98 与接管行(零位移)同窗交叉,
-//          观感即同一元素变形重排,无接力感。
-// 非 default 样式 morph 的环境量(底部安全区/横竖屏)按视口签名缓存:
-// 只有视口尺寸变化才重新测量,转场逐帧不再触碰 getComputedStyle/matchMedia
-let miniMorphEnv: { key: string; safeBottom: number; landscape: boolean } | null = null;
-const miniSongInfoStyle = computed(() => {
-  const progress = playerTransition.progress.value;
-  if (progress <= 0.001) return {} as CSSProperties;
-  if (playerStyleIsDefault.value) {
-    return {
-      opacity: String(1 - Math.min(1, Math.max(0, (progress - 0.035) / 0.265))),
-      pointerEvents: 'none' as const,
-      zIndex: 4
-    } as CSSProperties;
-  }
-  const source = playerTransition.identitySourceRect.value;
-  const envKey = `${window.innerWidth}x${window.innerHeight}`;
-  if (!miniMorphEnv || miniMorphEnv.key !== envKey) {
-    miniMorphEnv = {
-      key: envKey,
-      safeBottom: Number.parseFloat(
-        getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom') ||
-          '0'
-      ),
-      landscape: window.matchMedia('(orientation: landscape)').matches
-    };
-  }
-  const { safeBottom, landscape } = miniMorphEnv;
-  const controlHeight = landscape ? 96 : 168;
-  const targetLeft = 30;
-  const targetTop = window.innerHeight - safeBottom - 14 - controlHeight + 12;
-  const translateX = source ? (targetLeft - source.left) * progress : 0;
-  const translateY = source ? (targetTop - source.top) * progress : -progress * 82;
-  const handoff = Math.min(1, Math.max(0, (progress - 0.86) / 0.12));
-  return {
-    '--identity-progress': String(progress),
-    '--identity-cover-size': `${40 + progress * 4}px`,
-    '--identity-cover-radius': `${20 - progress * 10}px`,
-    '--identity-cover-border': `${4 * (1 - progress)}px`,
-    opacity: String(1 - handoff),
-    transform: `translate3d(${translateX}px, ${translateY}px, 0)`,
-    transformOrigin: 'left center',
-    zIndex: 4,
-    pointerEvents: 'none' as const
-  } as CSSProperties;
-});
 const miniPlaybackControlsStyle = computed<CSSProperties>(() => ({
   opacity: String(1 - Math.min(1, Math.max(0, (playerTransition.progress.value - 0.12) / 0.42))),
   transform: `translate3d(0, ${playerTransition.progress.value * 18}px, 0)`,
@@ -976,14 +912,13 @@ watch(
       }
 
       .mini-song-cover {
-        width: var(--identity-cover-size, 40px);
-        height: var(--identity-cover-size, 40px);
+        width: 40px;
+        height: 40px;
         margin: 4px;
         flex: 0 0 auto;
         overflow: hidden;
-        border-radius: var(--identity-cover-radius, 50%);
-        border: var(--identity-cover-border, 4px) solid
-          color-mix(in srgb, var(--accent-color) 18%, transparent);
+        border-radius: 50%;
+        border: 4px solid color-mix(in srgb, var(--accent-color) 18%, transparent);
         transition:
           width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
           height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -1018,16 +953,8 @@ watch(
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-          font-size: calc(14px + var(--identity-progress, 0) * 2px);
-          color: color-mix(
-            in srgb,
-            var(--m-text-primary, #2c2c2c) calc((1 - var(--identity-progress, 0)) * 100%),
-            rgba(255, 255, 255, 0.96)
-          );
-          transition:
-            color 180ms ease,
-            font-size 180ms ease,
-            transform 180ms ease;
+          font-size: 14px;
+          color: var(--m-text-primary, #2c2c2c);
         }
 
         .mini-song-separator {
@@ -1044,20 +971,7 @@ watch(
           text-overflow: ellipsis;
           white-space: nowrap;
           font-size: 12px;
-          color: color-mix(
-            in srgb,
-            var(--m-text-muted, #9a9590) calc((1 - var(--identity-progress, 0)) * 100%),
-            rgba(255, 255, 255, 0.64)
-          );
-          transform: translate3d(
-            var(--identity-artist-shift-x, 0),
-            var(--identity-artist-shift-y, 0),
-            0
-          );
-          transition:
-            color 180ms ease,
-            font-size 180ms ease,
-            transform 180ms ease;
+          color: var(--m-text-muted, #9a9590);
         }
       }
     }

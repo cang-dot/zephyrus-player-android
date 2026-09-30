@@ -77,8 +77,21 @@ export const formatNumber = (num: string | number) => {
   return num.toString();
 };
 
-export const getImgUrl = (url: string | undefined, size: string = '') => {
-  if (!url) return '';
+/**
+ * 封面图 crossorigin 属性：仅确认会返回 CORS 头的域加 'anonymous'
+ * （网易云 CDN 对任意 Origin 回 ACAO:*，canvas 取色需要）；
+ * QQ 等无 CORS 头的 CDN 加了 anonymous 会直接加载失败，必须留空。
+ * 取色对无 CORS 图会因画布污染抛错，由 getImageBackground 的 try/catch 安全降级。
+ */
+export const coverCrossOriginAttr = (url: string | undefined): 'anonymous' | undefined => {
+  if (!url) return undefined;
+  if (url.startsWith('data:') || url.startsWith('local://')) return 'anonymous';
+  if (!url.includes('://')) return 'anonymous';
+  if (url.includes('music.126.net') || url.includes('mucang.xyz')) return 'anonymous';
+  return undefined;
+};
+
+export const getImgUrl = (url: string | undefined, size: string = '') => {  if (!url) return '';
 
   // base64 Data URL 和本地文件路径不需要添加尺寸参数
   if (url.startsWith('data:') || url.startsWith('local://')) return url;

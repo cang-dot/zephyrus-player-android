@@ -281,6 +281,9 @@ onMounted(async () => {
   scroll-padding-inline: 16px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
+  /* 双轴显式声明：WebView 原生轴向锁——横滑滚轨道、竖滑交回页面滚动 */
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
 
   &::-webkit-scrollbar {
     display: none;
@@ -295,6 +298,13 @@ onMounted(async () => {
   border-radius: 30px;
   scroll-snap-align: start;
   isolation: isolate;
+}
+
+/* 宽屏整行贯穿后卡片会变得很宽，按视口宽度等比增高避免过度扁平 */
+@media (min-aspect-ratio: 4/3) {
+  .hero-card {
+    min-height: clamp(216px, 24vw, 320px);
+  }
 }
 
 .hero-bg {

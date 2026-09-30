@@ -23,6 +23,7 @@ export default {
   menu: {
     play: '재생',
     playNext: '다음에 재생',
+    matchNetease: 'NetEase 매칭 재생',
     download: '곡 다운로드',
     downloadLyric: '가사 다운로드',
     addToPlaylist: '플레이리스트에 추가',
@@ -37,6 +38,7 @@ export default {
     downloadFailed: '다운로드 실패',
     downloadQueued: '다운로드 대기열에 추가됨',
     addedToNextPlay: '다음 재생에 추가됨',
+    noNeteaseMatch: '매칭되는 NetEase 곡을 찾을 수 없습니다',
     getUrlFailed: '음악 다운로드 주소 가져오기 실패, 로그인 상태를 확인하세요',
     noLyric: '이 곡에는 가사가 없습니다',
     lyricDownloaded: '가사 다운로드 완료',
