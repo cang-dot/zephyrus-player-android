@@ -26,7 +26,11 @@ export const useIntelligenceModeStore = defineStore('intelligenceMode', () => {
   /**
    * 播放心动模式
    */
-  const playIntelligenceMode = async () => {
+  /**
+   * 播放心动模式
+   * @returns true = 已成功起播；false = 登录/歌单/接口任一环节失败（内部已 toast）
+   */
+  const playIntelligenceMode = async (): Promise<boolean> => {
     const { useUserStore } = await import('./user');
     const { usePlayerCoreStore } = await import('./playerCore');
     const { usePlaylistStore } = await import('./playlist');
@@ -41,7 +45,7 @@ export const useIntelligenceModeStore = defineStore('intelligenceMode', () => {
     // 只有 Uid 登录没有凭据，不能调用。
     if (!userStore.user || userStore.loginType === 'uid') {
       message.warning(t('player.playBar.intelligenceMode.needCookieLogin'));
-      return;
+      return false;
     }
 
     try {
@@ -57,7 +61,7 @@ export const useIntelligenceModeStore = defineStore('intelligenceMode', () => {
 
       if (!favoritePlaylist) {
         message.warning(t('player.playBar.intelligenceMode.noFavoritePlaylist'));
-        return;
+        return false;
       }
 
       // 获取喜欢的歌曲列表
@@ -66,7 +70,7 @@ export const useIntelligenceModeStore = defineStore('intelligenceMode', () => {
 
       if (likedIds.length === 0) {
         message.warning(t('player.playBar.intelligenceMode.noLikedSongs'));
-        return;
+        return false;
       }
 
       // 随机选择一首歌曲
@@ -103,13 +107,15 @@ export const useIntelligenceModeStore = defineStore('intelligenceMode', () => {
 
         // 替换播放列表并开始播放
         playlistStore.setPlayList(intelligenceSongs, false, true);
-        await playerCore.handlePlayMusic(intelligenceSongs[0], true);
-      } else {
-        message.error(t('player.playBar.intelligenceMode.failed'));
+        const played = await playerCore.handlePlayMusic(intelligenceSongs[0], true);
+        return played === true;
       }
+      message.error(t('player.playBar.intelligenceMode.failed'));
+      return false;
     } catch (error) {
       console.error('心动模式播放失败:', error);
       message.error(t('player.playBar.intelligenceMode.error'));
+      return false;
     }
   };
 

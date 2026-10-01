@@ -80,15 +80,25 @@ const heartPlaying = computed(() => heartActive.value && playerCore.isPlaying);
 const heartLabel = computed(() =>
   heartPlaying.value ? t('comp.homeV2.pauseAria') : t('comp.homeV2.playAria')
 );
-// 心动模式启动链路（拉喜欢列表→心动歌单→起播）较慢：点击即进入加载态并防重复点击
+// 心动模式启动链路（拉喜欢列表→心动歌单→起播）较慢：点击即进入加载态并防重复点击；
+// 成功显示对号 1.6s 后复原，失败直接复原
 const heartLoading = ref(false);
+const heartSuccess = ref(false);
+let heartSuccessTimer: ReturnType<typeof setTimeout> | undefined;
 
 async function toggleHeart() {
   if (heartLoading.value) return;
   if (!heartActive.value) {
     heartLoading.value = true;
     try {
-      await intelligenceStore.playIntelligenceMode();
+      const played = await intelligenceStore.playIntelligenceMode();
+      if (played) {
+        heartSuccess.value = true;
+        if (heartSuccessTimer) clearTimeout(heartSuccessTimer);
+        heartSuccessTimer = setTimeout(() => {
+          heartSuccess.value = false;
+        }, 1600);
+      }
     } finally {
       heartLoading.value = false;
     }
@@ -237,12 +247,13 @@ onMounted(async () => {
         <button
           class="hero-play"
           type="button"
-          :class="{ 'is-loading': heartLoading }"
+          :class="{ 'is-loading': heartLoading, 'is-success': heartSuccess }"
           :aria-label="heartLabel"
           :disabled="heartLoading"
           @click="toggleHeart"
         >
           <i v-if="heartLoading" class="ri-loader-4-line is-spinning" />
+          <i v-else-if="heartSuccess" class="ri-check-line" />
           <i v-else :class="heartPlaying ? 'ri-pause-fill' : 'ri-play-fill'" />
         </button>
       </article>
@@ -496,8 +507,13 @@ onMounted(async () => {
     opacity: 0.85;
 
     .is-spinning {
+      display: inline-block;
       animation: hero-play-spin 900ms linear infinite;
     }
+  }
+
+  &.is-success i {
+    color: var(--accent-color, #77836e);
   }
 }
 

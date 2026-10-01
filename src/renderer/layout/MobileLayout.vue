@@ -34,11 +34,12 @@
       @touchmove="onContentTouchMove"
     >
       <!-- Tab pager：四页常驻（首次激活挂载），横滑时当前页与相邻页 1:1 双页跟手 -->
-      <div v-show="isBottomMenuRoute || pagerBridgeVisible" class="tab-pager">
+      <div v-show="isBottomMenuRoute || pagerBridgeVisible" class="tab-pager" @scroll.capture="onPagerScrollCapture">
         <div
           v-for="(tab, index) in menuStore.menus"
           :key="tab.path"
           class="pager-page"
+          :data-pager-path="tab.path"
           :style="pagerPageStyle(index)"
         >
           <template v-if="pagerMounted[tab.path]">
@@ -106,9 +107,12 @@
         'song-sheet-open': songSheetDockActive,
         'player-transitioning': playerMorphing,
         'player-source-dock': playerTransitionStartedWithMenu,
-        'player-full': playerTransition.state.value === 'open'
+        'player-full': playerTransition.state.value === 'open',
+        'dock-merged':
+          dockMerged && isBottomMenuRoute && !miniPlayerIdleCollapsed && !playerStore.musicFull
       }"
       :style="dockTransitionStyle"
+      @click.capture="onMergedDockClick"
     >
       <!-- 播放条与导航共用同一个 Dock 玻璃表面。 -->
       <mobile-play-bar v-if="isPlay" @idle-collapse-change="miniPlayerIdleCollapsed = $event" />
@@ -522,6 +526,51 @@ const playerMorphLayerStyle = computed(() => {
     borderRadius: `${rect.radius}px`
   };
 });
+
+/* ══ 底栏滚动合并：tab 页下滚时底栏收成当前页圆形图标，迷你栏右移同线 ══ */
+const dockMerged = ref(false);
+const lastPagerScrollTop = new Map<string, number>();
+const onPagerScrollCapture = (event: Event) => {
+  const target = event.target as HTMLElement | null;
+  if (!target || !target.classList.contains('pager-page')) return;
+  const path = target.dataset.pagerPath || '';
+  const prev = lastPagerScrollTop.get(path) ?? 0;
+  lastPagerScrollTop.set(path, target.scrollTop);
+  if (playerStore.musicFull || playerTransition.state.value !== 'idle') {
+    if (dockMerged.value) dockMerged.value = false;
+    return;
+  }
+  if (!isBottomMenuRoute.value || miniPlayerIdleCollapsed.value) {
+    if (dockMerged.value) dockMerged.value = false;
+    return;
+  }
+  const scrollingDown = target.scrollTop > prev;
+  if (target.scrollTop > 60 && scrollingDown) dockMerged.value = true;
+  else if (target.scrollTop <= 4) dockMerged.value = false;
+};
+/** 点击圆形：当前 tab 回顶并恢复展开态（仅合并态响应） */
+const onMergedDockClick = (event: MouseEvent) => {
+  if (!dockMerged.value) return;
+  event.stopPropagation();
+  dockMerged.value = false;
+  const current = document.querySelector<HTMLElement>(
+    '.tab-pager .pager-page[data-pager-path="' + route.path + '"]'
+  );
+  if (current) current.scrollTo({ top: 0, behavior: 'smooth' });
+};
+watch(
+  () => route.path,
+  () => {
+    if (dockMerged.value) dockMerged.value = false;
+  }
+);
+watch(
+  () => [playerStore.musicFull, playerTransition.state.value] as const,
+  ([isFull, state]) => {
+    if ((isFull || state !== 'idle') && dockMerged.value) dockMerged.value = false;
+  },
+  { flush: 'sync' }
+);
 // 胶囊皮肤（底色恒定垫底 / 播放器底色随进度盖上来 / 边框阴影快速淡出）
 const playerMorphBaseStyle = computed(() => ({ background: playerTransition.capsuleSource.value?.background }));
 const playerMorphBgFillStyle = computed(() => ({ opacity: String(playerTransition.progress.value) }));
@@ -1551,7 +1600,19 @@ onBeforeUnmount(() => {
   pointer-events: none;
   transition:
     height 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    border-radius 420ms cubic-bezier(0.32, 0.72, 0, 1);
+    border-radius 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    width 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    left 420ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* 滚动合并态：底栏收成当前页图标圆（迷你栏等高），与右侧迷你栏同线
+     （!important 压过后面 player-open 等形态规则的同级高度/圆角） */
+  &.dock-merged.visible {
+    right: auto !important;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 50% !important;
+    overflow: hidden;
+  }
 
   &::before {
     position: absolute;
@@ -1785,6 +1846,51 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 .nav-gesture-zone {
   touch-action: none;
+}
+
+/* ── 滚动合并态：只保留当前页图标成圆，其余项收起 ── */
+.mobile-bottom-dock.dock-merged {
+  .mobile-glow-nav {
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    gap: 0;
+  }
+
+  .nav-slide-indicator {
+    top: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+  }
+
+  .glow-nav-item {
+    min-width: 0;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border-radius: 50%;
+
+    &:not(.active) {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .glow-item-label {
+      display: none;
+    }
+  }
+
+  /* 迷你栏下移到圆同线，并左移让出圆形位（覆盖 is-menu-show 的 !important 定位） */
+  :deep(.mobile-play-bar.play-bar-mini.is-menu-show) {
+    bottom: calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap)) !important;
+    left: 72px !important;
+    right: var(--mobile-dock-inset) !important;
+    transition:
+      bottom 420ms cubic-bezier(0.32, 0.72, 0, 1),
+      left 420ms cubic-bezier(0.32, 0.72, 0, 1),
+      right 420ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
 }
 
 .mobile-glow-nav {

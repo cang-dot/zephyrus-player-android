@@ -35,9 +35,21 @@
               >
                 <i class="ri-shuffle-line" />
               </button>
-              <button type="button" class="hero-play-btn" @click="handlePlayAll">
-                <i class="ri-play-fill" />
-                <span>{{ t('comp.musicList.playAll') }}</span>
+              <button
+                type="button"
+                class="hero-play-btn"
+                :class="playAllState"
+                :disabled="playAllState !== 'idle'"
+                @click="handlePlayAll"
+              >
+                <i
+                  :class="{
+                    'ri-loader-4-line is-spinning': playAllState === 'loading',
+                    'ri-check-line': playAllState === 'success',
+                    'ri-play-fill': playAllState === 'idle'
+                  }"
+                />
+                <span class="hero-play-btn-label">{{ t('comp.musicList.playAll') }}</span>
               </button>
               <button
                 type="button"
@@ -1066,9 +1078,14 @@ const loadFullPlaylist = async () => {
   }
 };
 
+// 播放全部按钮三态：idle → loading（收起转圈）→ success（对号）→ idle
+const playAllState = ref<'idle' | 'loading' | 'success'>('idle');
+let playAllResetTimer: ReturnType<typeof setTimeout> | undefined;
+
 const handlePlayAll = () => {
   if (displayedSongs.value.length === 0) return;
-  confirmPlaylistReplace(() => {
+  if (playAllState.value !== 'idle') return;
+  confirmPlaylistReplace(async () => {
     saveHistory();
     const list = searchKeyword.value
       ? filteredSongs.value
@@ -1076,7 +1093,21 @@ const handlePlayAll = () => {
         ? completePlaylist.value
         : allFilteredSongs.value;
     playerStore.setPlayList(list.map(formatSong));
-    playerStore.setPlay(formatSong(list[0]));
+    playAllState.value = 'loading';
+    try {
+      const success = await playerStore.setPlay(formatSong(list[0]));
+      if (success === true) {
+        playAllState.value = 'success';
+        if (playAllResetTimer) clearTimeout(playAllResetTimer);
+        playAllResetTimer = setTimeout(() => {
+          playAllState.value = 'idle';
+        }, 1600);
+      } else {
+        playAllState.value = 'idle';
+      }
+    } catch {
+      playAllState.value = 'idle';
+    }
     if (!isFullPlaylistLoaded.value) loadFullPlaylist();
   });
 };
@@ -2273,14 +2304,63 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;
+    transition:
+      min-width 320ms cubic-bezier(0.32, 0.72, 0, 1),
+      width 320ms cubic-bezier(0.32, 0.72, 0, 1),
+      padding 320ms cubic-bezier(0.32, 0.72, 0, 1),
+      border-radius 320ms cubic-bezier(0.32, 0.72, 0, 1),
+      opacity 200ms ease;
 
     i {
       font-size: 18px;
     }
 
+    .hero-play-btn-label {
+      max-width: 120px;
+      overflow: hidden;
+      white-space: nowrap;
+      transition:
+        max-width 280ms cubic-bezier(0.32, 0.72, 0, 1),
+        opacity 180ms ease;
+    }
+
+    /* 加载/成功：文字收起、按钮收成圆形，图标转圈或对号 */
+    &.loading,
+    &.success {
+      min-width: 46px;
+      width: 46px;
+      padding: 0;
+      border-radius: 50%;
+
+      .hero-play-btn-label {
+        max-width: 0;
+        opacity: 0;
+      }
+    }
+
+    &.loading {
+      pointer-events: none;
+      opacity: 0.88;
+    }
+
+    &.success i {
+      color: var(--accent-color, #77836e);
+    }
+
+    .is-spinning {
+      display: inline-block;
+      animation: hero-play-all-spin 900ms linear infinite;
+    }
+
     &:active {
       transform: scale(0.97);
     }
+  }
+}
+
+@keyframes hero-play-all-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

@@ -65,8 +65,14 @@
       </div>
 
       <div class="mini-playback-controls" :style="miniPlaybackControlsStyle" @pointerdown.stop>
-        <div class="mini-control-btn play" role="button" tabindex="0" @click.stop="playMusicEvent">
-          <i class="iconfont icon" :class="play ? 'icon-stop' : 'icon-play'"></i>
+        <div
+          class="mini-control-btn play"
+          role="button"
+          tabindex="0"
+          @click.stop="playMusicEvent"
+        >
+          <i v-if="playMusic?.playLoading" class="mini-play-spinner ri-loader-4-line" />
+          <i v-else class="iconfont icon" :class="play ? 'icon-stop' : 'icon-play'"></i>
         </div>
         <i
           class="iconfont icon-list mini-list-icon"
@@ -260,14 +266,12 @@ const openPlayListDrawer = () => {
   playerStore.setPlayListDrawerVisible(true);
 };
 
-// 播放暂停按钮事件
-const playMusicEvent = async () => {
-  try {
-    playerStore.setPlay(playMusic.value);
-  } catch (error) {
+// 播放暂停按钮事件（setPlay 是异步 promise：拒绝时兜底切下一首）
+const playMusicEvent = () => {
+  playerStore.setPlay(playMusic.value).catch((error) => {
     console.error('播放出错:', error);
     playerStore.nextPlay();
-  }
+  });
 };
 
 // 迷你播放栏滑动切歌：先跟手移动，提交后旧内容滑出、新内容从反方向滑入。
@@ -1011,6 +1015,14 @@ watch(
             @apply text-xl transition;
             color: var(--accent-color);
           }
+
+          /* 起播加载（playLoading）：播放键换 spinner，颜色沿用 accent */
+          .mini-play-spinner {
+            font-size: 20px;
+            color: var(--accent-color);
+            display: inline-block;
+            animation: mini-play-spin 900ms linear infinite;
+          }
         }
       }
 
@@ -1105,6 +1117,12 @@ watch(
 
   .mobile-play-list-item {
     @apply px-3 py-1;
+  }
+}
+
+@keyframes mini-play-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>
