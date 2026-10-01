@@ -561,6 +561,9 @@ const onPagerScrollCapture = (event: Event) => {
 /** 点击圆形：仅恢复展开态（不改变页面滚动位置） */
 const onMergedDockClick = (event: MouseEvent) => {
   if (!dockMerged.value) return;
+  // 点击落在迷你栏上时不拦截（capture 阶段 stopPropagation 会吞掉
+  // 播放/播放列表的点击）——交给迷你条自身的点击语义（打开播放界面）
+  if (event.target instanceof Element && event.target.closest('.mobile-play-bar')) return;
   // 拖拽提交后的合成 click 守卫（与 mini 的 suppressMiniClick 同源语义）
   if (Date.now() - dockMergeCommittedAt < 420) return;
   event.stopPropagation();
@@ -665,7 +668,17 @@ watch(
 watch(
   () => [playerStore.musicFull, playerTransition.state.value] as const,
   ([isFull, state]) => {
-    if ((isFull || state !== 'idle') && dockMerged.value) dockMerged.value = false;
+    if (isFull || state !== 'idle') {
+      // 记忆打开前的底栏状态：已提交的合并态保留（关闭播放面后回到合并态）；
+      // 只有手势半路残留的中间值必须清理——否则关闭播放面后暴露成"卡中间态"
+      if (dockMerged.value) {
+        if (dockMergeGesture.mergeProgress.value < 0.999) {
+          dockMergeGesture.setMergeProgress(1);
+        }
+      } else if (dockMergeGesture.mergeProgress.value > 0.001) {
+        dockMergeGesture.setMergeProgress(0);
+      }
+    }
   },
   { flush: 'sync' }
 );

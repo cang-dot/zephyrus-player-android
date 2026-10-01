@@ -528,24 +528,29 @@ const onMiniPointerUp = (event: PointerEvent) => {
     dockMerge.setMergeProgress(Math.min(1, dockMerge.mergeProgress.value));
   }
   if (commit) switchTrackWithAnimation(deltaX < 0 ? 'left' : 'right');
-  else if (verticalCommit && miniPointerStartedCollapsed && deltaY < 0) {
-    // 收起态上滑 = 展开为展开态底栏(弹性拉伸,封面滑到最左、信息控件展开)
-    idleCollapsed.value = false;
-    if (navigator.vibrate) navigator.vibrate(8);
-    finishMiniSwipeAnimation();
-  } else if (verticalCommit && !miniPointerStartedCollapsed && deltaY < 0) {
-    idleCollapsed.value = false;
-    const velocity =
-      verticalSamples.length > 1
-        ? (verticalSamples[verticalSamples.length - 1].y - verticalSamples[0].y) /
-          Math.max(1, verticalSamples[verticalSamples.length - 1].time - verticalSamples[0].time)
-        : 0;
-    const shouldOpen = shouldOpenMobilePlayer(playerTransition.progress.value, -velocity);
-    if (shouldOpen) playerStore.setMusicFull(true);
-    if (shouldOpen) playerTransition.animateTo(1, -velocity);
-    else playerTransition.close(-velocity);
-    if (navigator.vibrate) navigator.vibrate(8);
-    finishMiniSwipeAnimation();
+  else if (verticalCommit && deltaY < 0) {
+    // 上滑 = 打开播放界面（收起态与展开态统一；底栏重新展开只走"点击合并态圆形"）。
+    // 半路残留的合并预览清掉；已提交的合并态（mp≈1）保留——关闭播放面后回到合并态
+    if (dockMerge.mergeProgress.value < 0.999) dockMerge.setMergeProgress(0);
+    if (miniPointerStartedCollapsed) {
+      if (navigator.vibrate) navigator.vibrate(8);
+      setMiniClickSuppressed();
+      idleCollapsed.value = false;
+      setMusicFull();
+      finishMiniSwipeAnimation();
+    } else {
+      const velocity =
+        verticalSamples.length > 1
+          ? (verticalSamples[verticalSamples.length - 1].y - verticalSamples[0].y) /
+            Math.max(1, verticalSamples[verticalSamples.length - 1].time - verticalSamples[0].time)
+          : 0;
+      const shouldOpen = shouldOpenMobilePlayer(playerTransition.progress.value, -velocity);
+      if (shouldOpen) playerStore.setMusicFull(true);
+      if (shouldOpen) playerTransition.animateTo(1, -velocity);
+      else playerTransition.close(-velocity);
+      if (navigator.vibrate) navigator.vibrate(8);
+      finishMiniSwipeAnimation();
+    }
   } else if (
     verticalCommit &&
     !miniPointerStartedCollapsed &&

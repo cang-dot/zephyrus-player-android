@@ -35,7 +35,8 @@ const animateMergeProgress = (target: 0 | 1, velocity = 0, complete?: () => void
     if (reduced) {
       value += (target - value) * Math.min(1, dt / 0.16);
     } else {
-      speed += (-420 * (value - target) - 38 * speed) * dt;
+      // 刚度高于播放面弹簧（-600/-40）：合并/展开行程短，需要更快到位
+      speed += (-600 * (value - target) - 40 * speed) * dt;
       value += speed * dt;
     }
     mergeProgress.value = Math.min(1, Math.max(0, value));
