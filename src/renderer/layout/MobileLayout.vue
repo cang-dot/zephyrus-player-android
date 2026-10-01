@@ -1421,14 +1421,25 @@ const navIndicatorStyle = computed(() => ({
 }));
 
 watch(
-  // 路由切换(选中项变)、拖拽结束(浮层归还)、Dock 布局变化(收起/展开播放位)都需要重新对位
-  () => [route.path, navGlow.visible, mobileDockContentInset.value] as const,
-  () => scheduleNavIndicatorMeasure()
+  // 路由切换(选中项变)、拖拽结束(浮层归还)、Dock 布局变化(收起/展开播放位)都需要重新对位。
+  // 迷你栏收起态(has-player-slot 四格等分)与滚动合并态(item 48 圆)会整排改变 item 几何，
+  // 不重测就会把旧布局的 x/w 带到新布局上（指示胶囊错位/盖住图标的根因）
+  () => [route.path, navGlow.visible, mobileDockContentInset.value, miniPlayerIdleCollapsed.value, dockMerged.value] as const,
+  ([, , , collapsed, merged], previous) => {
+    // 形态切换瞬间先隐藏指示胶囊：过渡中的布局测不准，等 480ms 校准后再淡入，
+    // 杜绝"旧几何在新布局上闪现"
+    if (previous && (previous[3] !== collapsed || previous[4] !== merged)) {
+      navIndicator.ready = false;
+    }
+    scheduleNavIndicatorMeasure();
+  }
 );
 
 onMounted(() => {
-  indicatorResizeHandler = () => measureNavIndicator();
+  // 旋转/分屏会触发 resize；二次校准兜住布局过渡中的中间值
+  indicatorResizeHandler = () => scheduleNavIndicatorMeasure();
   window.addEventListener('resize', indicatorResizeHandler);
+  window.addEventListener('orientationchange', indicatorResizeHandler);
   // iconfont 就绪会改变图标宽度，进而改变选中项宽度
   void document.fonts?.ready?.then(() => measureNavIndicator());
 });
@@ -1645,12 +1656,13 @@ onBeforeUnmount(() => {
   isolation: isolate;
   pointer-events: none;
   transition:
-    height 480ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    border-radius 480ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    width 480ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    left 480ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    right 480ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    bottom 480ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    /* 尺寸类无过冲：过冲会让 width 穿越 48px 裁切图标；位置类保留弹性回弹 */
+    height 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    width 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    left 460ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    right 460ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    bottom 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* 滚动合并态：底栏收成当前页图标圆（迷你栏等高），与右侧迷你栏同线
      （!important 压过后面 player-open 等形态规则的同级高度/圆角；
