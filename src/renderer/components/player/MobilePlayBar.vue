@@ -291,8 +291,28 @@ const miniSwipeProgress = computed(() =>
 const miniSurfaceHidden = computed(
   () => playerTransition.state.value !== 'idle' || playerTransition.progress.value > 0
 );
+// 展开态下滑收起：跟手行程与收起预告进度（scale 收缩 + 底栏渐隐联动）
+const COLLAPSE_TRAVEL = 76;
+const collapseDragPreview = ref(0);
+const clearMergeDrag = () => {
+  collapseDragPreview.value = 0;
+  document
+    .querySelector<HTMLElement>('.mobile-bottom-dock')
+    ?.style.setProperty('--merge-drag', '0');
+};
+/** 松手后底栏导航从当前透明度回显（布局落位由 CSS 弹簧过渡接管） */
+const revealNavAfterDrag = () => {
+  const wrap = document.querySelector<HTMLElement>('.mobile-glow-nav-wrap');
+  if (!wrap) return;
+  const current = Number(getComputedStyle(wrap).opacity);
+  if (current >= 0.999) return;
+  wrap.animate([{ opacity: current }, { opacity: 1 }], {
+    duration: 340,
+    easing: 'cubic-bezier(0.22, 1, 0.36, 1)'
+  });
+};
 const miniSwipeStyle = computed(() => ({
-  transform: `translate3d(${miniSwipeOffset.value}px, ${miniVerticalOffset.value}px, 0) scale(${1 - miniSwipeProgress.value * 0.012})`,
+  transform: `translate3d(${miniSwipeOffset.value}px, ${miniVerticalOffset.value}px, 0) scale(${(1 - miniSwipeProgress.value * 0.012) * (1 - collapseDragPreview.value * 0.06)})`,
   opacity: miniSurfaceHidden.value ? '0' : String(1 - miniSwipeProgress.value * 0.12),
   pointerEvents: miniSurfaceHidden.value || playerTransition.progress.value > 0.08
     ? ('none' as const)
@@ -407,6 +427,16 @@ const onMiniPointerMove = (event: PointerEvent) => {
       playerTransition.setDragging(progress, (velocity * 1000) / Math.max(1, window.innerHeight));
       playerTransition.setStretch(stretch);
       miniVerticalOffset.value = 0;
+    } else if (deltaY > 0 && !miniPointerStartedCollapsed && shouldShowMobileMenu.value) {
+      // 展开态下滑：跟手 + 收起预告（scale 收缩），底栏联动渐隐预览
+      // （rubber-band：行程内 1:1，越界渐进阻尼——WWDC 软边界）
+      const dyEff = COLLAPSE_TRAVEL * Math.tanh(deltaY / COLLAPSE_TRAVEL);
+      miniVerticalOffset.value = dyEff;
+      const drag = Math.min(1, dyEff / COLLAPSE_TRAVEL);
+      collapseDragPreview.value = drag;
+      document
+        .querySelector<HTMLElement>('.mobile-bottom-dock')
+        ?.style.setProperty('--merge-drag', drag.toFixed(3));
     } else {
       miniVerticalOffset.value = Math.max(-42, Math.min(42, deltaY));
     }
@@ -495,6 +525,20 @@ const onMiniPointerUp = (event: PointerEvent) => {
     miniSwipeAxis.value === 'vertical' &&
     Math.abs(deltaY) > 34 &&
     (shouldShowMobileMenu.value || deltaY < 0);
+  // 展开态下滑的松手判定：距离阈值 + 释放速度双判（apple：以速度方向决定去留）
+  const collapseVelocity =
+    miniSwipeAxis.value === 'vertical' && verticalSamples.length > 1
+      ? (verticalSamples[verticalSamples.length - 1].y - verticalSamples[0].y) /
+        Math.max(
+          1,
+          verticalSamples[verticalSamples.length - 1].time - verticalSamples[0].time
+        )
+      : 0;
+  if (miniSwipeAxis.value === 'vertical' && !miniPointerStartedCollapsed) {
+    // 下滑预览结束：清联动渐隐、底栏回显（提交与回弹两路都要）
+    clearMergeDrag();
+    revealNavAfterDrag();
+  }
   if (commit) switchTrackWithAnimation(deltaX < 0 ? 'left' : 'right');
   else if (verticalCommit && miniPointerStartedCollapsed && deltaY < 0) {
     // 收起态上滑 = 展开为展开态底栏(弹性拉伸,封面滑到最左、信息控件展开)
@@ -514,7 +558,13 @@ const onMiniPointerUp = (event: PointerEvent) => {
     else playerTransition.close(-velocity);
     if (navigator.vibrate) navigator.vibrate(8);
     finishMiniSwipeAnimation();
-  } else if (verticalCommit && !miniPointerStartedCollapsed && deltaY > 0) {
+  } else if (
+    verticalCommit &&
+    !miniPointerStartedCollapsed &&
+    deltaY > 0 &&
+    (Math.abs(deltaY) > 52 || collapseVelocity > 0.42)
+  ) {
+    // 下滑提交收起：迷你条缩圆滑向右下，底栏同步下移合并四格等分（CSS 弹簧接管）
     idleCollapsed.value = true;
     if (navigator.vibrate) navigator.vibrate(8);
     finishMiniSwipeAnimation();

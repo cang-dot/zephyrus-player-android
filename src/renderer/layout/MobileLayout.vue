@@ -2396,7 +2396,10 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   right: var(--mobile-dock-inset);
   width: auto;
   max-width: none;
-  transform: none;
+  /* 下滑收起的手势预览：迷你栏跟手下拖时底栏微移+渐隐让位（--merge-drag 0..1），
+     松手由 JS 归零变量、WAAPI 回显 opacity，布局落位交给 wrap 自身的弹簧过渡 */
+  transform: translateY(calc(var(--merge-drag, 0) * 34px));
+  opacity: calc(1 - var(--merge-drag, 0) * 0.5);
 }
 
 .mobile-glow-nav-wrap.has-player-slot .mobile-glow-nav {
