@@ -106,6 +106,7 @@ import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import SongTitleText from '@/components/common/SongTitleText.vue';
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
+import { useDockMergeGesture } from '@/composables/useDockMergeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
@@ -120,7 +121,7 @@ import {
 } from '@/utils/mobileGestureThresholds';
 
 const shouldShowMobileMenu = inject('shouldShowMobileMenu') as Ref<boolean>;
-const playlistSurfaceMounted = inject('playlistSurfaceMounted', ref(false)) as Ref<boolean>;
+const setDockMerged = inject<((value: boolean) => void) | null>('setDockMerged', null);const playlistSurfaceMounted = inject('playlistSurfaceMounted', ref(false)) as Ref<boolean>;
 const playlistSurfaceExpanded = inject('playlistSurfaceExpanded', ref(false)) as Ref<boolean>;
 const playlistSongSheetActive = inject('playlistSongSheetActive', ref(false)) as Ref<boolean>;
 const capturePlayerTransitionOrigin = inject<() => void>('capturePlayerTransitionOrigin', () => {});
@@ -291,28 +292,11 @@ const miniSwipeProgress = computed(() =>
 const miniSurfaceHidden = computed(
   () => playerTransition.state.value !== 'idle' || playerTransition.progress.value > 0
 );
-// 展开态下滑收起：跟手行程与收起预告进度（scale 收缩 + 底栏渐隐联动）
+// 展开态下滑收起：滑动映射收起动画帧（mergeProgress），行程 76px、过冲走 rubber-band
 const COLLAPSE_TRAVEL = 76;
-const collapseDragPreview = ref(0);
-const clearMergeDrag = () => {
-  collapseDragPreview.value = 0;
-  document
-    .querySelector<HTMLElement>('.mobile-bottom-dock')
-    ?.style.setProperty('--merge-drag', '0');
-};
-/** 松手后底栏导航从当前透明度回显（布局落位由 CSS 弹簧过渡接管） */
-const revealNavAfterDrag = () => {
-  const wrap = document.querySelector<HTMLElement>('.mobile-glow-nav-wrap');
-  if (!wrap) return;
-  const current = Number(getComputedStyle(wrap).opacity);
-  if (current >= 0.999) return;
-  wrap.animate([{ opacity: current }, { opacity: 1 }], {
-    duration: 340,
-    easing: 'cubic-bezier(0.22, 1, 0.36, 1)'
-  });
-};
+const dockMerge = useDockMergeGesture();
 const miniSwipeStyle = computed(() => ({
-  transform: `translate3d(${miniSwipeOffset.value}px, ${miniVerticalOffset.value}px, 0) scale(${(1 - miniSwipeProgress.value * 0.012) * (1 - collapseDragPreview.value * 0.06)})`,
+  transform: `translate3d(${miniSwipeOffset.value}px, ${miniVerticalOffset.value}px, 0) scale(${1 - miniSwipeProgress.value * 0.012})`,
   opacity: miniSurfaceHidden.value ? '0' : String(1 - miniSwipeProgress.value * 0.12),
   pointerEvents: miniSurfaceHidden.value || playerTransition.progress.value > 0.08
     ? ('none' as const)
@@ -371,6 +355,13 @@ const onMiniPointerDown = (event: PointerEvent) => {
   miniSwipeAxis.value = 'none';
   miniVerticalGestureBlocked.value = false;
   miniSwipeAnimating.value = false;
+  // 立即捕获指针：轴向锁定前的 move 也必须到达（鼠标无隐式 capture，
+  // 按下后滑出胶囊边界会丢 move 导致手势死；触摸有隐式 capture 不受影响）
+  try {
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  } catch {
+    // 指针可能已释放
+  }
   miniVerticalOffset.value = 0;
   miniPointerStartedCollapsed = idleCollapsed.value;
   verticalSamples = [{ y: event.clientY, time: performance.now() }];
@@ -428,15 +419,13 @@ const onMiniPointerMove = (event: PointerEvent) => {
       playerTransition.setStretch(stretch);
       miniVerticalOffset.value = 0;
     } else if (deltaY > 0 && !miniPointerStartedCollapsed && shouldShowMobileMenu.value) {
-      // 展开态下滑：跟手 + 收起预告（scale 收缩），底栏联动渐隐预览
-      // （rubber-band：行程内 1:1，越界渐进阻尼——WWDC 软边界）
-      const dyEff = COLLAPSE_TRAVEL * Math.tanh(deltaY / COLLAPSE_TRAVEL);
-      miniVerticalOffset.value = dyEff;
-      const drag = Math.min(1, dyEff / COLLAPSE_TRAVEL);
-      collapseDragPreview.value = drag;
-      document
-        .querySelector<HTMLElement>('.mobile-bottom-dock')
-        ?.style.setProperty('--merge-drag', drag.toFixed(3));
+      // 展开态下滑：滑动直接映射收起动画的帧（mergeProgress 0..1），
+      // 越过行程的部分走 rubber-band 过冲阻尼（mp 可达 1.18，几何弹性放大）
+      const raw = deltaY / COLLAPSE_TRAVEL;
+      const mp =
+        raw <= 1 ? raw : 1 + rubberband(raw - 1, 1.6) * 0.6;
+      dockMerge.setMergeProgress(mp);
+      miniVerticalOffset.value = 0;
     } else {
       miniVerticalOffset.value = Math.max(-42, Math.min(42, deltaY));
     }
@@ -535,9 +524,8 @@ const onMiniPointerUp = (event: PointerEvent) => {
         )
       : 0;
   if (miniSwipeAxis.value === 'vertical' && !miniPointerStartedCollapsed) {
-    // 下滑预览结束：清联动渐隐、底栏回显（提交与回弹两路都要）
-    clearMergeDrag();
-    revealNavAfterDrag();
+    // 下滑预览结束：清过冲伸长（提交/回弹的布局落位由 dockMerge 弹簧与 class 接管）
+    dockMerge.setMergeProgress(Math.min(1, dockMerge.mergeProgress.value));
   }
   if (commit) switchTrackWithAnimation(deltaX < 0 ? 'left' : 'right');
   else if (verticalCommit && miniPointerStartedCollapsed && deltaY < 0) {
@@ -562,13 +550,18 @@ const onMiniPointerUp = (event: PointerEvent) => {
     verticalCommit &&
     !miniPointerStartedCollapsed &&
     deltaY > 0 &&
-    (Math.abs(deltaY) > 52 || collapseVelocity > 0.42)
+    (dockMerge.mergeProgress.value >= 0.55 || collapseVelocity > 0.42)
   ) {
-    // 下滑提交收起：迷你条缩圆滑向右下，底栏同步下移合并四格等分（CSS 弹簧接管）
-    idleCollapsed.value = true;
+    // 下滑提交 = 滚动合并态（左圆+右短胶囊），弹簧播完剩余帧；不再走右下角封面收起
+    setDockMerged?.(true);
+    dockMerge.animateMergeProgress(1, collapseVelocity * 0.9);
     if (navigator.vibrate) navigator.vibrate(8);
     finishMiniSwipeAnimation();
   } else {
+    if (dockMerge.mergeProgress.value > 0.001) {
+      // 回弹：弹簧滑回展开态
+      dockMerge.animateMergeProgress(0);
+    }
     if (playerTransition.state.value === 'dragging') playerTransition.close();
     finishMiniSwipeAnimation();
     // 收起态轻点 = 直接打开播放界面(pointerup 路径,不依赖 click 合成)

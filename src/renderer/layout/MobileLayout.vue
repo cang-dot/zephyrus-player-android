@@ -111,7 +111,7 @@
         'dock-merged':
           dockMerged && isBottomMenuRoute && !miniPlayerIdleCollapsed && !playerStore.musicFull
       }"
-      :style="dockTransitionStyle"
+      :style="[dockTransitionStyle, dockMergedStyle]"
       @click.capture="onMergedDockClick"
     >
       <!-- 播放条与导航共用同一个 Dock 玻璃表面。 -->
@@ -242,6 +242,7 @@ import {
   MORPH_SETTLE_PROGRESS,
   MORPH_STRETCH_PIXELS
 } from '@/utils/mobileGestureThresholds';
+import { useDockMergeGesture } from '@/composables/useDockMergeGesture';
 
 import MobileHeader from './components/MobileHeader.vue';
 const MobilePlayBar = defineAsyncComponent(() => import('@/components/player/MobilePlayBar.vue'));
@@ -529,6 +530,15 @@ const playerMorphLayerStyle = computed(() => {
 
 /* ══ 底栏滚动合并：tab 页下滚时底栏收成当前页圆形图标，迷你栏右移同线 ══ */
 const dockMerged = ref(false);
+const dockMergeGesture = useDockMergeGesture();
+// 提交合并的时间戳：拖拽松手会补发一次合成 click，需在短窗口内忽略，
+// 否则刚提交的合并态会被 onMergedDockClick 立即撤销
+let dockMergeCommittedAt = 0;
+const setDockMergedState = (value: boolean) => {
+  dockMerged.value = value;
+  if (value) dockMergeCommittedAt = Date.now();
+  dockMergeGesture.animateMergeProgress(value ? 1 : 0);
+};
 const lastPagerScrollTop = new Map<string, number>();
 const onPagerScrollCapture = (event: Event) => {
   const target = event.target as HTMLElement | null;
@@ -537,23 +547,67 @@ const onPagerScrollCapture = (event: Event) => {
   const prev = lastPagerScrollTop.get(path) ?? 0;
   lastPagerScrollTop.set(path, target.scrollTop);
   if (playerStore.musicFull || playerTransition.state.value !== 'idle') {
-    if (dockMerged.value) dockMerged.value = false;
+    if (dockMerged.value) setDockMergedState(false);
     return;
   }
   if (!isBottomMenuRoute.value || miniPlayerIdleCollapsed.value) {
-    if (dockMerged.value) dockMerged.value = false;
+    if (dockMerged.value) setDockMergedState(false);
     return;
   }
   const scrollingDown = target.scrollTop > prev;
-  if (target.scrollTop > 60 && scrollingDown) dockMerged.value = true;
-  else if (target.scrollTop <= 4) dockMerged.value = false;
+  if (target.scrollTop > 60 && scrollingDown) setDockMergedState(true);
+  else if (target.scrollTop <= 4) setDockMergedState(false);
 };
 /** 点击圆形：仅恢复展开态（不改变页面滚动位置） */
 const onMergedDockClick = (event: MouseEvent) => {
   if (!dockMerged.value) return;
+  // 拖拽提交后的合成 click 守卫（与 mini 的 suppressMiniClick 同源语义）
+  if (Date.now() - dockMergeCommittedAt < 420) return;
   event.stopPropagation();
-  dockMerged.value = false;
+  setDockMergedState(false);
 };
+provide('setDockMerged', (value: boolean) => {
+  setDockMergedState(value);
+});
+/* 合并几何逐帧插值（mp 0..1，过冲 >1 由手势阻尼产生）：
+   dock 容器 width/height/radius/right 由 inline 直写——用户滑动直接映射收起动画的帧 */
+const dockMergedStyle = computed(() => {
+  const mp = dockMergeGesture.mergeProgress.value;
+  if (mp <= 0.001) return undefined;
+  const stretch = Math.max(0, mp - 1) * 26;
+  const vw = window.innerWidth;
+  const inset = 12;
+  const fullW = vw - inset * 2;
+  const t = Math.min(1, mp);
+  return {
+    width: `${fullW + (48 - fullW) * t + stretch}px`,
+    height: `${72 + (48 - 72) * t}px`,
+    borderRadius: `${36 + (24 - 36) * t}px`,
+    right: `${inset + (fullW - 48) * t - stretch / 2}px`
+  };
+});
+provide('dockMergeProgress', dockMergeGesture.mergeProgress);
+// mp 逐帧同步：迷你栏合并位移变量（dock 子树可读）+ 合并态圆底对齐补偿
+watch(
+  () => dockMergeGesture.mergeProgress.value,
+  (mp) => {
+    const dock = document.querySelector<HTMLElement>('.mobile-bottom-dock');
+    if (!dock) return;
+    dock.style.setProperty('--mini-merge-shift', String(Math.min(1, mp)));
+    if (mp > 0.001 && dockMerged.value) {
+      const bar = document.querySelector<HTMLElement>('.mobile-play-bar');
+      const capsule = document.querySelector<HTMLElement>(
+        '.mobile-play-bar .mobile-mini-controls'
+      );
+      if (bar && capsule) {
+        const dy = Math.max(0, Math.round(bar.getBoundingClientRect().bottom - capsule.getBoundingClientRect().bottom));
+        dock.style.bottom = `calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap) + ${dy}px)`;
+      }
+    } else {
+      dock.style.bottom = '';
+    }
+  }
+);
 
 /* 圆与迷你胶囊像素级对齐：迷你栏容器 (.mobile-play-bar) 比胶囊高数像素（上下留白），
    胶囊在其内垂直居中——圆若直接贴 dock 底就会比胶囊中心低半个留白。
@@ -1413,27 +1467,58 @@ const scheduleNavIndicatorMeasure = () => {
   indicatorMeasureTimer = setTimeout(measureNavIndicator, 480);
 };
 
-const navIndicatorStyle = computed(() => ({
-  width: `${navIndicator.w}px`,
-  transform: `translate3d(${navIndicator.x}px, 0, 0)`,
-  // 仅在实际横向拖选（浮层跟手）时让位；轻点期间保持在位，才能滑向目标项
-  opacity: navIndicator.ready && !navGlow.enlarged ? '1' : '0'
-}));
+const navIndicatorStyle = computed(() => {
+  // 合并进度插值：mp→1 时指示胶囊收进 48 圆（x 归 0、高 60→48、top 4→0）；
+  // 选中阴影由 CSS 在合并态隐藏
+  const mp = Math.min(1, dockMergeGesture.mergeProgress.value);
+  const x = navIndicator.x * (1 - mp);
+  const w = navIndicator.w + (48 - navIndicator.w) * mp;
+  const h = 60 - 12 * mp;
+  return {
+    top: `${4 - 4 * mp}px`,
+    height: `${h}px`,
+    width: `${w}px`,
+    transform: `translate3d(${x}px, 0, 0)`,
+    // 仅在实际横向拖选（浮层跟手）时让位；轻点期间保持在位，才能滑向目标项
+    opacity: navIndicator.ready && !navGlow.enlarged ? '1' : '0'
+  };
+});
 
 watch(
   // 路由切换(选中项变)、拖拽结束(浮层归还)、Dock 布局变化(收起/展开播放位)都需要重新对位。
-  // 迷你栏收起态(has-player-slot 四格等分)与滚动合并态(item 48 圆)会整排改变 item 几何，
-  // 不重测就会把旧布局的 x/w 带到新布局上（指示胶囊错位/盖住图标的根因）
-  () => [route.path, navGlow.visible, mobileDockContentInset.value, miniPlayerIdleCollapsed.value, dockMerged.value] as const,
-  ([, , , collapsed, merged], previous) => {
-    // 形态切换瞬间先隐藏指示胶囊：过渡中的布局测不准，等 480ms 校准后再淡入，
-    // 杜绝"旧几何在新布局上闪现"
-    if (previous && (previous[3] !== collapsed || previous[4] !== merged)) {
-      navIndicator.ready = false;
-    }
+  // 迷你栏收起态(has-player-slot 四格等分)会整排改变 item 几何——切换瞬间先隐藏旧几何
+  // （dockMerged 的展开复位走 startIndicatorFollow 逐帧跟随，不在此隐藏）
+  () => [route.path, navGlow.visible, mobileDockContentInset.value, miniPlayerIdleCollapsed.value] as const,
+  ([, , , collapsed], previous) => {
+    if (previous && previous[3] !== collapsed) navIndicator.ready = false;
     scheduleNavIndicatorMeasure();
   }
 );
+
+/** 展开复位跟随：dockMerged 关闭后逐帧重测指示胶囊几何，
+ *  CSS transition（x/w 弹簧）把胶囊平滑滑回 active 项——复位有跟随感而非消失重现 */
+let indicatorFollowFrame = 0;
+const startIndicatorFollow = () => {
+  if (indicatorFollowFrame) cancelAnimationFrame(indicatorFollowFrame);
+  const startAt = performance.now();
+  const tick = (now: number) => {
+    measureNavIndicator();
+    if (now - startAt < 560) {
+      indicatorFollowFrame = requestAnimationFrame(tick);
+    } else {
+      indicatorFollowFrame = 0;
+      measureNavIndicator();
+    }
+  };
+  indicatorFollowFrame = requestAnimationFrame(tick);
+};
+watch(dockMerged, (merged) => {
+  if (merged) {
+    navIndicator.ready = false;
+  } else {
+    startIndicatorFollow();
+  }
+});
 
 onMounted(() => {
   // 旋转/分屏会触发 resize；二次校准兜住布局过渡中的中间值
@@ -1447,6 +1532,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (indicatorMeasureTimer) clearTimeout(indicatorMeasureTimer);
   if (indicatorResizeHandler) window.removeEventListener('resize', indicatorResizeHandler);
+  if (indicatorFollowFrame) cancelAnimationFrame(indicatorFollowFrame);
   indicatorResizeHandler = null;
 });
 
@@ -1664,14 +1750,9 @@ onBeforeUnmount(() => {
     right 460ms cubic-bezier(0.34, 1.56, 0.64, 1),
     bottom 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  /* 滚动合并态：底栏收成当前页图标圆（迷你栏等高），与右侧迷你栏同线
-     （!important 压过后面 player-open 等形态规则的同级高度/圆角；
-      right 用具体值而非 auto——auto 与数值之间无法过渡） */
+  /* 滚动合并态：几何（width/height/radius/right）由 inline dockMergedStyle 逐帧驱动
+     （手势 mp 直接映射动画帧，过冲阻尼产生弹性）；class 只负责 items 收起/裁切 */
   &.dock-merged.visible {
-    right: calc(100vw - var(--mobile-dock-inset) - 48px) !important;
-    width: 48px !important;
-    height: 48px !important;
-    border-radius: 50% !important;
     overflow: hidden;
   }
 
@@ -1804,20 +1885,21 @@ onBeforeUnmount(() => {
   }
 
   /* 带底栏页：只给定位——表面沿用无底栏形态（MobilePlayBar 自身的
-     .mobile-mini-controls 实色表面/h-14/圆角），避免两处自绘不一致 */
+     .mobile-mini-controls 实色表面/h-14/圆角），避免两处自绘不一致。
+     合并位移由 --mini-merge-shift（0..1，dock 上逐帧写入）驱动：
+     mp→1 时迷你栏下移到圆同线并左移让位（过冲弹簧曲线） */
   :deep(.mobile-play-bar.play-bar-mini.is-menu-show) {
     position: fixed !important;
     top: auto !important;
-    right: 12px;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 76px) !important;
-    left: 12px !important;
+    right: calc(12px + var(--mini-merge-shift, 0) * 0px);
+    bottom: calc(
+      var(--safe-area-inset-bottom, 0px) + 76px -
+        var(--mini-merge-shift, 0) * (76px - var(--mobile-dock-gap) - 8px)
+    ) !important;
+    left: calc(12px + var(--mini-merge-shift, 0) * 60px) !important;
     width: auto !important;
-    /* 过渡放基态：合并态 class 移除后（展开方向）同样有动画。
-       过冲弹簧 + 短延迟 = 先让圆形开始变形，再弹性跟上（物理避让） */
     transition:
-      bottom 460ms cubic-bezier(0.34, 1.56, 0.64, 1) 60ms,
-      left 460ms cubic-bezier(0.34, 1.56, 0.64, 1) 60ms,
-      right 460ms cubic-bezier(0.34, 1.56, 0.64, 1) 60ms;
+      border-color 0.22s ease;
   }
 
   &.player-collapsed :deep(.mobile-play-bar.play-bar-mini.idle-collapsed) {
@@ -1929,16 +2011,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
     gap: 0;
   }
 
-  /* 指示胶囊的几何是 JS 内联样式注入，必须 !important 才能压过；
-     transform/width/height 全部归位成 48px 圆（基态 transition 仍会驱动过渡）。
-     选中态阴影（胶囊底色）在圆形模式下隐藏——圆本身就是表面 */
+  /* 指示胶囊在合并态隐藏（圆自身即表面）；几何由 navIndicatorStyle 按 mp 插值 */
   .nav-slide-indicator {
-    top: 0 !important;
-    left: 0 !important;
-    transform: translateX(0) !important;
-    width: 48px !important;
-    height: 48px !important;
-    border-radius: 50% !important;
     opacity: 0 !important;
   }
 
