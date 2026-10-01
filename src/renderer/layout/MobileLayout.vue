@@ -586,7 +586,10 @@ const dockMergedStyle = computed(() => {
     width: `${fullW + (48 - fullW) * t + stretch}px`,
     height: `${72 + (48 - 72) * t}px`,
     borderRadius: `${36 + (24 - 36) * t}px`,
-    right: `${inset + (fullW - 48) * t - stretch / 2}px`
+    right: `${inset + (fullW - 48) * t - stretch / 2}px`,
+    // 几何逐帧直写期间禁用 CSS transition：否则每一步变化都被 420ms 过渡拖慢，
+    // 渲染值严重滞后于弹簧（"两个避让逻辑打架"的根因）；mp 归零后自动恢复
+    transition: 'none'
   };
 });
 provide('dockMergeProgress', dockMergeGesture.mergeProgress);
@@ -1492,6 +1495,9 @@ const navIndicatorStyle = computed(() => {
     height: `${h}px`,
     width: `${w}px`,
     transform: `translate3d(${x}px, 0, 0)`,
+    // 逐帧插值期间禁用过渡（同 dock：否则每帧都被 0.42s 过渡滞后）；
+    // mp 归零后恢复过渡，展开复位的"滑回"动画依赖它
+    transition: mp > 0.001 ? 'none' : undefined,
     // 仅在实际横向拖选（浮层跟手）时让位；轻点期间保持在位，才能滑向目标项
     opacity: navIndicator.ready && !navGlow.enlarged ? '1' : '0'
   };
@@ -2099,10 +2105,10 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
     transform 0.3s $spring,
     background-color 0.24s ease,
     opacity 0.3s ease,
-    width 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    min-width 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    height 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    padding 420ms cubic-bezier(0.32, 0.72, 0, 1);
+    width 280ms cubic-bezier(0.32, 0.72, 0, 1),
+    min-width 280ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 280ms cubic-bezier(0.32, 0.72, 0, 1),
+    padding 280ms cubic-bezier(0.32, 0.72, 0, 1);
 
   &:active {
     transform: scale(0.94);
