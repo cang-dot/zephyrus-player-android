@@ -548,15 +548,11 @@ const onPagerScrollCapture = (event: Event) => {
   if (target.scrollTop > 60 && scrollingDown) dockMerged.value = true;
   else if (target.scrollTop <= 4) dockMerged.value = false;
 };
-/** 点击圆形：当前 tab 回顶并恢复展开态（仅合并态响应） */
+/** 点击圆形：仅恢复展开态（不改变页面滚动位置） */
 const onMergedDockClick = (event: MouseEvent) => {
   if (!dockMerged.value) return;
   event.stopPropagation();
   dockMerged.value = false;
-  const current = document.querySelector<HTMLElement>(
-    '.tab-pager .pager-page[data-pager-path="' + route.path + '"]'
-  );
-  if (current) current.scrollTo({ top: 0, behavior: 'smooth' });
 };
 watch(
   () => route.path,
@@ -1591,6 +1587,8 @@ onBeforeUnmount(() => {
   bottom: calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap));
   left: var(--mobile-dock-inset);
   z-index: 199;
+  /* 显式宽度：给合并态收缩提供可插值起点（left/right 拉伸布局的 width 是 auto，无法过渡） */
+  width: calc(100vw - var(--mobile-dock-inset) * 2);
   height: 0;
   border: 1px solid transparent;
   border-radius: 30px;
@@ -1602,12 +1600,14 @@ onBeforeUnmount(() => {
     height 420ms cubic-bezier(0.32, 0.72, 0, 1),
     border-radius 420ms cubic-bezier(0.32, 0.72, 0, 1),
     width 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    left 420ms cubic-bezier(0.32, 0.72, 0, 1);
+    left 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    right 420ms cubic-bezier(0.32, 0.72, 0, 1);
 
   /* 滚动合并态：底栏收成当前页图标圆（迷你栏等高），与右侧迷你栏同线
-     （!important 压过后面 player-open 等形态规则的同级高度/圆角） */
+     （!important 压过后面 player-open 等形态规则的同级高度/圆角；
+      right 用具体值而非 auto——auto 与数值之间无法过渡） */
   &.dock-merged.visible {
-    right: auto !important;
+    right: calc(100vw - var(--mobile-dock-inset) - 48px) !important;
     width: 48px !important;
     height: 48px !important;
     border-radius: 50% !important;
@@ -1751,6 +1751,11 @@ onBeforeUnmount(() => {
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 76px) !important;
     left: 12px !important;
     width: auto !important;
+    /* 过渡放基态：合并态 class 移除后（展开方向）同样有动画 */
+    transition:
+      bottom 420ms cubic-bezier(0.32, 0.72, 0, 1),
+      left 420ms cubic-bezier(0.32, 0.72, 0, 1),
+      right 420ms cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   &.player-collapsed :deep(.mobile-play-bar.play-bar-mini.idle-collapsed) {
@@ -1837,6 +1842,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 .mobile-bottom-dock .mobile-glow-nav-wrap {
   position: absolute;
   bottom: 1px;
+  transition: bottom 420ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* 底栏外层的径向模糊辉光已移除（噪声大且与实心胶囊语汇冲突）。
@@ -1850,6 +1856,10 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* ── 滚动合并态：只保留当前页图标成圆，其余项收起 ── */
 .mobile-bottom-dock.dock-merged {
+  .mobile-glow-nav-wrap {
+    bottom: 0;
+  }
+
   .mobile-glow-nav {
     width: 48px;
     height: 48px;
@@ -1857,23 +1867,36 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
     gap: 0;
   }
 
+  /* 指示胶囊的几何是 JS 内联样式注入，必须 !important 才能压过；
+     transform/width/height 全部归位成 48px 圆（基态 transition 仍会驱动过渡） */
   .nav-slide-indicator {
-    top: 0;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
+    top: 0 !important;
+    left: 0 !important;
+    transform: translateX(0) !important;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 50% !important;
   }
 
   .glow-nav-item {
-    min-width: 0;
-    width: 48px;
-    height: 48px;
-    padding: 0;
-    border-radius: 50%;
+    /* has-player-slot 态存在 flex: 1 1 0（basis 0 优先于 width，grow 均分容器），
+       合并态必须整体覆盖 flex 才能让 width 生效 */
+    flex: 0 0 48px;
+    min-width: 0 !important;
+    width: 48px !important;
+    height: 48px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
 
     &:not(.active) {
+      /* 宽度归零不占位：否则 4 项在 48px 容器里被 flex 均分收缩，active 被压扁图标偏移 */
+      flex: 0 0 0;
+      width: 0 !important;
+      min-width: 0 !important;
+      padding: 0 !important;
       opacity: 0;
       pointer-events: none;
+      overflow: hidden;
     }
 
     .glow-item-label {
@@ -1886,10 +1909,6 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
     bottom: calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap)) !important;
     left: 72px !important;
     right: var(--mobile-dock-inset) !important;
-    transition:
-      bottom 420ms cubic-bezier(0.32, 0.72, 0, 1),
-      left 420ms cubic-bezier(0.32, 0.72, 0, 1),
-      right 420ms cubic-bezier(0.32, 0.72, 0, 1);
   }
 }
 
@@ -1926,7 +1945,12 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   user-select: none;
   transition:
     transform 0.3s $spring,
-    background-color 0.24s ease;
+    background-color 0.24s ease,
+    opacity 0.3s ease,
+    width 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    min-width 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    padding 420ms cubic-bezier(0.32, 0.72, 0, 1);
 
   &:active {
     transform: scale(0.94);
