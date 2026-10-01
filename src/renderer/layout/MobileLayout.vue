@@ -596,14 +596,16 @@ const dockMergedStyle = computed(() => {
   };
 });
 provide('dockMergeProgress', dockMergeGesture.mergeProgress);
-// mp 逐帧同步：迷你栏合并位移变量（dock 子树可读）+ 合并态圆底对齐补偿
+// mp 逐帧同步：迷你栏合并位移变量（dock 子树可读）+ 合并态圆底对齐补偿。
+// dy = 迷你栏容器底部留白（胶囊顶对齐容器、留白在底部）——圆贴胶囊底而非容器底；
+// 预览/提交/回弹全程补偿（只看 mp，不看 dockMerged），消除预览期的 8px 错位
 watch(
   () => dockMergeGesture.mergeProgress.value,
   (mp) => {
     const dock = document.querySelector<HTMLElement>('.mobile-bottom-dock');
     if (!dock) return;
     dock.style.setProperty('--dock-mp', String(Math.min(1, mp)));
-    if (mp > 0.001 && dockMerged.value) {
+    if (mp > 0.001) {
       const bar = document.querySelector<HTMLElement>('.mobile-play-bar');
       const capsule = document.querySelector<HTMLElement>(
         '.mobile-play-bar .mobile-mini-controls'
@@ -617,34 +619,6 @@ watch(
     }
   }
 );
-
-/* 圆与迷你胶囊像素级对齐：迷你栏容器 (.mobile-play-bar) 比胶囊高数像素（上下留白），
-   胶囊在其内垂直居中——圆若直接贴 dock 底就会比胶囊中心低半个留白。
-   合并激活时读出该留白 (dy)，以 inline bottom 补偿（参与过渡，resize 重算）。 */
-const syncMergedDockBottom = () => {
-  const dock = document.querySelector<HTMLElement>('.mobile-bottom-dock');
-  if (!dock) return;
-  if (!dockMerged.value) {
-    dock.style.bottom = '';
-    return;
-  }
-  const bar = document.querySelector<HTMLElement>('.mobile-play-bar');
-  const capsule = document.querySelector<HTMLElement>('.mobile-play-bar .mobile-mini-controls');
-  let dy = 0;
-  if (bar && capsule) {
-    const barRect = bar.getBoundingClientRect();
-    const capsuleRect = capsule.getBoundingClientRect();
-    // 胶囊在容器内的底边留白（合并前后不变）——圆贴胶囊底而非容器底
-    dy = Math.max(0, Math.round(barRect.bottom - capsuleRect.bottom));
-  }
-  dock.style.bottom = `calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap) + ${dy}px)`;
-};
-watch(dockMerged, (merged) => {
-  if (!merged) return;
-  nextTick(syncMergedDockBottom);
-});
-window.addEventListener('resize', syncMergedDockBottom);
-onBeforeUnmount(() => window.removeEventListener('resize', syncMergedDockBottom));
 
 /* 物理避让：合并/展开切换时迷你胶囊先收缩让位、到位后弹性回弹
    （WAAPI 一次性动画，替换内联 transform 完成后自动交还；reduced-motion 跳过） */
@@ -1916,7 +1890,7 @@ onBeforeUnmount(() => {
     right: calc(12px + var(--dock-mp, 0) * 0px);
     bottom: calc(
       var(--safe-area-inset-bottom, 0px) + 76px -
-        var(--dock-mp, 0) * (76px - var(--mobile-dock-gap) - 8px)
+      var(--dock-mp, 0) * (76px - var(--mobile-dock-gap))
     ) !important;
     left: calc(12px + var(--dock-mp, 0) * 60px) !important;
     width: auto !important;
