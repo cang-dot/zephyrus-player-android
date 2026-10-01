@@ -70,7 +70,7 @@
     />
     <setting-item
       title="开源协议"
-      description="查看开源协议 (MIT)"
+      description="查看开源协议 (AGPL-3.0)"
       clickable
       @click="openModal('开源协议', licenseText)"
     />

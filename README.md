@@ -6,7 +6,7 @@
 
 Zephyrus Player 是一款只为 Android 手机设计的音乐播放器：歌曲、歌词和播放器舞台共享同一条时间轴，常用操作围绕单手触控和可中断动画组织。它同时提供**网页版**——电脑浏览器打开即可使用同一套账号与播放能力。
 
-[![版本](https://img.shields.io/badge/version-v1.3.5-b48b52)](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.3.5)
+[![版本](https://img.shields.io/badge/version-v1.4.0-b48b52)](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.4.0)
 [![Android](https://img.shields.io/badge/Android-8.0%2B-3ddc84?logo=android&logoColor=white)](https://developer.android.com/about/versions/oreo)
 [![Web](https://img.shields.io/badge/Web-mucang.xyz%2Fzephyrus%2Fweb-4285f4?logo=googlechrome&logoColor=white)](https://mucang.xyz/zephyrus/web/)
 [![Vue](https://img.shields.io/badge/Vue_3-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
@@ -14,10 +14,12 @@ Zephyrus Player 是一款只为 Android 手机设计的音乐播放器：歌曲�
 
 ## 下载
 
-- [GitHub Release v1.3.5](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.3.5)
+- [GitHub Release v1.4.0](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.4.0)
 - [服务器直链](https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk)
 - [Android 产品介绍](https://mucang.xyz/zephyrus/)
 - [使用文档](https://mucang.xyz/zephyrus/docs/)
+- [致谢与开源许可](https://mucang.xyz/zephyrus/credits/)
+- [用户协议](./用户协议.md)
 
 安装需要 Android 8.0 或更高版本。首次启动按提示授予通知、悬浮窗和本地文件访问权限；没有这些权限时，基础播放仍可使用，但对应功能会保持关闭。
 
@@ -60,22 +62,27 @@ TTML 可以同时携带主唱、背景、对唱、翻译和罗马音。默认播
 
 视频分享可以把当前播放器样式在选定时间段内的效果直接离线渲染成视频，无需手动录屏。可选项包括画面比例（16:9 / 9:16 / 3:4 / 4:3，每项带同比例预览示意）、导出时间段、720p / 1080p 清晰度，以及水印与深链二维码。九种播放器样式全部支持；导出采用 WebCodecs 逐帧确定性渲染，优先输出 MP4（H.264/AAC），环境不支持时依次回退到 WebM（VP9 / VP8 + Opus），若当前设备没有可用编码器会明确提示，而不是产出损坏文件。
 
-### 主界面导航
+### 主界面导航与手势
 
 四个主界面以常驻 pager 承载：横滑时当前页与相邻页跟手平移，松手按速度弹簧滑入目标页；每个界面独立记忆滚动位置。
+
+底栏与迷你栏共享一套物理手势语言：
+
+- 主界面向下滚动时，底栏收成当前页图标的圆形、迷你栏缩短右移同线；点击圆形展开，打开播放界面会记忆展开前的状态；
+- 上滑迷你栏打开播放界面：迷你栏胶囊先拖大成限高圆角矩形（顶边跟手、越界橡皮筋阻尼），松手弹簧展开全屏，歌词与特效随胶囊矩形裁切揭示，全程可中断可反向；
+- 播放全部、歌曲漫游与迷你栏播放键使用统一的加载态：收起转圈、成功对号、形变复原。
 
 ### 音频与过渡
 
 - 播放中跳转进度会保持播放，暂停中跳转仍保持暂停。
 - 快速切歌只处理最新请求，旧音频的延迟事件不会重新暂停或启动当前歌曲。
 - 智能过渡支持轻量到智能的连续调节、无缝切歌和可中断的加载反馈。
-- 播放器的打开与关闭接入全局弹簧进度：拖拽跟手、松手按速度滑入或滑出，可随时反向。
 - 本地文件播放失败时只提示一次并安全推进队列，不会在同一首歌上重复循环报错。
 - **在线歌曲同样驱动音频响应**：鼓点、能量与 BPM 特征由原生引擎分析提供，本地与在线歌曲一视同仁。该能力依赖 Android 原生音频分析（网页浏览器版在线歌曲为跨域直连、无 Web Audio 图谱，暂不驱动视觉响应；网页版本地文件不受影响）。
 
 ### 来源与账号
 
-支持网易云、QQ 音乐、酷狗和本地音乐的搜索、歌单与收藏。QQ 音乐扫码登录由服务端中转，Spotify 登录受 Spotify 开发者应用白名单限制，未配置应用时会明确显示不可用状态，不会伪造登录成功。
+支持网易云、QQ 音乐、酷狗和本地音乐的搜索、歌单、专辑与歌手详情。网易云与 QQ 音乐支持扫码 / Cookie 登录；跨平台歌曲可一键「匹配网易云播放」或开启自动匹配音源（失败回退原平台）。Spotify 登录受 Spotify 开发者应用白名单限制，未配置应用时会明确显示不可用状态，不会伪造登录成功。
 
 网易云分享链接可以在系统分享面板中选择 Zephyrus 直接打开对应歌曲；歌词海报二维码的中继页也支持一键唤起网易云音乐。
 
@@ -129,6 +136,6 @@ server-ai-gateway.js   云端歌词 AI 网关
 
 ## 致谢与许可证
 
-滚动歌词使用 [Apple Music-like Lyrics](https://github.com/amll-dev/applemusic-like-lyrics) 的 Vue 组件；「错误」样式的流体背景改编自 [vue-bits](https://github.com/DavidHDev/vue-bits) 的 LiquidEther 组件；默认样式的「网格」背景使用 Apple Music-like Lyrics 的 `MeshGradientRenderer` 渲染器，其低频驱动曲线移植自 [amll-player](https://github.com/JoyElliot/amll-player)（作者 JoyElliot 授权使用第一方代码，双方均遵循 AGPL-3.0）。以上组件均遵循其开源许可证并在应用关于页面与文档站致谢。项目整体使用 [AGPL-3.0-only](./LICENSE) 发布；第三方依赖的许可证以各自仓库为准。
+滚动歌词使用 [Apple Music-like Lyrics](https://github.com/amll-dev/applemusic-like-lyrics) 的 Vue 组件；「错误」样式的流体背景改编自 [vue-bits](https://github.com/DavidHDev/vue-bits) 的 LiquidEther 组件；默认样式的「网格」背景使用 Apple Music-like Lyrics 的 `MeshGradientRenderer` 渲染器，其低频驱动曲线移植自 [amll-player](https://github.com/JoyElliot/amll-player)（作者 JoyElliot 授权使用第一方代码，双方均遵循 AGPL-3.0）。本项目基于 [AlgerMusicPlayer](https://github.com/algerkong/AlgerMusicPlayer) 二次开发演进而来。以上引用项目均遵循其开源许可证，完整致谢见[致谢站](https://mucang.xyz/zephyrus/credits/)。项目整体使用 [AGPL-3.0-only](./LICENSE) 发布；第三方依赖的许可证以各自仓库为准。
 
-问题反馈请提交 [GitHub Issues](https://github.com/cang-dot/zephyrus-player-android/issues)，并附上 Android 版本、歌曲来源、歌词格式、播放器样式和复现步骤。
+使用本应用即表示同意[用户协议](./用户协议.md)。问题反馈请提交 [GitHub Issues](https://github.com/cang-dot/zephyrus-player-android/issues)，并附上 Android 版本、歌曲来源、歌词格式、播放器样式和复现步骤。
