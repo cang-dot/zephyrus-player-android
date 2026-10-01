@@ -554,6 +554,54 @@ const onMergedDockClick = (event: MouseEvent) => {
   event.stopPropagation();
   dockMerged.value = false;
 };
+
+/* 圆与迷你胶囊像素级对齐：迷你栏容器 (.mobile-play-bar) 比胶囊高数像素（上下留白），
+   胶囊在其内垂直居中——圆若直接贴 dock 底就会比胶囊中心低半个留白。
+   合并激活时读出该留白 (dy)，以 inline bottom 补偿（参与过渡，resize 重算）。 */
+const syncMergedDockBottom = () => {
+  const dock = document.querySelector<HTMLElement>('.mobile-bottom-dock');
+  if (!dock) return;
+  if (!dockMerged.value) {
+    dock.style.bottom = '';
+    return;
+  }
+  const bar = document.querySelector<HTMLElement>('.mobile-play-bar');
+  const capsule = document.querySelector<HTMLElement>('.mobile-play-bar .mobile-mini-controls');
+  let dy = 0;
+  if (bar && capsule) {
+    const barRect = bar.getBoundingClientRect();
+    const capsuleRect = capsule.getBoundingClientRect();
+    // 胶囊在容器内的底边留白（合并前后不变）——圆贴胶囊底而非容器底
+    dy = Math.max(0, Math.round(barRect.bottom - capsuleRect.bottom));
+  }
+  dock.style.bottom = `calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap) + ${dy}px)`;
+};
+watch(dockMerged, (merged) => {
+  if (!merged) return;
+  nextTick(syncMergedDockBottom);
+});
+window.addEventListener('resize', syncMergedDockBottom);
+onBeforeUnmount(() => window.removeEventListener('resize', syncMergedDockBottom));
+
+/* 物理避让：合并/展开切换时迷你胶囊先收缩让位、到位后弹性回弹
+   （WAAPI 一次性动画，替换内联 transform 完成后自动交还；reduced-motion 跳过） */
+const playDockDodge = () => {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const capsule = document.querySelector<HTMLElement>('.mobile-play-bar .mobile-mini-controls');
+  if (!capsule) return;
+  capsule.animate(
+    [
+      { transform: 'translate3d(0, 0, 0) scale(1)' },
+      { transform: 'translate3d(0, 0, 0) scale(0.9)', offset: 0.42 },
+      { transform: 'translate3d(0, 0, 0) scale(1.03)', offset: 0.78 },
+      { transform: 'translate3d(0, 0, 0) scale(1)' }
+    ],
+    { duration: 460, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }
+  );
+};
+watch(dockMerged, () => {
+  playDockDodge();
+});
 watch(
   () => route.path,
   () => {
@@ -1597,11 +1645,12 @@ onBeforeUnmount(() => {
   isolation: isolate;
   pointer-events: none;
   transition:
-    height 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    border-radius 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    width 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    left 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    right 420ms cubic-bezier(0.32, 0.72, 0, 1);
+    height 480ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-radius 480ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    width 480ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    left 480ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    right 480ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    bottom 480ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* 滚动合并态：底栏收成当前页图标圆（迷你栏等高），与右侧迷你栏同线
      （!important 压过后面 player-open 等形态规则的同级高度/圆角；
@@ -1751,11 +1800,12 @@ onBeforeUnmount(() => {
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 76px) !important;
     left: 12px !important;
     width: auto !important;
-    /* 过渡放基态：合并态 class 移除后（展开方向）同样有动画 */
+    /* 过渡放基态：合并态 class 移除后（展开方向）同样有动画。
+       过冲弹簧 + 短延迟 = 先让圆形开始变形，再弹性跟上（物理避让） */
     transition:
-      bottom 420ms cubic-bezier(0.32, 0.72, 0, 1),
-      left 420ms cubic-bezier(0.32, 0.72, 0, 1),
-      right 420ms cubic-bezier(0.32, 0.72, 0, 1);
+      bottom 460ms cubic-bezier(0.34, 1.56, 0.64, 1) 60ms,
+      left 460ms cubic-bezier(0.34, 1.56, 0.64, 1) 60ms,
+      right 460ms cubic-bezier(0.34, 1.56, 0.64, 1) 60ms;
   }
 
   &.player-collapsed :deep(.mobile-play-bar.play-bar-mini.idle-collapsed) {
@@ -1868,7 +1918,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   /* 指示胶囊的几何是 JS 内联样式注入，必须 !important 才能压过；
-     transform/width/height 全部归位成 48px 圆（基态 transition 仍会驱动过渡） */
+     transform/width/height 全部归位成 48px 圆（基态 transition 仍会驱动过渡）。
+     选中态阴影（胶囊底色）在圆形模式下隐藏——圆本身就是表面 */
   .nav-slide-indicator {
     top: 0 !important;
     left: 0 !important;
@@ -1876,6 +1927,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
     width: 48px !important;
     height: 48px !important;
     border-radius: 50% !important;
+    opacity: 0 !important;
   }
 
   .glow-nav-item {
@@ -1904,7 +1956,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
     }
   }
 
-  /* 迷你栏下移到圆同线，并左移让出圆形位（覆盖 is-menu-show 的 !important 定位） */
+  /* 迷你栏下移到圆同线，并左移让出圆形位（覆盖 is-menu-show 的 !important 定位）。
+     位移用过冲弹簧 + 短延迟：圆先开始变形，迷你栏稍后跟上——避让时序 */
   :deep(.mobile-play-bar.play-bar-mini.is-menu-show) {
     bottom: calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap)) !important;
     left: 72px !important;
