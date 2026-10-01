@@ -535,6 +535,9 @@ const dockMergeGesture = useDockMergeGesture();
 // 否则刚提交的合并态会被 onMergedDockClick 立即撤销
 let dockMergeCommittedAt = 0;
 const setDockMergedState = (value: boolean) => {
+  // 幂等：滚动路径高频调用，同值重复设置若重启弹簧会把速度清零
+  // （每帧从零加速 = 几乎不前进，观感"没有动画/收起展开打架"）
+  if (dockMerged.value === value) return;
   dockMerged.value = value;
   if (value) dockMergeCommittedAt = Date.now();
   dockMergeGesture.animateMergeProgress(value ? 1 : 0);
@@ -599,7 +602,7 @@ watch(
   (mp) => {
     const dock = document.querySelector<HTMLElement>('.mobile-bottom-dock');
     if (!dock) return;
-    dock.style.setProperty('--mini-merge-shift', String(Math.min(1, mp)));
+    dock.style.setProperty('--dock-mp', String(Math.min(1, mp)));
     if (mp > 0.001 && dockMerged.value) {
       const bar = document.querySelector<HTMLElement>('.mobile-play-bar');
       const capsule = document.querySelector<HTMLElement>(
@@ -1905,17 +1908,17 @@ onBeforeUnmount(() => {
 
   /* 带底栏页：只给定位——表面沿用无底栏形态（MobilePlayBar 自身的
      .mobile-mini-controls 实色表面/h-14/圆角），避免两处自绘不一致。
-     合并位移由 --mini-merge-shift（0..1，dock 上逐帧写入）驱动：
-     mp→1 时迷你栏下移到圆同线并左移让位（过冲弹簧曲线） */
+     合并位移由 --dock-mp（0..1，dock 上逐帧写入）驱动：
+     mp→1 时迷你栏下移到圆同线并左移让位 */
   :deep(.mobile-play-bar.play-bar-mini.is-menu-show) {
     position: fixed !important;
     top: auto !important;
-    right: calc(12px + var(--mini-merge-shift, 0) * 0px);
+    right: calc(12px + var(--dock-mp, 0) * 0px);
     bottom: calc(
       var(--safe-area-inset-bottom, 0px) + 76px -
-        var(--mini-merge-shift, 0) * (76px - var(--mobile-dock-gap) - 8px)
+        var(--dock-mp, 0) * (76px - var(--mobile-dock-gap) - 8px)
     ) !important;
-    left: calc(12px + var(--mini-merge-shift, 0) * 60px) !important;
+    left: calc(12px + var(--dock-mp, 0) * 60px) !important;
     width: auto !important;
     transition:
       border-color 0.22s ease;
@@ -2035,38 +2038,9 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
     opacity: 0 !important;
   }
 
-  .glow-nav-item {
-    /* has-player-slot 态存在 flex: 1 1 0（basis 0 优先于 width，grow 均分容器），
-       合并态必须整体覆盖 flex 才能让 width 生效 */
-    flex: 0 0 48px;
-    min-width: 0 !important;
-    width: 48px !important;
-    height: 48px !important;
-    padding: 0 !important;
-    border-radius: 50% !important;
-
-    &:not(.active) {
-      /* 宽度归零不占位：否则 4 项在 48px 容器里被 flex 均分收缩，active 被压扁图标偏移 */
-      flex: 0 0 0;
-      width: 0 !important;
-      min-width: 0 !important;
-      padding: 0 !important;
-      opacity: 0;
-      pointer-events: none;
-      overflow: hidden;
-    }
-
-    .glow-item-label {
-      display: none;
-    }
-  }
-
-  /* 迷你栏下移到圆同线，并左移让出圆形位（覆盖 is-menu-show 的 !important 定位）。
-     位移用过冲弹簧 + 短延迟：圆先开始变形，迷你栏稍后跟上——避让时序 */
-  :deep(.mobile-play-bar.play-bar-mini.is-menu-show) {
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap)) !important;
-    left: 72px !important;
-    right: var(--mobile-dock-inset) !important;
+  /* items 的合并形变已由基态规则按 --dock-mp 逐帧驱动，这里只隐藏文字标签 */
+  .glow-item-label {
+    display: none;
   }
 }
 
@@ -2093,26 +2067,32 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 60px;
-  min-width: 60px;
-  padding: 8px 12px;
-  border-radius: 26px;
+  /* 合并形变由 --dock-mp（dock 逐帧写入）驱动：60→48、内边距归零——
+     与 dock/迷你栏同一进度真值，杜绝独立过渡与弹簧互拽 */
+  height: calc(60px - 12px * var(--dock-mp, 0));
+  min-width: calc(60px - 12px * var(--dock-mp, 0));
+  padding: calc(8px - 8px * var(--dock-mp, 0)) calc(12px - 12px * var(--dock-mp, 0));
+  border-radius: calc(26px - 2px * var(--dock-mp, 0));
   cursor: pointer;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   transition:
     transform 0.3s $spring,
-    background-color 0.24s ease,
-    opacity 0.3s ease,
-    width 280ms cubic-bezier(0.32, 0.72, 0, 1),
-    min-width 280ms cubic-bezier(0.32, 0.72, 0, 1),
-    height 280ms cubic-bezier(0.32, 0.72, 0, 1),
-    padding 280ms cubic-bezier(0.32, 0.72, 0, 1);
+    background-color 0.24s ease;
 
   &:active {
     transform: scale(0.94);
   }
+}
+
+/* 非选中项在合并中收起让位（宽/透明度随 mp 归零；min-width 优先于 max-width，
+   必须同时收缩 min-width 才能真正收没） */
+.mobile-bottom-dock .glow-nav-item:not(.active) {
+  min-width: calc((1 - var(--dock-mp, 0)) * 60px);
+  max-width: calc((1 - var(--dock-mp, 0)) * 200px);
+  opacity: calc(1 - var(--dock-mp, 0));
+  overflow: hidden;
 }
 
 /* 滑动指示胶囊 — 单个元素随选中项平移/变宽（几何由 JS 测量注入）。
@@ -2505,7 +2485,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .mobile-glow-nav-wrap.has-player-slot .glow-nav-item {
-  flex: 1 1 0;
+  /* 收起态四格等分；合并中 grow 随 mp 归零（余速按变量收缩） */
+  flex: calc(1 - var(--dock-mp, 0)) 1 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
