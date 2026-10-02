@@ -149,18 +149,23 @@ const coverStyle = computed(() => {
   } as Record<string, string>;
 });
 
-/** 封面克隆 transform：卡片矩形 → hero 矩形（未测到 hero 时用估算位置） */
+/** 封面克隆 transform：卡片矩形 → 终点矩形（去程=hero，回程=来源卡片）。
+ *  终点优先取 endLayer（去程 hero 层 / 回程由 beginReturnFlight 传入的来源卡片矩形）；
+ *  两者皆缺时退回屏幕中央估算（兜底，正常流程不再触达）。 */
 const coverTransform = computed(() => {
   const start = startLayer.value;
   if (!start || !reveal.value) return 'none';
   const { w, h } = { w: window.innerWidth, h: window.innerHeight };
-  const target = heroRect.value ?? {
-    x: w * 0.5 - Math.min(w * 0.68, 320) / 2,
-    // hero 位于顶栏下方：按视口高度估算，resolve 时以真实 hero 矩形覆盖
-    y: Math.min(96, Math.max(72, Math.round(h * 0.11))),
-    w: Math.min(w * 0.68, 320),
-    h: Math.min(w * 0.68, 320)
-  };
+  const endRect = endLayer.value?.rect;
+  const target =
+    endRect ??
+    heroRect.value ?? {
+      x: w * 0.5 - Math.min(w * 0.68, 320) / 2,
+      // hero 位于顶栏下方：按视口高度估算，resolve 时以真实 hero 矩形覆盖
+      y: Math.min(96, Math.max(72, Math.round(h * 0.11))),
+      w: Math.min(w * 0.68, 320),
+      h: Math.min(w * 0.68, 320)
+    };
   const scale = Math.max(0.01, target.w / start.rect.w);
   const dx = target.x - start.rect.x;
   const dy = target.y - start.rect.y;

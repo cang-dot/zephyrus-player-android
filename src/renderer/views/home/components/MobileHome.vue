@@ -40,8 +40,10 @@ onMounted(() => {
 .mobile-home {
   min-height: 100%;
   overflow-x: clip;
-  /* 底部让位由 pager-page 的统一 padding-bottom（--mobile-dock-content-inset）负责，这里只留呼吸位 */
-  padding: var(--mobile-topbar-inset, 60px) 0 10px;
+  /* 底部留足底栏+迷你栏高度的冗余（inset 不含 safe-area，额外补 12px 呼吸位），
+     防止最后一张卡片被悬浮的底栏与迷你栏遮盖 */
+  padding: var(--mobile-topbar-inset, 60px) 0
+    calc(var(--mobile-dock-content-inset, 144px) + var(--safe-area-inset-bottom, 0px) + 12px);
   color: var(--m-text-primary, #20211f);
 }
 

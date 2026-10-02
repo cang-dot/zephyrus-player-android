@@ -451,12 +451,20 @@ const handleAction = (action: string) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--cover-border, rgba(128, 128, 128, 0.12));
+  border: 1px solid rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.14);
   border-bottom: 0;
   border-radius: 24px 24px 0 0;
   padding: 6px 0 max(6px, var(--safe-area-inset-bottom, 0px));
-  background: var(--m-surface-raised, var(--d-surface, #fff));
+  /* 跟随页面 chrome 明暗（暗色歌单页 → 暗色菜单；非 chrome 页回退主题表面） */
+  background: color-mix(
+    in srgb,
+    var(--page-chrome-bg, var(--m-surface-raised, var(--d-surface, #fff))) 88%,
+    rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.45) 12%
+  );
   box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.18);
+  --d-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.94);
+  --d-text-secondary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.62);
+  --d-border: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.14);
 }
 
 .sheet-handle {

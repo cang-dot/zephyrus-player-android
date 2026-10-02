@@ -277,20 +277,18 @@
                     <!-- 页面布局（评论区开启时替换手势方向项） -->
                     <div
                       v-if="lyricConfig.showCommentSection"
-                      class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2"
+                      class="p-3 rounded-2xl bg-white/5 mb-2"
                     >
-                      <div class="min-w-0 pr-3">
-                        <div class="text-sm text-white/80">
-                          {{ tr('settings.lyricSettings.pageLayout', '页面布局') }}
-                        </div>
-                        <div class="text-xs text-white/40 mt-1">
-                          {{
-                            tr(
-                              'settings.lyricSettings.pageLayoutDescription',
-                              '评论页与歌词页的左右排布'
-                            )
-                          }}
-                        </div>
+                      <div class="text-sm text-white/80">
+                        {{ tr('settings.lyricSettings.pageLayout', '页面布局') }}
+                      </div>
+                      <div class="text-xs text-white/40 mt-1 mb-2">
+                        {{
+                          tr(
+                            'settings.lyricSettings.pageLayoutDescription',
+                            '评论页与歌词页的左右排布'
+                          )
+                        }}
                       </div>
                       <div class="lyric-swipe-control" role="radiogroup">
                         <button
@@ -309,20 +307,18 @@
 
                     <div
                       v-if="!lyricConfig.showCommentSection"
-                      class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2"
+                      class="p-3 rounded-2xl bg-white/5 mb-2"
                     >
-                      <div class="min-w-0 pr-3">
-                        <div class="text-sm text-white/80">
-                          {{ tr('settings.lyricSettings.lyricSwipeGesture', '滚动歌词手势') }}
-                        </div>
-                        <div class="text-xs text-white/40 mt-1">
-                          {{
-                            tr(
-                              'settings.lyricSettings.lyricSwipeGestureDescription',
-                              '选择大字歌词进入方向，返回时使用相反方向'
-                            )
-                          }}
-                        </div>
+                      <div class="text-sm text-white/80">
+                        {{ tr('settings.lyricSettings.lyricSwipeGesture', '滚动歌词手势') }}
+                      </div>
+                      <div class="text-xs text-white/40 mt-1 mb-2">
+                        {{
+                          tr(
+                            'settings.lyricSettings.lyricSwipeGestureDescription',
+                            '选择大字歌词进入方向，返回时使用相反方向'
+                          )
+                        }}
                       </div>
                       <div class="lyric-swipe-control" role="radiogroup">
                         <button
@@ -471,7 +467,7 @@
                 </div>
               </section>
 
-              <!-- 智能均衡器(AI 调参) -->
+              <!-- 均衡器（固定预设 + 叠加空间效果 + 自定义） -->
               <section
                 class="control-settings-section"
                 :class="{ expanded: isControlSectionExpanded('eq') }"
@@ -485,7 +481,7 @@
                 >
                   <span class="control-section-title">
                     <i class="ri-equalizer-line"></i>
-                    {{ tr('player.settings.smartEq', '智能均衡器') }}
+                    {{ tr('player.settings.eq', '均衡器') }}
                   </span>
                   <i
                     class="ri-arrow-down-s-line control-section-chevron"
@@ -499,31 +495,6 @@
                   :inert="!isControlSectionExpanded('eq')"
                 >
                   <div id="control-section-eq" class="control-section-body">
-                    <button
-                      type="button"
-                      class="metaphor-analyze-button primary"
-                      style="width: 100%"
-                      :disabled="eqTuning"
-                      @click="tuneEqWithAi"
-                    >
-                      {{ eqTuning ? '调音中…' : '根据当前歌曲智能调音' }}
-                    </button>
-                    <p
-                      v-if="eqRationale"
-                      class="text-xs mt-2"
-                      style="color: rgba(255, 255, 255, 0.55)"
-                    >
-                      {{ eqRationale }}
-                    </p>
-                    <button
-                      v-if="eqTuned"
-                      type="button"
-                      class="preset-save-btn"
-                      style="margin-top: 8px"
-                      @click="restoreEq"
-                    >
-                      还原调音前设置
-                    </button>
                     <eq-control :key="eqPanelKey" />
                   </div>
                 </div>
@@ -1378,7 +1349,6 @@ import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import ShareHubModal from '@/components/share/ShareHubModal.vue';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
-import { snapshotEqSettings, tuneEqForCurrentSong } from '@/features/ai/eqTuner';
 import { getProvider } from '@/features/ai/providers';
 import {
   getMetaphorConfig,
@@ -1465,45 +1435,8 @@ const metaphorModelOptions = computed(() => {
   return options;
 });
 
-// ==================== AI 智能调音 ====================
+// ==================== 均衡器 ====================
 const eqPanelKey = ref(0);
-const eqTuning = ref(false);
-const eqRationale = ref('');
-const eqTuned = ref(false);
-const eqSnapshot = ref('');
-
-async function tuneEqWithAi() {
-  eqTuning.value = true;
-  eqRationale.value = '';
-  try {
-    if (!eqTuned.value) eqSnapshot.value = snapshotEqSettings();
-    const result = await tuneEqForCurrentSong();
-    eqRationale.value = result.rationale;
-    eqTuned.value = true;
-    eqPanelKey.value += 1; // 重挂均衡器以读取新增益
-    message.success('已按当前歌曲完成智能调音');
-  } catch (err: any) {
-    message.error(err?.message || '智能调音失败');
-  } finally {
-    eqTuning.value = false;
-  }
-}
-
-function restoreEq() {
-  try {
-    localStorage.setItem('eqSettings', eqSnapshot.value);
-    const settings = JSON.parse(eqSnapshot.value) as Record<string, number>;
-    Object.entries(settings).forEach(([frequency, gain]) => {
-      audioService.setEQFrequencyGain(frequency, Number(gain));
-    });
-  } catch {
-    // 快照损坏时忽略还原
-  }
-  eqTuned.value = false;
-  eqRationale.value = '';
-  eqPanelKey.value += 1;
-  message.success('已还原调音前设置');
-}
 
 function loadMetaphorModels() {
   const config = getMetaphorConfig();
@@ -3528,7 +3461,6 @@ onUnmounted(() => {
 .lyric-swipe-control {
   display: grid;
   grid-template-columns: repeat(3, auto);
-  flex-shrink: 0;
   gap: 2px;
   padding: 2px;
   border-radius: 7px;

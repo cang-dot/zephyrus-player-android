@@ -46,9 +46,24 @@ class AudioService {
 
   private gainNode: GainNode | null = null;
 
-  private adaptiveEqGains = { low: 1, mid: 1, high: 1 };
-  private adaptiveEqEnabled = localStorage.getItem('adaptiveEqEnabled') === 'true';
-  private adaptiveEqIntensity = Number(localStorage.getItem('adaptiveEqIntensity') || 0.65);
+  /** 空间效果后置链（外放/浴室）：gainNode 之后、destination 之前的压缩+激励 */
+  private spatialCompressor: DynamicsCompressorNode | null = null;
+  private spatialExciter: BiquadFilterNode | null = null;
+
+  /** 浴室补偿曲线：低频增强（狭小空间难出低频）+ 中低频形体 + 高频柔化（瓷砖反射刺耳） */
+  private readonly bathroomCurve: { [key: string]: number } = {
+    '31': 4.5,
+    '62': 4.5,
+    '125': 4,
+    '250': 0,
+    '500': 2,
+    '1000': 0,
+    '2000': 0,
+    '4000': 0,
+    '8000': -2.5,
+    '16000': -2.5
+  };
+
 
   private bypass = false;
   /** iOS 专用：静音镜像元素与其监听清理（它承担分析图输入，出声元素保持未接图） */
@@ -455,42 +470,13 @@ class AudioService {
     this.syncNativeEQ();
   }
 
-  public isAdaptiveEQEnabled(): boolean {
-    return this.adaptiveEqEnabled;
-  }
-
-  public setAdaptiveEQEnabled(enabled: boolean) {
-    this.adaptiveEqEnabled = enabled;
-    localStorage.setItem('adaptiveEqEnabled', JSON.stringify(enabled));
-    if (!enabled) this.setAdaptiveEQGains(1, 1, 1);
-  }
-
-  public getAdaptiveEQIntensity(): number {
-    return this.adaptiveEqIntensity;
-  }
-
-  public setAdaptiveEQIntensity(value: number) {
-    this.adaptiveEqIntensity = Math.max(0, Math.min(1, value));
-    localStorage.setItem('adaptiveEqIntensity', String(this.adaptiveEqIntensity));
-  }
-
-  public setAdaptiveEQGains(low: number, mid: number, high: number) {
-    this.adaptiveEqGains = {
-      low: Math.max(0.75, Math.min(1.25, low)),
-      mid: Math.max(0.75, Math.min(1.25, mid)),
-      high: Math.max(0.75, Math.min(1.25, high))
-    };
-    this.applyAdaptiveEQToFilters();
-    this.syncNativeEQ();
-  }
-
   public setEQFrequencyGain(frequency: string, gain: number) {
     const filterIndex = this.frequencies.findIndex((f) => f.toString() === frequency);
     if (filterIndex === -1) return;
     if (this.filters[filterIndex])
       this.filters[filterIndex].gain.setValueAtTime(gain, this.context?.currentTime || 0);
     this.saveEQSettings(frequency, gain);
-    this.applyAdaptiveEQToFilters();
+    this.applyEffectiveGainsToFilters();
     this.syncNativeEQ();
   }
 
@@ -517,21 +503,94 @@ class AudioService {
     return savedSettings ? JSON.parse(savedSettings) : { ...this.defaultEQSettings };
   }
 
-  private applyAdaptiveEQToFilters() {
+  /** 频段有效增益 = 用户基础曲线 + 浴室补偿曲线（开启时叠加） */
+  private getEffectiveGainDb(frequency: string): number {
+    const baseDb = this.loadEQSettings()[frequency] || 0;
+    const bathDb = this.isSpatialEffectOn('bathroom') ? this.bathroomCurve[frequency] || 0 : 0;
+    return baseDb + bathDb;
+  }
+
+  /** 把有效增益应用到 10 段滤波器 */
+  private applyEffectiveGainsToFilters() {
     if (!this.context || this.filters.length === 0) return;
     const now = this.context.currentTime;
-    this.filters.forEach((filter, index) => {
-      const frequency = this.frequencies[index];
-      const band =
-        frequency <= 250
-          ? this.adaptiveEqGains.low
-          : frequency <= 2000
-            ? this.adaptiveEqGains.mid
-            : this.adaptiveEqGains.high;
-      const dynamicDb = this.adaptiveEqEnabled ? 20 * Math.log10(band) : 0;
-      const baseDb = this.loadEQSettings()[String(frequency)] || 0;
-      filter.gain.setTargetAtTime(baseDb + dynamicDb, now, 0.08);
+    this.frequencies.forEach((frequency, index) => {
+      this.filters[index].gain.setTargetAtTime(this.getEffectiveGainDb(String(frequency)), now, 0.08);
     });
+  }
+
+  // ==================== 空间效果（外放 / 浴室） ====================
+
+  public isSpatialEffectOn(kind: 'loudspeaker' | 'bathroom'): boolean {
+    return localStorage.getItem(kind === 'loudspeaker' ? 'eqLoudspeaker' : 'eqBathroom') === 'true';
+  }
+
+  public setSpatialEffect(kind: 'loudspeaker' | 'bathroom', on: boolean) {
+    localStorage.setItem(kind === 'loudspeaker' ? 'eqLoudspeaker' : 'eqBathroom', JSON.stringify(on));
+    // 浴室走频段曲线：立即重算 10 段；外放走后置链：重跑接线
+    this.applyEffectiveGainsToFilters();
+    if (this.source && this.gainNode && this.context) {
+      this.applyBypassState();
+    }
+    this.syncNativeEQ();
+  }
+
+  private isSpatialChainActive(): boolean {
+    return this.isSpatialEffectOn('loudspeaker') || this.isSpatialEffectOn('bathroom');
+  }
+
+  /** 确保空间链节点存在（惰性常驻，无状态参数节点） */
+  private ensureSpatialNodes(): boolean {
+    if (!this.context) return false;
+    if (!this.spatialCompressor) {
+      this.spatialCompressor = this.context.createDynamicsCompressor();
+      this.spatialExciter = this.context.createBiquadFilter();
+      this.spatialExciter.type = 'peaking';
+      this.spatialExciter.frequency.value = 3000;
+      this.spatialExciter.Q.value = 0.8;
+      this.spatialCompressor.connect(this.spatialExciter);
+    }
+    return true;
+  }
+
+  /** 按激活的效果组合设置压缩器/激励参数（总增益不变，靠压动态提升体感响度） */
+  private applySpatialParams() {
+    if (!this.spatialCompressor || !this.spatialExciter) return;
+    const now = this.context?.currentTime || 0;
+    const loud = this.isSpatialEffectOn('loudspeaker');
+    const bath = this.isSpatialEffectOn('bathroom');
+    if (loud && bath) {
+      this.spatialCompressor.threshold.setValueAtTime(-28, now);
+      this.spatialCompressor.ratio.setValueAtTime(4, now);
+      this.spatialCompressor.attack.setValueAtTime(0.005, now);
+      this.spatialCompressor.release.setValueAtTime(0.15, now);
+      this.spatialExciter.gain.setValueAtTime(3, now);
+    } else if (loud) {
+      this.spatialCompressor.threshold.setValueAtTime(-24, now);
+      this.spatialCompressor.ratio.setValueAtTime(4, now);
+      this.spatialCompressor.attack.setValueAtTime(0.006, now);
+      this.spatialCompressor.release.setValueAtTime(0.18, now);
+      this.spatialExciter.gain.setValueAtTime(3, now);
+    } else {
+      this.spatialCompressor.threshold.setValueAtTime(-28, now);
+      this.spatialCompressor.ratio.setValueAtTime(3, now);
+      this.spatialCompressor.attack.setValueAtTime(0.004, now);
+      this.spatialCompressor.release.setValueAtTime(0.12, now);
+      this.spatialExciter.gain.setValueAtTime(0, now);
+    }
+    this.spatialCompressor.knee.setValueAtTime(loud ? 12 : 10, now);
+  }
+
+  /** 输出接线：空间效果开启时经压缩+激励后置链，否则直连 */
+  private connectOutput(from: AudioNode, to: AudioNode) {
+    if (this.isSpatialChainActive() && this.ensureSpatialNodes() && this.spatialCompressor && this.spatialExciter) {
+      this.applySpatialParams();
+      from.connect(this.spatialCompressor);
+      this.spatialCompressor.connect(this.spatialExciter);
+      this.spatialExciter.connect(to);
+    } else {
+      from.connect(to);
+    }
   }
 
   /**
@@ -648,6 +707,26 @@ class AudioService {
         this.gainNode = null;
       }
 
+      // 清理空间效果节点连接（节点常驻复用，只断接线；上下文关闭时一并置空）
+      if (this.spatialCompressor) {
+        try {
+          this.spatialCompressor.disconnect();
+        } catch (e) {
+          console.warn('清理空间压缩器时出错:', e);
+        }
+      }
+      if (this.spatialExciter) {
+        try {
+          this.spatialExciter.disconnect();
+        } catch (e) {
+          console.warn('清理空间激励时出错:', e);
+        }
+      }
+      if (!keepContext && this.context) {
+        this.spatialCompressor = null;
+        this.spatialExciter = null;
+      }
+
       // 如果不需要保持上下文，则关闭它
       if (!keepContext && this.context) {
         // 上下文关闭后镜像元素的 MediaElementSource 失效，一并释放（下首歌重建）
@@ -750,10 +829,10 @@ class AudioService {
         filter.type = 'peaking';
         filter.frequency.value = freq;
         filter.Q.value = 1;
-        filter.gain.value = this.loadEQSettings()[freq.toString()] || 0;
+        filter.gain.value = this.getEffectiveGainDb(freq.toString());
         return filter;
       });
-      this.applyAdaptiveEQToFilters();
+      this.applyEffectiveGainsToFilters();
 
       // 连接高潮检测器和鼓点检测器（连接到 gainNode，不受 applyBypassState 断连影响）
       climaxDetector.connect(this.context, this.gainNode);
@@ -801,10 +880,10 @@ class AudioService {
       filter.type = 'peaking';
       filter.frequency.value = freq;
       filter.Q.value = 1;
-      filter.gain.value = this.loadEQSettings()[freq.toString()] || 0;
+      filter.gain.value = this.getEffectiveGainDb(freq.toString());
       return filter;
     });
-    this.applyAdaptiveEQToFilters();
+    this.applyEffectiveGainsToFilters();
 
     climaxDetector.connect(this.context, this.gainNode);
     drumDetector.connect(this.context, this.gainNode);
@@ -888,7 +967,7 @@ class AudioService {
       // 接了 destination 就是「两轨声音」。出声由未接图的 Howler 元素负责
       // （EQ 因此不作用于声音，平台级取舍见 ios-web-audio 记忆）。
       if (!isIosSafari()) {
-        gainNode.connect(this.context.destination);
+        this.connectOutput(gainNode, this.context.destination);
       }
 
       // 挂高潮/鼓点检测器（styleEngine 与各皮肤只认 gainNode，无需感知音源变化）
@@ -984,7 +1063,7 @@ class AudioService {
 
       // 直接连接：source -> gainNode -> destination（无 EQ 滤波器）
       source.connect(gainNode);
-      gainNode.connect(context.destination);
+      this.connectOutput(gainNode, context.destination);
 
       // 连接高潮检测器和鼓点检测器（旁路连接到 gainNode）
       climaxDetector.connect(context, gainNode);
@@ -1032,7 +1111,7 @@ class AudioService {
       if (this.bypass || this.filters.length === 0) {
         // EQ被禁用 或 移动端无滤波器时，直接连接到输出
         this.source.connect(this.gainNode);
-        this.gainNode.connect(this.context.destination);
+        this.connectOutput(this.gainNode, this.context.destination);
       } else {
         // EQ启用时，通过滤波器链连接
         this.source.connect(this.filters[0]);
@@ -1042,7 +1121,7 @@ class AudioService {
           }
         });
         this.filters[this.filters.length - 1].connect(this.gainNode);
-        this.gainNode.connect(this.context.destination);
+        this.connectOutput(this.gainNode, this.context.destination);
       }
 
       // 重连检测器到 gainNode（gainNode.disconnect() 会断开所有输出）
@@ -2072,16 +2151,14 @@ class AudioService {
       window.AndroidNative.nativeAudioSetEqGains(1, 1, 1);
       return;
     }
-    const settings = this.loadEQSettings();
     const averageDb = (frequencies: number[]) =>
-      frequencies.reduce((sum, frequency) => sum + (settings[String(frequency)] || 0), 0) /
+      frequencies.reduce((sum, frequency) => sum + this.getEffectiveGainDb(String(frequency)), 0) /
       frequencies.length;
-    const dynamicDb = (gain: number) => (this.adaptiveEqEnabled ? 20 * Math.log10(gain) : 0);
     const dbToLinear = (db: number) => Math.pow(10, Math.max(-12, Math.min(6, db)) / 20);
     window.AndroidNative.nativeAudioSetEqGains(
-      dbToLinear(averageDb([31, 62, 125, 250]) + dynamicDb(this.adaptiveEqGains.low)),
-      dbToLinear(averageDb([500, 1000, 2000]) + dynamicDb(this.adaptiveEqGains.mid)),
-      dbToLinear(averageDb([4000, 8000, 16000]) + dynamicDb(this.adaptiveEqGains.high))
+      dbToLinear(averageDb([31, 62, 125, 250])),
+      dbToLinear(averageDb([500, 1000, 2000])),
+      dbToLinear(averageDb([4000, 8000, 16000]))
     );
   }
 

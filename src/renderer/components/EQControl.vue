@@ -23,39 +23,11 @@
       </div>
     </div>
 
-    <div
-      class="adaptive-eq-row flex items-center gap-3 mb-4 rounded-xl p-3"
-      style="background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.08)"
-    >
-      <div class="min-w-0 flex-1">
-        <div class="font-medium text-sm" style="color: var(--m-text-primary, #f0ece4)">
-          AI 动态均衡器
-        </div>
-        <div class="text-xs" style="color: var(--m-text-muted, rgba(255, 255, 255, 0.55))">
-          根据实时频段自动平滑调整，限制在安全增益范围内
-        </div>
-      </div>
-      <n-switch v-model:value="isAdaptiveEnabled" @update:value="toggleAdaptiveEQ" />
+    <!-- 固定预设 -->
+    <div class="text-xs mb-2" style="color: var(--m-text-muted, rgba(255, 255, 255, 0.55))">
+      {{ t('player.eq.presetsTitle', '预设') }}
     </div>
-    <div v-if="isAdaptiveEnabled" class="adaptive-eq-intensity flex items-center gap-3 mb-4">
-      <span class="text-xs" style="color: var(--m-text-muted, rgba(255, 255, 255, 0.55))"
-        >强度</span
-      >
-      <n-slider
-        v-model:value="adaptiveIntensity"
-        :min="0"
-        :max="1"
-        :step="0.05"
-        @update:value="updateAdaptiveIntensity"
-      />
-      <span
-        class="w-10 text-right text-xs"
-        style="color: var(--m-text-muted, rgba(255, 255, 255, 0.55))"
-        >{{ Math.round(adaptiveIntensity * 100) }}%</span
-      >
-    </div>
-
-    <div class="eq-presets mb-2 relative h-10" style="max-width: 100%; overflow: hidden">
+    <div class="eq-presets mb-3 relative h-10" style="max-width: 100%; overflow: hidden">
       <n-scrollbar x-scrollable>
         <n-space :size="6" :wrap="false">
           <n-tag
@@ -74,13 +46,54 @@
       </n-scrollbar>
     </div>
 
+    <!-- 叠加空间效果 -->
+    <div class="text-xs mb-2" style="color: var(--m-text-muted, rgba(255, 255, 255, 0.55))">
+      {{ t('player.eq.spatialTitle', '叠加空间效果') }}
+    </div>
+    <div
+      class="spatial-row flex items-center gap-3 mb-2 rounded-xl p-3"
+      style="background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.08)"
+    >
+      <div class="min-w-0 flex-1">
+        <div class="font-medium text-sm" style="color: var(--m-text-primary, #f0ece4)">
+          {{ t('player.eq.loudspeaker', '外放') }}
+        </div>
+        <div class="text-xs" style="color: var(--m-text-muted, rgba(255, 255, 255, 0.55))">
+          {{ t('player.eq.loudspeakerDesc', '不增加音量的前提下提升外放体感响度') }}
+        </div>
+      </div>
+      <n-switch
+        :value="isLoudspeakerOn"
+        :disabled="!isEnabled"
+        @update:value="toggleSpatial('loudspeaker', $event)"
+      />
+    </div>
+    <div
+      class="spatial-row flex items-center gap-3 mb-4 rounded-xl p-3"
+      style="background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.08)"
+    >
+      <div class="min-w-0 flex-1">
+        <div class="font-medium text-sm" style="color: var(--m-text-primary, #f0ece4)">
+          {{ t('player.eq.bathroom', '浴室') }}
+        </div>
+        <div class="text-xs" style="color: var(--m-text-muted, rgba(255, 255, 255, 0.55))">
+          {{ t('player.eq.bathroomDesc', '在浴室等狭小空间听歌时的饱满补偿') }}
+        </div>
+      </div>
+      <n-switch
+        :value="isBathroomOn"
+        :disabled="!isEnabled"
+        @update:value="toggleSpatial('bathroom', $event)"
+      />
+    </div>
+
     <button
       v-if="isEnabled"
       type="button"
       class="eq-advanced-toggle"
       @click="showManualEq = !showManualEq"
     >
-      <span>手动调音(10 段)</span>
+      <span>{{ t('player.eq.manualTitle', '自定义 (10 段)') }}</span>
       <i :class="showManualEq ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" />
     </button>
 
@@ -126,7 +139,6 @@
 import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { adaptiveEqService } from '@/services/adaptiveEqService';
 import { audioService } from '@/services/audioService';
 import { isElectron } from '@/utils';
 
@@ -135,136 +147,91 @@ const { t } = useI18n();
 const frequencies = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 const eqValues = ref<{ [key: string]: number }>({});
 const isEnabled = ref(audioService.isEQEnabled());
-const currentPreset = ref(audioService.getCurrentPreset() || 'flat');
-const isAdaptiveEnabled = ref(audioService.isAdaptiveEQEnabled());
+const currentPreset = ref(audioService.getCurrentPreset() || 'bass');
+const isLoudspeakerOn = ref(audioService.isSpatialEffectOn('loudspeaker'));
+const isBathroomOn = ref(audioService.isSpatialEffectOn('bathroom'));
 const showManualEq = ref(false);
-const adaptiveIntensity = ref(audioService.getAdaptiveEQIntensity());
 
-// 预设配置
+// 固定预设（10 段，±8dB 内防爆音）
 const presets = {
-  flat: {
-    label: t('player.eq.presets.flat'),
-    values: Object.fromEntries(frequencies.map((f) => [f, 0]))
-  },
-  pop: {
-    label: t('player.eq.presets.pop'),
+  bass: {
+    label: t('player.eq.presets.bass'),
     values: {
-      31: -1.5,
-      62: 3.5,
-      125: 5.5,
-      250: 3.5,
-      500: -0.5,
-      1000: -1.5,
-      2000: 1.5,
-      4000: 2.5,
-      8000: 2.5,
-      16000: 2.5
+      31: 7,
+      62: 7,
+      125: 5,
+      250: 0,
+      500: 0,
+      1000: 0,
+      2000: 0,
+      4000: 0,
+      8000: 0,
+      16000: 0
     }
   },
   rock: {
     label: t('player.eq.presets.rock'),
     values: {
-      31: 4.5,
-      62: 3.5,
-      125: 2,
-      250: 0.5,
-      500: -0.5,
-      1000: -1,
-      2000: 0.5,
-      4000: 2,
-      8000: 2.5,
-      16000: 3.5
-    }
-  },
-  classical: {
-    label: t('player.eq.presets.classical'),
-    values: {
-      31: 3.5,
-      62: 3,
-      125: 2.5,
-      250: 1.5,
-      500: -0.5,
-      1000: -1.5,
-      2000: -1.5,
-      4000: 0.5,
-      8000: 2,
-      16000: 3
-    }
-  },
-  jazz: {
-    label: t('player.eq.presets.jazz'),
-    values: {
       31: 3,
-      62: 2,
-      125: 1.5,
-      250: 2,
-      500: -1,
-      1000: -1.5,
-      2000: -0.5,
-      4000: 1,
-      8000: 2.5,
-      16000: 3
-    }
-  },
-  hiphop: {
-    label: t('player.eq.presets.hiphop'),
-    values: {
-      31: 5,
-      62: 4.5,
-      125: 3,
-      250: 1.5,
-      500: -0.5,
-      1000: -1,
-      2000: 0.5,
-      4000: 1.5,
-      8000: 2,
-      16000: 2.5
-    }
-  },
-  vocal: {
-    label: t('player.eq.presets.vocal'),
-    values: {
-      31: -2,
-      62: -1.5,
-      125: -1,
-      250: 0.5,
-      500: 2,
-      1000: 3.5,
-      2000: 3,
-      4000: 1.5,
-      8000: 0.5,
+      62: 3,
+      125: 2,
+      250: 0,
+      500: 0,
+      1000: 0,
+      2000: 0,
+      4000: 5,
+      8000: 4,
       16000: 0
     }
   },
-  dance: {
-    label: t('player.eq.presets.dance'),
+  electronic: {
+    label: t('player.eq.presets.electronic'),
     values: {
-      31: 4,
-      62: 3.5,
-      125: 2.5,
-      250: 1,
-      500: 0,
-      1000: -0.5,
-      2000: 1.5,
-      4000: 2.5,
-      8000: 3,
-      16000: 2.5
+      31: 5,
+      62: 5,
+      125: 3,
+      250: -2,
+      500: -2,
+      1000: 0,
+      2000: 0,
+      4000: 0,
+      8000: 4,
+      16000: 4
     }
   },
-  acoustic: {
-    label: t('player.eq.presets.acoustic'),
+  lyrical: {
+    label: t('player.eq.presets.lyrical'),
     values: {
-      31: 2,
-      62: 1.5,
-      125: 1,
-      250: 1.5,
-      500: 2,
-      1000: 1.5,
+      31: -1,
+      62: -1,
+      125: 0,
+      250: 2,
+      500: 3,
+      1000: 3,
       2000: 2,
-      4000: 2.5,
-      8000: 2,
-      16000: 1.5
+      4000: 0,
+      8000: -1,
+      16000: -2
     }
+  },
+  sad: {
+    label: t('player.eq.presets.sad'),
+    values: {
+      31: 3,
+      62: 3,
+      125: 0,
+      250: 0,
+      500: -2,
+      1000: -2,
+      2000: 0,
+      4000: 0,
+      8000: 0,
+      16000: 0
+    }
+  },
+  custom: {
+    label: t('player.eq.presets.custom'),
+    values: Object.fromEntries(frequencies.map((f) => [f, 0]))
   }
 };
 
@@ -277,38 +244,29 @@ const toggleEQ = (enabled: boolean) => {
   audioService.setEQEnabled(enabled);
 };
 
-const toggleAdaptiveEQ = (enabled: boolean) => {
-  isAdaptiveEnabled.value = enabled;
-  adaptiveEqService.setEnabled(enabled);
-};
-
-const updateAdaptiveIntensity = (value: number) => {
-  adaptiveIntensity.value = value;
-  adaptiveEqService.setIntensity(value);
+const toggleSpatial = (kind: 'loudspeaker' | 'bathroom', on: boolean) => {
+  if (kind === 'loudspeaker') isLoudspeakerOn.value = on;
+  else isBathroomOn.value = on;
+  audioService.setSpatialEffect(kind, on);
 };
 
 const applyPreset = (presetName: string) => {
+  const preset = presets[presetName as keyof typeof presets];
+  if (!preset) return;
   currentPreset.value = presetName;
   audioService.setCurrentPreset(presetName);
-  const preset = presets[presetName as keyof typeof presets];
-  if (preset) {
-    Object.entries(preset.values).forEach(([freq, gain]) => {
-      updateEQ(freq, gain);
-    });
-  }
+  Object.entries(preset.values).forEach(([freq, gain]) => {
+    updateEQ(freq, gain);
+  });
 };
 
 onMounted(() => {
   // 恢复 EQ 设置
-  const settings = audioService.getAllEQSettings();
-  eqValues.value = settings;
+  eqValues.value = audioService.getAllEQSettings();
 
-  // 如果有保存的预设，应用该预设
-  const savedPreset = audioService.getCurrentPreset();
-  if (savedPreset && presets[savedPreset as keyof typeof presets]) {
-    currentPreset.value = savedPreset;
-  }
-  if (isAdaptiveEnabled.value) adaptiveEqService.start();
+  // 旧版本保存的预设名不在新表中时按自定义处理
+  const savedPreset = audioService.getCurrentPreset() ?? 'custom';
+  currentPreset.value = presets[savedPreset as keyof typeof presets] ? savedPreset : 'custom';
 });
 
 const updateEQ = (frequency: string, gain: number) => {
@@ -318,12 +276,12 @@ const updateEQ = (frequency: string, gain: number) => {
     [frequency]: gain
   };
 
-  // 检查当前值是否与任何预设匹配
+  // 偏离所有预设 → 自定义
   const currentValues = eqValues.value;
   let matchedPreset: string | null = null;
 
-  // 检查是否与任何预设完全匹配
   Object.entries(presets).forEach(([presetName, preset]) => {
+    if (presetName === 'custom') return;
     const isMatch = Object.entries(preset.values).every(
       ([freq, value]) => Math.abs(currentValues[freq] - value) < 0.1
     );
@@ -332,12 +290,10 @@ const updateEQ = (frequency: string, gain: number) => {
     }
   });
 
-  // 更新当前预设状态
   if (matchedPreset !== null) {
     currentPreset.value = matchedPreset;
     audioService.setCurrentPreset(matchedPreset);
   } else if (currentPreset.value !== 'custom') {
-    // 如果与任何预设都不匹配，将状态设置为自定义
     currentPreset.value = 'custom';
     audioService.setCurrentPreset('custom');
   }
