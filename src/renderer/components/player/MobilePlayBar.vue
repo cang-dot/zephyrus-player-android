@@ -759,7 +759,17 @@ watch(
     min-height: 310px;
     border-color: var(--m-outline-variant, var(--m-border));
     border-radius: 32px;
-    background: var(--m-surface-container, var(--m-card));
+    /* 形变成菜单面板时跟随页面 chrome 明暗（暗色歌单页面板也暗） */
+    background: var(--page-chrome-bg, var(--m-surface-container, var(--m-card)));
+    color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+    --mini-ink-rgb: var(--page-chrome-ink-rgb, 23, 23, 26);
+    --m-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+    --m-text-secondary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.72);
+    --m-text-muted: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.55);
+    --d-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+    --d-text-secondary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.62);
+    --d-text-muted: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.5);
+    --d-border: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.14);
     box-shadow: var(--m-elevation-3);
   }
 
@@ -793,9 +803,10 @@ watch(
       var(--m-outline-variant, var(--m-border)) calc(var(--mini-surface-fade) * 100%),
       transparent
     );
+    /* 播放面打开的渐隐同样跟随页面 chrome 明暗 */
     background: color-mix(
       in srgb,
-      var(--m-surface-container, var(--m-card)) calc(var(--mini-surface-fade) * 100%),
+      var(--page-chrome-bg, var(--m-surface-container, var(--m-card))) calc(var(--mini-surface-fade) * 100%),
       transparent
     );
     box-shadow: 0 18px 48px rgba(0, 0, 0, calc(0.2 * var(--mini-surface-fade)));
