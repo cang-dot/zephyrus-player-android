@@ -435,7 +435,13 @@ const handleAction = (action: string) => {
     max-height: none;
     border: 0;
     border-radius: 0;
-    background: transparent;
+    /* 播放列表菜单与长按菜单同款 chrome 明暗跟随（覆盖 transparent，
+       否则透出的抽屉面板固定色不随歌单页明暗） */
+    background: color-mix(
+      in srgb,
+      var(--page-chrome-bg, var(--m-surface-raised, var(--d-surface, #fff))) 88%,
+      rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.45) 12%
+    );
     box-shadow: none;
   }
 
