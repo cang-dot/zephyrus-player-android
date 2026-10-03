@@ -1880,27 +1880,6 @@ onBeforeUnmount(() => {
     height: calc(min(62dvh, 500px) - 56px);
   }
 
-  /* chrome 页（歌单/专辑详情等，MusicListPage 挂载时在 layout-main 写
-     data-page-chrome + --page-chrome-*）的播放列表面板跟随页面明暗；
-     非 chrome 页不命中此规则，保持原玻璃表面 */
-  :global(#layout-main[data-page-chrome='music-list'])
-    .mobile-bottom-dock.playlist-mounted:not(.visible)
-    :deep(.playlist-panel.embedded) {
-    position: fixed;
-    top: auto;
-    right: 12px;
-    bottom: calc(var(--safe-area-inset-bottom, 0px) + 60px);
-    left: 12px;
-    height: calc(min(62dvh, 500px) - 56px);
-    background: var(--page-chrome-bg);
-    border-color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.16);
-    color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
-    --d-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
-    --d-text-secondary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.62);
-    --d-text-muted: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.5);
-    --d-border: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.14);
-  }
-
   /* 带底栏页：只给定位——表面沿用无底栏形态（MobilePlayBar 自身的
      .mobile-mini-controls 实色表面/h-14/圆角），避免两处自绘不一致。
      合并位移由 --dock-mp（0..1，dock 上逐帧写入）驱动：

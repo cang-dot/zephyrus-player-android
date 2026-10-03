@@ -4,7 +4,7 @@
       <div
         v-if="show"
         class="mobile-sheet-overlay"
-        :class="[`origin-${origin}`, { embedded, 'has-page-chrome': hasPageChrome }]"
+        :class="[`origin-${origin}`, { embedded }]"
         @click="$emit('update:show', false)"
       >
         <div class="mobile-action-sheet" :style="panelStyle" @click.stop>
@@ -262,11 +262,6 @@ function handleShareSong() {
 }
 const origin = computed(() => props.origin ?? 'mini-player');
 const embedded = computed(() => props.embedded === true);
-/** chrome 页（歌单/专辑详情等）注入了 --page-chrome-*：菜单背景与文字跟随页面明暗；
- *  非 chrome 页不加 class，完全回退全局主题表面 */
-const hasPageChrome = computed(
-  () => Boolean(document.documentElement.style.getPropertyValue('--page-chrome-bg'))
-);
 const sheetStyle = computed<CSSProperties>(() => {
   const style: Record<string, string> = {};
   if (props.sourceGeometry) {
@@ -440,6 +435,7 @@ const handleAction = (action: string) => {
     max-height: none;
     border: 0;
     border-radius: 0;
+    background: transparent;
     box-shadow: none;
   }
 
@@ -455,19 +451,11 @@ const handleAction = (action: string) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--cover-border, rgba(128, 128, 128, 0.12));
+  border: 1px solid rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.14);
   border-bottom: 0;
   border-radius: 24px 24px 0 0;
   padding: 6px 0 max(6px, var(--safe-area-inset-bottom, 0px));
-  background: var(--m-surface-raised, var(--d-surface, #fff));
-  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.18);
-}
-
-/* chrome 页（歌单/专辑详情等）：菜单背景与文字跟随页面明暗；
-   非 chrome 页不加 has-page-chrome class，保持全局主题表面 */
-.mobile-sheet-overlay.has-page-chrome .mobile-action-sheet {
-  border: 1px solid rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.14);
-  border-bottom: 0;
+  /* 跟随页面 chrome 明暗（暗色歌单页 → 暗色菜单；非 chrome 页回退主题表面） */
   background: color-mix(
     in srgb,
     var(--page-chrome-bg, var(--m-surface-raised, var(--d-surface, #fff))) 88%,
@@ -476,19 +464,7 @@ const handleAction = (action: string) => {
   box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.18);
   --d-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.94);
   --d-text-secondary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.62);
-  --d-text-muted: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.5);
   --d-border: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.14);
-  color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
-}
-
-/* embedded（播放列表抽屉宿主）变体：chrome 背景覆盖 embedded 的 transparent
-   （specificity 0,4,0 > embedded 的 0,3,0） */
-.mobile-sheet-overlay.embedded.has-page-chrome .mobile-action-sheet {
-  background: color-mix(
-    in srgb,
-    var(--page-chrome-bg, var(--m-surface-raised, var(--d-surface, #fff))) 88%,
-    rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.45) 12%
-  );
 }
 
 .sheet-handle {
