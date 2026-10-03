@@ -1878,6 +1878,15 @@ onBeforeUnmount(() => {
     bottom: calc(var(--safe-area-inset-bottom, 0px) + 60px);
     left: 12px;
     height: calc(min(62dvh, 500px) - 56px);
+    /* 无底栏页（歌单/专辑详情等 chrome 页）打开播放列表/歌曲信息时，
+       面板背景与文字跟随页面 chrome 明暗（此前固定玻璃白底黑字不随页） */
+    background: var(--page-chrome-bg, var(--player-glass-background, rgba(20, 20, 22, 0.22)));
+    border-color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.16);
+    color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+    --d-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
+    --d-text-secondary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.62);
+    --d-text-muted: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.5);
+    --d-border: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.14);
   }
 
   /* 带底栏页：只给定位——表面沿用无底栏形态（MobilePlayBar 自身的

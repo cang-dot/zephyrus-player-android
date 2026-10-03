@@ -759,6 +759,7 @@ watch(
     min-height: 310px;
     border-color: var(--m-outline-variant, var(--m-border));
     border-radius: 32px;
+    overflow: hidden;
     /* 形变成菜单面板时跟随页面 chrome 明暗（暗色歌单页面板也暗） */
     background: var(--page-chrome-bg, var(--m-surface-container, var(--m-card)));
     color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);

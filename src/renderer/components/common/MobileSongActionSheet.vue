@@ -470,7 +470,9 @@ const handleAction = (action: string) => {
   box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.18);
   --d-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.94);
   --d-text-secondary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.62);
+  --d-text-muted: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.5);
   --d-border: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.14);
+  color: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.92);
 }
 
 .sheet-handle {
