@@ -1363,7 +1363,9 @@ class AudioService {
     // 不连 destination——若放行进入下方 Web Audio crossfade，createMediaElementSource 会把
     // 出声元素永久捕获进图（不可逆），过渡结束断开 crossfadeGain 后元素永久静音。
     // 因此与无图设备同路：使用 Howler 元素音量淡变完成过渡。
-    if (!this.gainNode || this.analysisOnlyGraph) {
+    // isIosSafari 为平台级双保险：即使 analysisOnlyGraph 出现时序窗口漏判
+    // （disposeEQ 置 false 后、setupEQ 未完成前），iOS 上也绝不走 Web Audio crossfade。
+    if (!this.gainNode || this.analysisOnlyGraph || isIosSafari()) {
       return this.crossfadeToNextMobile(nextSound, nextTrack, duration, seamless);
     }
 
@@ -1717,9 +1719,11 @@ class AudioService {
       this.crossfadeGain = null;
     }
 
-    // 移动端：跳过 EQ 重建（mobile 不使用 Web Audio 图），
-    // 直接恢复音量并发出事件
-    if (!this.gainNode) {
+    // 移动端 / iOS 镜像路径：跳过 EQ 异步重建链（桌面分支的
+    // disposeEQ→setupEQ→applyVolume 链在 iOS 后台 context interrupted 时
+    // 可能长时间 pending，applyVolume 迟到导致音量停在过渡中间值），
+    // 直接恢复元素音量并发出事件。镜像路径保留分析图（下一首正常切歌时重建）。
+    if (!this.gainNode || this.analysisOnlyGraph) {
       // 清理 fade 定时器（防止 fade 仍在运行）
       this.mobileFadeTimers.forEach((t) => clearInterval(t));
       this.mobileFadeTimers = [];
