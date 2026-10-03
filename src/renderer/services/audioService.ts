@@ -1359,9 +1359,11 @@ class AudioService {
       return false;
     }
 
-    // 移动端路径：gainNode 为 null（_setupEQHowlMobile 不创建 Web Audio 图），
-    // 使用 Howler fade / 手动音量渐变代替 Web Audio API gain 节点
-    if (!this.gainNode) {
+    // iOS 镜像路径（analysisOnlyGraph）：出声元素未接 Web Audio 图，且 gainNode 存在但
+    // 不连 destination——若放行进入下方 Web Audio crossfade，createMediaElementSource 会把
+    // 出声元素永久捕获进图（不可逆），过渡结束断开 crossfadeGain 后元素永久静音。
+    // 因此与无图设备同路：使用 Howler 元素音量淡变完成过渡。
+    if (!this.gainNode || this.analysisOnlyGraph) {
       return this.crossfadeToNextMobile(nextSound, nextTrack, duration, seamless);
     }
 
