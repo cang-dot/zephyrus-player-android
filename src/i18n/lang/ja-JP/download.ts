@@ -1,5 +1,6 @@
 export default {
   title: 'ダウンロード管理',
+  browserDownloadStarted: 'ダウンロードを開始しました',
   localMusic: 'ローカル音楽',
   count: '合計{count}曲',
   clearAll: '記録をクリア',

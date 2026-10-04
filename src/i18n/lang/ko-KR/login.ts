@@ -3,7 +3,8 @@ export default {
     netease: 'NetEase',
     qq: 'QQ음악',
     kugou: 'Kugou',
-    spotify: 'Spotify'
+    spotify: 'Spotify',
+    bilibili: '빌리빌리'
   },
   title: {
     qr: 'QR코드 로그인',

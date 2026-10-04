@@ -1,5 +1,6 @@
 export default {
   title: '下载管理',
+  browserDownloadStarted: '已开始下载',
   localMusic: '本地音乐',
   count: '共 {count} 首歌曲',
   clearAll: '清空记录',

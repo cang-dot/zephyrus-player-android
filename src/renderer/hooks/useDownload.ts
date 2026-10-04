@@ -195,7 +195,7 @@ async function downloadMobileDirect(song: SongResult): Promise<void> {
     document.body.appendChild(a);
     a.click();
     a.remove();
-    message.success(t('browserDownloadStarted') || '已开始下载');
+    message.success(t('download.browserDownloadStarted') || '已开始下载');
     return;
   }
 

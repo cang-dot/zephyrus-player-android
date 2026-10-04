@@ -1,4 +1,32 @@
 export default {
+  bilibili: {
+    playModeTitle: '请选择哔哩哔哩源的播放方式',
+    playModeDesc: '该条目是 B 站视频，选择本次的播放方式',
+    playModeVideo: '视频',
+    playModeAudio: '音频',
+    playModeRemember: '记住本次选择',
+    subtitleSource: 'B 站字幕',
+    subtitleNeedLogin: '登录哔哩哔哩后可自动获取字幕',
+    subtitleEmpty: '该视频没有可用字幕',
+    lyricMatch: {
+      title: '匹配歌词',
+      keywordPlaceholder: '输入歌名或「歌手 歌名」',
+      search: '搜索',
+      searching: '搜索中…',
+      empty: '没有找到匹配的歌词',
+      apply: '使用',
+      applied: '已应用歌词',
+      sourceBilibili: 'B 站字幕',
+      sourceNetease: '网易云',
+      sourceQq: 'QQ音乐',
+      sourceKugou: '酷狗',
+      sourceLrclib: 'LRCLIB',
+      sourceCommunity: '社区',
+      sourceAmll: 'AMLL 逐词',
+      wordTimed: '逐字歌词',
+      communityEntry: '{name} · ♥{likes}'
+    }
+  },
   metadataEditor: {
     title: '编辑歌曲信息',
     edit: '编辑',
@@ -24,6 +52,7 @@ export default {
     play: '播放',
     playNext: '下一首播放',
     matchNetease: '匹配网易云播放',
+    matchLyric: '匹配歌词',
     download: '下载歌曲',
     downloadLyric: '下载歌词',
     addToPlaylist: '添加到歌单',

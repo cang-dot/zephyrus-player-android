@@ -1,4 +1,32 @@
 export default {
+  bilibili: {
+    playModeTitle: '재생 방식을 선택하세요',
+    playModeDesc: '이 항목은 빌리빌리 영상입니다. 이번 재생 방식을 선택하세요',
+    playModeVideo: '영상',
+    playModeAudio: '오디오',
+    playModeRemember: '이 선택 기억하기',
+    subtitleSource: '빌리빌리 자막',
+    subtitleNeedLogin: '빌리빌리에 로그인하면 자막을 자동으로 가져옵니다',
+    subtitleEmpty: '사용할 수 있는 자막이 없습니다',
+    lyricMatch: {
+      title: '가사 매칭',
+      keywordPlaceholder: '곡명 또는 "가수 곡명" 입력',
+      search: '검색',
+      searching: '검색 중…',
+      empty: '매칭되는 가사를 찾지 못했습니다',
+      apply: '사용',
+      applied: '가사를 적용했습니다',
+      sourceBilibili: '빌리빌리 자막',
+      sourceNetease: 'NetEase',
+      sourceQq: 'QQ음악',
+      sourceKugou: '쿠고우',
+      sourceLrclib: 'LRCLIB',
+      sourceCommunity: '커뮤니티',
+      sourceAmll: 'AMLL',
+      wordTimed: '단어 동기화 가사',
+      communityEntry: '{name} · ♥{likes}'
+    }
+  },
   metadataEditor: {
     title: '곡 정보 편집',
     edit: '편집',
@@ -24,6 +52,7 @@ export default {
     play: '재생',
     playNext: '다음에 재생',
     matchNetease: 'NetEase 매칭 재생',
+    matchLyric: '가사 매칭',
     download: '곡 다운로드',
     downloadLyric: '가사 다운로드',
     addToPlaylist: '플레이리스트에 추가',

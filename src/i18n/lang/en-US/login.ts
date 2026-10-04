@@ -3,7 +3,8 @@ export default {
     netease: 'NetEase',
     qq: 'QQ Music',
     kugou: 'Kugou',
-    spotify: 'Spotify'
+    spotify: 'Spotify',
+    bilibili: 'Bilibili'
   },
   title: {
     qr: 'QR Code Login',

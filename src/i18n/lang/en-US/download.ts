@@ -1,5 +1,6 @@
 export default {
   title: 'Download Manager',
+  browserDownloadStarted: 'Download started',
   localMusic: 'Local Music',
   count: '{count} songs in total',
   clearAll: 'Clear All',

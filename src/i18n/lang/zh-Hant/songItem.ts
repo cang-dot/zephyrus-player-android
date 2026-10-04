@@ -1,4 +1,32 @@
 export default {
+  bilibili: {
+    playModeTitle: '請選擇嗶哩嗶哩來源的播放方式',
+    playModeDesc: '該條目是 B 站影片，選擇本次的播放方式',
+    playModeVideo: '影片',
+    playModeAudio: '音訊',
+    playModeRemember: '記住本次選擇',
+    subtitleSource: 'B 站字幕',
+    subtitleNeedLogin: '登入嗶哩嗶哩後可自動取得字幕',
+    subtitleEmpty: '該影片沒有可用字幕',
+    lyricMatch: {
+      title: '匹配歌詞',
+      keywordPlaceholder: '輸入歌名或「歌手 歌名」',
+      search: '搜尋',
+      searching: '搜尋中…',
+      empty: '沒有找到匹配的歌詞',
+      apply: '使用',
+      applied: '已套用歌詞',
+      sourceBilibili: 'B 站字幕',
+      sourceNetease: 'NetEase',
+      sourceQq: 'QQ音樂',
+      sourceKugou: '酷狗',
+      sourceLrclib: 'LRCLIB',
+      sourceCommunity: '社群',
+      sourceAmll: 'AMLL 逐字',
+      wordTimed: '逐字歌詞',
+      communityEntry: '{name} · ♥{likes}'
+    }
+  },
   metadataEditor: {
     title: '編輯歌曲資訊',
     edit: '編輯',
@@ -24,6 +52,7 @@ export default {
     play: '播放',
     playNext: '下一首播放',
     matchNetease: '匹配網易雲播放',
+    matchLyric: '匹配歌詞',
     download: '下載歌曲',
     downloadLyric: '下載歌詞',
     addToPlaylist: '新增至播放清單',

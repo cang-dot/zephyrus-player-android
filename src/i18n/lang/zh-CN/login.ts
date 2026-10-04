@@ -3,7 +3,8 @@ export default {
     netease: '网易云',
     qq: 'QQ音乐',
     kugou: '酷狗音乐',
-    spotify: 'Spotify'
+    spotify: 'Spotify',
+    bilibili: '哔哩哔哩'
   },
   title: {
     qr: '扫码登录',

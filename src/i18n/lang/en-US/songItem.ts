@@ -1,4 +1,32 @@
 export default {
+  bilibili: {
+    playModeTitle: 'Choose how to play this Bilibili source',
+    playModeDesc: 'This item is a Bilibili video — pick how to play it',
+    playModeVideo: 'Video',
+    playModeAudio: 'Audio',
+    playModeRemember: 'Remember my choice',
+    subtitleSource: 'Bilibili subtitles',
+    subtitleNeedLogin: 'Sign in to Bilibili to fetch subtitles automatically',
+    subtitleEmpty: 'No subtitles available for this video',
+    lyricMatch: {
+      title: 'Match Lyrics',
+      keywordPlaceholder: 'Song name or "artist song"',
+      search: 'Search',
+      searching: 'Searching…',
+      empty: 'No matching lyrics found',
+      apply: 'Use',
+      applied: 'Lyrics applied',
+      sourceBilibili: 'Bilibili subtitles',
+      sourceNetease: 'NetEase',
+      sourceQq: 'QQ Music',
+      sourceKugou: 'Kugou',
+      sourceLrclib: 'LRCLIB',
+      sourceCommunity: 'Community',
+      sourceAmll: 'AMLL',
+      wordTimed: 'Word-timed',
+      communityEntry: '{name} · ♥{likes}'
+    }
+  },
   metadataEditor: {
     title: 'Edit Song Info',
     edit: 'Edit',
@@ -24,6 +52,7 @@ export default {
     play: 'Play',
     playNext: 'Play Next',
     matchNetease: 'Play with Netease match',
+    matchLyric: 'Match Lyrics',
     download: 'Download',
     downloadLyric: 'Download Lyrics',
     addToPlaylist: 'Add to Playlist',
