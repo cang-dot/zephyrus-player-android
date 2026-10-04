@@ -114,5 +114,32 @@ export default {
     switchedTo: '{name} に切り替えました',
     overrideHint: '表示プロフィールはオフライン設定で上書きされています',
     goEdit: '編集'
+  },
+  localProfile: {
+    title: 'オフラインプロフィール',
+    avatar: 'アイコン',
+    avatarHint: 'タップして変更（端末内のみ保存）',
+    resetField: 'リセット',
+    avatarFailed: '画像の読み込みに失敗しました',
+    nickname: 'ニックネーム',
+    signature: 'ひとこと',
+    gender: '性別',
+    genderSecret: '非公開',
+    genderMale: '男性',
+    genderFemale: '女性',
+    birthday: '誕生日',
+    region: '地域',
+    regionPlaceholder: '例：広東省 広州',
+    emptyPlaceholder: '未設定',
+    overlayHint: 'オフラインプロフィールは全アカウントに優先表示されます。どのアカウントを有効化していても、表示される名前・ひとこと・アイコンはここでの設定が優先されます。',
+    save: 'オフラインに保存',
+    saveOk: 'オフラインプロフィールに保存しました',
+    fieldCleared: 'プラットフォームの値に戻しました',
+    clearAll: 'プラットフォームの値に戻す',
+    clearAllConfirm: 'もう一度タップで戻す',
+    clearAllDone: 'プラットフォームの値に戻しました',
+    entryOverridden: '表示プロフィールはオフライン設定で上書き中',
+    entryDefault: '表示される名前・ひとこと・アイコンをカスタマイズ'
   }
+
 };

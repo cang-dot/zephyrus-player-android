@@ -112,5 +112,32 @@ export default {
     switchedTo: '已切换到 {name}',
     overrideHint: '界面资料正由离线资料覆盖',
     goEdit: '去编辑'
+  },
+  localProfile: {
+    title: '离线资料',
+    avatar: '头像',
+    avatarHint: '点击更换，仅保存在本机',
+    resetField: '恢复默认',
+    avatarFailed: '头像图片读取失败',
+    nickname: '昵称',
+    signature: '签名',
+    gender: '性别',
+    genderSecret: '保密',
+    genderMale: '男',
+    genderFemale: '女',
+    birthday: '生日',
+    region: '地区',
+    regionPlaceholder: '例如：广东省 广州',
+    emptyPlaceholder: '未设置',
+    overlayHint: '离线资料悬浮于所有账号之上：无论激活哪个账号，界面显示的名称、签名与头像都优先使用这里的自定义内容。',
+    save: '保存到离线账号',
+    saveOk: '已保存到离线账号',
+    fieldCleared: '已恢复平台显示',
+    clearAll: '恢复平台资料',
+    clearAllConfirm: '再点一次确认恢复平台资料',
+    clearAllDone: '已恢复平台资料',
+    entryOverridden: '界面资料已由离线资料覆盖',
+    entryDefault: '自定义界面显示的名称、签名与头像'
   }
+
 };

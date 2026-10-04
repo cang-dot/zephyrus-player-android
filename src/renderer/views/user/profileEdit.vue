@@ -8,6 +8,7 @@
             <img
               v-if="previewAvatarUrl"
               :src="getImgUrl(previewAvatarUrl)"
+              referrerpolicy="no-referrer"
               :alt="t('user.profileEdit.avatar')"
             />
             <span v-else class="pe-avatar-placeholder"><i class="ri-user-3-line" /></span>
@@ -150,6 +151,7 @@
                 v-if="item.account.avatarUrl"
                 class="pe-row-avatar"
                 :src="getImgUrl(item.account.avatarUrl, '72y72')"
+                referrerpolicy="no-referrer"
                 alt=""
               />
               <span v-else class="pe-row-avatar pe-avatar-placeholder"
@@ -190,6 +192,7 @@
                 v-if="account.avatarUrl"
                 class="pe-row-avatar"
                 :src="getImgUrl(account.avatarUrl, '72y72')"
+                referrerpolicy="no-referrer"
                 alt=""
               />
               <span v-else class="pe-row-avatar pe-avatar-placeholder"
@@ -787,7 +790,9 @@ onBeforeUnmount(() => {
   z-index: 121;
   max-width: 560px;
   margin: 0 auto;
-  padding: 14px 16px calc(var(--safe-area-inset-bottom, 0px) + 12px);
+  /* Teleport 到 body 后取不到布局变量：78px = 播放中迷你栏占位高度，
+     保证最后一行按钮不被迷你播放栏遮住 */
+  padding: 14px 16px calc(var(--safe-area-inset-bottom, 0px) + 90px);
   border-radius: 24px 24px 0 0;
   background: var(--m-surface, #f7f5f1);
   box-shadow: 0 -12px 40px color-mix(in srgb, var(--m-shadow, #000) 24%, transparent);

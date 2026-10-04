@@ -113,5 +113,32 @@ export default {
     switchedTo: '{name} 로 전환했습니다',
     overrideHint: '표시 프로필은 오프라인 설정으로 대체되고 있습니다',
     goEdit: '편집'
+  },
+  localProfile: {
+    title: '오프라인 프로필',
+    avatar: '프로필 사진',
+    avatarHint: '탭하여 변경 (기기에만 저장)',
+    resetField: '기본값',
+    avatarFailed: '이미지를 불러오지 못했습니다',
+    nickname: '닉네임',
+    signature: '소개',
+    gender: '성별',
+    genderSecret: '비공개',
+    genderMale: '남성',
+    genderFemale: '여성',
+    birthday: '생일',
+    region: '지역',
+    regionPlaceholder: '예: 광둥성 광저우',
+    emptyPlaceholder: '미설정',
+    overlayHint: '오프라인 프로필은 모든 계정보다 우선 표시됩니다. 어떤 계정을 사용 중이더라도 표시되는 이름·소개·사진은 여기 설정이 우선합니다.',
+    save: '오프라인 저장',
+    saveOk: '오프라인 프로필에 저장했습니다',
+    fieldCleared: '플랫폼 값으로 복원했습니다',
+    clearAll: '플랫폼 값으로 복원',
+    clearAllConfirm: '한 번 더 탭하여 복원',
+    clearAllDone: '플랫폼 값으로 복원했습니다',
+    entryOverridden: '표시 프로필이 오프라인 설정으로 대체되고 있습니다',
+    entryDefault: '표시되는 이름·소개·사진을 사용자 지정'
   }
+
 };

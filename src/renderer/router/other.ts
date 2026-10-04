@@ -1,5 +1,16 @@
 const otherRouter = [
   {
+    path: '/user/local-profile',
+    name: 'userLocalProfile',
+    meta: {
+      title: 'user.localProfile.title',
+      keepAlive: false,
+      showInMenu: false,
+      back: true
+    },
+    component: () => import('@/views/user/LocalProfilePage.vue')
+  },
+  {
     path: '/user/profile/edit',
     name: 'userProfileEdit',
     meta: {

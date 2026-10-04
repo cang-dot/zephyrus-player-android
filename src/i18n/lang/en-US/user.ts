@@ -113,5 +113,32 @@ export default {
     switchedTo: 'Switched to {name}',
     overrideHint: 'Profile display is overridden by the offline profile',
     goEdit: 'Edit'
+  },
+  localProfile: {
+    title: 'Offline Profile',
+    avatar: 'Avatar',
+    avatarHint: 'Tap to change, stored on this device only',
+    resetField: 'Reset',
+    avatarFailed: 'Failed to read image',
+    nickname: 'Nickname',
+    signature: 'Bio',
+    gender: 'Gender',
+    genderSecret: 'Secret',
+    genderMale: 'Male',
+    genderFemale: 'Female',
+    birthday: 'Birthday',
+    region: 'Region',
+    regionPlaceholder: 'e.g. Guangdong, Guangzhou',
+    emptyPlaceholder: 'Not set',
+    overlayHint: 'The offline profile floats above all accounts: whatever account is active, the displayed name, bio and avatar prefer the custom values here.',
+    save: 'Save Offline',
+    saveOk: 'Saved to offline profile',
+    fieldCleared: 'Restored platform value',
+    clearAll: 'Restore Platform Values',
+    clearAllConfirm: 'Tap again to restore platform values',
+    clearAllDone: 'Platform values restored',
+    entryOverridden: 'Display profile is overridden offline',
+    entryDefault: 'Customize displayed name, bio and avatar'
   }
+
 };

@@ -26,6 +26,7 @@
                   v-if="user?.avatarUrl"
                   class="profile-avatar"
                   :src="getImgUrl(user.avatarUrl, '144y144')"
+                  referrerpolicy="no-referrer"
                   :alt="user.nickname"
                 />
                 <span v-else class="profile-avatar profile-avatar-placeholder">
@@ -35,9 +36,7 @@
               <div class="profile-copy">
                 <h1>{{ user?.nickname || t('user.accountSwitcher.loginHint') }}</h1>
                 <p>{{ displaySignature }}</p>
-                <span v-if="user" class="platform-badge">{{ platformName(activePlatform) }}</span>
               </div>
-              <i class="ri-arrow-right-s-line profile-entry-arrow" aria-hidden="true" />
             </div>
             <div class="profile-stats">
               <div class="profile-stat-clickable" @click="showFollowerList">
@@ -101,12 +100,13 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
+import { fetchBilibiliAccountData } from '@/api/bilibili';
 import { fetchPlatformAccountData } from '@/api/platformQrApi';
 import { getUserDetail, getUserPlaylist, getUserRecord } from '@/api/user';
 import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
-import { platformDisplayName, useLocalProfileStore } from '@/store/modules/localProfile';
+import { useLocalProfileStore } from '@/store/modules/localProfile';
 import { type PlatformAccount, usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { useUserStore } from '@/store/modules/user';
@@ -155,8 +155,6 @@ const displaySignature = computed(
     userDetail.value?.profile?.signature ||
     t('user.detail.noSignature')
 );
-
-const platformName = (platform: PlatformAccount['platform']) => platformDisplayName(platform);
 
 const openProfileEditor = () => {
   if (accounts.value.length || userStore.user) {
@@ -263,7 +261,44 @@ const loadPlatformAccountDataInternal = async (account: PlatformAccount) => {
   const cachedData = accountStore.activeAccountCache;
   recordList.value = (cachedData?.history || []) as any[];
 
-  if (!account.cookie || (account.platform !== 'qq' && account.platform !== 'kugou')) {
+  if (!account.cookie) return;
+
+  // B 站：cookie 登录路径不落头像，借助 /bilibili/account/data 回填账号资料
+  if (account.platform === 'bilibili') {
+    try {
+      const data = await fetchBilibiliAccountData(account.cookie);
+      if (
+        !mounted.value ||
+        requestId !== platformDataRequestId ||
+        activeAccountId.value !== account.accountId
+      ) {
+        return;
+      }
+      const userInfo = data.userInfo || {};
+      const nextAvatarUrl = userInfo.avatarUrl || account.avatarUrl;
+      if (nextAvatarUrl !== account.avatarUrl || String(userInfo.nickname || '') !== account.nickname) {
+        accountStore.addOrUpdateAccount({
+          accountId: account.accountId,
+          platform: account.platform,
+          userId: String(userInfo.userId || account.userId),
+          nickname: String(userInfo.nickname || account.nickname),
+          avatarUrl: nextAvatarUrl,
+          vip: userInfo.vip == null ? account.vip : Boolean(userInfo.vip),
+          cookie: account.cookie,
+          loginMethod: account.loginMethod
+        });
+      }
+      if (data.playlists?.length) {
+        accountStore.cacheAccountData(account.accountId, 'playlists', data.playlists);
+      }
+    } catch (error) {
+      // 头像回填失败不打扰用户，维持现状
+      console.warn('bilibili 账号资料回填失败:', error);
+    }
+    return;
+  }
+
+  if (account.platform !== 'qq' && account.platform !== 'kugou') {
     return;
   }
 
@@ -534,16 +569,6 @@ onMounted(() => {
   line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-}
-
-.platform-badge {
-  display: inline-flex;
-  padding: 3px 8px;
-  border: 1px solid color-mix(in srgb, var(--accent-color) 34%, transparent);
-  border-radius: 999px;
-  color: var(--accent-color);
-  font-size: 10px;
-  font-weight: 700;
 }
 
 .profile-entry-arrow {

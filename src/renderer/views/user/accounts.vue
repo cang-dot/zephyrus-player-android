@@ -10,6 +10,33 @@
 
       <!-- 列表视图 -->
       <template v-else>
+        <!-- 离线资料入口（覆盖层，独立于账号） -->
+        <button
+          type="button"
+          class="ac-card ac-local-row"
+          @click="router.push('/user/local-profile')"
+        >
+          <img
+            v-if="localProfileStore.profile.avatarUrl"
+            class="ac-row-avatar"
+            :src="localProfileStore.profile.avatarUrl"
+            referrerpolicy="no-referrer"
+            alt=""
+          />
+          <span v-else class="ac-row-avatar ac-avatar-placeholder">
+            <i class="ri-brush-line" />
+          </span>
+          <div class="ac-row-copy">
+            <strong>{{ t('user.localProfile.title') }}</strong>
+            <small>{{
+              localProfileStore.hasOverrides
+                ? t('user.localProfile.entryOverridden')
+                : t('user.localProfile.entryDefault')
+            }}</small>
+          </div>
+          <i class="ri-arrow-right-s-line ac-entry-arrow" />
+        </button>
+
         <section class="ac-card">
           <div
             v-for="account in accounts"
@@ -27,6 +54,7 @@
                 v-if="account.avatarUrl"
                 class="ac-row-avatar"
                 :src="getImgUrl(account.avatarUrl, '72y72')"
+                referrerpolicy="no-referrer"
                 alt=""
               />
               <span v-else class="ac-row-avatar ac-avatar-placeholder">
@@ -71,15 +99,6 @@
             <i class="ri-user-line" />
             <p>{{ t('user.accounts.empty') }}</p>
           </div>
-        </section>
-
-        <!-- 离线资料覆盖提示 -->
-        <section v-if="localProfileStore.hasOverrides" class="ac-card ac-override-card">
-          <i class="ri-information-line" />
-          <span>{{ t('user.accounts.overrideHint') }}</span>
-          <button type="button" @click="router.push('/user/profile/edit')">
-            {{ t('user.accounts.goEdit') }}
-          </button>
         </section>
 
         <button type="button" class="ac-add-row" @click="openLogin">
@@ -367,39 +386,24 @@ onBeforeUnmount(() => {
   }
 }
 
-.ac-override-card {
+.ac-local-row {
   display: flex;
+  width: 100%;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  color: var(--m-text-secondary);
-  font-size: 12px;
+  gap: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
 
-  > i {
-    flex-shrink: 0;
-    color: var(--accent-color);
-    font-size: 16px;
+  &:active {
+    background: color-mix(in srgb, var(--m-surface-alt) 70%, transparent);
   }
+}
 
-  span {
-    flex: 1;
-    min-width: 0;
-  }
-
-  button {
-    flex-shrink: 0;
-    padding: 6px 12px;
-    border: 1px solid color-mix(in srgb, var(--accent-color) 40%, transparent);
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--accent-color) 10%, transparent);
-    color: var(--accent-color);
-    font-size: 12px;
-    font-weight: 700;
-
-    &:active {
-      transform: scale(0.95);
-    }
-  }
+.ac-entry-arrow {
+  flex-shrink: 0;
+  color: var(--m-text-muted);
+  font-size: 20px;
 }
 
 .ac-add-row {

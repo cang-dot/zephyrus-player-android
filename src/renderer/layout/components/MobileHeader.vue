@@ -497,7 +497,13 @@
       >
         <i v-if="isSearchPage" class="ri-search-line action-icon"></i>
         <template v-else>
-          <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-img" />
+          <img
+            v-if="avatarUrl"
+            :src="avatarUrl"
+            referrerpolicy="no-referrer"
+            alt="avatar"
+            class="avatar-img"
+          />
           <div v-else class="avatar-placeholder">
             <i class="ri-user-3-line"></i>
           </div>

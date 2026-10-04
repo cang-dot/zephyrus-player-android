@@ -112,5 +112,32 @@ export default {
     switchedTo: '已切換到 {name}',
     overrideHint: '介面資料正由離線資料覆蓋',
     goEdit: '去編輯'
+  },
+  localProfile: {
+    title: '離線資料',
+    avatar: '頭像',
+    avatarHint: '點擊更換，僅保存在本機',
+    resetField: '恢復預設',
+    avatarFailed: '頭像圖片讀取失敗',
+    nickname: '暱稱',
+    signature: '簽名',
+    gender: '性別',
+    genderSecret: '保密',
+    genderMale: '男',
+    genderFemale: '女',
+    birthday: '生日',
+    region: '地區',
+    regionPlaceholder: '例如：廣東省 廣州',
+    emptyPlaceholder: '未設定',
+    overlayHint: '離線資料懸浮於所有帳號之上：無論啟用哪個帳號，介面顯示的名稱、簽名與頭像都優先使用這裡的自訂內容。',
+    save: '保存到離線帳號',
+    saveOk: '已保存到離線帳號',
+    fieldCleared: '已恢復平台顯示',
+    clearAll: '恢復平台資料',
+    clearAllConfirm: '再點一次確認恢復平台資料',
+    clearAllDone: '已恢復平台資料',
+    entryOverridden: '介面資料已由離線資料覆蓋',
+    entryDefault: '自訂介面顯示的名稱、簽名與頭像'
   }
+
 };
