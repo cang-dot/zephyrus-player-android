@@ -407,14 +407,15 @@ watch(
   }
 );
 
-// 旧版深链兼容：?panel=login 一律转向独立账号管理页
+// 旧版深链兼容：?panel=login 一律转向独立账号管理页（immediate 覆盖初次挂载即带参的场景）
 watch(
   () => route.query.panel,
   (panel) => {
     if (panel === 'login') {
       router.replace({ path: '/user/accounts', query: { panel: 'login' } });
     }
-  }
+  },
+  { immediate: true }
 );
 
 onMounted(() => {
