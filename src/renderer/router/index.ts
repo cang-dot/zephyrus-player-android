@@ -14,7 +14,7 @@ const loginRouter = {
     icon: 'icon-Home',
     back: true
   },
-  redirect: { path: '/user', query: { panel: 'login' } }
+  redirect: { path: '/user/accounts', query: { panel: 'login' } }
 };
 
 const routes = [

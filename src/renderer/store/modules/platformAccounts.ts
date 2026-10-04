@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 
 import { resolveReplacementAccount } from '@/utils/platformAccountSelection';
 
-export const MUSIC_PLATFORMS = ['netease', 'qq', 'kugou', 'spotify'] as const;
+export const MUSIC_PLATFORMS = ['netease', 'qq', 'kugou', 'spotify', 'bilibili'] as const;
 const DEPRECATED_LOGIN_PLATFORMS = ['kuwo', 'migu'] as const;
 
 export type MusicPlatform = (typeof MUSIC_PLATFORMS)[number];
@@ -48,7 +48,8 @@ const PLATFORM_NAMES: Record<MusicPlatform, string> = {
   netease: '网易云',
   qq: 'QQ音乐',
   kugou: '酷狗音乐',
-  spotify: 'Spotify'
+  spotify: 'Spotify',
+  bilibili: '哔哩哔哩'
 };
 
 function parseStoredJson<T>(key: string, fallback: T): T {
@@ -150,6 +151,18 @@ export const usePlatformAccountsStore = defineStore(
       activeAccountId.value = accountId;
       syncLegacyPlatformState(account);
       return true;
+    };
+
+    /** 仅更新账号显示昵称（资料同步回写用）；不会切换激活账号 */
+    const renameAccount = (accountId: string, nickname: string) => {
+      const account = accounts.value.find((item) => item.accountId === accountId);
+      const trimmed = nickname.trim();
+      if (!account || !trimmed || trimmed === account.nickname) return;
+      account.nickname = trimmed;
+      account.updatedAt = Date.now();
+      if (activeAccountId.value === accountId) {
+        syncLegacyPlatformState(account);
+      }
     };
 
     const moveAccount = (fromIndex: number, toIndex: number) => {
@@ -337,6 +350,7 @@ export const usePlatformAccountsStore = defineStore(
       accountsForPlatform,
       setActiveAccount,
       moveAccount,
+      renameAccount,
       addOrUpdateAccount,
       removeAccount,
       cacheAccountData,

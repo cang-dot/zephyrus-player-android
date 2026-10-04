@@ -1,5 +1,27 @@
 const otherRouter = [
   {
+    path: '/user/profile/edit',
+    name: 'userProfileEdit',
+    meta: {
+      title: 'user.profileEdit.title',
+      keepAlive: false,
+      showInMenu: false,
+      back: true
+    },
+    component: () => import('@/views/user/profileEdit.vue')
+  },
+  {
+    path: '/user/accounts',
+    name: 'userAccounts',
+    meta: {
+      title: 'user.accounts.title',
+      keepAlive: false,
+      showInMenu: false,
+      back: true
+    },
+    component: () => import('@/views/user/accounts.vue')
+  },
+  {
     path: '/user/follows',
     name: 'userFollows',
     meta: {

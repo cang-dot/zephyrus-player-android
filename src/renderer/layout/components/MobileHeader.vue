@@ -590,6 +590,7 @@ import { type MobileTopbarAction, useMobileTopbarMenu } from '@/composables/useM
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import { SEARCH_TYPES } from '@/const/bar-const';
 import { registerMobileBackLayer } from '@/services/mobileBackStack';
+import { useLocalProfileStore } from '@/store/modules/localProfile';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSearchStore } from '@/store/modules/search';
@@ -601,6 +602,7 @@ const router = useRouter();
 const { t } = useI18n();
 const userStore = useUserStore();
 const accountStore = usePlatformAccountsStore();
+const localProfileStore = useLocalProfileStore();
 const searchStore = useSearchStore();
 const playerStore = usePlayerStore();
 const playerTransition = useMobilePlayerTransition();
@@ -714,7 +716,11 @@ const displayTitle = computed(() => {
 });
 
 const avatarUrl = computed(() => {
-  const url = accountStore.activeAccount?.avatarUrl || userStore.user?.avatarUrl;
+  // 离线资料覆盖层优先于账号/旧版 user 头像（data:base64 会原样通过 getImgUrl）
+  const url =
+    localProfileStore.displayAvatarUrl ||
+    accountStore.activeAccount?.avatarUrl ||
+    userStore.user?.avatarUrl;
   return url ? getImgUrl(url, '72y72') : '';
 });
 

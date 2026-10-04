@@ -353,7 +353,7 @@ const onDelete = (comment: SongComment) => {
 };
 
 const goLogin = () => {
-  router.push({ path: '/user', query: { panel: 'login' } });
+  router.push({ path: '/user/accounts', query: { panel: 'login' } });
 };
 
 // ── 加载更多哨兵 ──

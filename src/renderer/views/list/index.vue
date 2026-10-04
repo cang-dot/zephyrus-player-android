@@ -260,7 +260,7 @@ const stateNotice = computed(() => {
 const partialErrors = computed(() => (allSourcesFailed.value ? [] : failedAccounts.value));
 
 const goLogin = () => {
-  router.push({ path: '/user', query: { panel: 'login' } });
+  router.push({ path: '/user/accounts', query: { panel: 'login' } });
 };
 
 const retryFailedSources = () => {
@@ -307,6 +307,13 @@ async function ensureSourcesLoaded() {
             const data = await fetchPlatformAccountData(account.platform, account.cookie || '');
             accountStore.cacheAccountData(account.accountId, 'playlists', data.playlists);
             accountStore.cacheAccountData(account.accountId, 'albums', data.albums);
+          }
+        } else if (account.platform === 'bilibili') {
+          const cache = accountStore.accountCache[account.accountId];
+          if (!cache?.playlists?.length) {
+            const { fetchBilibiliAccountData } = await import('@/api/bilibili');
+            const data = await fetchBilibiliAccountData(account.cookie || '');
+            accountStore.cacheAccountData(account.accountId, 'playlists', data.playlists);
           }
         }
         // spotify 等其余来源：数据由「我的」页同步，这里缺省视为已加载（与既有行为一致）
@@ -411,13 +418,21 @@ watch(
   }
 );
 
-const playlistSourceTabs = computed(() => [
-  { key: 'all', label: '全部', platform: 'all' },
-  { key: 'local', label: '本地', platform: 'local' },
-  { key: 'netease', label: '网易云', platform: 'netease' },
-  { key: 'qq', label: 'QQ 音乐', platform: 'qq' },
-  { key: 'kugou', label: '酷狗音乐', platform: 'kugou' }
-]);
+const playlistSourceTabs = computed(() => {
+  const tabs = [
+    { key: 'all', label: '全部', platform: 'all' },
+    { key: 'local', label: '本地', platform: 'local' },
+    { key: 'netease', label: '网易云', platform: 'netease' },
+    { key: 'qq', label: 'QQ 音乐', platform: 'qq' },
+    { key: 'kugou', label: '酷狗音乐', platform: 'kugou' }
+  ];
+  // 登录了 B 站账号才显示 B 站收藏夹 TAB
+  const hasBilibili = accountStore.accounts.some((account) => account.platform === 'bilibili');
+  if (hasBilibili) {
+    tabs.push({ key: 'bilibili', label: 'B 站收藏夹', platform: 'bilibili' });
+  }
+  return tabs;
+});
 
 const platformName = (platform: MusicPlatform) =>
   ({ netease: '网易云', qq: 'QQ 音乐', kugou: '酷狗音乐', spotify: 'Spotify' })[platform];

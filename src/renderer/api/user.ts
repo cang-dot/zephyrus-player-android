@@ -71,6 +71,19 @@ export const getUserAccount = () => {
   });
 };
 
+// 修改用户资料（POST /user/update，仅网易云支持）
+// gender: 0 保密 / 1 男 / 2 女；birthday: 毫秒时间戳
+export function updateUserProfile(
+  params: { nickname?: string; signature?: string; gender?: number; birthday?: number },
+  cookie?: string
+) {
+  return request.post(
+    '/user/update',
+    { ...params, ...(cookie ? { cookie } : {}) },
+    { timeout: 15000 }
+  );
+}
+
 // 获取用户详情
 export const getUserDetailInfo = (params: { uid: string | number }) => {
   return request<IUserDetail>({
