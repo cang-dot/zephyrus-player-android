@@ -111,18 +111,7 @@
         ><strong>{{ st('font') }}</strong
         ><small>{{ st('fontDesc') }}</small></span
       >
-      <select v-model="fontSelection" class="glass-select">
-        <option value="system">{{ st('systemFont') }}</option>
-        <option v-for="font in nativeFonts" :key="font.id" :value="`builtin:${font.id}`">
-          {{ font.name }}
-        </option>
-        <option
-          v-if="config.font.source === 'imported' && config.font.id"
-          :value="`imported:${config.font.id}`"
-        >
-          {{ st('importedFont') }}
-        </option>
-      </select>
+      <app-select v-model="fontSelection" :options="fontOptions" :title="st('font')" />
     </label>
 
     <div class="slider-row">
@@ -220,6 +209,8 @@ import type { Ref } from 'vue';
 import { computed, inject, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import AppSelect from '@/components/common/AppSelect.vue';
+
 import {
   applyStatusBarLyricLiveConfig,
   hasStatusBarLyricPermission,
@@ -266,6 +257,20 @@ const fontSelection = computed({
     config.font.source = source as StatusBarLyricConfig['font']['source'];
     config.font.id = source === 'system' ? undefined : id.join(':');
   }
+});
+
+// 自写下拉的选项源（替代原生 <select>）
+const fontOptions = computed(() => {
+  const list: Array<{ value: string; label: string }> = [
+    { value: 'system', label: st('systemFont') }
+  ];
+  for (const font of nativeFonts) {
+    list.push({ value: `builtin:${font.id}`, label: font.name });
+  }
+  if (config.font.source === 'imported' && config.font.id) {
+    list.push({ value: `imported:${config.font.id}`, label: st('importedFont') });
+  }
+  return list;
 });
 
 const currentPosition = computed(() => config.positions[orientation.value]);

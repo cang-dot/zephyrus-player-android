@@ -340,11 +340,11 @@
               <label class="select-label">{{
                 t('settings.lyricSettings.background.gradientDirection')
               }}</label>
-              <select v-model="config.gradientColors.direction" class="select-input">
-                <option v-for="opt in gradientDirectionOptions" :key="opt.value" :value="opt.value">
-                  {{ opt.label }}
-                </option>
-              </select>
+              <app-select
+                v-model="config.gradientColors.direction"
+                :options="gradientDirectionOptions"
+                :title="t('settings.lyricSettings.background.gradientDirection')"
+              />
             </div>
           </div>
 
@@ -463,6 +463,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import AppSelect from '@/components/common/AppSelect.vue';
 import { isFeatureEnabled } from '@/features/store';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { getAllStyles, getStyle } from '@/playerStyles';
@@ -1321,23 +1322,6 @@ defineExpose({
   color: var(--d-text-secondary);
   opacity: 0.7;
   margin-bottom: 12px;
-}
-
-.select-input {
-  width: 100%;
-  padding: 10px 12px;
-  background: var(--d-surface-active);
-  border: 1px solid var(--d-border);
-  border-radius: var(--d-radius-sm, 8px);
-  color: var(--d-text-secondary);
-  font-size: 14px;
-  cursor: pointer;
-  outline: none;
-}
-
-.select-input:focus {
-  border-color: var(--accent-color, #888);
-  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb, 136, 136, 136), 0.1);
 }
 
 /* 自定义字体下拉 */

@@ -314,14 +314,11 @@
                   {{ t('settings.playback.platforms.manualCookie') }}
                 </h4>
                 <div class="space-y-2">
-                  <select
+                  <app-select
                     v-model="manualCookiePlatform"
-                    class="w-full px-3 py-1.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-xs focus:outline-none focus:border-[var(--accent-color)] transition-colors"
-                  >
-                    <option value="qq">QQ 音乐</option>
-                    <option value="migu">咪咕音乐</option>
-                    <option value="joox">JOOX</option>
-                  </select>
+                    :options="manualCookiePlatformOptions"
+                    :title="t('settings.playback.platforms.manualCookie')"
+                  />
                   <textarea
                     v-model="manualCookieValue"
                     :placeholder="t('settings.playback.platforms.cookiePlaceholder')"
@@ -411,6 +408,7 @@ import { useMessage } from 'naive-ui';
 import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import AppSelect from '@/components/common/AppSelect.vue';
 import ResponsiveModal from '@/components/common/ResponsiveModal.vue';
 import {
   initLxMusicRunner,
@@ -519,6 +517,13 @@ const platformList = ref<PlatformAccount[]>([
 
 const manualCookiePlatform = ref('qq');
 const manualCookieValue = ref('');
+
+// 手动 Cookie 的平台选项（自写下拉，替代原生 <select>）
+const manualCookiePlatformOptions = [
+  { value: 'qq', label: 'QQ 音乐' },
+  { value: 'migu', label: '咪咕音乐' },
+  { value: 'joox', label: 'JOOX' }
+];
 
 // 刷新平台登录状态
 const refreshPlatformStatus = async () => {
