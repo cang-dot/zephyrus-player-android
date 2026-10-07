@@ -53,7 +53,11 @@
       </div>
 
       <!-- 二级页（非底栏路由） -->
-      <div v-if="secondaryHostVisible && !backgroundUnmounted" class="secondary-page-host">
+      <div
+        v-if="secondaryHostVisible && !backgroundUnmounted"
+        class="secondary-page-host"
+        :style="secondaryHostContentStyle"
+      >
         <router-view v-slot="{ Component }">
           <Transition
             :name="pageTransitionName"
@@ -804,6 +808,13 @@ const onSecondaryLeave = () => {
 };
 
 const playlistOpen = usePlaylistOpenTransition();
+
+/** 色块过渡的页面元素渐显：色块扩展期（未铺满）宿主内容保持透明——
+ *  色块铺满全屏后（contentReveal）内容随覆盖层淡出同步渐显 */
+const secondaryHostContentStyle = computed(() => {
+  if (playlistOpen.phase.value === 'idle' || playlistOpen.contentReveal.value) return undefined;
+  return { opacity: '0' };
+});
 
 const pageTransitionName = computed(() => {
   // 歌单跳转过渡：覆盖层负责视觉衔接，二级页自身不做位移与底色过渡（避免双底色闪烁）
@@ -1742,6 +1753,8 @@ onBeforeUnmount(() => {
   inset: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
+  /* 色块过渡的页面元素渐显（inline style 控制 opacity；此处只声明过渡） */
+  transition: opacity 260ms ease;
 }
 
 .mobile-content.player-background-suspended {

@@ -56,6 +56,9 @@ const FADE_MS = 200;
 const CARD_RADIUS = 20;
 
 const phase = ref<'idle' | 'expanding' | 'fadeout'>('idle');
+/** 页面内容渐显开关：false = 色块扩展期（页面被全遮，宿主内容保持透明）；
+ *  true = 色块已铺满全屏，宿主内容开始渐显（与覆盖层淡出并行） */
+const contentReveal = ref(false);
 const startLayer = shallowRef<LayerState | null>(null);
 const endLayer = shallowRef<LayerState | null>(null);
 const heroRect = shallowRef<TransitionRect | null>(null);
@@ -195,6 +198,7 @@ function resetLayer() {
     timer = undefined;
   }
   phase.value = 'idle';
+  contentReveal.value = false;
   startLayer.value = null;
   endLayer.value = null;
   heroRect.value = null;
@@ -212,6 +216,7 @@ function isActive() {
 export function usePlaylistOpenTransition() {
   return {
     phase,
+    contentReveal,
     coverSrc,
     bgStyle,
     coverStyle,
@@ -287,6 +292,8 @@ export function beginPlaylistOpenReturn(): boolean {
   // 回程终点色 = 保持来源卡片主题色：色块收回卡片矩形的过程颜色连续，
   // 淡出后由卡片本体衔接（渐变到页面底色会在中途"变白"，割裂）
   bgEndColor.value = lastColor;
+  // 回程目标页（入口页）必须立即可见：覆盖层收缩时露出的是它
+  contentReveal.value = true;
   assignLayers(
     { rect: expandedViewportRect(), radius: CARD_RADIUS },
     { rect: { ...lastRect }, radius: CARD_RADIUS }
@@ -310,10 +317,12 @@ export function resolvePlaylistOpen(hero?: TransitionRect | null) {
   if (phase.value === 'idle') return;
   if (hero && hero.w > 0 && hero.h > 0) heroRect.value = { ...hero };
 
-  /** 淡出相对扩展完成的提前量：扩展还剩这么多毫秒时开始叠加淡出 */
-  const FADE_LEAD_MS = 140;
+  /** 淡出编排：先等色块完整铺满全屏（扩展结束 + FULL_HOLD_MS 停留），
+   *  然后淡出与「页面元素渐显」（contentReveal，宿主消费）同时启动 */
+  const FULL_HOLD_MS = 80;
   const scheduleFadeout = () => {
     reveal.value = true;
+    contentReveal.value = true;
     phase.value = 'fadeout';
     if (timer) clearTimeout(timer);
     timer = setTimeout(resetLayer, FADE_MS + 80);
@@ -321,7 +330,7 @@ export function resolvePlaylistOpen(hero?: TransitionRect | null) {
 
   if (beginAt > 0) {
     const elapsed = performance.now() - beginAt;
-    const wait = Math.max(0, PLAYLIST_OPEN_EXPAND_MS - FADE_LEAD_MS - elapsed);
+    const wait = Math.max(0, PLAYLIST_OPEN_EXPAND_MS + FULL_HOLD_MS - elapsed);
     if (wait > 0) {
       // 推迟淡出；hero 矩形先记下（coverTransform 目标），reveal 由 scheduleReveal 翻转
       if (timer) clearTimeout(timer);
