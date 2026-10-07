@@ -1,6 +1,7 @@
 import { beginPlaylistOpen } from '@/composables/usePlaylistOpenTransition';
 
 import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
+import { rememberFlightRect } from '@/utils/flightRectMemory';
 import { getImgUrl } from '@/utils';
 
 /** 歌手页 hero 预填充档案：入口页尽量携带，歌手页首帧即时渲染（无全页骨架） */
@@ -103,6 +104,10 @@ export const useArtist = () => {
       // 色块底色 = 头像均色（异步提取，通常命中缓存近乎即时）；
       // 不传 color 时 beginPlaylistOpen 的兜底是近黑，头像跨域补色又可能失败 → 黑块
       const color = await averageColorOf(profile.avatar || '');
+      if (profile.fromKey) {
+        // 入口矩形入统一内存：返回飞回的终点直接取用（免疫来源页恢复时序）
+        rememberFlightRect(profile.fromKey, profile.fromRect);
+      }
       beginPlaylistOpen({
         rect: profile.fromRect,
         coverUrl: profile.avatar,

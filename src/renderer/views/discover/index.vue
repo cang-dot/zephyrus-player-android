@@ -77,6 +77,7 @@ import {
   beginReturnFlight
 } from '@/composables/usePlaylistOpenTransition';
 import { ARTIST_COVER_RETURN_KEY, useArtist } from '@/hooks/useArtist';
+import { takeFlightRect } from '@/utils/flightRectMemory';
 import { getImgUrl } from '@/utils';
 
 type Shortcut = { key: string; label: string; icon: string; path?: string; target?: string };
@@ -113,14 +114,22 @@ watch(
           coverUrl?: string;
         };
         if (!payload.key?.startsWith('discover-artist-')) return;
-        const card = document.querySelector(
-          `.artist-card[data-artist-id="${CSS.escape(payload.key.replace('discover-artist-', ''))}"]`
-        );
-        const rect = card?.getBoundingClientRect();
-        if (!rect || rect.width <= 0) return;
+        sessionStorage.removeItem('musicListCoverReturn');
+        // 终点矩形用入口内存矩形（稳定）；DOM 量取仅作兜底
+        let endRect = takeFlightRect(payload.key);
+        if (!endRect) {
+          const card = document.querySelector(
+            `.artist-card[data-artist-id="${CSS.escape(payload.key.replace('discover-artist-', ''))}"]`
+          );
+          const domRect = card?.getBoundingClientRect();
+          if (domRect && domRect.width > 0) {
+            endRect = { x: domRect.x, y: domRect.y, w: domRect.width, h: domRect.height };
+          }
+        }
+        if (!endRect || endRect.w <= 0) return;
         beginReturnFlight({
           heroRect: { x: payload.x, y: payload.y, w: payload.w, h: payload.h },
-          endRect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
+          endRect: { x: endRect.x, y: endRect.y, w: endRect.w, h: endRect.h },
           coverUrl: payload.coverUrl
         });
       } catch {

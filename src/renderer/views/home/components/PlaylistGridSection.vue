@@ -7,6 +7,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { getPersonalizedPlaylist } from '@/api/home';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import { beginReturnFlight } from '@/composables/usePlaylistOpenTransition';
+import { rememberFlightRect, takeFlightRect } from '@/utils/flightRectMemory';
 import { getImgUrl } from '@/utils';
 
 interface RecommendedPlaylist {
@@ -28,8 +29,13 @@ function open(item: RecommendedPlaylist, event?: MouseEvent) {
   const cover = el?.querySelector<HTMLElement>('.playlist-cover');
   const rect = (cover ?? el)?.getBoundingClientRect();
   if (rect && rect.width > 0) {
-    lastOpenRect = { x: rect.x, y: rect.y, w: rect.width, h: rect.height };
     lastOpenKey = `home-pl-${item.id}`;
+    rememberFlightRect(lastOpenKey, {
+      x: rect.x,
+      y: rect.y,
+      w: rect.width,
+      h: rect.height
+    });
     try {
       sessionStorage.setItem(
         'musicListCoverRect',
@@ -38,7 +44,7 @@ function open(item: RecommendedPlaylist, event?: MouseEvent) {
           y: rect.y,
           w: rect.width,
           h: rect.height,
-          key: `home-pl-${item.id}`
+          key: lastOpenKey
         })
       );
     } catch {
@@ -54,9 +60,7 @@ function open(item: RecommendedPlaylist, event?: MouseEvent) {
   });
 }
 
-/** 入口矩形（组件内存）：主页 pager 常驻、返回时滚动位置不变——飞回终点
- *  直接复用入口矩形，不再重量 DOM（量取会受入场动画/布局恢复时序干扰而偏移） */
-let lastOpenRect: { x: number; y: number; w: number; h: number } | null = null;
+/** 入口矩形存于 flightRectMemory（统一内存），返回时直接取用 */
 let lastOpenKey = '';
 
 /** 返回主页时：消费歌单页写入的返回矩形，用覆盖层克隆把封面从 hero 飞回卡片
@@ -84,8 +88,8 @@ watch(
         return;
       }
       if (!payload.key?.startsWith('home-pl-')) return;
-      // 终点矩形优先用入口时的组件内存矩形（稳定）；DOM 量取仅作兜底
-      let endRect = lastOpenRect && lastOpenKey === payload.key ? { ...lastOpenRect } : null;
+      // 终点矩形用入口内存矩形（稳定）；DOM 量取仅作兜底
+      let endRect = takeFlightRect(payload.key);
       if (!endRect) {
         const card = document.querySelector(`.playlist-card[data-key="${CSS.escape(payload.key)}"]`);
         const cover = card?.querySelector<HTMLElement>('.playlist-cover');

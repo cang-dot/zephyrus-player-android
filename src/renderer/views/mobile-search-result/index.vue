@@ -107,6 +107,7 @@ import { getSearch } from '@/api/search';
 import {
   beginReturnFlight
 } from '@/composables/usePlaylistOpenTransition';
+import { takeFlightRect } from '@/utils/flightRectMemory';
 import {
   rankSearchResults,
   searchServerSongs,
@@ -156,15 +157,27 @@ watch(
         };
         if (!payload.key?.startsWith('search-')) return;
         sessionStorage.removeItem('musicListCoverReturn');
-        const card = document.querySelector(
-          `.search-item[data-search-key="${CSS.escape(payload.key)}"]`
-        );
-        const cover = card?.querySelector<HTMLElement>('img');
-        const rect = (cover ?? card)?.getBoundingClientRect();
-        if (!rect || rect.width <= 0) return;
+        // 终点矩形用入口内存矩形（稳定）；DOM 量取仅作兜底
+        let endRect = takeFlightRect(payload.key);
+        if (!endRect) {
+          const card = document.querySelector(
+            `.search-item[data-search-key="${CSS.escape(payload.key)}"]`
+          );
+          const cover = card?.querySelector<HTMLElement>('img');
+          const domRect = (cover ?? card)?.getBoundingClientRect();
+          if (domRect && domRect.width > 0) {
+            endRect = {
+              x: domRect.x,
+              y: domRect.y,
+              w: domRect.width,
+              h: domRect.height
+            };
+          }
+        }
+        if (!endRect || endRect.w <= 0) return;
         beginReturnFlight({
           heroRect: { x: payload.x, y: payload.y, w: payload.w, h: payload.h },
-          endRect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
+          endRect: { x: endRect.x, y: endRect.y, w: endRect.w, h: endRect.h },
           coverUrl: payload.coverUrl
         });
       } catch {

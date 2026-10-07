@@ -66,6 +66,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
+import { rememberFlightRect } from '@/utils/flightRectMemory';
 import SongTitleText from '@/components/common/SongTitleText.vue';
 import MvPlayer from '@/components/MvPlayer.vue';
 import { usePlayerStore } from '@/store/modules/player';
@@ -110,6 +111,7 @@ const handleClick = async (event?: MouseEvent) => {
       ? `search-al-${props.item.id}`
       : `search-pl-${props.item.id}`;
   if (rect && rect.width > 0) {
+    rememberFlightRect(key, { x: rect.x, y: rect.y, w: rect.width, h: rect.height });
     try {
       sessionStorage.setItem(
         'musicListCoverRect',
