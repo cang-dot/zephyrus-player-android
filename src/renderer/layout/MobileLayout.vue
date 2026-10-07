@@ -38,6 +38,8 @@
         v-show="isBottomMenuRoute || pagerBridgeVisible"
         class="tab-pager"
         @scroll.capture="onPagerScrollCapture"
+        @touchstart.capture="onPagerTouchStart"
+        @pointerdown.capture="onPagerTouchStart"
       >
         <div
           v-for="(tab, index) in menuStore.menus"
@@ -594,8 +596,16 @@ const setDockMergedState = (value: boolean, velocity = 0) => {
 // 快速上滑的惯性在触顶/触底后方向突变，瞬时穿越低区会被误判为"回到顶部"
 // 而触发展开，紧接惯性继续又收起 → 底栏抽搐。120ms 内离开低区则取消。
 const DOCK_EXPAND_SETTLE_MS = 120;
+/** 主动意图判据：只有手指在屏上拖滚（或刚离屏 ≤350ms）触发的回顶才展开。
+ *  甩动后的**惯性滚动**（手指早已离屏）回顶不展开——惯性回弹循环是
+ *  "收起↔展开来回闪"的最终根源，稳定窗挡不住周期 >280ms 的循环。 */
+let lastPagerTouchAt = 0;
+const onPagerTouchStart = () => {
+  lastPagerTouchAt = Date.now();
+};
 let dockExpandSettleTimer: ReturnType<typeof setTimeout> | undefined;
 const requestDockExpandFromScroll = (velocity: number) => {
+  if (Date.now() - lastPagerTouchAt > 350) return; // 惯性滚动：非主动回顶
   if (dockExpandSettleTimer) return; // 已有待确认的展开
   dockExpandSettleTimer = setTimeout(() => {
     dockExpandSettleTimer = undefined;
