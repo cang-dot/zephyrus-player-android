@@ -608,9 +608,38 @@ const hexBrightness = (hex: string): number => {
   return (r * 299 + g * 587 + b * 114) / 1000;
 };
 
+/** 主色 → page chrome（对齐专辑页口径）：顶栏/迷你栏表面与墨色跟随页面底色 */
+const applyArtistPageChrome = (hex: string) => {
+  const ink = hexBrightness(hex) > 165 ? '#17171a' : '#ffffff';
+  const inkRgb = ink === '#17171a' ? '23, 23, 26' : '255, 255, 255';
+  const layout = document.getElementById('layout-main');
+  const vars: Array<[string, string]> = [
+    ['--page-chrome-bg', hex],
+    ['--page-chrome-ink', ink],
+    ['--page-chrome-ink-rgb', inkRgb]
+  ];
+  for (const [key, value] of vars) {
+    layout?.style.setProperty(key, value);
+    document.documentElement.style.setProperty(key, value);
+  }
+  layout?.setAttribute('data-page-chrome', 'artist-detail');
+};
+
+const clearArtistPageChrome = () => {
+  const layout = document.getElementById('layout-main');
+  for (const key of ['--page-chrome-bg', '--page-chrome-ink', '--page-chrome-ink-rgb']) {
+    layout?.style.removeProperty(key);
+    document.documentElement.style.removeProperty(key);
+  }
+  layout?.removeAttribute('data-page-chrome');
+};
+
 watch(avatarUrl, async (url) => {
   artistPageColor.value = '';
-  if (!url) return;
+  if (!url) {
+    clearArtistPageChrome();
+    return;
+  }
   try {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -641,8 +670,10 @@ watch(avatarUrl, async (url) => {
     artistPageColor.value = hex;
     // 亮主色 → 深墨字；暗主色 → 白字（跟随背景反白）
     artistPageInk.value = hexBrightness(hex) > 165 ? '#1c1b1a' : '#ffffff';
+    applyArtistPageChrome(hex);
   } catch {
-    /* 跨域取色失败：回退主题墨色 */
+    /* 跨域取色失败：回退主题墨色，chrome 保持默认 */
+    clearArtistPageChrome();
   }
 });
 
@@ -1238,7 +1269,8 @@ onDeactivated(() => {
 });
 
 onUnmounted(() => {
-  // 顶栏胶囊已随设计稿移除，仅保留观察器清理
+  // page chrome（顶栏/迷你栏跟随色）随页卸载清理，避免污染其它页面
+  clearArtistPageChrome();
   // 完全清理观察器
   if (songsObserver) {
     songsObserver.disconnect();

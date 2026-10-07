@@ -627,13 +627,16 @@ const showPageCapsule = computed(
   () =>
     !isSearchPage.value &&
     !route.path.startsWith('/music-list') &&
+    !route.path.startsWith('/artist/detail') &&
     !['/', '/discover', '/user'].includes(route.path)
 );
 const usesWideDetailTopbar = computed(
   () => route.path.startsWith('/music-list/') || route.path.startsWith('/artist/detail/')
 );
-/** /music-list 简洁顶栏：无标题胶囊、无搜索胶囊，右胶囊只承载注册动作（分享/更多） */
-const usesPlainDetailTopbar = computed(() => route.path.startsWith('/music-list'));
+/** /music-list 与 /artist/detail 简洁顶栏：无标题胶囊，右胶囊只承载注册动作 */
+const usesPlainDetailTopbar = computed(
+  () => route.path.startsWith('/music-list') || route.path.startsWith('/artist/detail')
+);
 
 // /music-list 简洁顶栏的胶囊变形菜单：按钮态 ⇄ 菜单态原地切换（同 /list 创建胶囊套路）
 const plainMenuOpen = ref(false);
