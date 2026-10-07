@@ -1,6 +1,8 @@
 <template>
   <div
     class="artist-detail-page h-full w-full bg-white dark:bg-neutral-900 transition-colors duration-500"
+    :class="{ 'mobile-artist-root': isMobile }"
+    :style="isMobile ? mobileArtistStyle : undefined"
   >
     <n-scrollbar ref="scrollbarRef" class="h-full" @scroll="handleScroll">
       <div
@@ -1394,6 +1396,16 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
 /* Artist Detail Page Styles */
 .artist-detail-page {
   position: relative;
+}
+
+/* 移动端：根背景跟随头像主色（覆盖 bg-white）——滚动回弹/过滚动时不露下层白底 */
+.artist-detail-page.mobile-artist-root {
+  background: var(--ma-page-color, var(--m-bg, var(--bg-color))) !important;
+
+  /* 回弹被根背景兜住，但仍禁止链式过滚动传递 */
+  :deep(.n-scrollbar-container) {
+    overscroll-behavior: contain;
+  }
 }
 
 .page-padding-x {
