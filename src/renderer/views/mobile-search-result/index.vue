@@ -173,6 +173,11 @@ watch(
     }, 200);
   }
 );
+
+// keep-alive include 按路由 name（mobileSearchResult → MobileSearchResult）匹配组件；
+// 缺 name 会导致保活失效（返回时组件销毁重建、搜索重载、返回飞回无人消费）
+defineOptions({ name: 'MobileSearchResult' });
+
 // 哔哩哔哩条目点击时询问「视频 / 音频」（支持记住本次选择）
 const { resolvePlayMode } = useBilibiliPlayMode();
 const searchStore = useSearchStore();
