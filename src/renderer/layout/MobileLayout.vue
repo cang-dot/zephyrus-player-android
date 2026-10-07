@@ -590,6 +590,24 @@ const setDockMergedState = (value: boolean, velocity = 0) => {
   if (value) dockMergeCommittedAt = Date.now();
   dockMergeGesture.animateMergeProgress(value ? 1 : 0, velocity);
 };
+// 展开稳定窗：合并态下滚回顶部（scrollTop<=4）需"稳定停留"才真正展开——
+// 快速上滑的惯性在触顶/触底后方向突变，瞬时穿越低区会被误判为"回到顶部"
+// 而触发展开，紧接惯性继续又收起 → 底栏抽搐。120ms 内离开低区则取消。
+const DOCK_EXPAND_SETTLE_MS = 120;
+let dockExpandSettleTimer: ReturnType<typeof setTimeout> | undefined;
+const requestDockExpandFromScroll = (velocity: number) => {
+  if (dockExpandSettleTimer) return; // 已有待确认的展开
+  dockExpandSettleTimer = setTimeout(() => {
+    dockExpandSettleTimer = undefined;
+    setDockMergedState(false, velocity);
+  }, DOCK_EXPAND_SETTLE_MS);
+};
+const cancelDockExpandSettle = () => {
+  if (dockExpandSettleTimer) {
+    clearTimeout(dockExpandSettleTimer);
+    dockExpandSettleTimer = undefined;
+  }
+};
 const lastPagerScrollTop = new Map<string, number>();
 const onPagerScrollCapture = (event: Event) => {
   const target = event.target as HTMLElement | null;
@@ -598,19 +616,25 @@ const onPagerScrollCapture = (event: Event) => {
   const prev = lastPagerScrollTop.get(path) ?? 0;
   lastPagerScrollTop.set(path, target.scrollTop);
   if (playerStore.musicFull || playerTransition.state.value !== 'idle') {
+    cancelDockExpandSettle();
     if (dockMerged.value) setDockMergedState(false);
     return;
   }
   if (!isBottomMenuRoute.value || miniPlayerIdleCollapsed.value) {
+    cancelDockExpandSettle();
     if (dockMerged.value) setDockMergedState(false);
     return;
   }
   const scrollVelocity = pagerScrollVelocity(target.scrollTop); // px/ms
   const scrollingDown = target.scrollTop > prev;
   if (target.scrollTop > 60 && scrollingDown) {
+    cancelDockExpandSettle();
     setDockMergedState(true, (scrollVelocity * 1000) / Math.max(1, window.innerHeight));
   } else if (target.scrollTop <= 4) {
-    setDockMergedState(false, (scrollVelocity * 1000) / Math.max(1, window.innerHeight));
+    // 低区：不直接展开，进稳定窗（持续停留才展开；离区即取消）
+    requestDockExpandFromScroll((scrollVelocity * 1000) / Math.max(1, window.innerHeight));
+  } else {
+    cancelDockExpandSettle();
   }
 };
 /** 点击圆形：仅恢复展开态（不改变页面滚动位置） */
@@ -695,6 +719,7 @@ watch(dockMerged, () => {
 watch(
   () => route.path,
   () => {
+    cancelDockExpandSettle();
     if (dockMerged.value) dockMerged.value = false;
   }
 );
@@ -1599,6 +1624,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (indicatorMeasureTimer) clearTimeout(indicatorMeasureTimer);
   if (indicatorLateTimer) clearTimeout(indicatorLateTimer);
+  cancelDockExpandSettle();
   if (indicatorResizeHandler) window.removeEventListener('resize', indicatorResizeHandler);
   if (indicatorFollowFrame) cancelAnimationFrame(indicatorFollowFrame);
   indicatorResizeHandler = null;
