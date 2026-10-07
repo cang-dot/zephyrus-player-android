@@ -37,6 +37,9 @@ export interface PlaylistOpenSource {
   coverUrl?: string;
   /** 已知的目标色（如发现页卡片的 themeColor），可省去取色等待 */
   color?: string;
+  /** 过渡形态：'color' = 色块过渡（仅底色块扩展变色，默认）；
+   *  'cover' = 封面过渡（封面克隆从卡片飞向目标页 hero） */
+  mode?: 'cover' | 'color';
 }
 
 interface LayerState {
@@ -71,6 +74,9 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 let generation = 0;
 /** 本次过渡 begin 的时间戳：resolve 的淡出不得早于扩展动画接近完成 */
 let beginAt = 0;
+/** 是否渲染封面克隆：去程只扩底色块变色（封面由目标页 hero 即时承载），
+ *  回程飞回才显示克隆 */
+let displayCover = false;
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -139,7 +145,9 @@ const bgStyle = computed(() => {
 });
 
 /** 封面克隆的解析后地址（模板直接用，避免布局层再引入 getImgUrl） */
-const coverSrc = computed(() => (coverUrl.value ? getImgUrl(coverUrl.value, '500y500') : ''));
+const coverSrc = computed(() =>
+  displayCover && coverUrl.value ? getImgUrl(coverUrl.value, '500y500') : ''
+);
 
 const coverStyle = computed(() => {
   const start = startLayer.value;
@@ -197,6 +205,7 @@ function resetLayer() {
     coverUrl.value = '';
   bgEndColor.value = '';
   reveal.value = false;
+  displayCover = false;
 }
 
 /** 是否正在进行歌单跳转过渡（布局层据此跳过二级页自带的位移/底色过渡） */
@@ -225,6 +234,7 @@ export function beginPlaylistOpen(source: PlaylistOpenSource): boolean {
   const forGeneration = ++generation;
   beginAt = performance.now();
   coverUrl.value = source.coverUrl ?? '';
+  displayCover = (source.mode ?? 'color') === 'cover';
   assignLayers({ rect: { ...rect }, radius: CARD_RADIUS }, { rect: viewportRect(), radius: 0 });
   phase.value = 'expanding';
 
@@ -332,6 +342,7 @@ export function beginReturnFlight(payload: ReturnFlightPayload): boolean {
   const forGeneration = ++generation;
   beginAt = performance.now();
   coverUrl.value = payload.coverUrl ?? '';
+  displayCover = true; // 回程飞回：封面克隆从歌单页 hero 飞回来源卡片
   bgColor.value = '';
   assignLayers(
     { rect: { ...payload.heroRect }, radius: CARD_RADIUS },

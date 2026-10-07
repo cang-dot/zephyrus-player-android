@@ -2,7 +2,7 @@
   <div
     class="search-item group cursor-pointer transition-all duration-300"
     :class="[item.type === 'mv' ? 'flex flex-col' : 'flex flex-col']"
-    @click="handleClick"
+    @click="handleClick($event)"
   >
     <!-- Image Container -->
     <div
@@ -98,7 +98,14 @@ const getCurrentMv = () => {
   } as unknown as IMvItem;
 };
 
-const handleClick = async () => {
+const handleClick = async (event?: MouseEvent) => {
+  // 歌单/专辑卡：来源矩形 + 封面 → 色块扩展过渡（歌单页同款）
+  const el = event?.currentTarget as HTMLElement | null;
+  const rect = el?.getBoundingClientRect();
+  const transition =
+    rect && rect.width > 0
+      ? { rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height }, coverUrl: props.item.picUrl }
+      : undefined;
   if (props.item.type === 'album' || props.item.type === '专辑') {
     navigateToMusicList(router, {
       id: props.item.id,
@@ -108,15 +115,17 @@ const handleClick = async () => {
         ...props.item,
         coverImgUrl: props.item.picUrl
       },
-      canRemove: false
+      canRemove: false,
+      transition
     });
   } else if (props.item.type === 'playlist') {
     navigateToMusicList(router, {
       id: props.item.id,
       type: 'playlist',
       name: props.item.name,
-      listInfo: { picUrl: props.item.picUrl },
-      canRemove: false
+      listInfo: { picUrl: props.item.picUrl, coverImgUrl: props.item.picUrl },
+      canRemove: false,
+      transition
     });
   } else if (props.item.type === 'artist' || props.item.type === '歌手') {
     router.push({

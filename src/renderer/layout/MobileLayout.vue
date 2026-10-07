@@ -559,21 +559,34 @@ const dockMergeGesture = useDockMergeGesture();
 // 提交合并的时间戳：拖拽松手会补发一次合成 click，需在短窗口内忽略，
 // 否则刚提交的合并态会被 onMergedDockClick 立即撤销
 let dockMergeCommittedAt = 0;
-// 滚动速度估算（px/ms）：时间差分，供弹簧初速接力（收起/展开速率随滑动速度）
+// 滚动速度估算（px/ms）：EMA 平滑差分（原始差分噪声大，快速滚动时会正负交替
+// 使弹簧反复反向重启——观感"底栏和迷你栏疯狂抽搐"），供弹簧初速接力
 let dockScrollVelocitySample = { top: 0, at: 0 };
+let dockScrollVelocityEma = 0;
 const pagerScrollVelocity = (top: number) => {
   const now = performance.now();
   const { top: prevTop, at: prevAt } = dockScrollVelocitySample;
   dockScrollVelocitySample = { top, at: now };
   const dt = Math.max(1, now - prevAt);
-  if (now - prevAt > 160) return 0; // 采样过期：视为静止
-  return (top - prevTop) / dt;
+  if (now - prevAt > 160) {
+    dockScrollVelocityEma = 0;
+    return 0; // 采样过期：视为静止
+  }
+  const instant = (top - prevTop) / dt;
+  dockScrollVelocityEma = dockScrollVelocityEma * 0.6 + instant * 0.4;
+  return dockScrollVelocityEma;
 };
+// 反向冷却：值翻转后短窗口内忽略滚动路径的反向请求——快速滚动时 scrollTop
+// 在阈值附近穿梭 + 速度噪声会令方向反复翻转（抽搐根源）
+const DOCK_FLIP_COOLDOWN_MS = 280;
+let dockFlipAt = 0;
 const setDockMergedState = (value: boolean, velocity = 0) => {
   // 幂等：滚动路径高频调用，同值重复设置若重启弹簧会把速度清零
   // （每帧从零加速 = 几乎不前进，观感"没有动画/收起展开打架"）
   if (dockMerged.value === value) return;
+  if (Date.now() - dockFlipAt < DOCK_FLIP_COOLDOWN_MS) return;
   dockMerged.value = value;
+  dockFlipAt = Date.now();
   if (value) dockMergeCommittedAt = Date.now();
   dockMergeGesture.animateMergeProgress(value ? 1 : 0, velocity);
 };

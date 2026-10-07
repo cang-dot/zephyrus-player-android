@@ -188,7 +188,8 @@ const otherRouter = [
     name: 'mobileSearchResult',
     meta: {
       title: '搜索结果',
-      keepAlive: false,
+      // 保活：进歌单页再返回不重载搜索结果（消除飞回动画下的加载一瞬间）
+      keepAlive: true,
       showInMenu: false,
       back: true
     },
