@@ -20,7 +20,7 @@ const setMergeProgress = (value: number) => {
   mergeProgress.value = Math.min(1.18, Math.max(0, value));
 };
 
-/** 弹簧收敛到目标（带初速）；刚度随 |velocity| 自适应——快滑快收、慢滑慢收；完成可选回调 */
+/** 弹簧收敛到目标（带初速）；固定刚度（回滚速度自适应——快滑时高刚度反而放大噪声显抽搐感） */
 const animateMergeProgress = (target: 0 | 1, velocity = 0, complete?: () => void) => {
   cancelAnimation();
   const gen = ++generation;
@@ -28,9 +28,6 @@ const animateMergeProgress = (target: 0 | 1, velocity = 0, complete?: () => void
   let speed = velocity;
   let previous = performance.now();
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  // 下限 380（慢滑/松手静止时柔缓收敛）；初速越快刚度越高（上限 +900），
-  // 阻尼随刚度等比放大（ζ 不变）：快滑利落、慢滑绵软
-  const stiffness = 380 + Math.min(900, Math.abs(velocity) * 500);
   const tick = (now: number) => {
     if (gen !== generation) return;
     const dt = Math.min(0.032, Math.max(0.001, (now - previous) / 1000));
@@ -38,8 +35,8 @@ const animateMergeProgress = (target: 0 | 1, velocity = 0, complete?: () => void
     if (reduced) {
       value += (target - value) * Math.min(1, dt / 0.16);
     } else {
-      // 阻尼随刚度等比放大（ζ 不变）：快滑时收敛更利落，不产生过冲突变
-      speed += (-stiffness * (value - target) - 40 * (stiffness / 380) * speed) * dt;
+      // 固定弹簧 380/40：速率下限调低后的柔缓收敛（初速仍经参数接力）
+      speed += (-380 * (value - target) - 40 * speed) * dt;
       value += speed * dt;
     }
     mergeProgress.value = Math.min(1, Math.max(0, value));
