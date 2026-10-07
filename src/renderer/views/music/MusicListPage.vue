@@ -42,12 +42,13 @@
                 :disabled="playAllState !== 'idle'"
                 @click="handlePlayAll"
               >
-                <i
-                  :class="{
-                    'ri-loader-4-line is-spinning': playAllState === 'loading',
-                    'ri-check-line': playAllState === 'success',
-                    'ri-play-fill': playAllState === 'idle'
-                  }"
+                <morph-icon
+                  class="hero-play-icon"
+                  :state="playAllState"
+                  idle-class="ri-play-fill"
+                  :from-d="ICON_PATH_LOADER_4_LINE"
+                  :to-d="ICON_PATH_CHECK_LINE"
+                  :size="18"
                 />
                 <span class="hero-play-btn-label">{{ t('comp.musicList.playAll') }}</span>
               </button>
@@ -200,6 +201,8 @@ import {
 import { fetchPlatformPlaylistTracks, fetchQqAlbumDetail } from '@/api/platformQrApi';
 import { getUserPlaylist } from '@/api/user';
 import playlistPlaceholder from '@/assets/icon_512.png';
+import { ICON_PATH_CHECK_LINE, ICON_PATH_LOADER_4_LINE } from '@/assets/icons/remixPaths';
+import MorphIcon from '@/components/common/MorphIcon.vue';
 import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
@@ -1507,7 +1510,16 @@ const playCoverEnterTransition = () => {
   // 歌单跳转过渡（首页/发现页卡片）：覆盖层已完成底色与封面衔接，
   // 这里只需把封面克隆对齐到真实 hero 位置后收尾；该流程不写 sessionStorage.musicListCoverRect
   const openTransition = usePlaylistOpenTransition();
-  if (openTransition.isActive()) {
+  // 以 beginPlaylistOpen 写下的导航标记为准——单例 isActive() 会在上一次
+  // 过渡未 reset 完时误判（把首页的封面飞入路径换成上一次的色块回程）
+  let viaOpenTransition = false;
+  try {
+    viaOpenTransition = sessionStorage.getItem('playlistOpenViaTransition') === '1';
+    sessionStorage.removeItem('playlistOpenViaTransition');
+  } catch {
+    /* ignore */
+  }
+  if (viaOpenTransition && openTransition.isActive()) {
     enteredViaOpenTransition = true;
     const heroCover = pageRootRef.value?.querySelector<HTMLElement>('.hero-cover');
     const heroRect = heroCover?.getBoundingClientRect();
@@ -1860,44 +1872,6 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     opacity: 0;
     max-width: 0;
     pointer-events: none;
-  }
-}
-
-/* 播放全部按钮：收缩时缩小 */
-.play-all-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 16px;
-  border-radius: 9999px;
-  border: none;
-  background: var(--accent-color, #888);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 2px 12px rgba(var(--accent-color-rgb, 136, 136, 136), 0.25);
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition:
-    padding 0.3s $spring,
-    font-size 0.3s $spring;
-
-  i {
-    font-size: 16px;
-    transition: font-size 0.3s $spring;
-  }
-
-  .hero-zone.compact & {
-    padding: 6px 12px;
-    font-size: 12px;
-    i {
-      font-size: 14px;
-    }
-  }
-
-  &:active {
-    transform: scale(0.94);
   }
 }
 
@@ -2293,7 +2267,9 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    /* 图标与文字的间距不在这里给：折叠成圆钮时 flex gap 仍会占位，
+       导致图标相对按钮中心左偏 gap/2。改由 .hero-play-btn-label 的
+       margin-left 承载，折叠时一并归零（见下方 loading/success 分支）。 */
     min-width: 150px;
     height: 46px;
     padding: 0 26px;
@@ -2311,16 +2287,20 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
       border-radius 320ms cubic-bezier(0.32, 0.72, 0, 1),
       opacity 200ms ease;
 
-    i {
-      font-size: 18px;
+    /* 图标槽：尺寸由 morph-icon 的 size 决定；转圈→对勾的形状补间在该组件内完成 */
+    .hero-play-icon {
+      flex: 0 0 auto;
     }
 
     .hero-play-btn-label {
       max-width: 120px;
+      /* 承接原 gap 的 8px 间距；折叠时归零，图标才能落在圆钮正中心 */
+      margin-left: 8px;
       overflow: hidden;
       white-space: nowrap;
       transition:
         max-width 280ms cubic-bezier(0.32, 0.72, 0, 1),
+        margin-left 280ms cubic-bezier(0.32, 0.72, 0, 1),
         opacity 180ms ease;
     }
 
@@ -2334,6 +2314,8 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
       .hero-play-btn-label {
         max-width: 0;
+        /* 与 max-width 同步收缩，消除幽灵间距：图标盒中心 = 圆钮中心 */
+        margin-left: 0;
         opacity: 0;
       }
     }
@@ -2343,24 +2325,13 @@ $spring: cubic-bezier(0.34, 1.56, 0.64, 1);
       opacity: 0.88;
     }
 
-    &.success i {
+    &.success .hero-play-icon {
       color: var(--accent-color, #77836e);
-    }
-
-    .is-spinning {
-      display: inline-block;
-      animation: hero-play-all-spin 900ms linear infinite;
     }
 
     &:active {
       transform: scale(0.97);
     }
-  }
-}
-
-@keyframes hero-play-all-spin {
-  to {
-    transform: rotate(360deg);
   }
 }
 

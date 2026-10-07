@@ -1420,6 +1420,9 @@ onActivated(() => {
       loadArtistInfo();
     }
 
+    // chrome 色恢复（onDeactivated 离开时清理过；avatarUrl 未变时 watch 不会触发）
+    if (artistPageColor.value) applyArtistPageChrome(artistPageColor.value);
+
     // 重新设置观察器
     setupObservers();
     syncArtistTopbar();
@@ -1454,36 +1457,42 @@ onMounted(() => {
 });
 
 onDeactivated(() => {
+  // 保活页返回时 onBeforeUnmount 不触发——回程动画在此处补跑，
+  // 覆盖层收缩与迷你栏恢复同步进行（对齐歌单页返回时序，消除"先切页再放动画"的割裂）
+  if (enteredViaOpenTransition) {
+    beginPlaylistOpenReturn();
+    // 返回飞回：带 fromKey 的入口，写 hero 矩形供来源页消费
+    if (prefillProfile.value?.fromKey) {
+      const photo = document.querySelector<HTMLElement>('.ma-photo');
+      const rect = photo?.getBoundingClientRect();
+      if (rect && rect.width > 0) {
+        try {
+          sessionStorage.setItem(
+            ARTIST_COVER_RETURN_KEY,
+            JSON.stringify({
+              x: rect.x,
+              y: rect.y,
+              w: rect.width,
+              h: rect.height,
+              key: prefillProfile.value.fromKey,
+              coverUrl: heroAvatar.value
+            })
+          );
+        } catch {
+          /* 忽略持久化失败 */
+        }
+      }
+    }
+    enteredViaOpenTransition = false;
+    // chrome 色随页离开清理（onActivated 回来时由下方重新应用）
+    clearArtistPageChrome();
+  }
   // 断开观察器但不清除引用
   if (songsObserver) songsObserver.disconnect();
   if (albumsObserver) albumsObserver.disconnect();
 });
 
 onUnmounted(() => {
-  // 背景扩展过渡的回程镜像（底色块收缩回入口卡片）
-  if (enteredViaOpenTransition) beginPlaylistOpenReturn();
-  // 返回飞回：带 fromKey 的入口，写 hero 矩形供来源页消费
-  if (enteredViaOpenTransition && prefillProfile.value?.fromKey) {
-    const photo = document.querySelector<HTMLElement>('.ma-photo');
-    const rect = photo?.getBoundingClientRect();
-    if (rect && rect.width > 0) {
-      try {
-        sessionStorage.setItem(
-          ARTIST_COVER_RETURN_KEY,
-          JSON.stringify({
-            x: rect.x,
-            y: rect.y,
-            w: rect.width,
-            h: rect.height,
-            key: prefillProfile.value.fromKey,
-            coverUrl: heroAvatar.value
-          })
-        );
-      } catch {
-        /* 忽略持久化失败 */
-      }
-    }
-  }
   // page chrome（顶栏/迷你栏跟随色）随页卸载清理，避免污染其它页面
   clearArtistPageChrome();
   // 顶栏胶囊动作注销

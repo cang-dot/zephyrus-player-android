@@ -81,11 +81,13 @@ let displayCover = false;
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const viewportRect = (): TransitionRect => ({
-  x: 0,
-  y: 0,
-  w: window.innerWidth,
-  h: window.innerHeight
+/** 全屏端矩形：四向外扩使「全屏态的圆角」落在屏幕之外——色块全程保持圆角形态
+ *  （apple-design §7 空间一致性：色块从圆角卡片长出、收回圆角卡片，形态连续） */
+const expandedViewportRect = (): TransitionRect => ({
+  x: -32,
+  y: -32,
+  w: window.innerWidth + 64,
+  h: window.innerHeight + 64
 });
 
 /** 目标 chrome 变量写到布局根与 :root（歌单页自己也会写这三处，保证同源） */
@@ -186,13 +188,6 @@ const coverTransform = computed(() => {
   return `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${scale.toFixed(4)})`;
 });
 
-/** 主页底色（回程收缩的终点色）：从布局根读取当前主题的 --m-bg */
-function resolveHomeBgColor(): string {
-  const layout = document.querySelector('.mobile-layout');
-  const value = layout ? getComputedStyle(layout).getPropertyValue('--m-bg').trim() : '';
-  return value || 'var(--m-bg, #141414)';
-}
-
 function resetLayer() {
   if (timer) {
     clearTimeout(timer);
@@ -235,7 +230,10 @@ export function beginPlaylistOpen(source: PlaylistOpenSource): boolean {
   beginAt = performance.now();
   coverUrl.value = source.coverUrl ?? '';
   displayCover = (source.mode ?? 'color') === 'cover';
-  assignLayers({ rect: { ...rect }, radius: CARD_RADIUS }, { rect: viewportRect(), radius: 0 });
+  assignLayers(
+    { rect: { ...rect }, radius: CARD_RADIUS },
+    { rect: expandedViewportRect(), radius: CARD_RADIUS }
+  );
   phase.value = 'expanding';
 
     const parsed = parseRepresentativeCssColor(source.color);
@@ -256,6 +254,14 @@ export function beginPlaylistOpen(source: PlaylistOpenSource): boolean {
   // 记住源矩形与底色，供回程镜像
   lastRect = { ...rect };
   lastColor = bgColor.value;
+  // 导航标记：目标页据此确认「本次打开确实由过渡启动」——单例 isActive() 会在
+  // 上一次过渡未完全 reset 时误判（如发现页进 A 返回后快速从首页进 B），
+  // 导致首页的封面飞入路径被误换成色块回程
+  try {
+    sessionStorage.setItem('playlistOpenViaTransition', '1');
+  } catch {
+    /* ignore */
+  }
 
   scheduleReveal(forGeneration);
   // 兜底：目标页迟迟不 resolve 也要收尾，避免覆盖层卡死
@@ -277,9 +283,13 @@ export function beginPlaylistOpenReturn(): boolean {
   beginAt = performance.now();
   coverUrl.value = '';
   bgColor.value = lastColor;
-  // 回程终点色 = 主页底色：收缩过程中从歌单页 chrome 色渐变过来，落定时无缝融入页面
-  bgEndColor.value = resolveHomeBgColor();
-  assignLayers({ rect: viewportRect(), radius: 0 }, { rect: { ...lastRect }, radius: CARD_RADIUS });
+  // 回程终点色 = 保持来源卡片主题色：色块收回卡片矩形的过程颜色连续，
+  // 淡出后由卡片本体衔接（渐变到页面底色会在中途"变白"，割裂）
+  bgEndColor.value = lastColor;
+  assignLayers(
+    { rect: expandedViewportRect(), radius: CARD_RADIUS },
+    { rect: { ...lastRect }, radius: CARD_RADIUS }
+  );
   phase.value = 'expanding';
 
   scheduleReveal(forGeneration);
