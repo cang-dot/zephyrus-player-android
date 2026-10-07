@@ -58,6 +58,8 @@ watch(
   () => route.path,
   (path) => {
     if (path !== '/') return;
+    // 延迟到二级页退场过渡（约 240ms）基本结束后再量目标卡片矩形：
+    // 过早量取会抓到页面切换过渡的中间值，导致封面飞回落点偏移
     window.setTimeout(() => {
       const raw = sessionStorage.getItem('musicListCoverReturn');
       if (!raw) return;
@@ -85,7 +87,7 @@ watch(
         endRect: { x: endRect.x, y: endRect.y, w: endRect.width, h: endRect.height },
         coverUrl: payload.coverUrl
       });
-    }, 60);
+    }, 200);
   }
 );
 

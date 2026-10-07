@@ -155,11 +155,7 @@
                   </button>
                 </div>
                 <div v-if="config.lyricColorMode === 'custom'" class="color-picker-row">
-                  <input
-                    type="color"
-                    v-model="config.customLyricColor"
-                    @input="regenerateDebounced"
-                  />
+                  <AppColorPicker v-model="config.customLyricColor" @change="regenerateDebounced" />
                   <span class="color-value">{{ config.customLyricColor }}</span>
                 </div>
               </div>
@@ -178,7 +174,7 @@
                   </button>
                 </div>
                 <div v-if="config.backgroundMode === 'solid'" class="color-picker-row">
-                  <input type="color" v-model="config.solidBgColor" @input="regenerateDebounced" />
+                  <AppColorPicker v-model="config.solidBgColor" @change="regenerateDebounced" />
                   <span class="color-value">{{ config.solidBgColor }}</span>
                 </div>
               </div>
@@ -224,7 +220,7 @@
               <div class="config-section">
                 <div class="config-label">文字颜色</div>
                 <div class="color-picker-row">
-                  <input type="color" v-model="config.textColor" @input="regenerateDebounced" />
+                  <AppColorPicker v-model="config.textColor" @change="regenerateDebounced" />
                   <span class="color-value">{{ config.textColor }}</span>
                 </div>
               </div>
@@ -269,7 +265,7 @@
                   </button>
                 </div>
                 <div v-if="config.accentColorMode === 'custom'" class="color-picker-row">
-                  <input v-model="config.accentColor" type="color" @input="regenerateDebounced" />
+                  <AppColorPicker v-model="config.accentColor" @change="regenerateDebounced" />
                   <span class="color-value">{{ config.accentColor }}</span>
                 </div>
               </div>
@@ -477,6 +473,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { getSongWikiSummary } from '@/api/music';
 import logoUrl from '@/assets/logo.png';
+import AppColorPicker from '@/components/common/AppColorPicker.vue';
 import MorphingFontSelector from '@/components/share/MorphingFontSelector.vue';
 import { usePosterTransitionOrigin } from '@/composables/usePosterTransitionOrigin';
 import { artistList, playMusic } from '@/hooks/MusicHook';
@@ -1104,24 +1101,6 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   width: 100%;
-
-  input[type='color'] {
-    width: 36px;
-    height: 36px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    background: transparent;
-    padding: 0;
-
-    &::-webkit-color-swatch-wrapper {
-      padding: 0;
-    }
-    &::-webkit-color-swatch {
-      border: 2px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-    }
-  }
 
   .color-value {
     font-size: 12px;

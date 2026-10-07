@@ -36,11 +36,10 @@
       <!-- 颜色选择器 -->
       <div v-else-if="item.type === 'color' && isSettingVisible(item)" class="setting-item">
         <span>{{ item.label }}</span>
-        <input
-          type="color"
-          :value="getConfigValue(item.key!)"
-          @input="setConfigValue(item.key!, ($event.target as HTMLInputElement).value)"
-          class="color-picker"
+        <app-color-picker
+          :model-value="getConfigValue(item.key!)"
+          :title="item.label"
+          @change="(value: string) => setConfigValue(item.key!, value)"
         />
       </div>
 
@@ -99,6 +98,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
+import AppColorPicker from '@/components/common/AppColorPicker.vue';
 import type { SettingItem } from '@/playerStyles/registry';
 import type { LyricConfig } from '@/types/lyric';
 
@@ -322,26 +322,6 @@ function checkCondition(condition: {
   color: var(--d-text-secondary, rgba(255, 255, 255, 0.8));
   opacity: 0.7;
   margin-bottom: 12px;
-}
-
-/* Color picker */
-.color-picker {
-  width: 100%;
-  height: 48px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  background: transparent;
-  flex-shrink: 0;
-}
-
-.color-picker::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-
-.color-picker::-webkit-color-swatch {
-  border: 1px solid var(--d-border, rgba(255, 255, 255, 0.1));
-  border-radius: var(--d-radius-sm, 8px);
 }
 
 /* Font dropdown */

@@ -446,13 +446,17 @@ onMounted(async () => {
   right: 16px;
   top: 54px;
   bottom: 66px;
-  display: -webkit-box;
-  overflow: hidden;
+  /* 卡内滚动：长公告不再被 line-clamp 截断 */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
   font-size: 12.5px;
   line-height: 1.72;
   color: var(--m-text-primary, #20211f);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* ==================== 文案与播放按钮 ==================== */
@@ -536,8 +540,15 @@ onMounted(async () => {
   gap: 2px;
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  /* 卡内滚动：5 首歌超出可视高度时可上下滑，不再无声截断 */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
   list-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 
   button {
     display: flex;

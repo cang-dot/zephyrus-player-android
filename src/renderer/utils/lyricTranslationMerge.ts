@@ -1,13 +1,15 @@
 /**
  * 翻译歌词特征合并：
- * 一些歌词源把「原文 + 翻译」混在一起——或同一行内用全角括号附带中文翻译
- * （如 `I feel lonely, makes me start miss you.（我觉得孤独让你开始想你）`），
+ * 一些歌词源把「原文 + 翻译」混在一起——或同一行内用全角/半角括号附带中文翻译
+ * （如 `I feel lonely, makes me start miss you.（我觉得孤独让你开始想你）`、
+ * `Don't you know? (你不知道吗)`），
  * 或同一时间轴连续两行（一行原文一行翻译）。这里把它们规范化成
  * 「主歌词 text + 翻译 trText」结构，AMLL 渲染即为一行原文一行翻译。
  *
  * 规则刻意保守：两类特征都要求「一边以 CJK 为主、另一边以拉丁字母为主」的
- * 跨语系对比——纯中文/纯英文歌词不会误伤；半角括号不处理（`(Live)` 类版式
- * 标记假阳性太多）。已有 trText 的行（如 TTML 内嵌翻译）不重复处理。
+ * 跨语系对比——纯中文/纯英文歌词不会误伤；半角括号同样只认「拉丁主行 +
+ * CJK 括号内」的组合，`(Live)` / `(Acoustic)` 这类括号内为拉丁的版式标记
+ * 不会误判为翻译。已有 trText 的行（如 TTML 内嵌翻译）不重复处理。
  */
 import type { ILyricText } from '@/types/music';
 
@@ -27,12 +29,12 @@ function charRatio(text: string, pattern: RegExp): number {
 const isCjkDominated = (text: string) => charRatio(text, CJK_CHAR) >= 0.6;
 const isLatinDominated = (text: string) => charRatio(text, LATIN_CHAR) >= 0.6;
 
-/** 行尾全角括号（允许尾随标点） */
-const TRAILING_FULLWIDTH_PAREN = /[ \t]*（([^（）]*)）[ \t]*[。，、！？!?.…～~]*$/;
+/** 行尾括号（全角/半角，允许尾随标点）；括号内不得再含括号 */
+const TRAILING_PAREN = /[ \t]*[（(]([^（）()]*)[）)][ \t]*[。，、！？!?.…～~]*$/;
 
 /** 拆「原文（中文翻译）」行尾内联翻译；特征不符返回 null */
 function splitInlineTranslation(text: string): { main: string; translation: string } | null {
-  const match = TRAILING_FULLWIDTH_PAREN.exec(text);
+  const match = TRAILING_PAREN.exec(text);
   if (!match) return null;
   const inner = match[1].trim();
   const main = text.slice(0, match.index).trimEnd();

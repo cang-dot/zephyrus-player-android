@@ -268,7 +268,10 @@ onMounted(async () => {
   gap: 12px;
   margin-inline: -16px;
   overflow-x: auto;
-  padding: 0 0 8px;
+  /* 负 margin 挣脱页边距后，自身保留 16px 内边距：首列与其它区块对齐，
+     滚动到尾部也有收尾边距 */
+  padding: 0 16px 8px;
+  scroll-padding-inline: 16px;
   scrollbar-width: none;
   scroll-snap-type: x proximity;
   /* 双轴显式声明：横滑滚轨道、竖滑交回页面滚动（pan-x 会吞掉页面竖滚） */

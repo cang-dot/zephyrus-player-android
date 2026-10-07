@@ -30,26 +30,26 @@
 
       <label class="setting-row">
         <span>{{ tr('player.styleCustomization.lyricColor', '基础歌词颜色') }}</span>
-        <input v-model="local.lyricColor" type="color" />
+        <AppColorPicker v-model="local.lyricColor" />
       </label>
 
       <template v-if="styleKey === 'frenzy'">
         <div class="section-label">狂热文字分段颜色</div>
         <label class="setting-row">
           <span>常态第一段</span>
-          <input v-model="local.frenzyNormalMainColor" type="color" />
+          <AppColorPicker v-model="local.frenzyNormalMainColor" />
         </label>
         <label class="setting-row">
           <span>常态第二段</span>
-          <input v-model="local.frenzyNormalAuxiliaryColor" type="color" />
+          <AppColorPicker v-model="local.frenzyNormalAuxiliaryColor" />
         </label>
         <label class="setting-row">
           <span>高潮第一段</span>
-          <input v-model="local.frenzyClimaxMainColor" type="color" />
+          <AppColorPicker v-model="local.frenzyClimaxMainColor" />
         </label>
         <label class="setting-row">
           <span>高潮第二段</span>
-          <input v-model="local.frenzyClimaxAuxiliaryColor" type="color" />
+          <AppColorPicker v-model="local.frenzyClimaxAuxiliaryColor" />
         </label>
       </template>
 
@@ -291,15 +291,14 @@
           </button>
         </div>
 
-        <input
+        <AppColorPicker
           v-if="local.backgroundMode === 'solid'"
           v-model="local.solidColor"
-          type="color"
           class="wide-color"
         />
         <div v-else-if="local.backgroundMode === 'gradient'" class="color-pair">
-          <input v-model="local.gradientColors.colors[0]" type="color" />
-          <input v-model="local.gradientColors.colors[1]" type="color" />
+          <AppColorPicker v-model="local.gradientColors.colors[0]" />
+          <AppColorPicker v-model="local.gradientColors.colors[1]" />
         </div>
         <div v-else class="image-settings">
           <button type="button" class="command-button full-width" @click="backgroundInput?.click()">
@@ -378,10 +377,9 @@
               {{ tr('player.styleCustomization.customColor', '自定义色') }}
             </button>
           </div>
-          <input
+          <AppColorPicker
             v-if="local.climaxColors[layer.key].source === 'custom'"
             v-model="local.climaxColors[layer.key].customColor"
-            type="color"
           />
         </div>
       </div>
@@ -609,7 +607,7 @@
         </label>
         <label v-if="!local.smokeFollowThemeColor" class="setting-row">
           <span>{{ tr('player.styleCustomization.smokeCustomColor', '自定义烟雾颜色') }}</span>
-          <input v-model="local.smokeCustomColor" type="color" />
+          <AppColorPicker v-model="local.smokeCustomColor" />
         </label>
         <label class="setting-row">
           <span>{{
@@ -630,7 +628,7 @@
           <span>{{
             tr('player.styleCustomization.smokeGlowCustomColor', '自定义高潮光晕颜色')
           }}</span>
-          <input v-model="local.smokeGlowCustomColor" type="color" />
+          <AppColorPicker v-model="local.smokeGlowCustomColor" />
         </label>
         <label class="range-row"
           ><span
@@ -985,14 +983,6 @@ function importFont() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-input[type='color'] {
-  width: 44px;
-  height: 30px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
 }
 input[type='range'] {
   width: min(44vw, 180px);

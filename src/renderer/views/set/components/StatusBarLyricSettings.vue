@@ -147,11 +147,12 @@
             {{ st('custom') }}
           </button>
         </div>
-        <input
+        <app-color-picker
           v-if="getColor(part.key).source === 'custom'"
-          type="color"
-          :value="getColor(part.key).color"
-          @input="setColorValue(part.key, ($event.target as HTMLInputElement).value)"
+          class="status-color-picker"
+          :model-value="getColor(part.key).color"
+          :title="part.label"
+          @change="(value: string) => setColorValue(part.key, value)"
         />
       </article>
     </section>
@@ -180,11 +181,12 @@
               {{ st('custom') }}
             </button>
           </div>
-          <input
+          <app-color-picker
             v-if="getColor(part.key).source === 'custom'"
-            type="color"
-            :value="getColor(part.key).color"
-            @input="setColorValue(part.key, ($event.target as HTMLInputElement).value)"
+            class="status-color-picker"
+            :model-value="getColor(part.key).color"
+            :title="part.label"
+            @change="(value: string) => setColorValue(part.key, value)"
           />
         </template>
       </article>
@@ -209,6 +211,7 @@ import type { Ref } from 'vue';
 import { computed, inject, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import AppColorPicker from '@/components/common/AppColorPicker.vue';
 import AppSelect from '@/components/common/AppSelect.vue';
 
 import {
@@ -548,13 +551,5 @@ input[type='range'] {
   flex: 1;
   padding: 0 5px;
   font-size: 10px;
-}
-.color-control input[type='color'] {
-  width: 100%;
-  height: 30px;
-  padding: 2px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
 }
 </style>

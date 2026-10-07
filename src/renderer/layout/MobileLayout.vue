@@ -34,7 +34,11 @@
       @touchmove="onContentTouchMove"
     >
       <!-- Tab pager：四页常驻（首次激活挂载），横滑时当前页与相邻页 1:1 双页跟手 -->
-      <div v-show="isBottomMenuRoute || pagerBridgeVisible" class="tab-pager" @scroll.capture="onPagerScrollCapture">
+      <div
+        v-show="isBottomMenuRoute || pagerBridgeVisible"
+        class="tab-pager"
+        @scroll.capture="onPagerScrollCapture"
+      >
         <div
           v-for="(tab, index) in menuStore.menus"
           :key="tab.path"
@@ -188,6 +192,8 @@
     </div>
 
     <mobile-player-bottom-surface v-if="isPlay" />
+    <!-- 匹配歌词面板：全局挂载一次，由长按菜单 / 播放设置打开 -->
+    <lyric-match-panel />
     <mobile-song-action-sheet
       v-if="mobileSongActionRequest && !isPlay"
       :item="mobileSongActionRequest.item"
@@ -201,6 +207,7 @@
       @play="invokeSongAction('play')"
       @play-next="invokeSongAction('playNext')"
       @match-netease="invokeSongAction('matchNetease')"
+      @match-lyric="invokeSongAction('matchLyric')"
       @favorite="invokeSongAction('favorite')"
       @remove="invokeSongAction('remove')"
       @goto-artist="(id) => invokeSongAction('gotoArtist', id)"
@@ -227,6 +234,7 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import MobileSongActionSheet from '@/components/common/MobileSongActionSheet.vue';
+import { useDockMergeGesture } from '@/composables/useDockMergeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
 import { usePlaylistOpenTransition } from '@/composables/usePlaylistOpenTransition';
@@ -242,7 +250,6 @@ import {
   MORPH_SETTLE_PROGRESS,
   MORPH_STRETCH_PIXELS
 } from '@/utils/mobileGestureThresholds';
-import { useDockMergeGesture } from '@/composables/useDockMergeGesture';
 
 import MobileHeader from './components/MobileHeader.vue';
 const MobilePlayBar = defineAsyncComponent(() => import('@/components/player/MobilePlayBar.vue'));
@@ -251,6 +258,9 @@ const MobilePlayerBottomSurface = defineAsyncComponent(
 );
 const PlayingListDrawer = defineAsyncComponent(
   () => import('@/components/player/PlayingListDrawer.vue')
+);
+const LyricMatchPanel = defineAsyncComponent(
+  () => import('@/components/lyric/LyricMatchPanel.vue')
 );
 
 const props = defineProps<{
@@ -309,7 +319,15 @@ watch(
   }
 );
 const invokeSongAction = (
-  action: 'play' | 'playNext' | 'favorite' | 'remove' | 'gotoArtist' | 'gotoAlbum' | 'matchNetease',
+  action:
+    | 'play'
+    | 'playNext'
+    | 'favorite'
+    | 'remove'
+    | 'gotoArtist'
+    | 'gotoAlbum'
+    | 'matchNetease'
+    | 'matchLyric',
   id?: number | string
 ) => {
   const callback = songActionSurface.request.value?.callbacks?.[action] as
@@ -427,7 +445,14 @@ onBeforeUnmount(() => {
   layoutMainRef.value?.style.removeProperty('--player-surface-reveal');
   document.body.style.removeProperty('--player-open-progress');
   document.body.style.removeProperty('--player-surface-reveal');
-  for (const key of ['--clip-top', '--clip-right', '--clip-bottom', '--clip-left', '--clip-radius', '--player-morph-bg']) {
+  for (const key of [
+    '--clip-top',
+    '--clip-right',
+    '--clip-bottom',
+    '--clip-left',
+    '--clip-radius',
+    '--player-morph-bg'
+  ]) {
     document.body.style.removeProperty(key);
   }
   document.body.classList.remove('mobile-player-surface-active');
@@ -607,11 +632,12 @@ watch(
     dock.style.setProperty('--dock-mp', String(Math.min(1, mp)));
     if (mp > 0.001) {
       const bar = document.querySelector<HTMLElement>('.mobile-play-bar');
-      const capsule = document.querySelector<HTMLElement>(
-        '.mobile-play-bar .mobile-mini-controls'
-      );
+      const capsule = document.querySelector<HTMLElement>('.mobile-play-bar .mobile-mini-controls');
       if (bar && capsule) {
-        const dy = Math.max(0, Math.round(bar.getBoundingClientRect().bottom - capsule.getBoundingClientRect().bottom));
+        const dy = Math.max(
+          0,
+          Math.round(bar.getBoundingClientRect().bottom - capsule.getBoundingClientRect().bottom)
+        );
         dock.style.bottom = `calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap) + ${dy}px)`;
       }
     } else {
@@ -663,8 +689,12 @@ watch(
   { flush: 'sync' }
 );
 // 胶囊皮肤（底色恒定垫底 / 播放器底色随进度盖上来 / 边框阴影快速淡出）
-const playerMorphBaseStyle = computed(() => ({ background: playerTransition.capsuleSource.value?.background }));
-const playerMorphBgFillStyle = computed(() => ({ opacity: String(playerTransition.progress.value) }));
+const playerMorphBaseStyle = computed(() => ({
+  background: playerTransition.capsuleSource.value?.background
+}));
+const playerMorphBgFillStyle = computed(() => ({
+  opacity: String(playerTransition.progress.value)
+}));
 const playerMorphSkinStyle = computed(() => {
   const source = playerTransition.capsuleSource.value;
   if (!source) return undefined;
@@ -686,7 +716,10 @@ const syncMorphClip = () => {
   }
   surface.setProperty('--clip-top', `${Math.max(0, rect.top)}px`);
   surface.setProperty('--clip-right', `${Math.max(0, morphViewport.w - rect.left - rect.width)}px`);
-  surface.setProperty('--clip-bottom', `${Math.max(0, morphViewport.h - rect.top - rect.height)}px`);
+  surface.setProperty(
+    '--clip-bottom',
+    `${Math.max(0, morphViewport.h - rect.top - rect.height)}px`
+  );
   surface.setProperty('--clip-left', `${Math.max(0, rect.left)}px`);
   surface.setProperty('--clip-radius', `${rect.radius}px`);
 };
@@ -1434,6 +1467,7 @@ const activeGlowStyle = computed(() => 'var(--m-nav-indicator-bg, #3a332e)');
 // setup 阶段同步求值一次，提前引用会触发 TDZ。
 const navIndicator = reactive({ x: 0, w: 0, ready: false });
 let indicatorMeasureTimer: ReturnType<typeof setTimeout> | undefined;
+let indicatorLateTimer: ReturnType<typeof setTimeout> | undefined;
 let indicatorResizeHandler: (() => void) | null = null;
 
 const measureNavIndicator = () => {
@@ -1457,7 +1491,11 @@ const measureNavIndicator = () => {
 const scheduleNavIndicatorMeasure = () => {
   void nextTick(measureNavIndicator);
   if (indicatorMeasureTimer) clearTimeout(indicatorMeasureTimer);
+  if (indicatorLateTimer) clearTimeout(indicatorLateTimer);
   indicatorMeasureTimer = setTimeout(measureNavIndicator, 480);
+  // 返回底栏页时页面切换/布局过渡链可能超过 480ms（首测与二次校准都抓到中间值，
+  // 表现为"图标区域卡在过渡帧错位"），追加一拍晚校准兜底
+  indicatorLateTimer = setTimeout(measureNavIndicator, 900);
 };
 
 const navIndicatorStyle = computed(() => {
@@ -1484,7 +1522,13 @@ watch(
   // 路由切换(选中项变)、拖拽结束(浮层归还)、Dock 布局变化(收起/展开播放位)都需要重新对位。
   // 迷你栏收起态(has-player-slot 四格等分)会整排改变 item 几何——切换瞬间先隐藏旧几何
   // （dockMerged 的展开复位走 startIndicatorFollow 逐帧跟随，不在此隐藏）
-  () => [route.path, navGlow.visible, mobileDockContentInset.value, miniPlayerIdleCollapsed.value] as const,
+  () =>
+    [
+      route.path,
+      navGlow.visible,
+      mobileDockContentInset.value,
+      miniPlayerIdleCollapsed.value
+    ] as const,
   ([, , , collapsed], previous) => {
     if (previous && previous[3] !== collapsed) navIndicator.ready = false;
     scheduleNavIndicatorMeasure();
@@ -1527,6 +1571,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (indicatorMeasureTimer) clearTimeout(indicatorMeasureTimer);
+  if (indicatorLateTimer) clearTimeout(indicatorLateTimer);
   if (indicatorResizeHandler) window.removeEventListener('resize', indicatorResizeHandler);
   if (indicatorFollowFrame) cancelAnimationFrame(indicatorFollowFrame);
   indicatorResizeHandler = null;
@@ -1889,13 +1934,12 @@ onBeforeUnmount(() => {
     top: auto !important;
     right: calc(12px + var(--dock-mp, 0) * 0px);
     bottom: calc(
-      var(--safe-area-inset-bottom, 0px) + 76px -
-      var(--dock-mp, 0) * (76px - var(--mobile-dock-gap))
+      var(--safe-area-inset-bottom, 0px) + 76px - var(--dock-mp, 0) *
+        (76px - var(--mobile-dock-gap))
     ) !important;
     left: calc(12px + var(--dock-mp, 0) * 60px) !important;
     width: auto !important;
-    transition:
-      border-color 0.22s ease;
+    transition: border-color 0.22s ease;
   }
 
   &.player-collapsed :deep(.mobile-play-bar.play-bar-mini.idle-collapsed) {
@@ -2313,11 +2357,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   /* 裁切矩形由 JS 逐帧写入 body 变量（与 morph 层三段几何+阻尼伸长一致）；
    * 挂 body 保证 Teleport 到 body 的播放面（drawer 容器路径）同样可达 */
   clip-path: inset(
-    var(--clip-top, 0px)
-    var(--clip-right, 0px)
-    var(--clip-bottom, 0px)
-    var(--clip-left, 0px)
-    round var(--clip-radius, 0px)
+    var(--clip-top, 0px) var(--clip-right, 0px) var(--clip-bottom, 0px) var(--clip-left, 0px) round
+      var(--clip-radius, 0px)
   );
 }
 

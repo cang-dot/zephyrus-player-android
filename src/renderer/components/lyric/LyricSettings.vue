@@ -35,7 +35,7 @@
           <label class="color-picker-label">{{
             tr('settings.lyricSettings.lyricColor', '歌词颜色')
           }}</label>
-          <input type="color" v-model="config.lyricColor" class="color-picker" />
+          <AppColorPicker v-model="config.lyricColor" class="color-picker-inline" />
         </div>
 
         <!-- 默认/经典样式设置（硬编码 UI，比 settings.json 更完整） -->
@@ -299,7 +299,7 @@
             <label class="color-picker-label">{{
               t('settings.lyricSettings.background.solidColor')
             }}</label>
-            <input type="color" v-model="config.solidColor" class="color-picker" />
+            <AppColorPicker v-model="config.solidColor" class="color-picker-inline" />
           </div>
 
           <!-- 渐变 -->
@@ -312,11 +312,7 @@
             }}</label>
             <div class="flex flex-wrap gap-2">
               <div v-for="(_, index) in config.gradientColors.colors" :key="index" class="relative">
-                <input
-                  type="color"
-                  v-model="config.gradientColors.colors[index]"
-                  class="color-picker-small"
-                />
+                <AppColorPicker v-model="config.gradientColors.colors[index]" class="color-picker-inline" />
                 <button
                   v-if="config.gradientColors.colors.length > 2"
                   @click="removeGradientColor(index)"
@@ -463,6 +459,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import AppColorPicker from '@/components/common/AppColorPicker.vue';
 import AppSelect from '@/components/common/AppSelect.vue';
 import { isFeatureEnabled } from '@/features/store';
 import { useCoverColor } from '@/hooks/useCoverColor';
@@ -1266,43 +1263,6 @@ defineExpose({
   color: var(--d-text-secondary);
   opacity: 0.7;
   margin-bottom: 12px;
-}
-
-.color-picker {
-  width: 100%;
-  height: 48px;
-  border: none;
-  border-radius: var(--d-radius-sm, 8px);
-  cursor: pointer;
-  background: transparent;
-}
-
-.color-picker::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-
-.color-picker::-webkit-color-swatch {
-  border: 1px solid var(--d-border);
-  border-radius: var(--d-radius-sm, 8px);
-}
-
-/* 小尺寸颜色选择器（用于渐变） */
-.color-picker-small {
-  width: 56px;
-  height: 56px;
-  border: none;
-  border-radius: var(--d-radius-md, 12px);
-  cursor: pointer;
-  background: transparent;
-}
-
-.color-picker-small::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-
-.color-picker-small::-webkit-color-swatch {
-  border: 2px solid var(--d-border-strong);
-  border-radius: var(--d-radius-md, 12px);
 }
 
 /* 下拉选择 */
