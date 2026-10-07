@@ -28,6 +28,8 @@ function open(item: RecommendedPlaylist, event?: MouseEvent) {
   const cover = el?.querySelector<HTMLElement>('.playlist-cover');
   const rect = (cover ?? el)?.getBoundingClientRect();
   if (rect && rect.width > 0) {
+    lastOpenRect = { x: rect.x, y: rect.y, w: rect.width, h: rect.height };
+    lastOpenKey = `home-pl-${item.id}`;
     try {
       sessionStorage.setItem(
         'musicListCoverRect',
@@ -51,6 +53,11 @@ function open(item: RecommendedPlaylist, event?: MouseEvent) {
     listInfo: item
   });
 }
+
+/** 入口矩形（组件内存）：主页 pager 常驻、返回时滚动位置不变——飞回终点
+ *  直接复用入口矩形，不再重量 DOM（量取会受入场动画/布局恢复时序干扰而偏移） */
+let lastOpenRect: { x: number; y: number; w: number; h: number } | null = null;
+let lastOpenKey = '';
 
 /** 返回主页时：消费歌单页写入的返回矩形，用覆盖层克隆把封面从 hero 飞回卡片
  *  （fixed 层不受 .playlist-card 的 overflow:hidden 与外层滚动容器裁剪） */
@@ -77,14 +84,26 @@ watch(
         return;
       }
       if (!payload.key?.startsWith('home-pl-')) return;
-      const card = document.querySelector(`.playlist-card[data-key="${CSS.escape(payload.key)}"]`);
-      const cover = card?.querySelector<HTMLElement>('.playlist-cover');
-      const endRect = cover?.getBoundingClientRect();
-      if (!endRect || endRect.width <= 0) return;
+      // 终点矩形优先用入口时的组件内存矩形（稳定）；DOM 量取仅作兜底
+      let endRect = lastOpenRect && lastOpenKey === payload.key ? { ...lastOpenRect } : null;
+      if (!endRect) {
+        const card = document.querySelector(`.playlist-card[data-key="${CSS.escape(payload.key)}"]`);
+        const cover = card?.querySelector<HTMLElement>('.playlist-cover');
+        const domRect = cover?.getBoundingClientRect();
+        if (domRect && domRect.width > 0) {
+          endRect = {
+            x: domRect.x,
+            y: domRect.y,
+            w: domRect.width,
+            h: domRect.height
+          };
+        }
+      }
+      if (!endRect || endRect.w <= 0) return;
       sessionStorage.removeItem('musicListCoverReturn');
       beginReturnFlight({
         heroRect: { x: payload.x, y: payload.y, w: payload.w, h: payload.h },
-        endRect: { x: endRect.x, y: endRect.y, w: endRect.width, h: endRect.height },
+        endRect: { x: endRect.x, y: endRect.y, w: endRect.w, h: endRect.h },
         coverUrl: payload.coverUrl
       });
     }, 200);

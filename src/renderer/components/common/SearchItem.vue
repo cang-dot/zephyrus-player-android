@@ -116,7 +116,7 @@ const handleClick = async (event?: MouseEvent) => {
         coverImgUrl: props.item.picUrl
       },
       canRemove: false,
-      transition
+      transition: transition ? { ...transition, mode: 'cover' } : undefined
     });
   } else if (props.item.type === 'playlist') {
     navigateToMusicList(router, {
@@ -125,7 +125,7 @@ const handleClick = async (event?: MouseEvent) => {
       name: props.item.name,
       listInfo: { picUrl: props.item.picUrl, coverImgUrl: props.item.picUrl },
       canRemove: false,
-      transition
+      transition: transition ? { ...transition, mode: 'cover' } : undefined
     });
   } else if (props.item.type === 'artist' || props.item.type === '歌手') {
     router.push({
