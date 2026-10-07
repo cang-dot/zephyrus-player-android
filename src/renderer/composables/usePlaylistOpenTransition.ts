@@ -370,18 +370,6 @@ export function beginReturnFlight(payload: ReturnFlightPayload): boolean {
   // 回程目标页（宿主内的搜索/歌单库等）必须立即可见：
   // 漏设会让飞回克隆飞向一片透明页面（宿主内容 opacity 0），观感"飞回没了"
   contentReveal.value = true;
-  // TODO(临时探针，排查后删除)
-  try {
-    (window as any).__flightDbg = {
-      displayCover,
-      coverUrl: coverUrl.value,
-      phase: phase.value,
-      payloadKey: payload.key,
-      at: performance.now()
-    };
-  } catch {
-    /* ignore */
-  }
   assignLayers(
     { rect: { ...payload.heroRect }, radius: CARD_RADIUS },
     { rect: { ...payload.endRect }, radius: CARD_RADIUS }

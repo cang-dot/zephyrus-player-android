@@ -105,10 +105,6 @@ import { crossPlatformSearch } from '@/api/crossPlatformSearch';
 import { searchPlatformMusic } from '@/api/platformQrApi';
 import { getSearch } from '@/api/search';
 import {
-  beginReturnFlight
-} from '@/composables/usePlaylistOpenTransition';
-import { takeFlightRect } from '@/utils/flightRectMemory';
-import {
   rankSearchResults,
   searchServerSongs,
   type ServerSong,
@@ -138,7 +134,8 @@ const route = useRoute();
 const router = useRouter();
 const playerStore = usePlayerStore();
 
-/** 歌单/专辑页返回：消费 hero 矩形，封面克隆飞回来源卡片（双向封面过渡的回程） */
+/** 歌单/专辑页返回：真封面卡片从 hero 位置飞回自己槽位（歌单库同款动效）——
+ *  卡片瞬移到 hero 处起飞，飞行期间槽位留空，落定即归位；不用覆盖层克隆 */
 watch(
   () => route.path,
   (path) => {
@@ -153,39 +150,66 @@ watch(
           w: number;
           h: number;
           key?: string;
-          coverUrl?: string;
         };
-        if (!payload.key?.startsWith('search-')) return;
+        if (!payload.key) return;
+        const flightKey: string = payload.key;
         sessionStorage.removeItem('musicListCoverReturn');
-        // 终点矩形用入口内存矩形（稳定）；DOM 量取仅作兜底
-        let endRect = takeFlightRect(payload.key);
-        if (!endRect) {
-          const card = document.querySelector(
-            `.search-item[data-search-key="${CSS.escape(payload.key)}"]`
-          );
-          const cover = card?.querySelector<HTMLElement>('img');
-          const domRect = (cover ?? card)?.getBoundingClientRect();
-          if (domRect && domRect.width > 0) {
-            endRect = {
-              x: domRect.x,
-              y: domRect.y,
-              w: domRect.width,
-              h: domRect.height
-            };
-          }
+        const card = document.querySelector(
+          `.search-item[data-search-key="${CSS.escape(flightKey)}"] img`
+        ) as HTMLElement | null;
+        if (!card) return;
+        // 等元素可见（返回瞬间可能仍在 leave 过渡或未布局），最多约 0.7s
+        if (card.getBoundingClientRect().width <= 0) {
+          const retry = () => {
+            const el = document.querySelector(
+              `.search-item[data-search-key="${CSS.escape(flightKey)}"] img`
+            ) as HTMLElement | null;
+            if (el && el.getBoundingClientRect().width > 0) flyCoverHome(el, payload);
+            else requestAnimationFrame(retry);
+          };
+          requestAnimationFrame(retry);
+          return;
         }
-        if (!endRect || endRect.w <= 0) return;
-        beginReturnFlight({
-          heroRect: { x: payload.x, y: payload.y, w: payload.w, h: payload.h },
-          endRect: { x: endRect.x, y: endRect.y, w: endRect.w, h: endRect.h },
-          coverUrl: payload.coverUrl
-        });
+        flyCoverHome(card, payload);
       } catch {
         /* 忽略解析失败 */
       }
-    }, 200);
+    }, 120);
   }
 );
+
+/** 真卡片飞回（歌单库同款）：瞬移到 hero 处（原槽位留空）→ 飞回落定归位 */
+const flyCoverHome = (
+  el: HTMLElement,
+  src: { x: number; y: number; w: number; h: number }
+) => {
+  // 目标卡片若在视口外，先滚到可见，否则飞回根本看不到
+  const initial = el.getBoundingClientRect();
+  if (initial.bottom <= 0 || initial.top >= window.innerHeight) {
+    el.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }
+  const rect = el.getBoundingClientRect();
+  if (!rect.width || !src.w) return;
+  const scale = Math.max(0.05, src.w / rect.width);
+  const dx = src.x + src.w / 2 - (rect.x + rect.width / 2);
+  const dy = src.y + src.h / 2 - (rect.y + rect.height / 2);
+  el.style.transition = 'none';
+  el.style.transformOrigin = 'center';
+  el.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+  el.style.zIndex = '30';
+  el.style.boxShadow = '0 18px 44px rgba(0, 0, 0, 0.35)';
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      el.style.transition = 'transform 560ms cubic-bezier(0.22, 1, 0.36, 1)';
+      el.style.transform = '';
+      el.style.boxShadow = '';
+      setTimeout(() => {
+        el.style.zIndex = '';
+        el.style.transition = '';
+      }, 580);
+    });
+  });
+};
 
 // keep-alive include 按路由 name（mobileSearchResult → MobileSearchResult）匹配组件；
 // 缺 name 会导致保活失效（返回时组件销毁重建、搜索重载、返回飞回无人消费）
