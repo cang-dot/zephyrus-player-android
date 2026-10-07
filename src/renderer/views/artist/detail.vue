@@ -9,10 +9,15 @@
         class="artist-detail-content w-full"
         style="padding-top: var(--mobile-topbar-inset); padding-bottom: calc(var(--mobile-dock-content-inset, 144px) + var(--safe-area-inset-bottom, 0px) + 12px)"
       >
-        <page-loading-placeholder v-if="loading" variant="artist" :label="t('common.loading')" />
+        <!-- 桌面端保留全页骨架；移动端 hero 即时渲染 + 分区骨架（歌单页同款模式） -->
+        <page-loading-placeholder
+          v-if="loading && !isMobile"
+          variant="artist"
+          :label="t('common.loading')"
+        />
 
         <!-- Main Content -->
-        <div v-else-if="artistInfo" class="artist-content">
+        <div v-else class="artist-content">
           <!--
             移动端：设计稿布局——头像大图 + 三按钮(简介/播放/收藏) + 统计
             + 最新专辑大卡 + 热门歌曲横滑网格 + 专辑横滑 + 全部歌曲横滑网格
@@ -24,25 +29,31 @@
             :style="mobileArtistStyle"
           >
             <div class="ma-scroll-host">
-              <!-- 头部：头像铺满整屏宽，向下渐变模糊融入头像主题色 -->
+              <!-- 头部：头像铺满整屏宽，向下渐变模糊融入头像主题色（预填充即时渲染） -->
               <div class="ma-hero">
-                <img
-                  :src="avatarUrl"
-                  :alt="artistInfo.name"
-                  class="ma-photo"
-                  referrerpolicy="no-referrer"
-                  draggable="false"
-                />
-                <img
-                  :src="avatarUrl"
-                  aria-hidden="true"
-                  class="ma-photo-blur"
-                  referrerpolicy="no-referrer"
-                  draggable="false"
-                />
+                <template v-if="heroAvatar">
+                  <img
+                    :src="heroAvatar"
+                    :alt="heroName"
+                    class="ma-photo"
+                    referrerpolicy="no-referrer"
+                    draggable="false"
+                  />
+                  <img
+                    :src="heroAvatar"
+                    aria-hidden="true"
+                    class="ma-photo-blur"
+                    referrerpolicy="no-referrer"
+                    draggable="false"
+                  />
+                </template>
+                <div v-else class="ma-photo ma-photo-empty">
+                  <i class="ri-user-3-line" />
+                </div>
                 <div class="ma-hero-fade" />
                 <div class="ma-hero-content">
-                  <h1 class="ma-name">{{ artistInfo.name }}</h1>
+                  <h1 v-if="heroName" class="ma-name">{{ heroName }}</h1>
+                  <div v-else class="ma-name ma-name-skeleton" />
                   <div class="ma-actions">
                     <button
                       v-if="briefDesc"
@@ -73,13 +84,47 @@
                       <i :class="subscribed ? 'ri-star-fill' : 'ri-star-line'" />
                     </button>
                   </div>
-                  <p v-if="artistInfo.musicSize || artistInfo.albumSize" class="ma-stats">
+                  <p
+                    v-if="artistInfo && (artistInfo.musicSize || artistInfo.albumSize)"
+                    class="ma-stats"
+                  >
                     {{ artistInfo.musicSize || 0 }} {{ t('artist.songsCount') }}
                     <span class="ma-stats-dot">·</span>
                     {{ artistInfo.albumSize || 0 }} {{ t('artist.albumsCount') }}
                   </p>
+                  <div v-else-if="!artistInfo" class="ma-stats ma-stats-skeleton" />
                 </div>
               </div>
+
+              <!-- 数据未到：分区骨架（统计下方三块，歌单页同款"hero 即时、列表骨架"模式） -->
+              <template v-if="!artistInfo">
+                <div class="ma-section">
+                  <div class="ma-latest-card ma-skeleton-card">
+                    <div class="ma-skeleton-block ma-skel-cover" />
+                    <div class="ma-latest-copy">
+                      <div class="ma-skeleton-block ma-skel-line" />
+                      <div class="ma-skeleton-block ma-skel-line short" />
+                    </div>
+                  </div>
+                </div>
+                <div class="ma-section">
+                  <div class="ma-skeleton-title" />
+                  <div class="ma-hgrid">
+                    <div v-for="i in 2" :key="`sk-card-${i}`" class="ma-page-card">
+                      <div v-for="j in 3" :key="`sk-row-${i}-${j}`" class="ma-row">
+                        <div class="ma-skeleton-block ma-skel-row-cover" />
+                        <div class="ma-row-main">
+                          <div class="ma-skeleton-block ma-skel-line" />
+                          <div class="ma-skeleton-block ma-skel-line short" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- 数据就绪：正式分区 -->
+              <template v-else>
 
               <!-- 最新专辑大卡 -->
               <button
@@ -228,6 +273,7 @@
                   </div>
                 </div>
               </div>
+              </template>
             </div>
 
             <!-- 简介容器：ⓘ 按钮 FLIP 扩大（遮罩变暗 + 页面内容虚化） -->
@@ -249,7 +295,11 @@
             展开态: 封面/名/统计/控制 纵向
             收缩态: 封面/名  控制  横向单行
           -->
-          <section v-if="!isMobile" class="hero-zone" :class="{ compact: isCompact }">
+          <section
+            v-if="!isMobile && artistInfo"
+            class="hero-zone"
+            :class="{ compact: isCompact }"
+          >
             <!-- 封面 -->
             <div class="cover-wrap">
               <img
@@ -337,7 +387,10 @@
           </Transition>
 
           <!-- Tab Navigation — glow风格 -->
-          <section v-if="!isMobile" class="tab-nav page-padding-x pt-4 md:pt-6">
+          <section
+            v-if="!isMobile && artistInfo"
+            class="tab-nav page-padding-x pt-4 md:pt-6"
+          >
             <glow-tabs
               v-model="activeTab"
               :tabs="tabs.map((tab) => ({ key: tab.value, label: tab.label }))"
@@ -345,7 +398,7 @@
           </section>
 
           <!-- Tab Content（桌面端） -->
-          <section v-if="!isMobile" class="tab-content page-padding-x py-6 md:py-8">
+          <section v-if="!isMobile && artistInfo" class="tab-content page-padding-x py-6 md:py-8">
             <!-- Songs Tab -->
             <div v-show="activeTab === 'songs'" class="songs-tab">
               <!-- No Results -->
@@ -467,9 +520,9 @@
           </section>
         </div>
 
-        <!-- Empty State (No Artist) -->
+        <!-- Empty State (No Artist)：移动端数据未到时由分区骨架承担，不显示空态 -->
         <div
-          v-else
+          v-if="!loading && !isMobile && !artistInfo"
           class="empty-state flex flex-col items-center justify-center min-h-[60vh] text-neutral-400 dark:text-neutral-500"
         >
           <i class="iconfont icon-user text-6xl mb-4 opacity-30" />
@@ -518,9 +571,19 @@ import {
   registerMobileTopbarAction,
   unregisterMobileTopbarAction
 } from '@/composables/useMobileTopbarMenu';
+import {
+  beginPlaylistOpenReturn,
+  resolvePlaylistOpen,
+  usePlaylistOpenTransition
+} from '@/composables/usePlaylistOpenTransition';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { useScrollTitle } from '@/hooks/useScrollTitle';
+import {
+  ARTIST_COVER_RETURN_KEY,
+  takeArtistPrefill,
+  type ArtistPrefillProfile
+} from '@/hooks/useArtist';
 import router from '@/router';
 import { usePlayerStore } from '@/store';
 import { IArtist } from '@/types/artist';
@@ -536,6 +599,9 @@ const route = useRoute();
 const playerStore = usePlayerStore();
 const { confirmPlaylistReplace } = usePlaylistConfirm();
 const { openPosterForSubject } = usePosterShare();
+const openTransition = usePlaylistOpenTransition();
+/** 经背景扩展过渡进入：返回时镜像收缩 */
+let enteredViaOpenTransition = false;
 const message = useMessage();
 
 const artistId = computed(() => Number(route.params.id));
@@ -586,12 +652,28 @@ const songs = ref<any[]>([]);
 const albums = ref<any[]>([]);
 
 // ==================== 移动端设计稿布局 ====================
-const avatarUrl = computed(() =>
-  getImgUrl(
-    String(artistInfo.value?.avatar || artistInfo.value?.cover || artistInfo.value?.picUrl || ''),
-    '500y500'
-  )
+/** 入口预填充（名字/头像）：hero 首帧即时渲染，不等接口 */
+const prefillProfile = ref<ArtistPrefillProfile | null>(null);
+
+const heroName = computed(
+  () =>
+    artistInfo.value?.name ||
+    prefillProfile.value?.name ||
+    String(route.query.name || '') ||
+    ''
 );
+
+const heroAvatar = computed(() => {
+  const raw =
+    artistInfo.value?.avatar ||
+    artistInfo.value?.cover ||
+    artistInfo.value?.picUrl ||
+    prefillProfile.value?.avatar ||
+    '';
+  return raw ? getImgUrl(String(raw), '500y500') : '';
+});
+
+const avatarUrl = computed(() => heroAvatar.value);
 const hotSongsGrid = computed(() => songs.value.slice(0, 8));
 const latestAlbum = computed(() => albums.value[0] || null);
 
@@ -1330,10 +1412,11 @@ onActivated(() => {
       scrollbarRef.value?.scrollTo(0, 0);
     });
 
-    // 首次加载或ID变化时加载数据
+    // 首次加载或ID变化时加载数据（换歌手时刷新预填充）
     if (!previousId.value || previousId.value !== currentId) {
       previousId.value = currentId;
       activeTab.value = 'songs';
+      prefillProfile.value = takeArtistPrefill(currentId);
       loadArtistInfo();
     }
 
@@ -1344,12 +1427,29 @@ onActivated(() => {
 });
 
 onMounted(() => {
+  // 入口预填充（hero 首帧即时渲染）
+  if (route.params.id) {
+    prefillProfile.value = takeArtistPrefill(route.params.id as string);
+  }
   // 首次挂载时加载数据
   if (route.params.id) {
     previousId.value = route.params.id as string;
     loadArtistInfo();
     setupObservers();
     syncArtistTopbar();
+  }
+  // 背景扩展过渡交接（歌单页同款）：hero 首帧渲染后把封面克隆对齐到真实位置
+  if (openTransition.isActive()) {
+    enteredViaOpenTransition = true;
+    nextTick(() => {
+      const photo = document.querySelector<HTMLElement>('.ma-photo');
+      const rect = photo?.getBoundingClientRect();
+      resolvePlaylistOpen(
+        rect && rect.width > 0
+          ? { x: rect.x, y: rect.y, w: rect.width, h: rect.height }
+          : null
+      );
+    });
   }
 });
 
@@ -1360,6 +1460,30 @@ onDeactivated(() => {
 });
 
 onUnmounted(() => {
+  // 背景扩展过渡的回程镜像（底色块收缩回入口卡片）
+  if (enteredViaOpenTransition) beginPlaylistOpenReturn();
+  // 返回飞回：带 fromKey 的入口，写 hero 矩形供来源页消费
+  if (enteredViaOpenTransition && prefillProfile.value?.fromKey) {
+    const photo = document.querySelector<HTMLElement>('.ma-photo');
+    const rect = photo?.getBoundingClientRect();
+    if (rect && rect.width > 0) {
+      try {
+        sessionStorage.setItem(
+          ARTIST_COVER_RETURN_KEY,
+          JSON.stringify({
+            x: rect.x,
+            y: rect.y,
+            w: rect.width,
+            h: rect.height,
+            key: prefillProfile.value.fromKey,
+            coverUrl: heroAvatar.value
+          })
+        );
+      } catch {
+        /* 忽略持久化失败 */
+      }
+    }
+  }
   // page chrome（顶栏/迷你栏跟随色）随页卸载清理，避免污染其它页面
   clearArtistPageChrome();
   // 顶栏胶囊动作注销
@@ -2139,6 +2263,83 @@ input:focus-visible {
 @keyframes ma-rotate {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* ---------- 骨架（数据未到时的分区占位） ---------- */
+.ma-skeleton-block {
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ma-ink) 12%, transparent);
+  animation: ma-pulse 1.4s ease-in-out infinite;
+}
+
+.ma-skel-cover {
+  width: 72px;
+  height: 72px;
+  border-radius: 14px;
+}
+
+.ma-skel-row-cover {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  flex: none;
+}
+
+.ma-skel-line {
+  height: 13px;
+  width: 70%;
+
+  &.short {
+    width: 42%;
+    height: 11px;
+  }
+}
+
+.ma-skeleton-title {
+  height: 22px;
+  width: 96px;
+  margin: 0 16px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ma-ink) 12%, transparent);
+  animation: ma-pulse 1.4s ease-in-out infinite;
+}
+
+.ma-skeleton-card {
+  pointer-events: none;
+}
+
+.ma-name-skeleton {
+  width: 180px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.22);
+  animation: ma-pulse 1.4s ease-in-out infinite;
+}
+
+.ma-stats-skeleton {
+  width: 150px;
+  height: 13px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.18);
+  animation: ma-pulse 1.4s ease-in-out infinite;
+}
+
+.ma-photo-empty {
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--ma-ink) 16%, transparent);
+  color: var(--ma-ink-muted);
+  font-size: 72px;
+}
+
+@keyframes ma-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
   }
 }
 

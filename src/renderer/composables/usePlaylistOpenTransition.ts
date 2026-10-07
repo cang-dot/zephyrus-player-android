@@ -69,6 +69,8 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 /** 过渡代数：每次 begin* 递增；旧过渡遗留的异步回调（flip/resolve/补色）按代丢弃，
  *  保证「新动画拦截旧动画」——快速连点/返回再进入不会互相污染状态 */
 let generation = 0;
+/** 本次过渡 begin 的时间戳：resolve 的淡出不得早于扩展动画接近完成 */
+let beginAt = 0;
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -221,6 +223,7 @@ export function beginPlaylistOpen(source: PlaylistOpenSource): boolean {
 
   resetLayer();
   const forGeneration = ++generation;
+  beginAt = performance.now();
   coverUrl.value = source.coverUrl ?? '';
   assignLayers({ rect: { ...rect }, radius: CARD_RADIUS }, { rect: viewportRect(), radius: 0 });
   phase.value = 'expanding';
@@ -261,6 +264,7 @@ export function beginPlaylistOpenReturn(): boolean {
 
     resetLayer();
   const forGeneration = ++generation;
+  beginAt = performance.now();
   coverUrl.value = '';
   bgColor.value = lastColor;
   // 回程终点色 = 主页底色：收缩过程中从歌单页 chrome 色渐变过来，落定时无缝融入页面
@@ -276,17 +280,36 @@ export function beginPlaylistOpenReturn(): boolean {
 }
 
 /**
- * 目标歌单页挂载完成后调用：把封面克隆对齐到真实 hero 位置并淡出覆盖层。
- * 不传 heroRect 也能收尾（覆盖层直接淡出）。
+ * 目标歌单页挂载完成后调用：把封面克隆对齐到真实 hero 位置，并安排淡出。
+ * 关键：淡出不得早于扩展动画接近完成——歌单页 onMounted 通常在 begin 后
+ * 1~2 帧内触发，若立即 fadeout，扩展过程会在 200ms 淡出中不可见（观感"没有过渡"）。
+ * 这里按 begin 起点推迟到扩展余量仅剩 FADE_LEAD_MS 时才进入淡出。
  */
 export function resolvePlaylistOpen(hero?: TransitionRect | null) {
   if (phase.value === 'idle') return;
   if (hero && hero.w > 0 && hero.h > 0) heroRect.value = { ...hero };
+
+  /** 淡出相对扩展完成的提前量：扩展还剩这么多毫秒时开始叠加淡出 */
+  const FADE_LEAD_MS = 140;
+  const scheduleFadeout = () => {
+    reveal.value = true;
+    phase.value = 'fadeout';
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(resetLayer, FADE_MS + 80);
+  };
+
+  if (beginAt > 0) {
+    const elapsed = performance.now() - beginAt;
+    const wait = Math.max(0, PLAYLIST_OPEN_EXPAND_MS - FADE_LEAD_MS - elapsed);
+    if (wait > 0) {
+      // 推迟淡出；hero 矩形先记下（coverTransform 目标），reveal 由 scheduleReveal 翻转
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(scheduleFadeout, wait);
+      return;
+    }
+  }
   // 极端情况下（交接极快）reveal 还没翻：直接置真，让覆盖层先到目标态再淡出
-  reveal.value = true;
-  phase.value = 'fadeout';
-  if (timer) clearTimeout(timer);
-  timer = setTimeout(resetLayer, FADE_MS + 80);
+  scheduleFadeout();
 }
 
 /**
@@ -307,6 +330,7 @@ export function beginReturnFlight(payload: ReturnFlightPayload): boolean {
 
   resetLayer();
   const forGeneration = ++generation;
+  beginAt = performance.now();
   coverUrl.value = payload.coverUrl ?? '';
   bgColor.value = '';
   assignLayers(

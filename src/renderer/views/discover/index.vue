@@ -21,7 +21,8 @@
           :key="artist.id"
           type="button"
           class="artist-card"
-          @click="navigateToArtist(artist.id)"
+          :data-artist-id="artist.id"
+          @click="openArtistCard(artist, $event)"
         >
           <img :src="getImgUrl(artist.picUrl, '500y500')" :alt="artist.name" loading="lazy" />
           <span class="artist-card-copy"
@@ -66,13 +67,16 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Discover' });
-import { onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { getHotSinger, getPersonalizedPlaylist, getTopAlbum } from '@/api/home';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
-import { beginPlaylistOpen } from '@/composables/usePlaylistOpenTransition';
-import { useArtist } from '@/hooks/useArtist';
+import {
+  beginPlaylistOpen,
+  beginReturnFlight
+} from '@/composables/usePlaylistOpenTransition';
+import { ARTIST_COVER_RETURN_KEY, useArtist } from '@/hooks/useArtist';
 import { getImgUrl } from '@/utils';
 
 type Shortcut = { key: string; label: string; icon: string; path?: string; target?: string };
@@ -87,7 +91,56 @@ type MediaCard = {
 };
 
 const router = useRouter();
+const route = useRoute();
 const { navigateToArtist } = useArtist();
+
+/** 歌手页返回：消费 hero 矩形，封面克隆飞回来源卡片（歌单库同款机制） */
+watch(
+  () => route.path,
+  (path) => {
+    if (path !== '/discover') return;
+    window.setTimeout(() => {
+      const raw = sessionStorage.getItem(ARTIST_COVER_RETURN_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(ARTIST_COVER_RETURN_KEY);
+      try {
+        const payload = JSON.parse(raw) as {
+          x: number;
+          y: number;
+          w: number;
+          h: number;
+          key?: string;
+          coverUrl?: string;
+        };
+        if (!payload.key?.startsWith('discover-artist-')) return;
+        const card = document.querySelector(
+          `.artist-card[data-artist-id="${CSS.escape(payload.key.replace('discover-artist-', ''))}"]`
+        );
+        const rect = card?.getBoundingClientRect();
+        if (!rect || rect.width <= 0) return;
+        beginReturnFlight({
+          heroRect: { x: payload.x, y: payload.y, w: payload.w, h: payload.h },
+          endRect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
+          coverUrl: payload.coverUrl
+        });
+      } catch {
+        /* 忽略解析失败 */
+      }
+    }, 200);
+  }
+);
+
+/** 推荐歌手卡进入：携带卡片矩形/头像 → 背景扩展过渡 + 歌手页 hero 预填充 */
+const openArtistCard = (artist: any, event: MouseEvent) => {
+  const el = event.currentTarget as HTMLElement | null;
+  const rect = el?.getBoundingClientRect();
+  navigateToArtist(artist.id, {
+    name: artist.name,
+    avatar: artist.picUrl,
+    fromRect: rect ? { x: rect.x, y: rect.y, w: rect.width, h: rect.height } : undefined,
+    fromKey: `discover-artist-${artist.id}`
+  });
+};
 const artistsSection = ref<HTMLElement | null>(null);
 const artists = ref<any[]>([]);
 const mediaCards = ref<MediaCard[]>([]);

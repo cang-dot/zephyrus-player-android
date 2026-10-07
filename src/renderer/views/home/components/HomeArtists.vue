@@ -26,7 +26,8 @@
             :key="item.id"
             class="artist-item animate-item group flex flex-shrink-0 snap-start flex-col items-center gap-3 md:gap-4 cursor-pointer"
             :style="{ animationDelay: calculateAnimationDelay(index, 0.04) }"
-            @click="navigateToArtist(item.id)"
+            :data-artist-id="item.id"
+            @click="openArtist(item, $event)"
           >
             <!-- Artist Avatar -->
             <div
@@ -58,10 +59,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { getHotSinger } from '@/api/home';
-import { useArtist } from '@/hooks/useArtist';
+import {
+  beginReturnFlight
+} from '@/composables/usePlaylistOpenTransition';
+import { ARTIST_COVER_RETURN_KEY, useArtist } from '@/hooks/useArtist';
 import { calculateAnimationDelay, getImgUrl, isMobile } from '@/utils';
 
 const props = defineProps<{
@@ -69,9 +74,58 @@ const props = defineProps<{
   limit?: number;
 }>();
 
+const route = useRoute();
 const { navigateToArtist } = useArtist();
 const artists = ref<any[]>([]);
 const loading = ref(true);
+
+/** 歌手页返回：消费 hero 矩形，封面克隆飞回来源卡片 */
+watch(
+  () => route.path,
+  (path) => {
+    if (path !== '/') return;
+    window.setTimeout(() => {
+      const raw = sessionStorage.getItem(ARTIST_COVER_RETURN_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(ARTIST_COVER_RETURN_KEY);
+      try {
+        const payload = JSON.parse(raw) as {
+          x: number;
+          y: number;
+          w: number;
+          h: number;
+          key?: string;
+          coverUrl?: string;
+        };
+        if (!payload.key?.startsWith('home-artist-')) return;
+        const card = document.querySelector(
+          `.artist-item[data-artist-id="${CSS.escape(payload.key.replace('home-artist-', ''))}"]`
+        );
+        const rect = card?.getBoundingClientRect();
+        if (!rect || rect.width <= 0) return;
+        beginReturnFlight({
+          heroRect: { x: payload.x, y: payload.y, w: payload.w, h: payload.h },
+          endRect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
+          coverUrl: payload.coverUrl
+        });
+      } catch {
+        /* 忽略解析失败 */
+      }
+    }, 200);
+  }
+);
+
+/** 歌手卡进入：携带卡片矩形/头像 → 背景扩展过渡 + 歌手页 hero 预填充 */
+const openArtist = (item: any, event: MouseEvent) => {
+  const el = event.currentTarget as HTMLElement | null;
+  const rect = el?.getBoundingClientRect();
+  navigateToArtist(item.id, {
+    name: item.name,
+    avatar: item.picUrl,
+    fromRect: rect ? { x: rect.x, y: rect.y, w: rect.width, h: rect.height } : undefined,
+    fromKey: `home-artist-${item.id}`
+  });
+};
 const scrollContainer = ref<HTMLElement | null>(null);
 
 const fetchArtists = async () => {

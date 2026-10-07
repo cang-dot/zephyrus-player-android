@@ -94,6 +94,17 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
   // 切换收藏状态
   const toggleFavorite = async (e?: Event) => {
     e?.stopPropagation();
+
+    // 哔哩哔哩条目：用字符串 id 维护本地收藏列表，并同步到 B 站收藏夹
+    if (props.item.platform === 'bilibili') {
+      if (isFavorite.value) {
+        playerStore.removeFromFavorite(props.item.id);
+      } else {
+        playerStore.addToFavorite(props.item.id);
+      }
+      return;
+    }
+
     const numericId =
       typeof props.item.id === 'string' ? parseInt(props.item.id, 10) : props.item.id;
 
@@ -209,7 +220,12 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
       );
       return;
     }
-    navigateToArtist(Number(id));
+    navigateToArtist(Number(id), {
+      name:
+        (props.item.ar || props.item.artists || []).find(
+          (item) => String(item.id) === String(id)
+        )?.name || ''
+    });
   };
 
   // 处理专辑点击

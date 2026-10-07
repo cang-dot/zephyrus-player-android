@@ -28,8 +28,9 @@ const animateMergeProgress = (target: 0 | 1, velocity = 0, complete?: () => void
   let speed = velocity;
   let previous = performance.now();
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  // 基准刚度 600（行程短需快收敛）；初速越快刚度越高（上限 +900），慢速/静止回落基准
-  const stiffness = 600 + Math.min(900, Math.abs(velocity) * 500);
+  // 下限 380（慢滑/松手静止时柔缓收敛）；初速越快刚度越高（上限 +900），
+  // 阻尼随刚度等比放大（ζ 不变）：快滑利落、慢滑绵软
+  const stiffness = 380 + Math.min(900, Math.abs(velocity) * 500);
   const tick = (now: number) => {
     if (gen !== generation) return;
     const dt = Math.min(0.032, Math.max(0.001, (now - previous) / 1000));
@@ -38,7 +39,7 @@ const animateMergeProgress = (target: 0 | 1, velocity = 0, complete?: () => void
       value += (target - value) * Math.min(1, dt / 0.16);
     } else {
       // 阻尼随刚度等比放大（ζ 不变）：快滑时收敛更利落，不产生过冲突变
-      speed += (-stiffness * (value - target) - 40 * (stiffness / 600) * speed) * dt;
+      speed += (-stiffness * (value - target) - 40 * (stiffness / 380) * speed) * dt;
       value += speed * dt;
     }
     mergeProgress.value = Math.min(1, Math.max(0, value));
