@@ -39,7 +39,11 @@
         class="tab-pager"
         @scroll.capture="onPagerScrollCapture"
         @touchstart.capture="onPagerTouchStart"
+        @touchend.capture="onPagerTouchEnd"
+        @touchcancel.capture="onPagerTouchEnd"
         @pointerdown.capture="onPagerTouchStart"
+        @pointerup.capture="onPagerTouchEnd"
+        @pointercancel.capture="onPagerTouchEnd"
       >
         <div
           v-for="(tab, index) in menuStore.menus"
@@ -596,16 +600,24 @@ const setDockMergedState = (value: boolean, velocity = 0) => {
 // 快速上滑的惯性在触顶/触底后方向突变，瞬时穿越低区会被误判为"回到顶部"
 // 而触发展开，紧接惯性继续又收起 → 底栏抽搐。120ms 内离开低区则取消。
 const DOCK_EXPAND_SETTLE_MS = 120;
-/** 主动意图判据：只有手指在屏上拖滚（或刚离屏 ≤350ms）触发的回顶才展开。
- *  甩动后的**惯性滚动**（手指早已离屏）回顶不展开——惯性回弹循环是
- *  "收起↔展开来回闪"的最终根源，稳定窗挡不住周期 >280ms 的循环。 */
+/** 主动意图判据（三态）：手指**仍在屏上拖滚**、或刚离屏 ≤350ms（甩动尾段）→ 主动
+ *  回顶，可展开；离屏较久的**惯性滚动**回顶不展开——惯性回弹循环是"收起↔展开
+ *  来回闪"的根源。注意不能只记 touchstart 时刻：慢速拖滚全程按屏，超 350ms 才
+ *  到顶会被误判为惯性。 */
+let pagerTouching = false;
 let lastPagerTouchAt = 0;
 const onPagerTouchStart = () => {
+  pagerTouching = true;
   lastPagerTouchAt = Date.now();
 };
+const onPagerTouchEnd = () => {
+  pagerTouching = false;
+  lastPagerTouchAt = Date.now();
+};
+const isPagerUserScrolling = () => pagerTouching || Date.now() - lastPagerTouchAt <= 350;
 let dockExpandSettleTimer: ReturnType<typeof setTimeout> | undefined;
 const requestDockExpandFromScroll = (velocity: number) => {
-  if (Date.now() - lastPagerTouchAt > 350) return; // 惯性滚动：非主动回顶
+  if (!isPagerUserScrolling()) return; // 惯性滚动：非主动回顶
   if (dockExpandSettleTimer) return; // 已有待确认的展开
   dockExpandSettleTimer = setTimeout(() => {
     dockExpandSettleTimer = undefined;
