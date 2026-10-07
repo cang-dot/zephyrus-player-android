@@ -25,7 +25,8 @@
           }}
         </span>
       </div>
-      <div class="comments-sort" role="tablist">
+      <!-- 冷门歌曲热门接口无内容时隐藏滑块（store 已自动降级到最新列） -->
+      <div v-if="!commentStore.hotUnavailable" class="comments-sort" role="tablist">
         <button
           type="button"
           role="tab"

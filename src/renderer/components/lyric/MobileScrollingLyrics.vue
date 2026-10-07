@@ -320,8 +320,9 @@ function handleLineClick(event: LyricLineMouseEvent) {
 
 function handleDismissZoneClick(event: MouseEvent) {
   event.stopPropagation();
-  if (selectMode.value) exitSelectMode();
-  else emit('close');
+  // 选中态下点击空白热区不再退出（防滑动歌词时误触丢选区）；
+  // 退出仅走顶栏「退出歌词选择」按钮。非选中态点击空白关闭歌词页不变。
+  if (!selectMode.value) emit('close');
 }
 
 function lyricHitTarget(target: EventTarget | null): HTMLElement | null {

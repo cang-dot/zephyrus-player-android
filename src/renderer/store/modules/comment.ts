@@ -10,6 +10,7 @@ import { createDiscreteApi } from 'naive-ui';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
+import { fetchBilibiliComments } from '@/api/bilibili';
 import {
   deleteSongComment,
   getCommentFloor,
@@ -65,6 +66,8 @@ export const useCommentStore = defineStore('songComment', () => {
   const error = ref('');
   const submitting = ref(false);
   const floors = ref<Record<string, FloorState>>({});
+  /** 热门接口无内容（冷门歌曲）：隐藏热门/最近滑块并固定在最新列 */
+  const hotUnavailable = ref(false);
   let latestOffset = 0;
   let requestId = 0;
 
@@ -84,10 +87,36 @@ export const useCommentStore = defineStore('songComment', () => {
     latest.value = [];
     hotFinished.value = true;
     latestFinished.value = false;
+    hotUnavailable.value = false;
     latestOffset = 0;
     floors.value = {};
     error.value = '';
     requestId += 1;
+  }
+
+  /**
+   * 回复关系反向回填：/comment/music 只把「被回复内容预览」（beReplied）挂在
+   * 回复者身上，被回复的原评论自身没有任何回复标识，导致「A 回复 B」里 A 显示
+   * 一条引用而 B 永远没有「展开回复」入口。这里用内容+用户匹配把回复数
+   * 写回被回复者（commentId 无法直接从预览拿到，以内容对撞近似）。
+   */
+  function backfillReplyCounts() {
+    const all = [...hot.value, ...latest.value];
+    for (const reply of all) {
+      const previews = reply.beReplied ?? [];
+      if (!previews.length) continue;
+      for (const preview of previews) {
+        const target = all.find(
+          (item) =>
+            item.commentId !== reply.commentId &&
+            item.user?.userId === preview.user?.userId &&
+            item.content === preview.content
+        );
+        if (target && !target.replyCount) {
+          target.replyCount = Math.max(1, Number(reply.replyCount) || previews.length);
+        }
+      }
+    }
   }
 
   /** 切歌加载首页（同曲已有数据时直接复用缓存） */
@@ -99,6 +128,40 @@ export const useCommentStore = defineStore('songComment', () => {
     const generation = requestId + 1;
     resetState(id);
     requestId = generation;
+
+    // 哔哩哔哩视频：走 B 站评论接口（旧版，匿名可读）
+    if (id.startsWith('bilibili:')) {
+      loading.value = true;
+      try {
+        const bvid = id.slice('bilibili:'.length);
+        const info = await (await import('@/api/bilibili')).getBilibiliVideoInfo(bvid);
+        const result = await fetchBilibiliComments(info.aid || 0, 1);
+        if (generation !== requestId) return;
+        total.value = result.total;
+        latest.value = result.replies.map((r: any) => ({
+          user: { userId: r.mid, avatarUrl: r.avatarUrl, nickname: r.nickname },
+          commentId: r.rpid,
+          content: r.content,
+          time: r.ctime,
+          likedCount: r.likedCount,
+          liked: false,
+          beReplied: (r.replies || []).map((sub: any) => ({
+            user: { userId: 0, avatarUrl: sub.avatarUrl, nickname: sub.nickname },
+            content: sub.content
+          })),
+          replyCount: (r.replies || []).length
+        }));
+        latestFinished.value = true; // 旧接口无分页游标，一期只展示第一页
+        if (!latest.value.length) error.value = 'empty';
+      } catch (err) {
+        if (generation !== requestId) return;
+        error.value = err instanceof Error ? err.message : String(err);
+      } finally {
+        if (generation === requestId) loading.value = false;
+      }
+      return;
+    }
+
     loading.value = true;
     try {
       const res = await getSongComment(id, PAGE_SIZE, 0);
@@ -109,6 +172,12 @@ export const useCommentStore = defineStore('songComment', () => {
       latest.value = data?.comments ?? [];
       latestFinished.value = !data?.more;
       latestOffset = latest.value.length;
+      backfillReplyCounts();
+      // 冷门歌曲：热门接口不返回内容 → 降级到最新列并隐藏热门/最近滑块
+      if (!hot.value.length && latest.value.length) {
+        hotUnavailable.value = true;
+        sort.value = 'latest';
+      }
       if (!hot.value.length && !latest.value.length) {
         error.value = 'empty';
       }
@@ -262,6 +331,7 @@ export const useCommentStore = defineStore('songComment', () => {
     latest,
     hotFinished,
     latestFinished,
+    hotUnavailable,
     loading,
     loadingMore,
     error,

@@ -91,6 +91,16 @@ export interface PosterConfig {
   descLimit?: number;
   /** 曲目列表呈现方式（默认紧凑单行） */
   trackListStyle?: PosterTrackListStyle;
+  /** 歌名颜色覆盖（空 = 各样式默认配色） */
+  songTitleColor?: string;
+  /** 作者颜色覆盖（空 = 各样式默认配色） */
+  artistColor?: string;
+  /** 歌词颜色覆盖（空 = 各样式默认配色；优先于撕纸的 customLyricColor） */
+  lyricColor?: string;
+  /** 撕纸布局背景模糊度 (0-60, 默认 40) */
+  tornPaperBlur?: number;
+  /** 印章巡演印章文字（空 = 歌手名） */
+  sealText?: string;
 }
 
 /** 海报默认配置 */
@@ -121,7 +131,12 @@ export const DEFAULT_POSTER_CONFIG: PosterConfig = {
   showFullContent: false,
   trackLimit: 10,
   descLimit: 30,
-  trackListStyle: 'compact'
+  trackListStyle: 'compact',
+  songTitleColor: '',
+  artistColor: '',
+  lyricColor: '',
+  tornPaperBlur: 40,
+  sealText: ''
 };
 
 export function normalizePosterConfig(config: Partial<PosterConfig>): PosterConfig {
@@ -150,7 +165,16 @@ export function normalizePosterConfig(config: Partial<PosterConfig>): PosterConf
     trackListStyle: config.trackListStyle === 'detailed' ? 'detailed' : 'compact',
     gradientBgColors: config.gradientBgColors?.length
       ? [...config.gradientBgColors]
-      : [...DEFAULT_POSTER_CONFIG.gradientBgColors]
+      : [...DEFAULT_POSTER_CONFIG.gradientBgColors],
+    tornPaperBlur: Math.min(
+      60,
+      Math.max(0, Math.round(Number(config.tornPaperBlur) || DEFAULT_POSTER_CONFIG.tornPaperBlur!))
+    ),
+    sealText: typeof config.sealText === 'string' ? config.sealText : '',
+    songTitleColor:
+      typeof config.songTitleColor === 'string' ? config.songTitleColor : '',
+    artistColor: typeof config.artistColor === 'string' ? config.artistColor : '',
+    lyricColor: typeof config.lyricColor === 'string' ? config.lyricColor : ''
   };
 }
 

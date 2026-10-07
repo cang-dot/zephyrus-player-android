@@ -101,6 +101,34 @@
               />
             </div>
 
+            <!-- 通用：文字分段调色（留空继承各样式默认配色） -->
+            <div class="config-section">
+              <div class="config-label">文字颜色</div>
+              <div class="poster-text-color-rows">
+                <div
+                  v-for="part in posterTextParts"
+                  :key="part.key"
+                  class="poster-text-color-row"
+                >
+                  <span class="poster-text-part-label">{{ part.label }}</span>
+                  <AppColorPicker
+                    :model-value="config[part.key] || ''"
+                    :title="`文字颜色 · ${part.label}`"
+                    @update:model-value="(value: string) => setConfig(part.key, value)"
+                    @change="regenerateDebounced"
+                  />
+                  <button
+                    v-if="config[part.key]"
+                    type="button"
+                    class="poster-color-reset"
+                    @click="setConfig(part.key, '')"
+                  >
+                    默认
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <!-- 布局一专属配置 -->
             <template v-if="config.layout === 'torn-paper'">
               <!-- 封面位置 -->
@@ -176,6 +204,21 @@
                 <div v-if="config.backgroundMode === 'solid'" class="color-picker-row">
                   <AppColorPicker v-model="config.solidBgColor" @change="regenerateDebounced" />
                   <span class="color-value">{{ config.solidBgColor }}</span>
+                </div>
+                <div v-if="config.backgroundMode === 'cover'" class="config-sub-slider">
+                  <div class="config-label">
+                    背景模糊度
+                    <span class="value-tag">{{ config.tornPaperBlur }}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="60"
+                    step="2"
+                    v-model.number="config.tornPaperBlur"
+                    @input="regenerateDebounced"
+                    class="range-input"
+                  />
                 </div>
               </div>
             </template>
@@ -284,7 +327,7 @@
                 </div>
               </div>
 
-              <div v-if="config.layout === 'performance-archive'" class="config-section">
+              <div class="config-section">
                 <div class="config-label">标题排版</div>
                 <div class="segment-tabs">
                   <button
@@ -296,6 +339,18 @@
                     {{ orientation.label }}
                   </button>
                 </div>
+              </div>
+
+              <div v-if="config.layout === 'seal-tour'" class="config-section archive-fields">
+                <label>
+                  <span>印章文字</span>
+                  <input
+                    v-model="config.sealText"
+                    type="text"
+                    placeholder="留空使用歌手名"
+                    @input="regenerateDebounced"
+                  />
+                </label>
               </div>
 
               <div class="config-section archive-fields">
@@ -587,6 +642,13 @@ const bgModes = [
   { key: 'cover' as const, label: '跟随封面' },
   { key: 'solid' as const, label: '纯色' },
   { key: 'gradient' as const, label: '渐变' }
+];
+
+/** 文字分段调色：对应 PosterConfig 的三个覆盖色字段（空 = 继承样式默认） */
+const posterTextParts = [
+  { key: 'songTitleColor' as const, label: '歌名' },
+  { key: 'artistColor' as const, label: '作者' },
+  { key: 'lyricColor' as const, label: '歌词' }
 ];
 
 // 计算属性
@@ -1107,6 +1169,45 @@ onBeforeUnmount(() => {
     color: rgba(255, 255, 255, 0.5);
     font-family: monospace;
   }
+}
+
+/* 文字分段调色 */
+.poster-text-color-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.poster-text-color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.poster-text-part-label {
+  width: 40px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.poster-color-reset {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.config-sub-slider {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
 }
 
 .archive-fields {

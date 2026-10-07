@@ -319,9 +319,10 @@ async function drawTornPaperLayout(
   await ensureFontLoaded(config.fontId);
   const fontFamily = getFontFamily(config.fontId);
   const titleColor =
-    config.lyricColorMode === 'cover'
+    config.songTitleColor ||
+    (config.lyricColorMode === 'cover'
       ? rgba(dominantColor.r, dominantColor.g, dominantColor.b)
-      : config.customLyricColor;
+      : config.customLyricColor);
 
   const titleX = config.coverPosition === 'left' ? coverX + coverSize + 40 : coverX - 40;
   const titleAlign = config.coverPosition === 'left' ? 'left' : 'right';
@@ -354,15 +355,16 @@ async function drawTornPaperLayout(
 
   // 歌手名
   ctx.font = `${config.fontWeight || 600} 36px ${fontFamily}`;
-  ctx.fillStyle = rgba(dominantColor.r, dominantColor.g, dominantColor.b, 0.7);
+  ctx.fillStyle = config.artistColor || rgba(dominantColor.r, dominantColor.g, dominantColor.b, 0.7);
   ctx.fillText(songInfo.artists, titleX, lineY + 20);
   ctx.restore();
 
   // 6. 歌词区域
   const lyricColor =
-    config.lyricColorMode === 'cover'
+    config.lyricColor ||
+    (config.lyricColorMode === 'cover'
       ? rgba(dominantColor.r, dominantColor.g, dominantColor.b, 0.9)
-      : config.customLyricColor;
+      : config.customLyricColor);
 
   ctx.save();
   ctx.font = `${config.fontWeight || 600} 42px ${fontFamily}`;
@@ -455,7 +457,7 @@ async function drawTornPaperBackground(
       try {
         const img = await loadImage(songInfo.coverUrl);
         ctx.save();
-        ctx.filter = 'blur(40px) brightness(0.3) saturate(1.2)';
+        ctx.filter = `blur(${Math.min(60, Math.max(0, config.tornPaperBlur ?? 40))}px) brightness(0.3) saturate(1.2)`;
         const iw = img.naturalWidth || img.width;
         const ih = img.naturalHeight || img.height;
         const coverScale = Math.max(W / iw, H / ih);
@@ -542,10 +544,13 @@ async function drawImmersiveLayout(
   await ensureFontLoaded(config.fontId);
   const fontFamily = getFontFamily(config.fontId);
   const textColor = config.textColor;
+  const titleColor = config.songTitleColor || textColor;
+  const artistTextColor = config.artistColor || rgba(255, 255, 255, 0.75);
+  const lyricsTextColor = config.lyricColor || textColor;
 
   ctx.save();
   ctx.font = `${config.fontWeight || 600} 52px ${fontFamily}`;
-  ctx.fillStyle = textColor;
+  ctx.fillStyle = titleColor;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
@@ -564,7 +569,7 @@ async function drawImmersiveLayout(
   // 4. 歌手名
   ctx.save();
   ctx.font = `${config.fontWeight || 600} 38px ${fontFamily}`;
-  ctx.fillStyle = rgba(255, 255, 255, 0.75);
+  ctx.fillStyle = artistTextColor;
   ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
   ctx.shadowBlur = 15;
   ctx.shadowOffsetY = 2;
@@ -580,7 +585,7 @@ async function drawImmersiveLayout(
   // 5. 歌词逐行显示
   ctx.save();
   ctx.font = `${config.fontWeight || 600} 44px ${fontFamily}`;
-  ctx.fillStyle = textColor;
+  ctx.fillStyle = lyricsTextColor;
   ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
   ctx.shadowBlur = 12;
   ctx.shadowOffsetY = 3;
@@ -729,7 +734,7 @@ async function drawPerformanceArchiveLayout(
   ctx.fillRect(0, 620, POSTER_WIDTH, 520);
 
   ctx.save();
-  ctx.fillStyle = accentColor;
+  ctx.fillStyle = config.songTitleColor || accentColor;
   ctx.font = `${config.fontWeight} 132px ${family}`;
   ctx.textAlign = config.titleOrientation === 'vertical' ? 'right' : 'left';
   ctx.textBaseline = 'top';
@@ -746,7 +751,7 @@ async function drawPerformanceArchiveLayout(
   }
   ctx.restore();
 
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.fillStyle = config.artistColor || 'rgba(255,255,255,0.92)';
   ctx.font = `700 34px ${family}`;
   ctx.textAlign = 'left';
   ctx.fillText(songInfo.artists, 72, 930);
@@ -764,7 +769,7 @@ async function drawPerformanceArchiveLayout(
     lyrics,
     family,
     config.fontWeight,
-    '#ffffff',
+    config.lyricColor || '#ffffff',
     1130,
     H - 140
   );
@@ -809,23 +814,35 @@ async function drawSealTourLayout(
     ctx.fillRect(0, 0, 760, 1160);
   }
 
-  ctx.fillStyle = '#111';
+  ctx.fillStyle = config.songTitleColor || '#111';
   ctx.font = `${config.fontWeight} 116px ${family}`;
   ctx.textBaseline = 'top';
-  ctx.textAlign = 'center';
-  Array.from(songInfo.songName)
-    .slice(0, 7)
-    .forEach((char, index) => ctx.fillText(char, 910 + (index % 2) * 26, 96 + index * 132));
+  if (config.titleOrientation === 'horizontal') {
+    // 横排标题（印面右侧留白区）
+    ctx.textAlign = 'left';
+    wrapText(ctx, songInfo.songName, 470)
+      .slice(0, 4)
+      .forEach((line, index) => ctx.fillText(line, 470, 110 + index * 128));
+  } else {
+    ctx.textAlign = 'center';
+    const staggered = config.titleOrientation === 'staggered';
+    Array.from(songInfo.songName)
+      .slice(0, 7)
+      .forEach((char, index) =>
+        ctx.fillText(char, 910 + (staggered ? (index % 2) * 26 : 0), 96 + index * 132)
+      );
+  }
 
   const sealX = 650;
   const sealY = 760;
   const sealSize = 238;
+  const sealContent = (config.sealText || '').trim() || songInfo.artists;
   ctx.save();
-  drawDistressedSealEdge(ctx, sealX, sealY, sealSize, accentColor, songInfo.artists);
+  drawDistressedSealEdge(ctx, sealX, sealY, sealSize, accentColor, sealContent);
   ctx.fillStyle = accentColor;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const sealRows = splitSealArtistName(songInfo.artists);
+  const sealRows = splitSealArtistName(sealContent);
   const longestRow = Math.max(...sealRows.map((row) => Array.from(row).length));
   const sealFontSize = Math.min(64, 168 / longestRow, 156 / sealRows.length);
   const rowHeight = Math.min(68, 162 / sealRows.length);
@@ -846,7 +863,7 @@ async function drawSealTourLayout(
   ];
   archiveRows.forEach((row, index) => {
     const y = 1210 + index * 62;
-    ctx.fillStyle = index === 0 ? accentColor : '#121212';
+    ctx.fillStyle = index === 0 ? accentColor : config.artistColor || '#121212';
     ctx.fillText(row, 70, y);
     ctx.strokeStyle = 'rgba(18,18,18,0.2)';
     ctx.beginPath();
@@ -862,7 +879,7 @@ async function drawSealTourLayout(
     shortLyrics,
     family,
     config.fontWeight,
-    '#121212',
+    config.lyricColor || '#121212',
     1430,
     H - 140
   );
