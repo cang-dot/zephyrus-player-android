@@ -38,12 +38,6 @@
         v-show="isBottomMenuRoute || pagerBridgeVisible"
         class="tab-pager"
         @scroll.capture="onPagerScrollCapture"
-        @touchstart.capture="onPagerTouchStart"
-        @touchend.capture="onPagerTouchEnd"
-        @touchcancel.capture="onPagerTouchEnd"
-        @pointerdown.capture="onPagerTouchStart"
-        @pointerup.capture="onPagerTouchEnd"
-        @pointercancel.capture="onPagerTouchEnd"
       >
         <div
           v-for="(tab, index) in menuStore.menus"
@@ -565,8 +559,7 @@ const dockMergeGesture = useDockMergeGesture();
 // 提交合并的时间戳：拖拽松手会补发一次合成 click，需在短窗口内忽略，
 // 否则刚提交的合并态会被 onMergedDockClick 立即撤销
 let dockMergeCommittedAt = 0;
-// 滚动速度估算（px/ms）：EMA 平滑差分（原始差分噪声大，快速滚动时会正负交替
-// 使弹簧反复反向重启——观感"底栏和迷你栏疯狂抽搐"），供弹簧初速接力
+// 滚动速度估算（px/ms）：EMA 平滑差分，供弹簧初速接力（收起/展开速率随滑动速度）
 let dockScrollVelocitySample = { top: 0, at: 0 };
 let dockScrollVelocityEma = 0;
 const pagerScrollVelocity = (top: number) => {
@@ -582,53 +575,13 @@ const pagerScrollVelocity = (top: number) => {
   dockScrollVelocityEma = dockScrollVelocityEma * 0.6 + instant * 0.4;
   return dockScrollVelocityEma;
 };
-// 反向冷却：值翻转后短窗口内忽略滚动路径的反向请求——快速滚动时 scrollTop
-// 在阈值附近穿梭 + 速度噪声会令方向反复翻转（抽搐根源）
-const DOCK_FLIP_COOLDOWN_MS = 280;
-let dockFlipAt = 0;
 const setDockMergedState = (value: boolean, velocity = 0) => {
   // 幂等：滚动路径高频调用，同值重复设置若重启弹簧会把速度清零
   // （每帧从零加速 = 几乎不前进，观感"没有动画/收起展开打架"）
   if (dockMerged.value === value) return;
-  if (Date.now() - dockFlipAt < DOCK_FLIP_COOLDOWN_MS) return;
   dockMerged.value = value;
-  dockFlipAt = Date.now();
   if (value) dockMergeCommittedAt = Date.now();
   dockMergeGesture.animateMergeProgress(value ? 1 : 0, velocity);
-};
-// 展开稳定窗：合并态下滚回顶部（scrollTop<=4）需"稳定停留"才真正展开——
-// 快速上滑的惯性在触顶/触底后方向突变，瞬时穿越低区会被误判为"回到顶部"
-// 而触发展开，紧接惯性继续又收起 → 底栏抽搐。120ms 内离开低区则取消。
-const DOCK_EXPAND_SETTLE_MS = 120;
-/** 主动意图判据（三态）：手指**仍在屏上拖滚**、或刚离屏 ≤350ms（甩动尾段）→ 主动
- *  回顶，可展开；离屏较久的**惯性滚动**回顶不展开——惯性回弹循环是"收起↔展开
- *  来回闪"的根源。注意不能只记 touchstart 时刻：慢速拖滚全程按屏，超 350ms 才
- *  到顶会被误判为惯性。 */
-let pagerTouching = false;
-let lastPagerTouchAt = 0;
-const onPagerTouchStart = () => {
-  pagerTouching = true;
-  lastPagerTouchAt = Date.now();
-};
-const onPagerTouchEnd = () => {
-  pagerTouching = false;
-  lastPagerTouchAt = Date.now();
-};
-const isPagerUserScrolling = () => pagerTouching || Date.now() - lastPagerTouchAt <= 350;
-let dockExpandSettleTimer: ReturnType<typeof setTimeout> | undefined;
-const requestDockExpandFromScroll = (velocity: number) => {
-  if (!isPagerUserScrolling()) return; // 惯性滚动：非主动回顶
-  if (dockExpandSettleTimer) return; // 已有待确认的展开
-  dockExpandSettleTimer = setTimeout(() => {
-    dockExpandSettleTimer = undefined;
-    setDockMergedState(false, velocity);
-  }, DOCK_EXPAND_SETTLE_MS);
-};
-const cancelDockExpandSettle = () => {
-  if (dockExpandSettleTimer) {
-    clearTimeout(dockExpandSettleTimer);
-    dockExpandSettleTimer = undefined;
-  }
 };
 const lastPagerScrollTop = new Map<string, number>();
 const onPagerScrollCapture = (event: Event) => {
@@ -636,27 +589,24 @@ const onPagerScrollCapture = (event: Event) => {
   if (!target || !target.classList.contains('pager-page')) return;
   const path = target.dataset.pagerPath || '';
   const prev = lastPagerScrollTop.get(path) ?? 0;
-  lastPagerScrollTop.set(path, target.scrollTop);
+  const top = target.scrollTop;
+  lastPagerScrollTop.set(path, top);
   if (playerStore.musicFull || playerTransition.state.value !== 'idle') {
-    cancelDockExpandSettle();
     if (dockMerged.value) setDockMergedState(false);
     return;
   }
   if (!isBottomMenuRoute.value || miniPlayerIdleCollapsed.value) {
-    cancelDockExpandSettle();
     if (dockMerged.value) setDockMergedState(false);
     return;
   }
-  const scrollVelocity = pagerScrollVelocity(target.scrollTop); // px/ms
-  const scrollingDown = target.scrollTop > prev;
-  if (target.scrollTop > 60 && scrollingDown) {
-    cancelDockExpandSettle();
+  const scrollVelocity = pagerScrollVelocity(top); // px/ms
+  const scrollingDown = top > prev;
+  // 原始判定（用户确认的形态）：滚离顶部（>60px 且向下）收起；滚回顶部（<=4px）展开。
+  // 反复触顶再向下 → 底栏反复展开/收起，快速跟手。
+  if (top > 60 && scrollingDown) {
     setDockMergedState(true, (scrollVelocity * 1000) / Math.max(1, window.innerHeight));
-  } else if (target.scrollTop <= 4) {
-    // 低区：不直接展开，进稳定窗（持续停留才展开；离区即取消）
-    requestDockExpandFromScroll((scrollVelocity * 1000) / Math.max(1, window.innerHeight));
-  } else {
-    cancelDockExpandSettle();
+  } else if (top <= 4) {
+    setDockMergedState(false, (scrollVelocity * 1000) / Math.max(1, window.innerHeight));
   }
 };
 /** 点击圆形：仅恢复展开态（不改变页面滚动位置） */
@@ -741,7 +691,6 @@ watch(dockMerged, () => {
 watch(
   () => route.path,
   () => {
-    cancelDockExpandSettle();
     if (dockMerged.value) dockMerged.value = false;
   }
 );
@@ -1646,7 +1595,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (indicatorMeasureTimer) clearTimeout(indicatorMeasureTimer);
   if (indicatorLateTimer) clearTimeout(indicatorLateTimer);
-  cancelDockExpandSettle();
   if (indicatorResizeHandler) window.removeEventListener('resize', indicatorResizeHandler);
   if (indicatorFollowFrame) cancelAnimationFrame(indicatorFollowFrame);
   indicatorResizeHandler = null;
