@@ -12,6 +12,183 @@
         <!-- Main Content -->
         <div v-else-if="artistInfo" class="artist-content">
           <!--
+            移动端：设计稿布局——头像大图 + 三按钮(简介/播放/收藏) + 统计
+            + 最新专辑大卡 + 热门歌曲横滑网格 + 专辑横滑 + 全部歌曲横滑网格
+          -->
+          <section v-if="isMobile" class="mobile-artist" :class="{ 'intro-open': introOpen }">
+            <div class="ma-scroll-host">
+              <!-- 头部 -->
+              <div class="ma-hero">
+                <div class="ma-hero-bg" :style="{ backgroundImage: `url(${avatarUrl})` }" />
+                <img
+                  :src="avatarUrl"
+                  :alt="artistInfo.name"
+                  class="ma-avatar"
+                  referrerpolicy="no-referrer"
+                  draggable="false"
+                />
+                <h1 class="ma-name">{{ artistInfo.name }}</h1>
+                <div class="ma-actions">
+                  <button
+                    v-if="briefDesc"
+                    ref="infoBtnRef"
+                    type="button"
+                    class="ma-btn ma-btn-side"
+                    :aria-label="t('artist.intro')"
+                    @click="toggleIntro"
+                  >
+                    <i class="ri-information-line" />
+                  </button>
+                  <button
+                    type="button"
+                    class="ma-btn ma-btn-play"
+                    :aria-label="t('comp.musicList.playAll')"
+                    @click="handlePlayAll"
+                  >
+                    <i class="ri-play-fill" />
+                  </button>
+                  <button
+                    v-if="!isQqArtist"
+                    type="button"
+                    class="ma-btn ma-btn-side"
+                    :class="{ 'is-subscribed': subscribed }"
+                    :aria-label="t('artist.subscribe')"
+                    @click="toggleSubscribe"
+                  >
+                    <i :class="subscribed ? 'ri-star-fill' : 'ri-star-line'" />
+                  </button>
+                </div>
+                <p v-if="artistInfo.musicSize || artistInfo.albumSize" class="ma-stats">
+                  {{ artistInfo.musicSize || 0 }} {{ t('artist.songsCount') }}
+                  <span class="ma-stats-dot">·</span>
+                  {{ artistInfo.albumSize || 0 }} {{ t('artist.albumsCount') }}
+                </p>
+              </div>
+
+              <!-- 最新专辑大卡 -->
+              <button
+                v-if="latestAlbum"
+                type="button"
+                class="ma-latest-card"
+                @click="handleAlbumClick(latestAlbum)"
+              >
+                <img
+                  :src="getImgUrl(latestAlbum.picUrl, '300y300')"
+                  class="ma-latest-cover"
+                  referrerpolicy="no-referrer"
+                  loading="lazy"
+                  :alt="latestAlbum.name"
+                />
+                <div class="ma-latest-copy">
+                  <small>{{ formatPublishTime(latestAlbum.publishTime) }}</small>
+                  <strong>{{ latestAlbum.name }}</strong>
+                  <small v-if="latestAlbum.size">{{ latestAlbum.size }} {{ t('artist.songsCount') }}</small>
+                </div>
+                <i class="ri-arrow-right-s-line ma-latest-arrow" />
+              </button>
+
+              <!-- 热门歌曲：2 行横滑网格 -->
+              <div v-if="hotSongsGrid.length" class="ma-section">
+                <h2 class="ma-section-title">
+                  {{ t('artist.hotSongs') }}<i class="ri-arrow-right-s-line" />
+                </h2>
+                <div class="ma-hgrid" data-horizontal-scroll>
+                  <button
+                    v-for="song in hotSongsGrid"
+                    :key="`hot-${song.id}`"
+                    type="button"
+                    class="ma-song-card"
+                    @click="handlePlay(song)"
+                  >
+                    <img
+                      :src="getImgUrl(song.al?.picUrl || song.picUrl, '300y300')"
+                      class="ma-song-cover"
+                      referrerpolicy="no-referrer"
+                      loading="lazy"
+                      :alt="song.name"
+                    />
+                    <strong>{{ song.name }}</strong>
+                    <small>{{ song.ar?.[0]?.name || artistInfo.name }}</small>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 专辑：单行横滑 -->
+              <div v-if="albums.length" class="ma-section">
+                <h2 class="ma-section-title">
+                  {{ t('artist.albums') }}<i class="ri-arrow-right-s-line" />
+                </h2>
+                <div class="ma-hgrid ma-hgrid-single" data-horizontal-scroll>
+                  <button
+                    v-for="album in albums"
+                    :key="album.id"
+                    type="button"
+                    class="ma-song-card"
+                    @click="handleAlbumClick(album)"
+                  >
+                    <img
+                      :src="getImgUrl(album.picUrl, '300y300')"
+                      class="ma-song-cover"
+                      referrerpolicy="no-referrer"
+                      loading="lazy"
+                      :alt="album.name"
+                    />
+                    <strong>{{ album.name }}</strong>
+                    <small>{{ artistInfo.name }}</small>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 全部歌曲：2 行横滑网格（触底分页） -->
+              <div v-if="songs.length" class="ma-section">
+                <h2 class="ma-section-title">
+                  {{ t('artist.allSongs') }}<i class="ri-arrow-right-s-line" />
+                </h2>
+                <div
+                  ref="allSongsRailRef"
+                  class="ma-hgrid"
+                  data-horizontal-scroll
+                  @scroll="onAllSongsRailScroll"
+                >
+                  <button
+                    v-for="song in songs"
+                    :key="`all-${song.id}`"
+                    type="button"
+                    class="ma-song-card"
+                    @click="handlePlay(song)"
+                  >
+                    <img
+                      :src="getImgUrl(song.al?.picUrl || song.picUrl, '300y300')"
+                      class="ma-song-cover"
+                      referrerpolicy="no-referrer"
+                      loading="lazy"
+                      :alt="song.name"
+                    />
+                    <strong>{{ song.name }}</strong>
+                    <small>{{ song.ar?.[0]?.name || artistInfo.name }}</small>
+                  </button>
+                  <div v-if="songLoading" class="ma-grid-loading">
+                    <i class="ri-loader-4-line ma-spin" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 简介容器：ⓘ 按钮 FLIP 扩大（遮罩变暗 + 页面内容虚化） -->
+            <Transition name="ma-intro">
+              <div v-if="introOpen && briefDesc" class="ma-intro-layer" @click="toggleIntro">
+                <div class="ma-intro-panel" :style="introPanelStyle" @click.stop>
+                  <h2 class="ma-intro-title">{{ t('artist.intro') }}</h2>
+                  <div class="ma-intro-body">{{ briefDesc }}</div>
+                  <button type="button" class="ma-intro-collapse" @click="toggleIntro">
+                    {{ t('artist.collapse') }}
+                  </button>
+                </div>
+              </div>
+            </Transition>
+          </section>
+
+          <!--
             Hero Zone — 歌手信息+控制合为一体（和 MusicListPage 相同的形变模式）
             展开态: 封面/名/统计/控制 纵向
             收缩态: 封面/名  控制  横向单行
@@ -111,8 +288,8 @@
             />
           </section>
 
-          <!-- Tab Content -->
-          <section class="tab-content page-padding-x py-6 md:py-8">
+          <!-- Tab Content（桌面端） -->
+          <section v-if="!isMobile" class="tab-content page-padding-x py-6 md:py-8">
             <!-- Songs Tab -->
             <div v-show="activeTab === 'songs'" class="songs-tab">
               <!-- No Results -->
@@ -267,7 +444,14 @@ import {
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 
-import { getArtistAlbums, getArtistDetail, getArtistTopSongs } from '@/api/artist';
+import {
+  getArtistAlbums,
+  getArtistDesc,
+  getArtistDetail,
+  getArtistSublist,
+  getArtistTopSongs,
+  subscribeArtist
+} from '@/api/artist';
 import { getMusicDetail } from '@/api/music';
 import { fetchQqSingerHotSongs } from '@/api/platformQrApi';
 import GlowTabs from '@/components/common/GlowTabs.vue';
@@ -347,6 +531,89 @@ const artistInfo = ref<IArtist>();
 const songs = ref<any[]>([]);
 const albums = ref<any[]>([]);
 
+// ==================== 移动端设计稿布局 ====================
+const avatarUrl = computed(() =>
+  getImgUrl(
+    String(artistInfo.value?.avatar || artistInfo.value?.cover || artistInfo.value?.picUrl || ''),
+    '500y500'
+  )
+);
+const hotSongsGrid = computed(() => songs.value.slice(0, 8));
+const latestAlbum = computed(() => albums.value[0] || null);
+const briefDesc = ref('');
+const subscribed = ref(false);
+const introOpen = ref(false);
+const infoBtnRef = ref<HTMLElement | null>(null);
+const allSongsRailRef = ref<HTMLElement | null>(null);
+/** 简介容器从 ⓘ 按钮位置展开（FLIP 起点，视口坐标） */
+const introPanelStyle = ref<Record<string, string>>({});
+
+const loadArtistBrief = async () => {
+  if (isQqArtist.value || !artistId.value) {
+    briefDesc.value = String(artistInfo.value?.briefDesc || '').trim();
+    return;
+  }
+  try {
+    const res = await getArtistDesc(artistId.value);
+    briefDesc.value = String(res?.data?.briefDesc || artistInfo.value?.briefDesc || '').trim();
+  } catch {
+    briefDesc.value = String(artistInfo.value?.briefDesc || '').trim();
+  }
+};
+
+const refreshSubscribed = async () => {
+  if (isQqArtist.value || !artistId.value) return;
+  try {
+    if (!localStorage.getItem('token')) {
+      subscribed.value = false;
+      return;
+    }
+    const res = await getArtistSublist(200);
+    const list = res?.data?.data || [];
+    subscribed.value = list.some((item: any) => Number(item.id) === artistId.value);
+  } catch {
+    subscribed.value = false;
+  }
+};
+
+const toggleSubscribe = async () => {
+  if (!localStorage.getItem('token')) {
+    message.warning(t('artist.subscribeNeedLogin'));
+    return;
+  }
+  const next: 1 | 2 = subscribed.value ? 2 : 1;
+  try {
+    await subscribeArtist(artistId.value, next);
+    subscribed.value = !subscribed.value;
+    message.success(next === 1 ? t('artist.subscribeOk') : t('artist.subscribeCancel'));
+  } catch {
+    message.error(t('artist.subscribeFail'));
+  }
+};
+
+const toggleIntro = () => {
+  if (introOpen.value) {
+    introOpen.value = false;
+    return;
+  }
+  const rect = infoBtnRef.value?.getBoundingClientRect();
+  if (rect) {
+    introPanelStyle.value = {
+      '--intro-origin-x': `${rect.left + rect.width / 2}px`,
+      '--intro-origin-y': `${rect.top + rect.height / 2}px`
+    };
+  }
+  introOpen.value = true;
+};
+
+/** 全部歌曲横滑触底：续接现有分页加载 */
+const onAllSongsRailScroll = (event: Event) => {
+  const rail = event.target as HTMLElement;
+  if (rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 120) {
+    void loadSongs();
+  }
+};
+
 const titleElRef = ref<HTMLElement | null>(null);
 const artistTitle = computed(() => artistInfo.value?.name ?? '');
 useScrollTitle(artistTitle, titleElRef);
@@ -412,6 +679,7 @@ const handleAlbumClick = async (album: any) => {
 
 // 加载歌手信息
 const loadArtistInfo = async () => {
+  introOpen.value = false;
   if (isQqArtist.value) {
     await loadQqArtistInfo();
     return;
@@ -422,6 +690,10 @@ const loadArtistInfo = async () => {
   nextTick(() => {
     scrollbarRef.value?.scrollTo(0, 0);
   });
+
+  // 简介与收藏态（独立于数据缓存，始终刷新）
+  void loadArtistBrief();
+  void refreshSubscribed();
 
   // 简化缓存检查
   const cacheKey = getCacheKey(artistId.value);
@@ -1319,5 +1591,369 @@ button:focus-visible {
 }
 input:focus-visible {
   @apply outline-none ring-2 ring-primary ring-opacity-50;
+}
+
+/* ==================== 移动端设计稿布局 ==================== */
+.mobile-artist {
+  --ma-ink: var(--m-text-primary, var(--d-text-primary, #fff));
+  --ma-ink-muted: var(--m-text-muted, var(--d-text-muted, rgba(255, 255, 255, 0.55)));
+}
+
+.ma-scroll-host {
+  transition: filter 300ms ease;
+}
+
+/* 简介打开时页面内容虚化（filter 允许，非 backdrop） */
+.mobile-artist.intro-open .ma-scroll-host {
+  filter: blur(14px) brightness(0.72);
+  pointer-events: none;
+}
+
+/* ---------- 头部 ---------- */
+.ma-hero {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  overflow: hidden;
+  padding: 8px 20px 18px;
+  text-align: center;
+}
+
+.ma-hero-bg {
+  position: absolute;
+  inset: -12%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(46px) brightness(0.5) saturate(1.15);
+}
+
+.ma-hero > *:not(.ma-hero-bg) {
+  position: relative;
+  z-index: 1;
+}
+
+.ma-avatar {
+  width: min(62vw, 300px);
+  aspect-ratio: 1;
+  margin-top: 8px;
+  border-radius: 6px;
+  object-fit: cover;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+
+.ma-name {
+  margin: 4px 0 0;
+  color: var(--ma-ink);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+/* 三按钮：中央大播放 + 两侧小钮 */
+.ma-actions {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: 4px;
+}
+
+.ma-btn {
+  display: grid;
+  place-items: center;
+  border: 0;
+  cursor: pointer;
+  transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  &:active {
+    transform: scale(0.92);
+  }
+}
+
+.ma-btn-side {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ma-ink) 14%, transparent);
+  color: var(--ma-ink);
+  font-size: 20px;
+
+  &.is-subscribed {
+    background: color-mix(in srgb, var(--accent-color) 22%, transparent);
+    color: var(--accent-color);
+  }
+}
+
+.ma-btn-play {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--ma-ink, #fff);
+  color: var(--m-bg, #111);
+  font-size: 28px;
+}
+
+.ma-stats {
+  margin: 0;
+  color: var(--ma-ink-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ma-stats-dot {
+  margin: 0 6px;
+}
+
+/* ---------- 最新专辑大卡 ---------- */
+.ma-latest-card {
+  display: flex;
+  width: calc(100% - 32px);
+  align-items: center;
+  gap: 14px;
+  margin: 6px 16px 2px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--ma-ink) 10%, transparent);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--ma-ink) 8%, transparent);
+  color: var(--ma-ink);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+.ma-latest-cover {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+.ma-latest-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 3px;
+
+  small {
+    color: var(--ma-ink-muted);
+    font-size: 11px;
+  }
+
+  strong {
+    overflow: hidden;
+    font-size: 16px;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.ma-latest-arrow {
+  flex-shrink: 0;
+  color: var(--ma-ink-muted);
+  font-size: 20px;
+}
+
+/* ---------- 区块与横滑网格 ---------- */
+.ma-section {
+  margin-top: 18px;
+}
+
+.ma-section-title {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 10px;
+  padding: 0 16px;
+  color: var(--ma-ink);
+  font-size: 19px;
+  font-weight: 800;
+
+  i {
+    color: var(--ma-ink-muted);
+    font-size: 17px;
+  }
+}
+
+.ma-hgrid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, auto);
+  grid-auto-columns: minmax(0, calc(44% - 6px));
+  gap: 12px;
+  overflow-x: auto;
+  padding: 2px 16px 6px;
+  scroll-padding-inline: 16px;
+  scrollbar-width: none;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.ma-hgrid-single {
+  grid-template-rows: auto;
+  grid-auto-columns: minmax(0, 150px);
+}
+
+.ma-song-card {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ma-ink);
+  cursor: pointer;
+  text-align: left;
+
+  &:active {
+    opacity: 0.75;
+  }
+
+  img {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--ma-ink) 8%, transparent);
+    object-fit: cover;
+  }
+
+  strong {
+    overflow: hidden;
+    margin-top: 2px;
+    font-size: 13px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    overflow: hidden;
+    color: var(--ma-ink-muted);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.ma-grid-loading {
+  display: grid;
+  width: 120px;
+  place-items: center;
+  align-self: center;
+  color: var(--ma-ink-muted);
+  font-size: 20px;
+}
+
+.ma-spin {
+  display: inline-block;
+  animation: ma-rotate 900ms linear infinite;
+}
+
+@keyframes ma-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- 简介容器（ⓘ FLIP 扩大） ---------- */
+.ma-intro-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.ma-intro-panel {
+  position: absolute;
+  top: 9vh;
+  right: 16px;
+  bottom: 11vh;
+  left: 16px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 24px 20px 18px;
+  border-radius: 30px;
+  background: color-mix(in srgb, var(--page-chrome-bg, #f5f3ef) 93%, #000 7%);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+  transform-origin: var(--intro-origin-x, 50%) var(--intro-origin-y, 50%);
+}
+
+.ma-intro-title {
+  margin: 0;
+  color: var(--m-text-primary, var(--d-text-primary, #20211f));
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.ma-intro-body {
+  overflow-y: auto;
+  color: var(--m-text-primary, var(--d-text-primary, #20211f));
+  font-size: 15px;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.ma-intro-collapse {
+  min-height: 48px;
+  justify-self: center;
+  width: min(64%, 280px);
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-text-primary, #888) 12%, transparent);
+  color: var(--m-text-primary, var(--d-text-primary, #20211f));
+  font-size: 15px;
+  font-weight: 700;
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+.ma-intro-enter-active,
+.ma-intro-leave-active {
+  transition: background-color 260ms ease;
+
+  .ma-intro-panel {
+    transition:
+      transform 400ms cubic-bezier(0.32, 0.72, 0, 1),
+      opacity 240ms ease;
+  }
+}
+
+.ma-intro-enter-from,
+.ma-intro-leave-to {
+  background: rgba(0, 0, 0, 0);
+
+  .ma-intro-panel {
+    opacity: 0.3;
+    transform: scale(0.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ma-intro-enter-active,
+  .ma-intro-leave-active {
+    transition-duration: 80ms;
+
+    .ma-intro-panel {
+      transition-duration: 80ms;
+    }
+  }
 }
 </style>
