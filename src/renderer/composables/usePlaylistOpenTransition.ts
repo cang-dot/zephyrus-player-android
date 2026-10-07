@@ -165,6 +165,9 @@ const coverStyle = computed(() => {
     width: `${start.rect.w}px`,
     height: `${start.rect.h}px`,
     borderRadius: `${CARD_RADIUS}px`,
+    // 缩放原点固定左上角：translate(dx,dy) scale(s) 的落点 = start 左上 + (dx,dy)，
+    // 与 coverTransform 的 dx/dy 数学严格一致（默认中心 origin 会引入半宽高偏移）
+    transformOrigin: '0 0',
     transition: `transform ${ALIGN_MS}ms ease, border-radius ${PLAYLIST_OPEN_EXPAND_MS}ms ease`
   } as Record<string, string>;
 });
