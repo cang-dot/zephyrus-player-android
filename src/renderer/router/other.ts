@@ -1,5 +1,17 @@
 const otherRouter = [
   {
+    path: '/set/:section',
+    name: 'setSection',
+    meta: {
+      title: 'comp.settings',
+      keepAlive: false,
+      showInMenu: false,
+      back: true,
+      isMobile: true
+    },
+    component: () => import('@/views/set/section.vue')
+  },
+  {
     path: '/user/local-profile',
     name: 'userLocalProfile',
     meta: {

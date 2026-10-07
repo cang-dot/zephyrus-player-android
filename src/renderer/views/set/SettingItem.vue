@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, getCurrentInstance, inject, provide } from 'vue';
+import { computed, getCurrentInstance, inject, onMounted, provide } from 'vue';
 
 import { SETTING_ACCORDION_KEY } from './settingAccordion';
 
@@ -63,6 +63,8 @@ interface Props {
   customClass?: string;
   mode?: 'direct' | 'expandable';
   itemId?: string;
+  /** 手风琴项初始展开（设置主页的零碎项默认展开用） */
+  defaultOpen?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -72,7 +74,8 @@ const props = withDefaults(defineProps<Props>(), {
   inline: false,
   customClass: '',
   mode: 'expandable',
-  itemId: ''
+  itemId: '',
+  defaultOpen: false
 });
 
 const emit = defineEmits<{ click: [event: MouseEvent] }>();
@@ -97,6 +100,12 @@ const handleRootClick = (event: MouseEvent) => {
   if (effectiveMode.value !== 'expandable' || isInteractiveTarget(event.target)) return;
   accordion?.toggle(resolvedId.value);
 };
+
+onMounted(() => {
+  if (props.defaultOpen && effectiveMode.value === 'expandable' && !accordion?.openItemId.value) {
+    accordion?.toggle(resolvedId.value);
+  }
+});
 </script>
 
 <style scoped lang="scss">

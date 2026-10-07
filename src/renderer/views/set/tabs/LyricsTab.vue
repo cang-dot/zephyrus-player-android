@@ -4,6 +4,7 @@
       <setting-item
         item-id="status-bar-lyrics"
         mode="expandable"
+        default-open
         :title="t('settings.lyricSettings.statusBarLyrics')"
         :description="t('settings.lyricSettings.statusBarLyricsDescription')"
       >

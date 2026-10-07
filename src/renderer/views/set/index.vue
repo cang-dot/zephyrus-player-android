@@ -35,34 +35,30 @@
           </div>
         </template>
 
-        <!-- Normal mode -->
+        <!-- Normal mode：零碎项直接展开 + 子页面入口 -->
         <template v-else>
-          <div v-show="currentSection === 'appearance'" class="animate-fade-in">
+          <div class="animate-fade-in">
             <appearance-tab />
           </div>
-          <div v-show="currentSection === 'playback'" class="animate-fade-in">
-            <playback-tab />
-          </div>
-          <div v-show="currentSection === 'lyrics'" class="animate-fade-in">
-            <lyrics-tab />
-          </div>
-          <div v-show="currentSection === 'ai'" class="animate-fade-in">
+          <div class="animate-fade-in">
             <ai-tab />
           </div>
-          <div v-show="currentSection === 'advanced'" class="animate-fade-in">
-            <advanced-tab />
+          <div class="animate-fade-in">
+            <lyrics-tab />
           </div>
-          <div v-show="currentSection === 'about'" class="animate-fade-in">
-            <about-tab />
-          </div>
-          <div v-show="currentSection === 'application'" class="animate-fade-in">
-            <application-tab />
-          </div>
-          <div v-show="currentSection === 'network'" class="animate-fade-in">
-            <network-tab />
-          </div>
-          <div v-show="currentSection === 'system'" class="animate-fade-in">
-            <system-tab />
+
+          <div class="section-entry-list animate-fade-in">
+            <button
+              v-for="entry in subPageEntries"
+              :key="entry.id"
+              type="button"
+              class="section-entry"
+              @click="router.push(`/set/${entry.id}`)"
+            >
+              <i :class="entry.icon" />
+              <span>{{ entry.title }}</span>
+              <i class="ri-arrow-right-s-line section-entry-arrow" />
+            </button>
           </div>
         </template>
 
@@ -75,8 +71,7 @@
 
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core';
-import { useDialog, useMessage } from 'naive-ui';
-import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
@@ -85,112 +80,82 @@ import {
   registerMobileTopbarGroup,
   unregisterMobileTopbarGroup
 } from '@/composables/useMobileTopbarMenu';
-import { useSettingsStore } from '@/store/modules/settings';
 import { isElectron } from '@/utils';
 
-import config from '../../../../package.json';
-import { createDefaultAppUpdateState } from '../../../shared/appUpdate';
-import { SETTINGS_DATA_KEY, SETTINGS_DIALOG_KEY, SETTINGS_MESSAGE_KEY } from './keys';
 import { MOBILE_SETTING_SEARCH_DEFINITIONS } from './mobileSettingSearch';
-import AboutTab from './tabs/AboutTab.vue';
-import AdvancedTab from './tabs/AdvancedTab.vue';
 import AiTab from './tabs/AiTab.vue';
 import AppearanceTab from './tabs/AppearanceTab.vue';
-import ApplicationTab from './tabs/ApplicationTab.vue';
 import LyricsTab from './tabs/LyricsTab.vue';
-import NetworkTab from './tabs/NetworkTab.vue';
-import PlaybackTab from './tabs/PlaybackTab.vue';
-import SystemTab from './tabs/SystemTab.vue';
+import { useSettingsPageContext } from './useSettingsPageContext';
 
-const settingsStore = useSettingsStore();
+defineOptions({ name: 'Set' });
+
 const router = useRouter();
-const message = useMessage();
-const dialog = useDialog();
 const { t } = useI18n();
 const contentRef = ref<HTMLElement | null>(null);
 
-// ==================== Settings data ====================
-const saveSettings = useDebounceFn((data) => {
-  settingsStore.setSetData(data);
-}, 500);
-
-const localSetData = ref({ ...settingsStore.setData });
-
-const setData = computed({
-  get: () => localSetData.value,
-  set: (newData) => {
-    localSetData.value = newData;
-  }
-});
-
-watch(
-  () => localSetData.value,
-  (newValue) => saveSettings(newValue),
-  { deep: true }
-);
-
-watch(
-  () => settingsStore.setData,
-  (newValue) => {
-    if (JSON.stringify(localSetData.value) !== JSON.stringify(newValue)) {
-      localSetData.value = { ...newValue };
-    }
-  },
-  { deep: true, immediate: true }
-);
+// ==================== Settings data（共享上下文） ====================
+useSettingsPageContext();
 
 onUnmounted(() => {
-  settingsStore.setSetData(localSetData.value);
   unregisterMobileTopbarGroup('settings-sections');
   window.removeEventListener('mobile-settings-search-input', onTopbarSearchInput);
   window.removeEventListener('mobile-settings-search-select', onTopbarSearchSelect);
 });
 
-// ==================== Provide ====================
-provide(SETTINGS_DATA_KEY, setData);
-provide(SETTINGS_MESSAGE_KEY, message);
-provide(SETTINGS_DIALOG_KEY, dialog);
+// ==================== 多级导航：主页直接展开 + 子页面入口 ====================
+/** 并入设置主页的零碎区块（默认展开，不再单独分页） */
+const HOME_SECTIONS = ['appearance', 'ai', 'lyrics'] as const;
 
-// ==================== Navigation ====================
-type SettingSectionConfig = {
-  id: string;
-  electron?: boolean;
+const ENTRY_ICONS: Record<string, string> = {
+  playback: 'ri-music-2-line',
+  advanced: 'ri-settings-4-line',
+  about: 'ri-information-line',
+  application: 'ri-apps-2-line',
+  network: 'ri-global-line',
+  system: 'ri-computer-line'
 };
 
-const settingSections: SettingSectionConfig[] = [
-  { id: 'appearance' },
-  { id: 'playback' },
-  { id: 'lyrics' },
-  { id: 'ai' },
-  { id: 'advanced' },
-  { id: 'about' },
-  { id: 'application', electron: true },
-  { id: 'network', electron: true },
-  { id: 'system', electron: true }
-];
+const subPageEntries = computed(() =>
+  [
+    { id: 'playback' },
+    { id: 'advanced' },
+    { id: 'about' },
+    { id: 'application', electron: true },
+    { id: 'network', electron: true },
+    { id: 'system', electron: true }
+  ]
+    .filter((entry) => !entry.electron || isElectron)
+    .map((entry) => ({
+      id: entry.id,
+      title: t(`settings.sections.${entry.id}`),
+      icon: ENTRY_ICONS[entry.id] || 'ri-arrow-right-s-line'
+    }))
+);
 
-const navSections = computed(() => {
-  return settingSections
-    .filter((section) => !section.electron || isElectron)
-    .map((section) => ({
-      id: section.id,
-      title: t(`settings.sections.${section.id}`)
-    }));
-});
-
-const currentSection = ref('appearance');
-
+// 旧深链兼容：/set?section=playback → /set/playback
 const applyRouteTarget = () => {
-  if (!router.currentRoute.value.query.section) return;
-  currentSection.value = 'appearance';
-  const focus = String(router.currentRoute.value.query.focus || '');
-  if (focus) {
-    nextTick(() =>
-      nextTick(() =>
-        document.getElementById(focus)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      )
-    );
+  const section = String(router.currentRoute.value.query.section || '');
+  if (!section || HOME_SECTIONS.includes(section as (typeof HOME_SECTIONS)[number])) {
+    if (section) {
+      router.replace({ path: '/set' });
+      const focus = String(router.currentRoute.value.query.focus || '');
+      if (focus) {
+        nextTick(() =>
+          nextTick(() =>
+            document.getElementById(focus)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          )
+        );
+      }
+    }
+    return;
   }
+  const focus = String(router.currentRoute.value.query.focus || '');
+  const keyword = String(router.currentRoute.value.query.q || '');
+  router.replace({
+    path: `/set/${section}`,
+    query: focus || keyword ? { focus, q: keyword } : undefined
+  });
 };
 
 watch(() => router.currentRoute.value.query, applyRouteTarget, { immediate: true });
@@ -199,16 +164,15 @@ const syncSettingsTopbar = () => {
   registerMobileTopbarGroup({
     id: 'settings-sections',
     routePath: '/set',
-    options: navSections.value.map((section) => ({ key: section.id, label: section.title })),
-    value: currentSection.value,
+    options: subPageEntries.value.map((entry) => ({ key: entry.id, label: entry.title })),
+    value: '',
     select: (value) => {
-      currentSection.value = String(value);
-      contentRef.value?.scrollTo({ top: 0, behavior: 'smooth' });
+      router.push(`/set/${String(value)}`);
     }
   });
 };
 
-watch([currentSection, navSections], syncSettingsTopbar, { immediate: true });
+watch(subPageEntries, syncSettingsTopbar, { immediate: true });
 
 // ==================== Settings search ====================
 const searchQuery = ref('');
@@ -254,10 +218,12 @@ function highlight(text: string): string {
 }
 
 const settingIndex = computed<SearchResult[]>(() => {
-  const tabLabels: Record<string, string> = {};
-  navSections.value.forEach((s) => {
-    tabLabels[s.id] = s.title;
-  });
+  const tabLabels: Record<string, string> = {
+    ...Object.fromEntries(subPageEntries.value.map((entry) => [entry.id, entry.title])),
+    ...Object.fromEntries(
+      HOME_SECTIONS.map((id) => [id, t(`settings.sections.${id}`)])
+    )
+  };
 
   return MOBILE_SETTING_SEARCH_DEFINITIONS.map((item) => {
     const translatedTitle = item.titleKey ? t(item.titleKey) : '';
@@ -319,7 +285,14 @@ const onTopbarSearchSelect = (event: Event) => {
 
 const jumpToResult = (result: SearchResult) => {
   clearSearch();
-  currentSection.value = result.tabId;
+  // 子页条目：跳到对应子页，由子页处理定位与展开
+  if (!HOME_SECTIONS.includes(result.tabId as (typeof HOME_SECTIONS)[number])) {
+    router.push({
+      path: `/set/${result.tabId}`,
+      query: { focus: result.targetId || '', q: result.titlePath || '' }
+    });
+    return;
+  }
   nextTick(() => {
     nextTick(() => {
       const targetedItem = result.targetId
@@ -358,21 +331,6 @@ onMounted(() => {
   syncSettingsTopbar();
   window.addEventListener('mobile-settings-search-input', onTopbarSearchInput);
   window.addEventListener('mobile-settings-search-select', onTopbarSearchSelect);
-  if (isElectron && settingsStore.appUpdateState.currentVersion === '') {
-    settingsStore.setAppUpdateState(createDefaultAppUpdateState(config.version));
-  }
-  if (setData.value.enableRealIP === undefined) {
-    setData.value = { ...setData.value, enableRealIP: false };
-  }
-  if (setData.value.enableDiskCache === undefined) {
-    setData.value = { ...setData.value, enableDiskCache: true };
-  }
-  if (!setData.value.diskCacheMaxSizeMB) {
-    setData.value = { ...setData.value, diskCacheMaxSizeMB: 4096 };
-  }
-  if (!['lru', 'fifo'].includes(setData.value.diskCacheCleanupPolicy)) {
-    setData.value = { ...setData.value, diskCacheCleanupPolicy: 'lru' };
-  }
   applyRouteTarget();
 });
 </script>
@@ -588,6 +546,56 @@ onMounted(() => {
 /* Settings content */
 .settings-content {
   padding: 0 20px;
+}
+
+/* 子页面入口列表 */
+.section-entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 6px;
+  border: 1px solid var(--m-border, rgba(128, 128, 128, 0.18));
+  border-radius: 20px;
+  background: var(--m-surface-alt, rgba(128, 128, 128, 0.05));
+}
+
+.section-entry {
+  display: flex;
+  min-height: 50px;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--m-text-primary, var(--text-color, #000));
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  transition: background-color 160ms ease;
+
+  > i:first-child {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    place-items: center;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+    color: var(--accent-color);
+    font-size: 17px;
+  }
+
+  &:active {
+    background: var(--m-surface-hover, rgba(128, 128, 128, 0.1));
+  }
+}
+
+.section-entry-arrow {
+  margin-left: auto;
+  color: var(--m-text-muted, #999);
+  font-size: 20px;
 }
 
 .settings-inline-search {
