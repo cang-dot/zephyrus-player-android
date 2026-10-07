@@ -91,7 +91,6 @@
     <div v-if="!hasMore && albumList.length > 0" class="text-center py-8 text-neutral-500">
       {{ t('comp.recommendSonglist.empty') }}
     </div>
-    <div class="album-bottom-spacer" aria-hidden="true" />
   </sticky-tab-page>
 </template>
 
@@ -323,13 +322,6 @@ watch(
   box-shadow: none !important;
 }
 
-.album-bottom-spacer {
-  width: 100%;
-  height: calc(
-    var(--mobile-dock-content-inset, 132px) + var(--safe-area-inset-bottom, 0px) + 260px
-  );
-  flex: 0 0 auto;
-}
 
 .album-page :deep(*) {
   box-shadow: none !important;

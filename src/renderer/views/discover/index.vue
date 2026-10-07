@@ -61,7 +61,6 @@
       </div>
       <p v-else class="discover-empty">暂无推荐内容</p>
     </section>
-    <div class="discover-bottom-spacer" aria-hidden="true" />
   </div>
 </template>
 
@@ -211,8 +210,9 @@ onMounted(async () => {
 <style scoped lang="scss">
 .discover-page {
   min-height: 100%;
-  padding: calc(var(--safe-area-inset-top, 0px) + 72px) 16px
-    calc(var(--mobile-dock-content-inset, 132px) + var(--safe-area-inset-bottom, 0px) + 240px);
+  /* .pager-page 已统一避让 dock 高度（--mobile-dock-content-inset），
+     这里只补 12px 收尾边距，避免双层叠加造成底部大空隙 */
+  padding: calc(var(--safe-area-inset-top, 0px) + 72px) 16px 12px;
   color: var(--m-text-primary, var(--text-color));
 }
 .discover-shortcuts {
@@ -237,13 +237,6 @@ onMounted(async () => {
 .discover-section {
   margin-top: 25px;
   scroll-margin-top: calc(var(--safe-area-inset-top, 0px) + 76px);
-}
-.discover-bottom-spacer {
-  width: 100%;
-  height: calc(
-    var(--mobile-dock-content-inset, 132px) + var(--safe-area-inset-bottom, 0px) + 280px
-  );
-  flex: 0 0 auto;
 }
 .section-heading {
   display: flex;

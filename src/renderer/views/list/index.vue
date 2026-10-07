@@ -114,7 +114,6 @@
         <button class="partial-error-retry pressable" @click="retryFailedSources()">重试</button>
       </div>
 
-      <div class="bottom-spacer" />
     </div>
   </div>
 </template>
@@ -715,9 +714,8 @@ const handleItemClick = (item: any) => {
 .list-scroll {
   width: 100%;
   padding-top: var(--mobile-topbar-inset);
-  padding-bottom: calc(
-    var(--mobile-dock-content-inset, 132px) + var(--safe-area-inset-bottom, 0px) + 180px
-  );
+  /* .pager-page 已统一避让 dock 高度，这里只补 12px 收尾边距 */
+  padding-bottom: 12px;
 }
 
 .playlist-source-tabs {
@@ -1025,14 +1023,6 @@ const handleItemClick = (item: any) => {
   }
 }
 
-.bottom-spacer {
-  width: 100%;
-  height: calc(
-    var(--mobile-dock-content-inset, 132px) + var(--safe-area-inset-bottom, 0px) + 280px
-  );
-  flex: 0 0 auto;
-  grid-column: 1 / -1;
-}
 
 .skeleton-shimmer {
   background: linear-gradient(

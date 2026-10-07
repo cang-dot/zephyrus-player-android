@@ -37,7 +37,6 @@
         </button>
       </div>
     </section>
-    <div class="sub-bottom-spacer" aria-hidden="true" />
   </main>
 </template>
 <script setup lang="ts">
@@ -102,7 +101,7 @@ onMounted(async () => {
   /* 二级页宿主透明：子页必须自铺底色，否则透出下层 tab 页 */
   background: var(--m-bg, var(--bg-color, #141414));
   padding: calc(var(--safe-area-inset-top, 0px) + 82px) 16px
-    calc(var(--mobile-dock-content-inset, 82px) + var(--safe-area-inset-bottom, 0px) + 220px);
+    calc(var(--mobile-dock-content-inset, 144px) + var(--safe-area-inset-bottom, 0px) + 12px);
   scroll-padding-bottom: calc(
     var(--mobile-dock-content-inset, 82px) + var(--safe-area-inset-bottom, 0px) + 220px
   );
@@ -173,12 +172,5 @@ onMounted(async () => {
 .skeleton-shimmer {
   opacity: 0.5;
 }
-.sub-bottom-spacer {
-  width: 100%;
-  height: calc(
-    var(--mobile-dock-content-inset, 132px) + var(--safe-area-inset-bottom, 0px) + 280px
-  );
-  grid-column: 1 / -1;
-  flex: 0 0 auto;
-}
+
 </style>
