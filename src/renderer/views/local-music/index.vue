@@ -133,7 +133,7 @@
 
     <!-- ==================== 桌面端（Electron） ==================== -->
     <n-scrollbar v-else-if="isElectron" class="h-full">
-      <div class="local-music-content pb-32">
+      <div class="local-music-content" style="padding-bottom: calc(var(--mobile-dock-content-inset, 144px) + var(--safe-area-inset-bottom, 0px) + 12px)">
         <!-- Hero Section -->
         <section class="hero-section relative overflow-hidden rounded-tl-2xl">
           <div class="hero-bg absolute inset-0 -top-20">
@@ -1350,7 +1350,7 @@ $smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* Bottom spacer for safe area + nav bar */
 .bottom-spacer {
-  height: calc(var(--safe-area-inset-bottom, 0px) + 140px);
+  height: calc(var(--mobile-dock-content-inset, 144px) + var(--safe-area-inset-bottom, 0px) + 12px);
 }
 
 .local-music-page.is-embedded .bottom-spacer {

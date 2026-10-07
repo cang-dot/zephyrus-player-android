@@ -301,7 +301,8 @@ watch(
 
 <style lang="scss" scoped>
 .album-page {
-  background: transparent !important;
+  /* 二级页宿主透明：子页必须自铺底色，否则透出下层 tab 页 */
+  background: var(--m-bg, var(--bg-color, #141414)) !important;
 }
 
 .album-page :deep(.sticky-tab-page),

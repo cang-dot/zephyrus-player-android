@@ -559,13 +559,23 @@ const dockMergeGesture = useDockMergeGesture();
 // 提交合并的时间戳：拖拽松手会补发一次合成 click，需在短窗口内忽略，
 // 否则刚提交的合并态会被 onMergedDockClick 立即撤销
 let dockMergeCommittedAt = 0;
-const setDockMergedState = (value: boolean) => {
+// 滚动速度估算（px/ms）：时间差分，供弹簧初速接力（收起/展开速率随滑动速度）
+let dockScrollVelocitySample = { top: 0, at: 0 };
+const pagerScrollVelocity = (top: number) => {
+  const now = performance.now();
+  const { top: prevTop, at: prevAt } = dockScrollVelocitySample;
+  dockScrollVelocitySample = { top, at: now };
+  const dt = Math.max(1, now - prevAt);
+  if (now - prevAt > 160) return 0; // 采样过期：视为静止
+  return (top - prevTop) / dt;
+};
+const setDockMergedState = (value: boolean, velocity = 0) => {
   // 幂等：滚动路径高频调用，同值重复设置若重启弹簧会把速度清零
   // （每帧从零加速 = 几乎不前进，观感"没有动画/收起展开打架"）
   if (dockMerged.value === value) return;
   dockMerged.value = value;
   if (value) dockMergeCommittedAt = Date.now();
-  dockMergeGesture.animateMergeProgress(value ? 1 : 0);
+  dockMergeGesture.animateMergeProgress(value ? 1 : 0, velocity);
 };
 const lastPagerScrollTop = new Map<string, number>();
 const onPagerScrollCapture = (event: Event) => {
@@ -582,9 +592,13 @@ const onPagerScrollCapture = (event: Event) => {
     if (dockMerged.value) setDockMergedState(false);
     return;
   }
+  const scrollVelocity = pagerScrollVelocity(target.scrollTop); // px/ms
   const scrollingDown = target.scrollTop > prev;
-  if (target.scrollTop > 60 && scrollingDown) setDockMergedState(true);
-  else if (target.scrollTop <= 4) setDockMergedState(false);
+  if (target.scrollTop > 60 && scrollingDown) {
+    setDockMergedState(true, (scrollVelocity * 1000) / Math.max(1, window.innerHeight));
+  } else if (target.scrollTop <= 4) {
+    setDockMergedState(false, (scrollVelocity * 1000) / Math.max(1, window.innerHeight));
+  }
 };
 /** 点击圆形：仅恢复展开态（不改变页面滚动位置） */
 const onMergedDockClick = (event: MouseEvent) => {

@@ -3,7 +3,7 @@
     class="radio-detail-page h-full w-full bg-white dark:bg-black transition-colors duration-500"
   >
     <n-scrollbar class="h-full" @scroll="handleScroll">
-      <div class="radio-detail-content w-full pb-32">
+      <div class="radio-detail-content w-full" style="padding-bottom: calc(var(--mobile-dock-content-inset, 144px) + var(--safe-area-inset-bottom, 0px) + 12px)">
         <n-spin :show="isLoading && !currentRadio">
           <div v-if="currentRadio" class="radio-content">
             <!-- Hero Section -->

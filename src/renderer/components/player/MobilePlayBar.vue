@@ -163,7 +163,6 @@ function cancelCoverLongPress() {
   coverLongPressTimer = undefined;
 }
 let miniLongPressTriggered = false;
-let miniLongPressTimer: ReturnType<typeof setTimeout> | undefined;
 let miniPointerStartedCollapsed = false;
 
 // 是否播放
@@ -380,18 +379,16 @@ const onMiniPointerMove = (event: PointerEvent) => {
     if (isVertical && !shouldShowMobileMenu.value && deltaY > 0) {
       miniVerticalGestureBlocked.value = true;
       miniSwipeAxis.value = 'none';
-      if (miniLongPressTimer) {
-        clearTimeout(miniLongPressTimer);
-        miniLongPressTimer = undefined;
-      }
+      // 手势已确立：拦截封面长按，防止上滑途中误弹封面预览
+      cancelCoverLongPress();
       return;
     }
     miniSwipeAxis.value = isVertical ? 'vertical' : 'horizontal';
-    if (miniLongPressTimer) {
-      clearTimeout(miniLongPressTimer);
-      miniLongPressTimer = undefined;
-    }
+    cancelCoverLongPress();
   }
+  // 位移超过取消阈值即撤销长按（对齐 useCoverPreviewGesture 的 move-cancel 规范），
+  // 避免从封面起手的慢速滑动在 500ms 后触发预览、冻结手势并误开播放页
+  if (Math.hypot(deltaX, deltaY) > 10) cancelCoverLongPress();
   if (miniSwipeAxis.value === 'vertical') {
     if (!(event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) {
       (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -505,10 +502,7 @@ const onMiniPointerUp = (event: PointerEvent) => {
 
   releaseMiniPointer(event);
   miniPointerActive = false;
-  if (miniLongPressTimer) {
-    clearTimeout(miniLongPressTimer);
-    miniLongPressTimer = undefined;
-  }
+  cancelCoverLongPress();
   const verticalCommit =
     !miniVerticalGestureBlocked.value &&
     miniSwipeAxis.value === 'vertical' &&
@@ -582,10 +576,7 @@ const onMiniPointerCancel = (event: PointerEvent) => {
   if (!miniPointerActive || event.pointerId !== miniPointerId) return;
   releaseMiniPointer(event);
   miniPointerActive = false;
-  if (miniLongPressTimer) {
-    clearTimeout(miniLongPressTimer);
-    miniLongPressTimer = undefined;
-  }
+  cancelCoverLongPress();
   if (playerTransition.state.value === 'dragging') playerTransition.close();
   finishMiniSwipeAnimation();
 };
@@ -596,7 +587,7 @@ onBeforeUnmount(() => {
   playerTransition.cancelAllAnimations(true);
   if (miniSwipeTimer) clearTimeout(miniSwipeTimer);
   if (miniClickTimer) clearTimeout(miniClickTimer);
-  if (miniLongPressTimer) clearTimeout(miniLongPressTimer);
+  cancelCoverLongPress();
 });
 
 watch(
@@ -707,6 +698,23 @@ watch(
     --mini-ink-rgb: var(--page-chrome-ink-rgb, 240, 236, 228);
   }
 
+  /* 播放列表展开时迷你控件叠在面板表面之上（表面由上面 .playlist-open 规则提供），
+     文字必须与表面同源：暗 chrome 页→浅字，亮 chrome 页→深字；无 chrome 回退主题令牌。
+     仅覆盖令牌，不改背景（展开态背景由下面的 :transparent 规则保持透明）。 */
+  &.playlist-open .mobile-mini-controls {
+    --mini-ink-rgb: var(--page-chrome-ink-rgb, 23, 23, 26);
+    --m-text-primary: rgba(var(--mini-ink-rgb), 0.92);
+    --m-text-secondary: rgba(var(--mini-ink-rgb), 0.72);
+    --m-text-muted: rgba(var(--mini-ink-rgb), 0.55);
+    --d-text-primary: rgba(var(--mini-ink-rgb), 0.92);
+    --d-text-secondary: rgba(var(--mini-ink-rgb), 0.55);
+  }
+
+  /* 深色主题且页面未注入 chrome 墨色时，展开态兜底墨色同样改浅色 */
+  .dark &.playlist-open .mobile-mini-controls {
+    --mini-ink-rgb: var(--page-chrome-ink-rgb, 240, 236, 228);
+  }
+
   &.play-bar-mini {
     @apply h-14 py-0;
     transition:
@@ -759,7 +767,9 @@ watch(
     min-height: 310px;
     border-color: var(--m-outline-variant, var(--m-border));
     border-radius: 32px;
-    background: var(--m-surface-container, var(--m-card));
+    /* 与未展开态同源：chrome 页面（歌单页）取页面底色，无 chrome 回退主题令牌。
+       这是播放列表面板的实际表面（面板本体为 transparent）。 */
+    background: var(--page-chrome-bg, var(--m-surface-container, var(--m-card)));
     box-shadow: var(--m-elevation-3);
   }
 

@@ -5,17 +5,28 @@
         <page-loading-placeholder v-if="loading" variant="artist" :label="t('common.loading')" />
 
         <template v-else>
-          <!-- 全部歌曲：单列列表 -->
+          <!-- 全部歌曲：搜索框 + 单列列表 -->
           <div v-if="kind === 'songs'" class="alp-songs page-padding-x">
+            <div class="alp-search">
+              <i class="ri-search-line" />
+              <input
+                v-model="searchInput"
+                type="text"
+                :placeholder="t('comp.musicList.searchSongs')"
+              />
+              <button v-if="searchInput" type="button" @click="searchInput = ''">
+                <i class="ri-close-circle-fill" />
+              </button>
+            </div>
             <song-item
-              v-for="song in songs"
+              v-for="song in filteredSongs"
               :key="song.id"
               :item="formatSong(song)"
               :is-next="true"
               @play="handlePlay(song)"
             />
-            <div v-if="!songs.length && !loading" class="alp-empty">
-              {{ t('artist.allSongs') }} · {{ t('common.noData') }}
+            <div v-if="!filteredSongs.length && !loading" class="alp-empty">
+              {{ t('comp.musicList.noSearchResults') }}
             </div>
           </div>
 
@@ -105,6 +116,20 @@ const pageSize = 30;
 const songs = ref<any[]>([]);
 const albums = ref<any[]>([]);
 const list = computed(() => (kind.value === 'songs' ? songs.value : albums.value));
+
+// 歌曲过滤（「搜索歌曲」入口经 ?keyword= 预填）
+const searchInput = ref(String(route.query.keyword || ''));
+const filteredSongs = computed(() => {
+  const keyword = searchInput.value.trim().toLowerCase();
+  if (!keyword) return songs.value;
+  return songs.value.filter(
+    (song) =>
+      String(song.name || '').toLowerCase().includes(keyword) ||
+      (song.ar || []).some((artist: any) =>
+        String(artist?.name || '').toLowerCase().includes(keyword)
+      )
+  );
+});
 
 let observer: IntersectionObserver | null = null;
 let requestId = 0;
@@ -222,7 +247,7 @@ const formatSong = (item: any) =>
 
 const handlePlay = (song: any) => {
   if (!song) return;
-  const playable = songs.value.map((item) => ({
+  const playable = filteredSongs.value.map((item) => ({
     ...item,
     picUrl: item.al?.picUrl || item.picUrl
   }));
@@ -300,6 +325,37 @@ void calculateAnimationDelay;
   margin-bottom: 2px;
 }
 
+.alp-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--m-border, rgba(128, 128, 128, 0.2));
+  border-radius: 12px;
+  background: var(--m-surface-alt, rgba(128, 128, 128, 0.06));
+  color: var(--m-text-muted, #999);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--m-text-primary, inherit);
+    font-size: 14px;
+    outline: none;
+  }
+
+  button {
+    display: grid;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: var(--m-text-muted, #999);
+    font-size: 16px;
+  }
+}
+
 .alp-album-name {
   margin: 8px 0 0;
   overflow: hidden;
@@ -356,6 +412,6 @@ void calculateAnimationDelay;
 }
 
 .bottom-spacer {
-  height: calc(var(--safe-area-inset-bottom, 0px) + 140px);
+  height: calc(var(--mobile-dock-content-inset, 144px) + var(--safe-area-inset-bottom, 0px) + 12px);
 }
 </style>

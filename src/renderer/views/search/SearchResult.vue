@@ -1,7 +1,7 @@
 <template>
   <div class="search-result-page h-full w-full page-bg transition-colors duration-500">
     <n-scrollbar class="h-full" @scroll="handleScroll">
-      <div class="search-result-content pb-32">
+      <div class="search-result-content" style="padding-bottom: calc(var(--mobile-dock-content-inset, 144px) + var(--safe-area-inset-bottom, 0px) + 12px)">
         <!-- Header Section -->
         <section class="header-section page-padding-x pt-8 pb-6">
           <div class="flex flex-col gap-6">
@@ -155,6 +155,7 @@
                     :index="index"
                     :item="formatSong(item)"
                     :compact="isCompactLayout"
+                    :video="item?.platform === 'bilibili'"
                     :selectable="isSelecting"
                     :selected="selectedSongs.includes(item.id)"
                     :is-next="true"
@@ -252,6 +253,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
+import { openExternalUrl } from '@/api/bilibili';
 import { crossPlatformSearch } from '@/api/crossPlatformSearch';
 import { getSearch } from '@/api/search';
 import { rankSearchResults, searchServerSongs, serverSongToSongResult } from '@/api/serverSongs';
@@ -261,6 +263,7 @@ import PlayBottom from '@/components/common/PlayBottom.vue';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { SEARCH_TYPE, SEARCH_TYPES } from '@/const/bar-const';
+import { useBilibiliPlayMode } from '@/hooks/useBilibiliPlayMode';
 import { useDownload } from '@/hooks/useDownload';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { useScrollTitle } from '@/hooks/useScrollTitle';
@@ -287,6 +290,8 @@ const route = useRoute();
 const router = useRouter();
 const playerStore = usePlayerStore();
 const { confirmPlaylistReplace } = usePlaylistConfirm();
+// 哔哩哔哩条目点击时询问「视频 / 音频」（支持记住本次选择）
+const { resolvePlayMode } = useBilibiliPlayMode();
 const searchStore = useSearchStore();
 
 const formatSong = (item: any) => {
@@ -683,10 +688,20 @@ const triggerCrossPlatformSearch = async (keyword: string, neteaseSongs: any[]) 
   }
 };
 
-const handlePlay = (item: any) => {
+const handlePlay = async (item: any) => {
   if (item?.platform === 'spotify' && item.externalUrl) {
     openSpotifyTrack(item.externalUrl);
     return;
+  }
+  // 哔哩哔哩：先确定本次用视频还是音频方式（可记住选择）
+  if (item?.platform === 'bilibili') {
+    const mode = await resolvePlayMode();
+    if (!mode) return;
+    if (mode === 'video') {
+      // 内置视频播放为二期能力，先用外部打开兜底
+      openExternalUrl(item.externalUrl);
+      return;
+    }
   }
   const songs = (searchDetail.value?.songs || []).map(formatSong);
   const selectedSong = songs.find((song) => song.id === item.id) || item;

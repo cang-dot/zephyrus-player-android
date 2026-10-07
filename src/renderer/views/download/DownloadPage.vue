@@ -1,7 +1,7 @@
 <template>
   <div class="download-page h-full w-full bg-white dark:bg-black transition-colors duration-500">
     <n-scrollbar class="h-full">
-      <div class="download-content pb-32">
+      <div class="download-content" style="padding-bottom: calc(var(--mobile-dock-content-inset, 144px) + var(--safe-area-inset-bottom, 0px) + 12px)">
         <!-- Hero Section -->
         <section class="hero-section relative overflow-hidden rounded-tl-2xl">
           <!-- Background with Blur -->

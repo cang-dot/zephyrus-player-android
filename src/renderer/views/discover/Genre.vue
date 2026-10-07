@@ -99,6 +99,8 @@ onMounted(async () => {
 <style scoped>
 .mobile-discover-sub {
   min-height: 100dvh;
+  /* 二级页宿主透明：子页必须自铺底色，否则透出下层 tab 页 */
+  background: var(--m-bg, var(--bg-color, #141414));
   padding: calc(var(--safe-area-inset-top, 0px) + 82px) 16px
     calc(var(--mobile-dock-content-inset, 82px) + var(--safe-area-inset-bottom, 0px) + 220px);
   scroll-padding-bottom: calc(

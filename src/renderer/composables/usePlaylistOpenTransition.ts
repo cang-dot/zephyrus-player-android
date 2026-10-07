@@ -45,7 +45,7 @@ interface LayerState {
 }
 
 /** 底色块扩展/收缩时长 */
-export const PLAYLIST_OPEN_EXPAND_MS = 360;
+export const PLAYLIST_OPEN_EXPAND_MS = 480;
 /** 交接对齐时长 */
 const ALIGN_MS = 140;
 /** 覆盖层淡出时长 */
@@ -66,6 +66,9 @@ const reveal = ref(false);
 let lastRect: TransitionRect | null = null;
 let lastColor = '';
 let timer: ReturnType<typeof setTimeout> | undefined;
+/** 过渡代数：每次 begin* 递增；旧过渡遗留的异步回调（flip/resolve/补色）按代丢弃，
+ *  保证「新动画拦截旧动画」——快速连点/返回再进入不会互相污染状态 */
+let generation = 0;
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -94,9 +97,10 @@ function assignLayers(start: LayerState, end: LayerState) {
   endLayer.value = end;
 }
 
-/** 下一帧揭示目标态；不依赖 phase（极快交接也要把目标态上屏），隐藏页用定时器兜底 */
-function scheduleReveal() {
+/** 下一帧揭示目标态；携带代数（旧过渡的 flip 对新过渡无效） */
+function scheduleReveal(forGeneration: number) {
   const flip = () => {
+    if (forGeneration !== generation) return;
     if (phase.value !== 'idle') reveal.value = true;
   };
   void nextTick().then(() => {
@@ -216,6 +220,7 @@ export function beginPlaylistOpen(source: PlaylistOpenSource): boolean {
   if (!rect || rect.w <= 0 || rect.h <= 0) return false;
 
   resetLayer();
+  const forGeneration = ++generation;
   coverUrl.value = source.coverUrl ?? '';
   assignLayers({ rect: { ...rect }, radius: CARD_RADIUS }, { rect: viewportRect(), radius: 0 });
   phase.value = 'expanding';
@@ -227,6 +232,8 @@ export function beginPlaylistOpen(source: PlaylistOpenSource): boolean {
   if (!parsed && coverUrl.value) {
     void getPageChromeForCover(coverUrl.value)
       .then((chrome) => {
+        // 补色回调按代丢弃：过渡已被新动画拦截时不再污染状态
+        if (forGeneration !== generation) return;
         bgColor.value = applyChromeToLayout(chrome) || bgColor.value;
         bgEndColor.value = bgColor.value;
       })
@@ -237,9 +244,11 @@ export function beginPlaylistOpen(source: PlaylistOpenSource): boolean {
   lastRect = { ...rect };
   lastColor = bgColor.value;
 
-  scheduleReveal();
+  scheduleReveal(forGeneration);
   // 兜底：目标页迟迟不 resolve 也要收尾，避免覆盖层卡死
-  timer = setTimeout(() => resolvePlaylistOpen(), PLAYLIST_OPEN_EXPAND_MS + 900);
+  timer = setTimeout(() => {
+    if (forGeneration === generation) resolvePlaylistOpen();
+  }, PLAYLIST_OPEN_EXPAND_MS + 900);
   return true;
 }
 
@@ -251,6 +260,7 @@ export function beginPlaylistOpenReturn(): boolean {
   if (!lastRect || !lastColor) return false;
 
     resetLayer();
+  const forGeneration = ++generation;
   coverUrl.value = '';
   bgColor.value = lastColor;
   // 回程终点色 = 主页底色：收缩过程中从歌单页 chrome 色渐变过来，落定时无缝融入页面
@@ -258,8 +268,10 @@ export function beginPlaylistOpenReturn(): boolean {
   assignLayers({ rect: viewportRect(), radius: 0 }, { rect: { ...lastRect }, radius: CARD_RADIUS });
   phase.value = 'expanding';
 
-  scheduleReveal();
-  timer = setTimeout(() => resolvePlaylistOpen(), PLAYLIST_OPEN_EXPAND_MS + 420);
+  scheduleReveal(forGeneration);
+  timer = setTimeout(() => {
+    if (forGeneration === generation) resolvePlaylistOpen();
+  }, PLAYLIST_OPEN_EXPAND_MS + 420);
   return true;
 }
 
@@ -294,6 +306,7 @@ export function beginReturnFlight(payload: ReturnFlightPayload): boolean {
   if (payload.heroRect.w <= 0 || payload.endRect.w <= 0) return false;
 
   resetLayer();
+  const forGeneration = ++generation;
   coverUrl.value = payload.coverUrl ?? '';
   bgColor.value = '';
   assignLayers(
@@ -302,7 +315,9 @@ export function beginReturnFlight(payload: ReturnFlightPayload): boolean {
   );
   phase.value = 'expanding';
 
-  scheduleReveal();
-  timer = setTimeout(() => resolvePlaylistOpen(), PLAYLIST_OPEN_EXPAND_MS + 320);
+  scheduleReveal(forGeneration);
+  timer = setTimeout(() => {
+    if (forGeneration === generation) resolvePlaylistOpen();
+  }, PLAYLIST_OPEN_EXPAND_MS + 320);
   return true;
 }

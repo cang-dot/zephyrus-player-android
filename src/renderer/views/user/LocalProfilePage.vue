@@ -501,6 +501,6 @@ onBeforeUnmount(() => {
 }
 
 .lp-bottom-spacer {
-  height: calc(var(--safe-area-inset-bottom, 0px) + 140px);
+  height: calc(var(--mobile-dock-content-inset, 144px) + var(--safe-area-inset-bottom, 0px) + 12px);
 }
 </style>

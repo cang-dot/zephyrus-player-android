@@ -1,7 +1,7 @@
 <template>
   <div class="sticky-tab-page h-full w-full bg-white transition-colors duration-500 dark:bg-black">
     <n-scrollbar ref="scrollbarRef" class="h-full" :size="100" @scroll="handleScroll">
-      <div class="sticky-page-content w-full pb-32">
+      <div class="sticky-page-content w-full" :style="{ paddingBottom: 'calc(var(--mobile-dock-content-inset, 144px) + var(--safe-area-inset-bottom, 0px) + 12px)' }">
         <!-- Page Header (scrolls away) -->
         <div ref="headerRef" class="sticky-page-heading page-padding pt-6 pb-2">
           <h1
