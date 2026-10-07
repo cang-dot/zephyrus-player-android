@@ -101,6 +101,19 @@ const otherRouter = [
     component: () => import('@/views/artist/detail.vue')
   },
   {
+    // 歌手分区标题跳转的独立列表页：全部歌曲 / 专辑网格
+    path: '/artist/:kind(songs|albums)/:id',
+    name: 'artistList',
+    meta: {
+      title: '歌手列表',
+      keepAlive: false,
+      showInMenu: false,
+      back: true,
+      isMobile: true
+    },
+    component: () => import('@/views/artist/ArtistListPage.vue')
+  },
+  {
     // 旧版分享链接兼容：/music-list/album/{id} 两段式路由无匹配（渲染空白），
     // 重定向到现行格式 /music-list/{id}?type=album|playlist
     path: '/music-list/album/:id',
