@@ -125,23 +125,24 @@ const bgStyle = computed(() => {
   if (!start || !end) return { display: 'none' } as Record<string, string>;
   // bgColor 为空 = 本次过渡无底色块（如回程封面克隆飞行），只渲染克隆层
   if (!bgColor.value) return { display: 'none' } as Record<string, string>;
-  const scaleX = end.rect.w / start.rect.w;
-  const scaleY = end.rect.h / start.rect.h;
-  const dx = end.rect.x - start.rect.x;
-  const dy = end.rect.y - start.rect.y;
+  // 位置/尺寸直接动画（不用 transform scale）：scale 会把圆角一起缩放，
+  // 收缩到卡片时 20px 圆角视觉只剩几像素（"圆角过小/被裁剪"）。单元素 layout 动画可接受。
+  const revealEnd = reveal.value;
+  const x = revealEnd ? end.rect.x : start.rect.x;
+  const y = revealEnd ? end.rect.y : start.rect.y;
+  const w = revealEnd ? end.rect.w : start.rect.w;
+  const h = revealEnd ? end.rect.h : start.rect.h;
   return {
     position: 'absolute',
-    left: `${start.rect.x}px`,
-    top: `${start.rect.y}px`,
-    width: `${start.rect.w}px`,
-    height: `${start.rect.h}px`,
-        backgroundColor: reveal.value ? bgEndColor.value || bgColor.value : bgColor.value,
-    transformOrigin: 'top left',
-    borderRadius: reveal.value ? `${end.radius}px` : `${start.radius}px`,
-    transform: reveal.value ? `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${scaleX.toFixed(4)}, ${scaleY.toFixed(4)})` : 'none',
-    willChange: 'transform',
+    left: `${x}px`,
+    top: `${y}px`,
+    width: `${w}px`,
+    height: `${h}px`,
+        backgroundColor: revealEnd ? bgEndColor.value || bgColor.value : bgColor.value,
+    borderRadius: `${(revealEnd ? end.radius : start.radius) || CARD_RADIUS}px`,
+    willChange: 'left, top, width, height',
     transition: reveal.value
-      ? `transform ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1), border-radius ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1), background-color ${PLAYLIST_OPEN_EXPAND_MS}ms ease`
+      ? `left ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1), top ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1), width ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1), height ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1), border-radius ${PLAYLIST_OPEN_EXPAND_MS}ms cubic-bezier(0.32, 0.72, 0, 1), background-color ${PLAYLIST_OPEN_EXPAND_MS}ms ease`
       : 'none'
   } as Record<string, string>;
 });

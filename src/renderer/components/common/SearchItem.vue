@@ -2,6 +2,7 @@
   <div
     class="search-item group cursor-pointer transition-all duration-300"
     :class="[item.type === 'mv' ? 'flex flex-col' : 'flex flex-col']"
+    :data-search-key="`${item.type === 'album' || item.type === '专辑' ? 'search-al' : 'search-pl'}-${item.id}`"
     @click="handleClick($event)"
   >
     <!-- Image Container -->
@@ -99,13 +100,31 @@ const getCurrentMv = () => {
 };
 
 const handleClick = async (event?: MouseEvent) => {
-  // 歌单/专辑卡：来源矩形 + 封面 → 色块扩展过渡（歌单页同款）
+  // 专辑/歌单卡：封面飞行过渡（旧机制，进/出双向封面）——记录**封面元素**矩形，
+  // 歌单页 hero 从该处飞入，返回时封面飞回（搜索结果页消费 musicListCoverReturn）
   const el = event?.currentTarget as HTMLElement | null;
-  const rect = el?.getBoundingClientRect();
-  const transition =
-    rect && rect.width > 0
-      ? { rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height }, coverUrl: props.item.picUrl }
-      : undefined;
+  const cover = el?.querySelector<HTMLElement>('img');
+  const rect = (cover ?? el)?.getBoundingClientRect();
+  const key =
+    props.item.type === 'album' || props.item.type === '专辑'
+      ? `search-al-${props.item.id}`
+      : `search-pl-${props.item.id}`;
+  if (rect && rect.width > 0) {
+    try {
+      sessionStorage.setItem(
+        'musicListCoverRect',
+        JSON.stringify({
+          x: rect.x,
+          y: rect.y,
+          w: rect.width,
+          h: rect.height,
+          key
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+  }
   if (props.item.type === 'album' || props.item.type === '专辑') {
     navigateToMusicList(router, {
       id: props.item.id,
@@ -115,8 +134,7 @@ const handleClick = async (event?: MouseEvent) => {
         ...props.item,
         coverImgUrl: props.item.picUrl
       },
-      canRemove: false,
-      transition: transition ? { ...transition, mode: 'cover' } : undefined
+      canRemove: false
     });
   } else if (props.item.type === 'playlist') {
     navigateToMusicList(router, {
@@ -124,8 +142,7 @@ const handleClick = async (event?: MouseEvent) => {
       type: 'playlist',
       name: props.item.name,
       listInfo: { picUrl: props.item.picUrl, coverImgUrl: props.item.picUrl },
-      canRemove: false,
-      transition: transition ? { ...transition, mode: 'cover' } : undefined
+      canRemove: false
     });
   } else if (props.item.type === 'artist' || props.item.type === '歌手') {
     router.push({

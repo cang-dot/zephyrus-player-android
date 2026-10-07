@@ -29,7 +29,7 @@
             <span v-else-if="getSourceLabel(item.id)" class="source-mark source-mark--text">
               {{ getSourceLabel(item.id) }}
             </span>
-            <song-item :item="item" :is-next="true" @play="handlePlay" />
+            <song-item :item="item" :is-next="true" :video="!!item.isVideo" @play="handlePlay" />
           </div>
         </template>
 
@@ -100,9 +100,13 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
+import { openExternalUrl } from '@/api/bilibili';
 import { crossPlatformSearch } from '@/api/crossPlatformSearch';
 import { searchPlatformMusic } from '@/api/platformQrApi';
 import { getSearch } from '@/api/search';
+import {
+  beginReturnFlight
+} from '@/composables/usePlaylistOpenTransition';
 import {
   rankSearchResults,
   searchServerSongs,
@@ -115,6 +119,7 @@ import PlatformLogo from '@/components/common/PlatformLogo.vue';
 import SearchItem from '@/components/common/SearchItem.vue';
 import SongItem from '@/components/common/SongItem.vue';
 import { SEARCH_TYPE } from '@/const/bar-const';
+import { useBilibiliPlayMode } from '@/hooks/useBilibiliPlayMode';
 import {
   getCachedLabel,
   quickClassify,
@@ -131,6 +136,45 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const playerStore = usePlayerStore();
+
+/** 歌单/专辑页返回：消费 hero 矩形，封面克隆飞回来源卡片（双向封面过渡的回程） */
+watch(
+  () => route.path,
+  (path) => {
+    if (path !== '/mobile-search-result') return;
+    window.setTimeout(() => {
+      const raw = sessionStorage.getItem('musicListCoverReturn');
+      if (!raw) return;
+      try {
+        const payload = JSON.parse(raw) as {
+          x: number;
+          y: number;
+          w: number;
+          h: number;
+          key?: string;
+          coverUrl?: string;
+        };
+        if (!payload.key?.startsWith('search-')) return;
+        sessionStorage.removeItem('musicListCoverReturn');
+        const card = document.querySelector(
+          `.search-item[data-search-key="${CSS.escape(payload.key)}"]`
+        );
+        const cover = card?.querySelector<HTMLElement>('img');
+        const rect = (cover ?? card)?.getBoundingClientRect();
+        if (!rect || rect.width <= 0) return;
+        beginReturnFlight({
+          heroRect: { x: payload.x, y: payload.y, w: payload.w, h: payload.h },
+          endRect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
+          coverUrl: payload.coverUrl
+        });
+      } catch {
+        /* 忽略解析失败 */
+      }
+    }, 200);
+  }
+);
+// 哔哩哔哩条目点击时询问「视频 / 音频」（支持记住本次选择）
+const { resolvePlayMode } = useBilibiliPlayMode();
 const searchStore = useSearchStore();
 
 // 搜索关键词
@@ -578,10 +622,21 @@ const handleScroll = (e: Event) => {
 };
 
 // 播放音乐
-const handlePlay = (item: any) => {
+const handlePlay = async (item: any) => {
   if (item?.platform === 'spotify' && item.externalUrl) {
     openSpotifyTrack(item.externalUrl);
     return;
+  }
+  // 哔哩哔哩：先确定本次用视频还是音频方式（可记住选择）
+  if (item?.platform === 'bilibili') {
+    const mode = await resolvePlayMode();
+    if (!mode) return;
+    if (mode === 'video') {
+      // 内置视频播放为二期能力，先用外部打开兜底
+      openExternalUrl(item.externalUrl);
+      return;
+    }
+    item.bilibiliPlayMode = 'audio';
   }
   playerStore.setPlayList(filteredResults.value);
   playerStore.setPlay(item);
