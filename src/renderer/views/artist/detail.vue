@@ -4,8 +4,8 @@
   >
     <n-scrollbar ref="scrollbarRef" class="h-full" @scroll="handleScroll">
       <div
-        class="artist-detail-content w-full pb-32"
-        style="padding-top: var(--mobile-topbar-inset)"
+        class="artist-detail-content w-full"
+        style="padding-top: var(--mobile-topbar-inset); padding-bottom: calc(var(--mobile-dock-content-inset, 144px) + var(--safe-area-inset-bottom, 0px) + 12px)"
       >
         <page-loading-placeholder v-if="loading" variant="artist" :label="t('common.loading')" />
 
@@ -101,7 +101,7 @@
                 <i class="ri-arrow-right-s-line ma-latest-arrow" />
               </button>
 
-              <!-- 热门歌曲：2 行横滑网格（列包装） -->
+              <!-- 热门歌曲：横滑分页卡（对齐首页推荐区，每卡 3 行） -->
               <div v-if="hotSongsGrid.length" class="ma-section">
                 <h2
                   class="ma-section-title"
@@ -114,26 +114,31 @@
                 </h2>
                 <div class="ma-hgrid" data-horizontal-scroll>
                   <div
-                    v-for="(column, columnIndex) in hotSongColumns"
-                    :key="`hot-col-${columnIndex}`"
-                    class="ma-col"
+                    v-for="(card, cardIndex) in hotSongCards"
+                    :key="`hot-card-${cardIndex}`"
+                    class="ma-page-card"
                   >
                     <button
-                      v-for="song in column"
+                      v-for="song in card"
                       :key="`hot-${song.id}`"
                       type="button"
-                      class="ma-song-card"
+                      class="ma-row"
                       @click="handlePlay(song)"
                     >
                       <img
-                        :src="getImgUrl(song.al?.picUrl || song.picUrl, '300y300')"
-                        class="ma-song-cover"
+                        :src="getImgUrl(song.al?.picUrl || song.picUrl, '200y200')"
+                        class="ma-row-cover"
                         referrerpolicy="no-referrer"
                         loading="lazy"
                         :alt="song.name"
                       />
-                      <strong>{{ song.name }}</strong>
-                      <small>{{ song.ar?.[0]?.name || artistInfo.name }}</small>
+                      <span class="ma-row-main">
+                        <span class="ma-row-name">{{ song.name }}</span>
+                        <span class="ma-row-artist">{{
+                          song.ar?.[0]?.name || artistInfo.name
+                        }}</span>
+                      </span>
+                      <span class="ma-row-play"><i class="ri-play-fill" /></span>
                     </button>
                   </div>
                 </div>
@@ -171,7 +176,7 @@
                 </div>
               </div>
 
-              <!-- 全部歌曲：2 行横滑网格（列包装，触底分页） -->
+              <!-- 全部歌曲：横滑分页卡（触底分页） -->
               <div v-if="songs.length" class="ma-section">
                 <h2
                   class="ma-section-title"
@@ -189,26 +194,31 @@
                   @scroll="onAllSongsRailScroll"
                 >
                   <div
-                    v-for="(column, columnIndex) in allSongColumns"
-                    :key="`all-col-${columnIndex}`"
-                    class="ma-col"
+                    v-for="(card, cardIndex) in allSongCards"
+                    :key="`all-card-${cardIndex}`"
+                    class="ma-page-card"
                   >
                     <button
-                      v-for="song in column"
+                      v-for="song in card"
                       :key="`all-${song.id}`"
                       type="button"
-                      class="ma-song-card"
+                      class="ma-row"
                       @click="handlePlay(song)"
                     >
                       <img
-                        :src="getImgUrl(song.al?.picUrl || song.picUrl, '300y300')"
-                        class="ma-song-cover"
+                        :src="getImgUrl(song.al?.picUrl || song.picUrl, '200y200')"
+                        class="ma-row-cover"
                         referrerpolicy="no-referrer"
                         loading="lazy"
                         :alt="song.name"
                       />
-                      <strong>{{ song.name }}</strong>
-                      <small>{{ song.ar?.[0]?.name || artistInfo.name }}</small>
+                      <span class="ma-row-main">
+                        <span class="ma-row-name">{{ song.name }}</span>
+                        <span class="ma-row-artist">{{
+                          song.ar?.[0]?.name || artistInfo.name
+                        }}</span>
+                      </span>
+                      <span class="ma-row-play"><i class="ri-play-fill" /></span>
                     </button>
                   </div>
                   <div v-if="songLoading" class="ma-grid-loading">
@@ -488,8 +498,7 @@ import {
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 
-import {
-  getArtistAlbums,
+import { getArtistAlbums,
   getArtistDesc,
   getArtistDetail,
   getArtistSublist,
@@ -503,11 +512,17 @@ import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import PageLoadingPlaceholder from '@/components/common/PageLoadingPlaceholder.vue';
 import PlayBottom from '@/components/common/PlayBottom.vue';
 import SongItem from '@/components/common/SongItem.vue';
+import {
+  registerMobileTopbarAction,
+  unregisterMobileTopbarAction
+} from '@/composables/useMobileTopbarMenu';
+import { usePosterShare } from '@/composables/usePosterShare';
 import { usePlaylistConfirm } from '@/hooks/usePlaylistConfirm';
 import { useScrollTitle } from '@/hooks/useScrollTitle';
 import router from '@/router';
 import { usePlayerStore } from '@/store';
 import { IArtist } from '@/types/artist';
+import { type PosterSubject } from '@/types/share';
 import { calculateAnimationDelay, getImgUrl, isMobile } from '@/utils';
 
 defineOptions({
@@ -518,6 +533,7 @@ const { t } = useI18n();
 const route = useRoute();
 const playerStore = usePlayerStore();
 const { confirmPlaylistReplace } = usePlaylistConfirm();
+const { openPosterForSubject } = usePosterShare();
 const message = useMessage();
 
 const artistId = computed(() => Number(route.params.id));
@@ -577,14 +593,14 @@ const avatarUrl = computed(() =>
 const hotSongsGrid = computed(() => songs.value.slice(0, 8));
 const latestAlbum = computed(() => albums.value[0] || null);
 
-/** 横滑网格列包装：每列 2 张卡（flex 列方案，避免 grid 隐式列塌缩） */
-const chunkColumns = (list: any[], per = 2) => {
+/** 横滑分页卡：每卡 3 行（对齐首页「根据你喜爱的歌曲推荐」范式） */
+const chunkColumns = (list: any[], per = 3) => {
   const columns: any[][] = [];
   for (let i = 0; i < list.length; i += per) columns.push(list.slice(i, i + per));
   return columns;
 };
-const hotSongColumns = computed(() => chunkColumns(hotSongsGrid.value, 2));
-const allSongColumns = computed(() => chunkColumns(songs.value, 2));
+const hotSongCards = computed(() => chunkColumns(hotSongsGrid.value, 3));
+const allSongCards = computed(() => chunkColumns(songs.value, 3));
 
 // ---------- 头像主题色：页面背景覆盖 + 文字按亮度反白 ----------
 const artistPageColor = ref('');
@@ -1040,9 +1056,82 @@ const handleSearchBlur = () => {
   }
 };
 
-// 移动端设计稿：顶栏只保留返回键（头像+标题+下拉菜单的胶囊已移除），
-// 歌手信息与操作全部由页面自身承载。
-const syncArtistTopbar = () => {};
+// 移动端简洁顶栏右胶囊（歌单页同款）：分享（海报）+ 三个点（页面未承载的操作）。
+// 菜单项 = 加入播放列表 / 搜索歌曲（跳全部歌曲子页过滤）/ 播放全部。
+const artistTopbarActionPrefix = 'artist-detail';
+const artistMenuIds = [
+  `${artistTopbarActionPrefix}-menu-add`,
+  `${artistTopbarActionPrefix}-menu-search`,
+  `${artistTopbarActionPrefix}-menu-play`
+];
+
+const buildArtistPosterSubject = (): PosterSubject => ({
+  kind: 'artist',
+  songId: artistId.value,
+  songName: artistInfo.value?.name || '',
+  artists: artistInfo.value?.name || '',
+  coverUrl: avatarUrl.value,
+  title: artistInfo.value?.name,
+  subtitle: artistInfo.value?.name,
+  tracks: songs.value.slice(0, 40).map((song) => ({
+    name: song.name,
+    artist: song.ar?.[0]?.name || '',
+    picUrl: song.al?.picUrl || song.picUrl
+  }))
+});
+
+const openArtistSearch = () => {
+  const query: Record<string, string> = { keyword: searchKeyword.value || '' };
+  if (isQqArtist.value) {
+    query.platform = 'qq';
+    query.singerMID = String(route.query.singerMID || '');
+    query.name = String(route.query.name || '');
+  }
+  router.push({ path: `/artist/songs/${artistId.value}`, query });
+};
+
+const syncArtistTopbar = () => {
+  if (!isMobile.value || !route.path.startsWith('/artist/detail/')) return;
+  registerMobileTopbarAction({
+    id: `${artistTopbarActionPrefix}-poster`,
+    routePath: '/artist/detail/*',
+    label: t('comp.musicList.posterShare'),
+    icon: 'ri-share-forward-line',
+    kind: 'capsule',
+    run: () => openPosterForSubject(buildArtistPosterSubject())
+  });
+  registerMobileTopbarAction({
+    id: `${artistTopbarActionPrefix}-more`,
+    routePath: '/artist/detail/*',
+    label: t('common.more') || '更多',
+    icon: 'ri-more-2-fill',
+    kind: 'capsule',
+    opensMenu: true,
+    keepOpen: true,
+    run: () => {}
+  });
+  registerMobileTopbarAction({
+    id: `${artistTopbarActionPrefix}-menu-add`,
+    routePath: '/artist/detail/*',
+    label: t('comp.musicList.addToPlaylist'),
+    icon: 'ri-play-list-add-line',
+    run: addToPlaylist
+  });
+  registerMobileTopbarAction({
+    id: `${artistTopbarActionPrefix}-menu-search`,
+    routePath: '/artist/detail/*',
+    label: t('common.search'),
+    icon: 'ri-search-line',
+    run: openArtistSearch
+  });
+  registerMobileTopbarAction({
+    id: `${artistTopbarActionPrefix}-menu-play`,
+    routePath: '/artist/detail/*',
+    label: t('comp.musicList.playAll'),
+    icon: 'ri-play-fill',
+    run: handlePlayAll
+  });
+};
 
 watch([artistInfo, activeTab, searchKeyword, isSearchVisible], () => syncArtistTopbar(), {
   deep: false
@@ -1271,6 +1360,10 @@ onDeactivated(() => {
 onUnmounted(() => {
   // page chrome（顶栏/迷你栏跟随色）随页卸载清理，避免污染其它页面
   clearArtistPageChrome();
+  // 顶栏胶囊动作注销
+  unregisterMobileTopbarAction(`${artistTopbarActionPrefix}-poster`);
+  unregisterMobileTopbarAction(`${artistTopbarActionPrefix}-more`);
+  artistMenuIds.forEach((id) => unregisterMobileTopbarAction(id));
   // 完全清理观察器
   if (songsObserver) {
     songsObserver.disconnect();
@@ -1883,10 +1976,11 @@ input:focus-visible {
 
 .ma-hgrid {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   overflow-x: auto;
   padding: 2px 16px 6px;
   scroll-padding-inline: 16px;
+  scroll-snap-type: x mandatory;
   scrollbar-width: none;
   touch-action: pan-x pan-y;
   overscroll-behavior-x: contain;
@@ -1896,13 +1990,76 @@ input:focus-visible {
   }
 }
 
-/* 两行卡片的竖列：固定半屏宽，杜绝 grid 隐式列塌缩 */
-.ma-col {
+/* 横滑分页卡（对齐首页「根据你喜爱的歌曲推荐」）：每卡 3 行，右缘露出下一卡 */
+.ma-page-card {
   display: flex;
-  flex: 0 0 calc(50vw - 21px);
+  flex: 0 0 calc(100% - 84px);
   flex-direction: column;
-  gap: 14px;
-  min-width: 148px;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--ma-ink) 9%, transparent);
+  scroll-snap-align: start;
+}
+
+.ma-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ma-ink);
+  cursor: pointer;
+  text-align: left;
+
+  &:active {
+    opacity: 0.72;
+  }
+}
+
+.ma-row-cover {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ma-ink) 14%, transparent);
+  object-fit: cover;
+}
+
+.ma-row-main {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.ma-row-name {
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ma-row-artist {
+  overflow: hidden;
+  color: var(--ma-ink-muted);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ma-row-play {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent-color) 16%, transparent);
+  color: var(--accent-color);
+  font-size: 16px;
 }
 
 .ma-song-card {

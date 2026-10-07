@@ -734,6 +734,7 @@ const headerTitle = computed(() => {
   if (props.subject) {
     if (props.subject.kind === 'playlist') return '歌单海报';
     if (props.subject.kind === 'album') return '专辑海报';
+    if (props.subject.kind === 'artist') return '歌手海报';
     return '歌曲海报';
   }
   return contentMode.value === 'info' ? '歌曲海报' : '歌词海报';

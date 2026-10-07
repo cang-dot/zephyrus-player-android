@@ -331,16 +331,16 @@ export interface PosterTrackItem {
 /** 海报曲目列表呈现方式：紧凑单行 / 详细（带封面两行） */
 export type PosterTrackListStyle = 'compact' | 'detailed';
 
-/** 海报主题：歌曲 / 歌单 / 专辑（直接分享，无需摘录歌词） */
+/** 海报主题：歌曲 / 歌单 / 专辑 / 歌手（直接分享，无需摘录歌词） */
 export interface PosterSubject extends PosterSongInfo {
-  kind: 'song' | 'playlist' | 'album';
-  /** 显示标题（歌单名/专辑名）；缺省回退 songName */
+  kind: 'song' | 'playlist' | 'album' | 'artist';
+  /** 显示标题（歌单名/专辑名/歌手名）；缺省回退 songName */
   title?: string;
   /** 副标题（创建者/歌手名）；engine 的歌手行绘制用 artists，二者可同值 */
   subtitle?: string;
   /** 简介原文（engine 内统一按 30 字截断） */
   description?: string;
-  /** 歌单/专辑曲目（kind 为 playlist/album 时用于"部分曲目"列表） */
+  /** 歌单/专辑/歌手曲目（kind 为 playlist/album/artist 时用于"部分曲目"列表） */
   tracks?: PosterTrackItem[];
 }
 
