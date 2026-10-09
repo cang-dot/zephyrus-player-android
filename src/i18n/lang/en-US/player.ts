@@ -278,6 +278,7 @@ export default {
     send: 'Send',
     cancel: 'Cancel',
     expandReplies: '{n} replies',
+      expandNested: 'Show {n} nested replies',
     noMore: 'No more comments',
     loadFailed: 'Failed to load comments',
     retry: 'Retry',

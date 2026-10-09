@@ -101,16 +101,44 @@
                 </button>
               </div>
               <div v-if="floorOf(comment)" class="comment-floor">
-                <div
-                  v-for="floorItem in floorOf(comment)!.comments"
-                  :key="floorItem.commentId"
-                  class="floor-item"
+                <template
+                  v-for="node in floorOf(comment)!.tree.slice(0, floorOf(comment)!.revealed)"
+                  :key="node.comment.commentId"
                 >
-                  <span class="floor-nick">{{ floorItem.user.nickname }}：</span>
-                  <span class="floor-content">{{ floorItem.content }}</span>
-                </div>
+                  <div class="floor-item">
+                    <span class="floor-nick">{{ node.comment.user.nickname }}：</span>
+                    <span class="floor-content">{{ node.comment.content }}</span>
+                  </div>
+                  <div
+                    v-for="child in node.children"
+                    :key="`nested-${child.commentId}`"
+                    class="floor-item floor-nested"
+                  >
+                    <span class="floor-nick">{{ child.user.nickname }}：</span>
+                    <span class="floor-content">{{ child.content }}</span>
+                  </div>
+                  <button
+                    v-if="node.children.length > floorNestedShown && !expandedNested.has(String(node.comment.commentId))"
+                    type="button"
+                    class="floor-more floor-nested-toggle"
+                    @click="expandedNested.add(String(node.comment.commentId))"
+                  >
+                    {{ t('player.commentPanel.expandNested', { n: node.children.length }) }}
+                    <i class="ri-arrow-down-s-line" />
+                  </button>
+                  <template v-if="expandedNested.has(String(node.comment.commentId))">
+                    <div
+                      v-for="child in node.children.slice(floorNestedShown)"
+                      :key="`nested-x-${child.commentId}`"
+                      class="floor-item floor-nested"
+                    >
+                      <span class="floor-nick">{{ child.user.nickname }}：</span>
+                      <span class="floor-content">{{ child.content }}</span>
+                    </div>
+                  </template>
+                </template>
                 <button
-                  v-if="!floorOf(comment)!.finished"
+                  v-if="floorOf(comment)!.revealed < floorOf(comment)!.tree.length || !floorOf(comment)!.finished"
                   type="button"
                   class="floor-more"
                   @click="expandFloor(comment)"
@@ -292,6 +320,9 @@ function reload() {
 
 // ── 楼层 ──
 const floorOf = (comment: SongComment) => commentStore.floors[String(comment.commentId)];
+/** 楼中楼折叠：已展开的父回复 id 集合；默认每组只显示前 floorNestedShown 条 */
+const floorNestedShown = 2;
+const expandedNested = ref<Set<string>>(new Set());
 const replyTotal = (comment: SongComment) =>
   floorOf(comment)?.totalCount ?? comment.replyCount ?? comment.beReplied?.length ?? 0;
 const expandFloor = (comment: SongComment) => void commentStore.loadFloor(comment);

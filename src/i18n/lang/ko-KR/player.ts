@@ -276,6 +276,7 @@ export default {
     send: '보내기',
     cancel: '취소',
     expandReplies: '답글 {n}개',
+      expandNested: '중첩 답글 {n}개 펼치기',
     noMore: '더 이상 댓글이 없습니다',
     loadFailed: '댓글을 불러오지 못했습니다',
     retry: '다시 시도',

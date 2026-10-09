@@ -36,12 +36,83 @@ const PAGE_SIZE = 30;
 
 interface FloorState {
   comments: SongComment[];
+  /** 盖楼解析后的树：一级回复（含挂载的楼中楼 children），关系不明确的按序平铺在一级 */
+  tree: FloorNode[];
+  /** 分批渲染：当前显示的树节点数 */
+  revealed: number;
   totalCount: number;
   /** 楼层分页游标（毫秒时间戳），-1 表首页 */
   cursor: number;
   finished: boolean;
   loading: boolean;
 }
+
+/** 盖楼节点：一级回复 + 挂在其下的楼中楼 */
+export interface FloorNode {
+  comment: SongComment;
+  children: SongComment[];
+}
+
+/** 从平铺楼层回复解析盖楼树（只对关系明确的盖楼）：
+ *  1. beReplied 预览与楼层内条目对撞（userId+内容）→ 挂到被回复者下（楼中楼）
+ *  2. 内容 "@昵称" 前缀匹配楼层内评论者昵称 → 楼中楼
+ *  3. 其余（含回复主评论自身的）→ 一级回复，按序平铺 */
+export function buildFloorTree(replies: SongComment[]): FloorNode[] {
+  const byId = new Map<string, SongComment>();
+  const byUserContent = new Map<string, SongComment>();
+  for (const reply of replies) {
+    byId.set(String(reply.commentId), reply);
+    byUserContent.set(`${reply.user?.userId}|${reply.content}`, reply);
+  }
+  const nickIndex = new Map<string, SongComment>();
+  for (const reply of replies) {
+    const nick = reply.user?.nickname;
+    if (nick && !nickIndex.has(nick)) nickIndex.set(nick, reply);
+  }
+
+  const byNodeComment = new Map<string, FloorNode>();
+  const order: FloorNode[] = [];
+  for (const reply of replies) {
+    const node: FloorNode = { comment: reply, children: [] };
+    byNodeComment.set(String(reply.commentId), node);
+    order.push(node);
+  }
+  const attach = (target: SongComment, child: SongComment) => {
+    byNodeComment.get(String(target.commentId))?.children.push(child);
+  };
+
+  // 按序分组：先保证一级顺序稳定，楼中楼挂到目标节点
+  for (const reply of replies) {
+    const self = byNodeComment.get(String(reply.commentId))!;
+    const preview = reply.beReplied?.[0];
+    if (preview) {
+      const hit =
+        byUserContent.get(`${preview.user?.userId}|${preview.content}`) ||
+        byUserContent.get(`|${preview.content}`);
+      const targetNode = hit ? byNodeComment.get(String(hit.commentId)) : undefined;
+      // 对撞到楼层内其它回复 → 楼中楼；对撞不到（回复主评论或已删）→ 一级
+      if (targetNode && targetNode !== self) {
+        attach(targetNode.comment, reply);
+        continue;
+      }
+    }
+    const atMatch = /^@([^\s：:]+)[：:]?\s*/.exec(reply.content || '');
+    if (atMatch) {
+      const hit = nickIndex.get(atMatch[1]);
+      const targetNode = hit ? byNodeComment.get(String(hit.commentId)) : undefined;
+      if (targetNode && targetNode !== self) {
+        attach(targetNode.comment, reply);
+        continue;
+      }
+    }
+    order.push(self);
+  }
+  return order;
+}
+
+const FLOOR_PAGE_SIZE = 20;
+const FLOOR_REVEAL_STEP = 10;
+const FLOOR_REVEAL_INIT = 10;
 
 function isLoginRequired(code: number) {
   return code === 301 || code === 302;
@@ -231,13 +302,15 @@ export const useCommentStore = defineStore('songComment', () => {
     }
   }
 
-  /** 懒加载楼层回复（分页游标推进） */
+  /** 懒加载楼层回复（分页游标推进），每页到达后重建盖楼树 */
   async function loadFloor(comment: SongComment) {
     const key = String(comment.commentId);
     const existing = floors.value[key];
     if (existing?.loading || (existing && existing.finished)) return;
     const state: FloorState = existing ?? {
       comments: [],
+      tree: [],
+      revealed: FLOOR_REVEAL_INIT,
       totalCount: comment.replyCount ?? (comment.beReplied?.length ? comment.beReplied.length : 0),
       cursor: -1,
       finished: false,
@@ -246,7 +319,7 @@ export const useCommentStore = defineStore('songComment', () => {
     state.loading = true;
     floors.value = { ...floors.value, [key]: state };
     try {
-      const res = await getCommentFloor(comment.commentId, songId.value, state.cursor, 20);
+      const res = await getCommentFloor(comment.commentId, songId.value, state.cursor, FLOOR_PAGE_SIZE);
       // 楼层接口返回 { code, data: { comments, totalCount, time } }
       const payload =
         (res.data as { data?: { comments?: SongComment[]; totalCount?: number; time?: number } })
@@ -257,12 +330,21 @@ export const useCommentStore = defineStore('songComment', () => {
       const nextCursor = Number(payload?.time ?? -1);
       state.finished = nextCursor <= 0 || page.length === 0;
       state.cursor = state.finished ? -1 : nextCursor;
+      state.tree = buildFloorTree(state.comments);
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     } finally {
       state.loading = false;
       floors.value = { ...floors.value, [key]: state };
     }
+  }
+
+  /** 楼层分批渲染：每次多显示一批 */
+  function revealMoreFloor(comment: SongComment) {
+    const state = floors.value[String(comment.commentId)];
+    if (!state) return;
+    state.revealed = Math.min(state.tree.length, state.revealed + FLOOR_REVEAL_STEP);
+    floors.value = { ...floors.value, [String(comment.commentId)]: state };
   }
 
   /** 点赞/取消点赞（乐观更新，失败回滚） */
@@ -343,6 +425,7 @@ export const useCommentStore = defineStore('songComment', () => {
     setSort,
     refreshLatest,
     loadFloor,
+    revealMoreFloor,
     toggleLike,
     submitComment,
     removeComment
