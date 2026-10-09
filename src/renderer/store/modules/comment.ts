@@ -36,11 +36,9 @@ const PAGE_SIZE = 30;
 
 interface FloorState {
   comments: SongComment[];
-  /** 盖楼树：一级回复（含挂载的楼中楼 children） */
+  /** 盖楼解析后的树：一级回复（含挂载的楼中楼 children），关系不明确的按序平铺在一级 */
   tree: FloorNode[];
-  /** 树扁平化（带深度）后的行：渲染用——保证任何层级的回复都可见 */
-  rows: Array<{ comment: SongComment; depth: number }>;
-  /** 分批渲染：当前显示的行数 */
+  /** 分批渲染：当前显示的树节点数 */
   revealed: number;
   totalCount: number;
   /** 楼层分页游标（毫秒时间戳），-1 表首页 */
@@ -127,16 +125,6 @@ export function buildFloorTree(replies: SongComment[]): FloorNode[] {
     if (parentNode && parentNode !== selfNode) parentNode.children.push(selfNode.comment);
   }
   return order;
-}
-
-/** 树扁平化：根按原序，子回复缩进一层（楼中楼视觉），递归所有层级 */
-function flattenFloorTree(nodes: FloorNode[], depth = 0): Array<{ comment: SongComment; depth: number }> {
-  const rows: Array<{ comment: SongComment; depth: number }> = [];
-  for (const node of nodes) {
-    rows.push({ comment: node.comment, depth });
-    if (node.children.length) rows.push(...flattenFloorTree(node.children, depth + 1));
-  }
-  return rows;
 }
 
 const FLOOR_PAGE_SIZE = 20;
@@ -360,7 +348,6 @@ export const useCommentStore = defineStore('songComment', () => {
       state.finished = nextCursor <= 0 || page.length === 0;
       state.cursor = state.finished ? -1 : nextCursor;
       state.tree = buildFloorTree(state.comments);
-      state.rows = flattenFloorTree(state.tree);
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -373,7 +360,7 @@ export const useCommentStore = defineStore('songComment', () => {
   function revealMoreFloor(comment: SongComment) {
     const state = floors.value[String(comment.commentId)];
     if (!state) return;
-    state.revealed = Math.min(state.rows.length, state.revealed + FLOOR_REVEAL_STEP);
+    state.revealed = Math.min(state.tree.length, state.revealed + FLOOR_REVEAL_STEP);
     floors.value = { ...floors.value, [String(comment.commentId)]: state };
   }
 
