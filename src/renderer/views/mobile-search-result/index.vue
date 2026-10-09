@@ -178,7 +178,8 @@ watch(
   }
 );
 
-/** 真卡片飞回（歌单库同款）：瞬移到 hero 处（原槽位留空）→ 飞回落定归位 */
+/** 真卡片飞回：飞行期间卡片 fixed 化（脱离滚动容器的 overflow 裁剪）——
+ *  瞬移到 hero 处（原槽位留空）→ 飞回落定 → 清除 inline 无缝归位 */
 const flyCoverHome = (
   el: HTMLElement,
   src: { x: number; y: number; w: number; h: number }
@@ -193,20 +194,27 @@ const flyCoverHome = (
   const scale = Math.max(0.05, src.w / rect.width);
   const dx = src.x + src.w / 2 - (rect.x + rect.width / 2);
   const dy = src.y + src.h / 2 - (rect.y + rect.height / 2);
+  // fixed 化：钉在当前视口位置，不受任何 overflow:hidden/auto 祖先裁剪
+  el.style.position = 'fixed';
+  el.style.left = `${rect.x}px`;
+  el.style.top = `${rect.y}px`;
+  el.style.width = `${rect.width}px`;
+  el.style.height = `${rect.height}px`;
+  el.style.margin = '0';
+  el.style.zIndex = '250';
   el.style.transition = 'none';
   el.style.transformOrigin = 'center';
   el.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
-  el.style.zIndex = '30';
   el.style.boxShadow = '0 18px 44px rgba(0, 0, 0, 0.35)';
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       el.style.transition = 'transform 560ms cubic-bezier(0.22, 1, 0.36, 1)';
-      el.style.transform = '';
+      el.style.transform = 'translate(0px, 0px) scale(1)';
       el.style.boxShadow = '';
       setTimeout(() => {
-        el.style.zIndex = '';
-        el.style.transition = '';
-      }, 580);
+        // 落定：视口位置即文档槽位（飞行期间无滚动），清 inline 无缝归位
+        el.style.cssText = '';
+      }, 600);
     });
   });
 };
