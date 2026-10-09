@@ -71,7 +71,7 @@
             <img class="comment-avatar" :src="avatarUrl(node.comment)" loading="lazy" alt="" />
             <div class="comment-main">
               <div class="comment-meta">
-                <span class="comment-nick">{{ node.comment.user.nickname }}</span>
+                <span class="comment-nick">{{ node.comment.user?.nickname || t('player.commentPanel.anonymous') }}</span>
                 <time class="comment-time">{{ formatTime(node.comment.time) }}</time>
               </div>
               <p class="comment-content">
@@ -110,7 +110,7 @@
                   :key="child.commentId"
                   class="floor-item"
                 >
-                  <span class="floor-nick">{{ child.user.nickname }}：</span>
+                  <span class="floor-nick">{{ child.user?.nickname }}：</span>
                   <span class="floor-content">{{ child.content }}</span>
                 </div>
               </div>
@@ -238,37 +238,43 @@ interface ListNode {
 }
 const listTree = computed<ListNode[]>(() => {
   const items = list.value;
-  const roots = new Map<string, ListNode>();
-  const order: ListNode[] = [];
-  for (const c of items) {
-    if (c.beReplied && c.beReplied.length) continue;
-    const node: ListNode = { comment: c, children: [] };
-    roots.set(`${c.user?.userId}|${c.content}`, node);
-    order.push(node);
-  }
-  const trailing: Array<{ node: ListNode; anchorKey: string | null }> = [];
-  for (let i = 0; i < items.length; i += 1) {
-    const c = items[i];
-    if (!c.beReplied || !c.beReplied.length) continue;
-    const preview = c.beReplied[0];
-    const anchorKey = `${preview.user?.userId}|${preview.content}`;
-    const target = roots.get(anchorKey);
-    if (target) {
-      target.children.push(c);
-      continue;
+  try {
+    const roots = new Map<string, ListNode>();
+    const order: ListNode[] = [];
+    for (const c of items) {
+      if (c.beReplied && c.beReplied.length) continue;
+      const node: ListNode = { comment: c, children: [] };
+      roots.set(`${c.user?.userId}|${c.content}`, node);
+      order.push(node);
     }
-    trailing.push({
-      node: { comment: c, children: [], replyingTo: preview.user?.nickname },
-      anchorKey
-    });
+    const trailing: Array<{ node: ListNode; anchorKey: string | null }> = [];
+    for (let i = 0; i < items.length; i += 1) {
+      const c = items[i];
+      if (!c.beReplied || !c.beReplied.length) continue;
+      const preview = c.beReplied[0];
+      const anchorKey = `${preview.user?.userId}|${preview.content}`;
+      const target = roots.get(anchorKey);
+      if (target) {
+        target.children.push(c);
+        continue;
+      }
+      trailing.push({
+        node: { comment: c, children: [], replyingTo: preview.user?.nickname },
+        anchorKey
+      });
+    }
+    // 未归属的回复型按锚点位置插回（锚点后一位），保持时间序
+    for (const { node, anchorKey } of trailing) {
+      const idx = order.findIndex((n) => `${n.comment.user?.userId}|${n.comment.content}` === anchorKey);
+      if (idx >= 0) order.splice(idx + 1, 0, node);
+      else order.push(node);
+    }
+    return order;
+  } catch (err) {
+    // 解析异常时回退平铺，浮层绝不因数据形态崩溃卸载
+    console.warn('[comments] listTree 解析失败，回退平铺:', err);
+    return items.map((comment) => ({ comment, children: [] }));
   }
-  // 未归属的回复型按锚点位置插回（锚点后一位），保持时间序
-  for (const { node, anchorKey } of trailing) {
-    const idx = order.findIndex((n) => `${n.comment.user?.userId}|${n.comment.content}` === anchorKey);
-    if (idx >= 0) order.splice(idx + 1, 0, node);
-    else order.push(node);
-  }
-  return order;
 });
 
 // 键盘避让：键盘弹出时按 visualViewport 的收缩量给整列加 padding-bottom，

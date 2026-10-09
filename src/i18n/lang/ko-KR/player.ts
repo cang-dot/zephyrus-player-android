@@ -278,6 +278,7 @@ export default {
     expandReplies: '답글 {n}개',
       expandNested: '중첩 답글 {n}개 펼치기',
       replyToTag: '@{name}에게 답글: ',
+      anonymous: '익명 사용자',
     noMore: '더 이상 댓글이 없습니다',
     loadFailed: '댓글을 불러오지 못했습니다',
     retry: '다시 시도',

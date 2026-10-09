@@ -280,6 +280,7 @@ export default {
     expandReplies: '{n} replies',
       expandNested: 'Show {n} nested replies',
       replyToTag: 'Reply to @{name}: ',
+      anonymous: 'Anonymous',
     noMore: 'No more comments',
     loadFailed: 'Failed to load comments',
     retry: 'Retry',
