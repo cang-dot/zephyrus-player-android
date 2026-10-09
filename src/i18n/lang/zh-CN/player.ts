@@ -276,6 +276,7 @@ export default {
     cancel: '取消',
     expandReplies: '共 {n} 条回复',
       expandNested: '展开 {n} 条楼中楼',
+      replyToTag: '回复 @{name}：',
     noMore: '没有更多评论了',
     loadFailed: '评论加载失败',
     retry: '重试',

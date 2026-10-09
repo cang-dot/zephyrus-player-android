@@ -279,6 +279,7 @@ export default {
     cancel: 'キャンセル',
     expandReplies: '返信 {n}件',
       expandNested: '{n} 件の返信を表示',
+      replyToTag: '@{name} への返信：',
     noMore: 'コメントはこれ以上ありません',
     loadFailed: 'コメントの読み込みに失敗しました',
     retry: '再試行',

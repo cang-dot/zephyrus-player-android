@@ -276,6 +276,7 @@ export default {
     cancel: '取消',
     expandReplies: '共 {n} 條回覆',
       expandNested: '展開 {n} 條樓中樓',
+      replyToTag: '回覆 @{name}：',
     noMore: '沒有更多評論了',
     loadFailed: '評論載入失敗',
     retry: '重試',

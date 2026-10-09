@@ -103,15 +103,6 @@
                   <i class="ri-delete-bin-6-line" />
                 </button>
               </div>
-              <!-- 盖楼：同列表内回复该评论的（含楼中楼缩进） -->
-              <div v-if="node.children.length" class="comment-nested">
-                <template v-for="child in node.children" :key="child.commentId">
-                  <div class="nested-item">
-                    <span class="nested-nick">{{ child.user.nickname }}：</span>
-                    <span class="nested-content">{{ child.content }}</span>
-                  </div>
-                </template>
-              </div>
               <!-- 盖楼（合并逻辑足够）：主评论下的回复直接显示在圆角矩形框内，无懒加载展开 -->
               <div v-if="node.children.length" class="comment-floor">
                 <div
@@ -720,33 +711,6 @@ const formatTime = (ms: number) => {
   font-weight: 600;
 }
 
-/* 同列表盖楼：缩进的楼中楼 */
-.comment-nested {
-  display: grid;
-  gap: 6px;
-  margin-top: 8px;
-  padding: 6px 0 2px 12px;
-  border-left: 2px solid var(--player-glass-border, rgba(255, 255, 255, 0.14));
-}
-
-.nested-item {
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--player-glass-text-secondary, rgba(255, 255, 255, 0.62));
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
-.nested-nick {
-  color: var(--player-glass-text-secondary, rgba(255, 255, 255, 0.55));
-  font-weight: 600;
-}
-
-.nested-content {
-  color: var(--player-glass-text-primary, rgba(255, 255, 255, 0.82));
-}
 
 .comment-actions {
   display: flex;
