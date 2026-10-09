@@ -54,9 +54,11 @@ export interface FloorNode {
 }
 
 /** 从平铺楼层回复解析盖楼树（只对关系明确的盖楼）：
- *  1. beReplied 预览与楼层内条目对撞（userId+内容）→ 挂到被回复者下（楼中楼）
- *  2. 内容 "@昵称" 前缀匹配楼层内评论者昵称 → 楼中楼
- *  3. 其余（含回复主评论自身的）→ 一级回复，按序平铺 */
+ *  1. beReplied 预览与楼层内条目对撞（userId+内容）→ parent = 被回复者
+ *  2. 内容 "@昵称" 前缀匹配楼层内评论者昵称 → parent = 该评论者
+ *  3. 无明确 parent（含回复主评论自身的）→ 一级回复
+ *  根解析沿 parent 链上溯（visited 防环）——楼层内互回（A→B→A）不会让全部
+ *  回复沉没为无根节点（那会让"展开回复"渲染出空框）。 */
 export function buildFloorTree(replies: SongComment[]): FloorNode[] {
   const byId = new Map<string, SongComment>();
   const byUserContent = new Map<string, SongComment>();
@@ -70,42 +72,57 @@ export function buildFloorTree(replies: SongComment[]): FloorNode[] {
     if (nick && !nickIndex.has(nick)) nickIndex.set(nick, reply);
   }
 
+  // 第一遍：确定每条回复的 parent（楼层内被回复者的 commentId；无明确关系 = null）
+  const parentOf = new Map<string, string | null>();
+  for (const reply of replies) {
+    const selfId = String(reply.commentId);
+    const preview = reply.beReplied?.[0];
+    let parent: string | null = null;
+    if (preview) {
+      const hit =
+        byUserContent.get(`${preview.user?.userId}|${preview.content}`) ||
+        byUserContent.get(`|${preview.content}`);
+      const hitId = hit ? String(hit.commentId) : null;
+      if (hitId && hitId !== selfId) parent = hitId;
+    }
+    if (!parent) {
+      const atMatch = /^@([^\s：:]+)[：:]?\s*/.exec(reply.content || '');
+      if (atMatch) {
+        const hit = nickIndex.get(atMatch[1]);
+        const hitId = hit ? String(hit.commentId) : null;
+        if (hitId && hitId !== selfId) parent = hitId;
+      }
+    }
+    parentOf.set(selfId, parent);
+  }
+
+  // 第二遍：根 = parent 链的顶端（上溯到无 parent；visited 防环，环首当根）
+  const rootOf = (id: string): string => {
+    let cur = id;
+    const seen = new Set<string>();
+    for (;;) {
+      if (seen.has(cur)) return cur;
+      seen.add(cur);
+      const p = parentOf.get(cur);
+      if (!p || !byId.has(p) || p === cur) return cur;
+      cur = p;
+    }
+  };
+
+  // 建节点与挂接：楼中楼挂到**直接被回复者**的节点（语义：回复谁就挂在谁下）
   const byNodeComment = new Map<string, FloorNode>();
   const order: FloorNode[] = [];
   for (const reply of replies) {
     const node: FloorNode = { comment: reply, children: [] };
     byNodeComment.set(String(reply.commentId), node);
-    order.push(node);
+    if (rootOf(String(reply.commentId)) === String(reply.commentId)) order.push(node);
   }
-  const attach = (target: SongComment, child: SongComment) => {
-    byNodeComment.get(String(target.commentId))?.children.push(child);
-  };
-
-  // 按序分组：先保证一级顺序稳定，楼中楼挂到目标节点
   for (const reply of replies) {
-    const self = byNodeComment.get(String(reply.commentId))!;
-    const preview = reply.beReplied?.[0];
-    if (preview) {
-      const hit =
-        byUserContent.get(`${preview.user?.userId}|${preview.content}`) ||
-        byUserContent.get(`|${preview.content}`);
-      const targetNode = hit ? byNodeComment.get(String(hit.commentId)) : undefined;
-      // 对撞到楼层内其它回复 → 楼中楼；对撞不到（回复主评论或已删）→ 一级
-      if (targetNode && targetNode !== self) {
-        attach(targetNode.comment, reply);
-        continue;
-      }
-    }
-    const atMatch = /^@([^\s：:]+)[：:]?\s*/.exec(reply.content || '');
-    if (atMatch) {
-      const hit = nickIndex.get(atMatch[1]);
-      const targetNode = hit ? byNodeComment.get(String(hit.commentId)) : undefined;
-      if (targetNode && targetNode !== self) {
-        attach(targetNode.comment, reply);
-        continue;
-      }
-    }
-    order.push(self);
+    const parentId = parentOf.get(String(reply.commentId));
+    if (!parentId) continue;
+    const parentNode = byNodeComment.get(parentId);
+    const selfNode = byNodeComment.get(String(reply.commentId))!;
+    if (parentNode && parentNode !== selfNode) parentNode.children.push(selfNode.comment);
   }
   return order;
 }

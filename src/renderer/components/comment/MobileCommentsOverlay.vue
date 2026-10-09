@@ -63,54 +63,66 @@
           <p>{{ t('player.commentPanel.empty') }}</p>
         </div>
         <template v-else>
-          <article v-for="comment in list" :key="comment.commentId" class="comment-item">
-            <img class="comment-avatar" :src="avatarUrl(comment)" loading="lazy" alt="" />
+          <article
+            v-for="node in listTree"
+            :key="node.comment.commentId"
+            class="comment-item"
+          >
+            <img class="comment-avatar" :src="avatarUrl(node.comment)" loading="lazy" alt="" />
             <div class="comment-main">
               <div class="comment-meta">
-                <span class="comment-nick">{{ comment.user.nickname }}</span>
-                <time class="comment-time">{{ formatTime(comment.time) }}</time>
+                <span class="comment-nick">{{ node.comment.user.nickname }}</span>
+                <time class="comment-time">{{ formatTime(node.comment.time) }}</time>
               </div>
-              <p class="comment-content">{{ comment.content }}</p>
-              <div v-if="comment.beReplied && comment.beReplied.length" class="comment-quote">
-                <span>
-                  @{{ comment.beReplied[0].user.nickname }}：{{ comment.beReplied[0].content }}
-                </span>
-              </div>
+              <p class="comment-content">
+                <span v-if="node.replyingTo" class="reply-to-tag">{{
+                  t('player.commentPanel.replyToTag', { name: node.replyingTo })
+                }}</span>{{ node.comment.content }}
+              </p>
               <div class="comment-actions">
                 <button
                   type="button"
                   class="like-btn"
-                  :class="{ liked: comment.liked }"
-                  @click="onLike(comment)"
+                  :class="{ liked: node.comment.liked }"
+                  @click="onLike(node.comment)"
                 >
-                  <i :class="comment.liked ? 'ri-heart-3-fill' : 'ri-heart-3-line'" />
-                  <span>{{ formatNumber(comment.likedCount) }}</span>
+                  <i :class="node.comment.liked ? 'ri-heart-3-fill' : 'ri-heart-3-line'" />
+                  <span>{{ formatNumber(node.comment.likedCount) }}</span>
                 </button>
-                <button type="button" class="reply-btn" @click="startReply(comment)">
+                <button type="button" class="reply-btn" @click="startReply(node.comment)">
                   <i class="ri-chat-3-line" />
                   <span>{{ t('player.commentPanel.reply') }}</span>
                 </button>
                 <button
-                  v-if="isMine(comment)"
+                  v-if="isMine(node.comment)"
                   type="button"
                   class="delete-btn"
                   :aria-label="t('player.commentPanel.delete')"
-                  @click="onDelete(comment)"
+                  @click="onDelete(node.comment)"
                 >
                   <i class="ri-delete-bin-6-line" />
                 </button>
               </div>
-              <div v-if="floorOf(comment)" class="comment-floor">
+              <!-- 盖楼：同列表内回复该评论的（含楼中楼缩进） -->
+              <div v-if="node.children.length" class="comment-nested">
+                <template v-for="child in node.children" :key="child.commentId">
+                  <div class="nested-item">
+                    <span class="nested-nick">{{ child.user.nickname }}：</span>
+                    <span class="nested-content">{{ child.content }}</span>
+                  </div>
+                </template>
+              </div>
+              <div v-if="floorOf(node.comment)" class="comment-floor">
                 <template
-                  v-for="node in floorOf(comment)!.tree.slice(0, floorOf(comment)!.revealed)"
-                  :key="node.comment.commentId"
+                  v-for="fnode in floorOf(node.comment)!.tree.slice(0, floorOf(node.comment)!.revealed)"
+                  :key="fnode.comment.commentId"
                 >
                   <div class="floor-item">
-                    <span class="floor-nick">{{ node.comment.user.nickname }}：</span>
-                    <span class="floor-content">{{ node.comment.content }}</span>
+                    <span class="floor-nick">{{ fnode.comment.user.nickname }}：</span>
+                    <span class="floor-content">{{ fnode.comment.content }}</span>
                   </div>
                   <div
-                    v-for="child in node.children"
+                    v-for="child in fnode.children"
                     :key="`nested-${child.commentId}`"
                     class="floor-item floor-nested"
                   >
@@ -118,17 +130,17 @@
                     <span class="floor-content">{{ child.content }}</span>
                   </div>
                   <button
-                    v-if="node.children.length > floorNestedShown && !expandedNested.has(String(node.comment.commentId))"
+                    v-if="fnode.children.length > floorNestedShown && !expandedNested.has(String(fnode.comment.commentId))"
                     type="button"
                     class="floor-more floor-nested-toggle"
-                    @click="expandedNested.add(String(node.comment.commentId))"
+                    @click="expandedNested.add(String(fnode.comment.commentId))"
                   >
-                    {{ t('player.commentPanel.expandNested', { n: node.children.length }) }}
+                    {{ t('player.commentPanel.expandNested', { n: fnode.children.length }) }}
                     <i class="ri-arrow-down-s-line" />
                   </button>
-                  <template v-if="expandedNested.has(String(node.comment.commentId))">
+                  <template v-if="expandedNested.has(String(fnode.comment.commentId))">
                     <div
-                      v-for="child in node.children.slice(floorNestedShown)"
+                      v-for="child in fnode.children.slice(floorNestedShown)"
                       :key="`nested-x-${child.commentId}`"
                       class="floor-item floor-nested"
                     >
@@ -138,16 +150,16 @@
                   </template>
                 </template>
                 <button
-                  v-if="floorOf(comment)!.revealed < floorOf(comment)!.tree.length || !floorOf(comment)!.finished"
+                  v-if="floorOf(node.comment)!.revealed < floorOf(node.comment)!.tree.length || !floorOf(node.comment)!.finished"
                   type="button"
                   class="floor-more"
-                  @click="expandFloor(comment)"
+                  @click="expandFloor(node.comment)"
                 >
-                  <i v-if="floorOf(comment)!.loading" class="ri-loader-4-line spin" />
+                  <i v-if="floorOf(node.comment)!.loading" class="ri-loader-4-line spin" />
                   <template v-else>
                     {{
                       t('player.commentPanel.expandReplies', {
-                        n: formatNumber(floorOf(comment)!.totalCount)
+                        n: formatNumber(floorOf(node.comment)!.totalCount)
                       })
                     }}
                     <i class="ri-arrow-down-s-line" />
@@ -155,13 +167,13 @@
                 </button>
               </div>
               <button
-                v-else-if="replyTotal(comment) > 0"
+                v-else-if="replyTotal(node.comment) > 0"
                 type="button"
                 class="floor-trigger"
-                @click="expandFloor(comment)"
+                @click="expandFloor(node.comment)"
               >
                 {{
-                  t('player.commentPanel.expandReplies', { n: formatNumber(replyTotal(comment)) })
+                  t('player.commentPanel.expandReplies', { n: formatNumber(replyTotal(node.comment)) })
                 }}
                 <i class="ri-arrow-down-s-line" />
               </button>
@@ -278,6 +290,49 @@ const overlayTransformStyle = computed(() => props.gesture.overlayStyle.value as
 
 const songName = computed(() => playMusic.value?.name || '');
 const list = computed(() => (commentStore.sort === 'hot' ? commentStore.hot : commentStore.latest));
+
+/** 列表盖楼：回复型评论（beReplied 有值）若其被回复者在同列表 → 挂为该评论的
+ *  楼中楼（children）；不在列表 → 保留一级并用 replyToTag 行内标注回复对象。
+ *  只对关系明确的盖楼（对撞键 = 被回复者 userId + 内容）。 */
+interface ListNode {
+  comment: any;
+  children: any[];
+  replyingTo?: string;
+}
+const listTree = computed<ListNode[]>(() => {
+  const items = list.value;
+  const roots = new Map<string, ListNode>();
+  const order: ListNode[] = [];
+  for (const c of items) {
+    if (c.beReplied && c.beReplied.length) continue;
+    const node: ListNode = { comment: c, children: [] };
+    roots.set(`${c.user?.userId}|${c.content}`, node);
+    order.push(node);
+  }
+  const trailing: Array<{ node: ListNode; anchorKey: string | null }> = [];
+  for (let i = 0; i < items.length; i += 1) {
+    const c = items[i];
+    if (!c.beReplied || !c.beReplied.length) continue;
+    const preview = c.beReplied[0];
+    const anchorKey = `${preview.user?.userId}|${preview.content}`;
+    const target = roots.get(anchorKey);
+    if (target) {
+      target.children.push(c);
+      continue;
+    }
+    trailing.push({
+      node: { comment: c, children: [], replyingTo: preview.user?.nickname },
+      anchorKey
+    });
+  }
+  // 未归属的回复型按锚点位置插回（锚点后一位），保持时间序
+  for (const { node, anchorKey } of trailing) {
+    const idx = order.findIndex((n) => `${n.comment.user?.userId}|${n.comment.content}` === anchorKey);
+    if (idx >= 0) order.splice(idx + 1, 0, node);
+    else order.push(node);
+  }
+  return order;
+});
 
 // 键盘避让：键盘弹出时按 visualViewport 的收缩量给整列加 padding-bottom，
 // 输入条（flex 末项）与内容区一起抬到键盘上方
@@ -719,6 +774,41 @@ const formatTime = (ms: number) => {
   background: var(--player-glass-background, rgba(255, 255, 255, 0.05));
   color: var(--player-glass-text-secondary, rgba(255, 255, 255, 0.55));
   font-size: 12px;
+}
+
+/* 行内"回复 @某人"标注（盖楼式：被回复者不在本列表时用） */
+.reply-to-tag {
+  margin-right: 2px;
+  color: var(--accent-color, #77836e);
+  font-weight: 600;
+}
+
+/* 同列表盖楼：缩进的楼中楼 */
+.comment-nested {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 0 2px 12px;
+  border-left: 2px solid var(--player-glass-border, rgba(255, 255, 255, 0.14));
+}
+
+.nested-item {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--player-glass-text-secondary, rgba(255, 255, 255, 0.62));
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.nested-nick {
+  color: var(--player-glass-text-secondary, rgba(255, 255, 255, 0.55));
+  font-weight: 600;
+}
+
+.nested-content {
+  color: var(--player-glass-text-primary, rgba(255, 255, 255, 0.82));
 }
 
 .comment-actions {
