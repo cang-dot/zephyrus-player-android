@@ -140,41 +140,44 @@ watch(
   () => route.path,
   (path) => {
     if (path !== '/mobile-search-result') return;
-    window.setTimeout(() => {
-      const raw = sessionStorage.getItem('musicListCoverReturn');
-      if (!raw) return;
-      try {
-        const payload = JSON.parse(raw) as {
-          x: number;
-          y: number;
-          w: number;
-          h: number;
-          key?: string;
-        };
-        if (!payload.key) return;
-        const flightKey: string = payload.key;
-        sessionStorage.removeItem('musicListCoverReturn');
-        const card = document.querySelector(
-          `.search-item[data-search-key="${CSS.escape(flightKey)}"] img`
-        ) as HTMLElement | null;
-        if (!card) return;
-        // 等元素可见（返回瞬间可能仍在 leave 过渡或未布局），最多约 0.7s
-        if (card.getBoundingClientRect().width <= 0) {
-          const retry = () => {
-            const el = document.querySelector(
-              `.search-item[data-search-key="${CSS.escape(flightKey)}"] img`
-            ) as HTMLElement | null;
-            if (el && el.getBoundingClientRect().width > 0) flyCoverHome(el, payload);
-            else requestAnimationFrame(retry);
+    // 双 rAF：等保活组件的 DOM 重新插入文档即起飞（不 setTimeout，消除视觉断档）
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const raw = sessionStorage.getItem('musicListCoverReturn');
+        if (!raw) return;
+        try {
+          const payload = JSON.parse(raw) as {
+            x: number;
+            y: number;
+            w: number;
+            h: number;
+            key?: string;
           };
-          requestAnimationFrame(retry);
-          return;
+          if (!payload.key) return;
+          const flightKey: string = payload.key;
+          sessionStorage.removeItem('musicListCoverReturn');
+          const card = document.querySelector(
+            `.search-item[data-search-key="${CSS.escape(flightKey)}"] img`
+          ) as HTMLElement | null;
+          if (!card) return;
+          // 等元素可见（返回瞬间可能仍在 leave 过渡或未布局），最多约 0.7s
+          if (card.getBoundingClientRect().width <= 0) {
+            const retry = () => {
+              const el = document.querySelector(
+                `.search-item[data-search-key="${CSS.escape(flightKey)}"] img`
+              ) as HTMLElement | null;
+              if (el && el.getBoundingClientRect().width > 0) flyCoverHome(el, payload);
+              else requestAnimationFrame(retry);
+            };
+            requestAnimationFrame(retry);
+            return;
+          }
+          flyCoverHome(card, payload);
+        } catch {
+          /* 忽略解析失败 */
         }
-        flyCoverHome(card, payload);
-      } catch {
-        /* 忽略解析失败 */
-      }
-    }, 120);
+      });
+    });
   }
 );
 
@@ -194,13 +197,15 @@ const flyCoverHome = (
   const scale = Math.max(0.05, src.w / rect.width);
   const dx = src.x + src.w / 2 - (rect.x + rect.width / 2);
   const dy = src.y + src.h / 2 - (rect.y + rect.height / 2);
-  // fixed 化：钉在当前视口位置，不受任何 overflow:hidden/auto 祖先裁剪
+  // fixed 化：钉在当前视口位置，不受任何 overflow:hidden/auto 祖先裁剪；
+  // img 脱离圆角容器后需自带同款圆角（容器 rounded-2xl=16px）
   el.style.position = 'fixed';
   el.style.left = `${rect.x}px`;
   el.style.top = `${rect.y}px`;
   el.style.width = `${rect.width}px`;
   el.style.height = `${rect.height}px`;
   el.style.margin = '0';
+  el.style.borderRadius = '16px';
   el.style.zIndex = '250';
   el.style.transition = 'none';
   el.style.transformOrigin = 'center';
