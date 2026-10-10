@@ -1248,6 +1248,14 @@
                   >
                     <i class="ri-edit-line" />{{ t('songItem.metadataEditor.edit') }}
                   </button>
+                  <button
+                    v-if="currentSong"
+                    type="button"
+                    class="current-audio-edit"
+                    @click="openLyricMatch(currentSong)"
+                  >
+                    <i class="ri-file-text-line" />{{ t('songItem.menu.matchLyric') }}
+                  </button>
                 </div>
 
                 <div class="overflow-hidden rounded-2xl bg-white/5">
@@ -1347,6 +1355,7 @@ import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustom
 import ListenTogetherSettings from '@/components/settings/ListenTogetherSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import ShareHubModal from '@/components/share/ShareHubModal.vue';
+import { openLyricMatch } from '@/composables/useLyricMatch';
 import { usePosterShare } from '@/composables/usePosterShare';
 import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
 import { getProvider } from '@/features/ai/providers';
@@ -2403,6 +2412,11 @@ const handlePhotosensitivityDecline = () => {
 const styleConfig = ref<PlayerStyleCustomConfig>(createPlayerStyleConfig('default'));
 let suppressStyleSave = false;
 
+// 字效三布尔（歌词字效分段）全局语义：用户预期跨样式一致——
+// 切换样式时用记忆值继承，避免 per-style 独立存储导致"切样式后字效全部失效"
+const EFFECT_MODE_KEYS = ['effectWordDrop', 'effectStaggered', 'effectKeyword'] as const;
+let lastEffectFlags: Partial<Record<(typeof EFFECT_MODE_KEYS)[number], boolean>> | null = null;
+
 function loadStyleConfig() {
   try {
     const saved = localStorage.getItem('music-full-config');
@@ -2410,6 +2424,14 @@ function loadStyleConfig() {
     const allConfigs = config.styleCustomConfig || {};
     const styleKey = isMobilePlayerStyleKey(config.playerStyle) ? config.playerStyle : 'default';
     styleConfig.value = resolvePlayerStyleConfig(styleKey, allConfigs[styleKey]);
+    if (lastEffectFlags) {
+      for (const key of EFFECT_MODE_KEYS) {
+        const remembered = lastEffectFlags[key];
+        if (remembered !== undefined) {
+          (styleConfig.value as Record<string, unknown>)[key] = remembered;
+        }
+      }
+    }
   } catch {
     // 忽略配置读取失败
   }
@@ -2438,6 +2460,12 @@ function saveStyleConfig() {
     lyricConfig.value.styleCustomConfig[currentPlayerStyle.value] = {
       ...styleConfig.value,
       customFontName: styleConfig.value.customFontName
+    };
+    // 记忆字效三布尔供跨样式继承
+    lastEffectFlags = {
+      effectWordDrop: styleConfig.value.effectWordDrop,
+      effectStaggered: styleConfig.value.effectStaggered,
+      effectKeyword: styleConfig.value.effectKeyword
     };
     persistLyricConfig(lyricConfig.value);
   } catch (e) {
