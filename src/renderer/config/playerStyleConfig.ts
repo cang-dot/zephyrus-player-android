@@ -344,7 +344,9 @@ export function resolvePlayerStyleEffects(
   styleKey: MobilePlayerStyleKey,
   config: PlayerStyleCustomConfig
 ): PlayerStyleEffects {
-  const source = config.mode === 'custom' ? config : createPlayerStyleConfig(styleKey);
+  // 字效开关有独立 UI（分段/复选），不受 mode 门控——original 模式下用户的
+  // 字效设置同样生效（此前 mode!=='custom' 时读取端整体回落出厂值，字效设置全部失效）
+  const source = config;
   return {
     crt: (styleKey === 'frenzy' || styleKey === 'error') && source.effectCrt === true,
     lyricColor:
