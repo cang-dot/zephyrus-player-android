@@ -104,7 +104,17 @@
                 </button>
               </div>
               <!-- 盖楼（合并逻辑足够）：主评论下的回复直接显示在圆角矩形框内，无懒加载展开 -->
-              <div v-if="node.children.length" class="comment-floor">
+              <div
+                v-if="node.children.length || (node.comment.beReplied && node.comment.beReplied.length)"
+                class="comment-floor"
+              >
+                <div
+                  v-if="node.comment.beReplied && node.comment.beReplied.length"
+                  class="floor-item floor-quote-row"
+                >
+                  <span class="floor-nick">@{{ node.comment.beReplied[0].user?.nickname }}：</span>
+                  <span class="floor-content">{{ node.comment.beReplied[0].content }}</span>
+                </div>
                 <div
                   v-for="child in node.children"
                   :key="child.commentId"
@@ -717,6 +727,15 @@ const formatTime = (ms: number) => {
   font-weight: 600;
 }
 
+
+/* 楼层引用条：被回复内容预览（矩形框内首行） */
+.floor-quote-row {
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--player-glass-border, rgba(255, 255, 255, 0.12));
+  color: var(--player-glass-text-secondary, rgba(255, 255, 255, 0.55));
+  font-size: 12px;
+}
 
 .comment-actions {
   display: flex;
