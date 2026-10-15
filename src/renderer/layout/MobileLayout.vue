@@ -7,7 +7,8 @@
       'has-safe-area': isPhone,
       'nav-default': true,
       'player-transitioning': playerMorphing,
-      'player-full': playerTransition.state.value === 'open'
+      'player-full': playerTransition.state.value === 'open',
+      'home-custom-bg': homeCustomBgActive
     }"
     :style="{
       '--mobile-dock-content-inset': `${mobileDockContentInset}px`
@@ -836,6 +837,13 @@ let lastPageSwipeVelocity = 0;
 // 感知「当前显示的是哪个 pager 页」来决定可见性，不能依赖挂载时的 route.path
 const pagerActivePath = computed(() => menuStore.menus[pagerIndex.value]?.path || route.path);
 provide('mobilePagerActivePath', readonly(pagerActivePath));
+
+// 主页自定义背景激活：顶栏让位于封面/图片背景（transparent 叠加，见 mobile.css）
+const homeCustomBgActive = computed(
+  () =>
+    pagerActivePath.value === '/' &&
+    ['solid', 'cover', 'image'].includes(String(settingsStore.setData?.homeBackgroundMode))
+);
 
 const mountPagerPage = (path: string) => {
   if (pagerMounted.value[path]) return;

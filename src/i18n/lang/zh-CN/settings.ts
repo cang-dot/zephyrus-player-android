@@ -70,7 +70,21 @@ export default {
     defaultPage: '启动默认页',
     defaultPageDesc: '选择应用启动时默认显示的页面',
     sidebarOrder: '侧边栏自定义',
-    sidebarOrderDesc: '调整侧边栏项目的显示顺序和可见性'
+    sidebarOrderDesc: '调整侧边栏项目的显示顺序和可见性',
+    homeBackground: '主页背景',
+    homeBackgroundDesc: '主页页面的背景来源',
+    homeBackgroundMd3: '动态取色',
+    homeBackgroundSolid: '纯色',
+    homeBackgroundCover: '当前封面',
+    homeBackgroundImage: '自定义图片',
+    homeBackgroundBlur: '背景模糊',
+    homeBackgroundBrightness: '背景明暗',
+    chooseBackgroundImage: '选择图片',
+    clearBackgroundImage: '清除图片',
+    albumBackgroundStyle: '歌单 / 专辑页背景',
+    albumBackgroundStyleDesc: '详情页背景色的取色策略',
+    albumBgMuted: '低饱和（柔和）',
+    albumBgVivid: '高饱和（贴合封面）'
   },
   playback: {
     quality: '音质设置',
@@ -98,7 +112,8 @@ export default {
     autoPlay: '自动播放',
     autoPlayDesc: '重新打开应用时是否自动继续播放',
     autoMatchNetease: 'QQ/酷狗歌曲自动匹配网易云音源',
-    autoMatchNeteaseDesc: '播放 QQ、酷狗歌曲时按歌名与歌手匹配网易云版本，使用网易云的播放地址（失败时回退原平台）',
+    autoMatchNeteaseDesc:
+      '播放 QQ、酷狗歌曲时按歌名与歌手匹配网易云版本，使用网易云的播放地址（失败时回退原平台）',
     audioDevice: '音频输出设备',
     audioDeviceDesc: '选择音频输出设备，如扬声器、耳机或蓝牙设备',
     testAudio: '测试',

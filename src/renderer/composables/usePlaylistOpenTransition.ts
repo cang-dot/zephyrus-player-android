@@ -14,14 +14,26 @@
  */
 import { computed, nextTick, ref, shallowRef } from 'vue';
 
+import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl } from '@/utils';
 import {
   fallbackPageChrome,
   getPageChromeForCover,
   type PageChrome,
+  type PageChromeStrategy,
   pageChromeVariables,
-  resolvePageChrome} from '@/utils/pageChrome';
+  resolvePageChrome
+} from '@/utils/pageChrome';
 import { parseRepresentativeCssColor } from '@/utils/playerInk';
+
+/** 当前设置下的页面取色策略：过渡色块必须与目标页底色同策略，否则进页变色断层 */
+function currentAlbumBgStrategy(): PageChromeStrategy {
+  try {
+    return String(useSettingsStore().setData?.albumBackgroundStyle) === 'vivid' ? 'vivid' : 'muted';
+  } catch {
+    return 'muted';
+  }
+}
 
 export interface TransitionRect {
   x: number;
@@ -141,7 +153,7 @@ const bgStyle = computed(() => {
     top: `${y}px`,
     width: `${w}px`,
     height: `${h}px`,
-        backgroundColor: revealEnd ? bgEndColor.value || bgColor.value : bgColor.value,
+    backgroundColor: revealEnd ? bgEndColor.value || bgColor.value : bgColor.value,
     borderRadius: `${(revealEnd ? end.radius : start.radius) || CARD_RADIUS}px`,
     willChange: 'left, top, width, height',
     transition: reveal.value
@@ -180,8 +192,7 @@ const coverTransform = computed(() => {
   if (!start || !reveal.value) return 'none';
   const { w, h } = { w: window.innerWidth, h: window.innerHeight };
   const endRect = endLayer.value?.rect;
-  const target =
-    endRect ??
+  const target = endRect ??
     heroRect.value ?? {
       x: w * 0.5 - Math.min(w * 0.68, 320) / 2,
       // hero 位于顶栏下方：按视口高度估算，resolve 时以真实 hero 矩形覆盖
@@ -205,7 +216,7 @@ function resetLayer() {
   startLayer.value = null;
   endLayer.value = null;
   heroRect.value = null;
-    coverUrl.value = '';
+  coverUrl.value = '';
   bgEndColor.value = '';
   reveal.value = false;
   displayCover = false;
@@ -245,12 +256,13 @@ export function beginPlaylistOpen(source: PlaylistOpenSource): boolean {
   );
   phase.value = 'expanding';
 
-    const parsed = parseRepresentativeCssColor(source.color);
-  const initial = parsed ? resolvePageChrome(parsed) : fallbackPageChrome();
+  const parsed = parseRepresentativeCssColor(source.color);
+  const strategy = currentAlbumBgStrategy();
+  const initial = parsed ? resolvePageChrome(parsed, strategy) : fallbackPageChrome(strategy);
   bgColor.value = applyChromeToLayout(initial) || bgColor.value;
   bgEndColor.value = bgColor.value;
   if (!parsed && coverUrl.value) {
-    void getPageChromeForCover(coverUrl.value)
+    void getPageChromeForCover(coverUrl.value, strategy)
       .then((chrome) => {
         // 补色回调按代丢弃：过渡已被新动画拦截时不再污染状态
         if (forGeneration !== generation) return;
@@ -287,7 +299,7 @@ export function beginPlaylistOpenReturn(): boolean {
   if (typeof window === 'undefined' || prefersReducedMotion()) return false;
   if (!lastRect || !lastColor) return false;
 
-    resetLayer();
+  resetLayer();
   const forGeneration = ++generation;
   beginAt = performance.now();
   coverUrl.value = '';

@@ -120,6 +120,7 @@ import {
 } from '@/services/androidNative';
 import { useLocalMusicStore } from '@/store/modules/localMusic';
 import type { SongResult } from '@/types/music';
+import { compressImage } from '@/utils/imageCompress';
 
 const props = defineProps<{
   show: boolean;
@@ -272,21 +273,6 @@ const applyCandidate = async (candidate: MatchCandidate) => {
 };
 
 /** 压缩封面为 JPEG（最长边 1000px），返回纯 base64 与 dataURL 预览。 */
-const compressImage = async (
-  source: Blob,
-  maxEdge = 1000,
-  quality = 0.88
-): Promise<{ base64: string; dataUrl: string; mime: string }> => {
-  const bitmap = await createImageBitmap(source);
-  const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  const dataUrl = canvas.toDataURL('image/jpeg', quality);
-  return { base64: dataUrl.slice(dataUrl.indexOf(',') + 1), dataUrl, mime: 'image/jpeg' };
-};
-
 const onCoverPicked = async (event: Event) => {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];

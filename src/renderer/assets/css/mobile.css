@@ -125,6 +125,12 @@
   border-bottom: 1px solid var(--m-border);
 }
 
+/* 主页自定义背景（封面图/自定义图/纯色）激活：顶栏让位于背景层 */
+.mobile.home-custom-bg .mobile-header {
+  background: transparent;
+  border-bottom-color: transparent;
+}
+
 .mobile .mobile-header .logo-text {
   font-family: var(--m-font-serif);
   font-weight: 700;

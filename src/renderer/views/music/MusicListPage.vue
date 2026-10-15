@@ -226,6 +226,7 @@ import { useMusicStore, usePlayerStore, useRecommendStore, useUserStore } from '
 import { useLocalPlaylistStore } from '@/store/modules/localPlaylist';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayHistoryStore } from '@/store/modules/playHistory';
+import { useSettingsStore } from '@/store/modules/settings';
 import { SongResult } from '@/types/music';
 import type { PosterSubject } from '@/types/share';
 import { calculateAnimationDelay, getImgUrl, isMobile } from '@/utils';
@@ -891,15 +892,21 @@ const getCoverImgUrl = computed(() => {
 // ==================== 页面 chrome 配色（按打开页封面明暗混色，非当前歌曲） ====================
 const pageRootRef = ref<HTMLElement | null>(null);
 
+// 取色策略（设置：歌单/专辑页背景）：muted=向黑白混合压饱和，vivid=贴封面外围主色
+const settingsStore = useSettingsStore();
+const albumBgStrategy = computed(() =>
+  String(settingsStore.setData?.albumBackgroundStyle) === 'vivid' ? 'vivid' : 'muted'
+);
+
 const applyPageChrome = async () => {
   // 先同步铺一层兜底底色（进入即无闪烁），真实封面取色到达后由 CSS transition 渐变
   if (pageRootRef.value && !pageRootRef.value.style.getPropertyValue('--page-chrome-bg')) {
-    const fallbackVars = pageChromeVariables(fallbackPageChrome());
+    const fallbackVars = pageChromeVariables(fallbackPageChrome(albumBgStrategy.value));
     for (const [key, value] of Object.entries(fallbackVars)) {
       pageRootRef.value.style.setProperty(key, value);
     }
   }
-  const chrome = await getPageChromeForCover(getCoverImgUrl.value);
+  const chrome = await getPageChromeForCover(getCoverImgUrl.value, albumBgStrategy.value);
   const vars = pageChromeVariables(chrome);
   const apply = (el: HTMLElement | null) => {
     if (!el) return;
@@ -915,6 +922,7 @@ const applyPageChrome = async () => {
 };
 
 watch(getCoverImgUrl, () => void applyPageChrome(), { immediate: true });
+watch(albumBgStrategy, () => void applyPageChrome());
 
 // 全量歌曲列表（用于"播放全部"等操作）
 const allFilteredSongs = computed(() => {

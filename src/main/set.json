@@ -57,6 +57,11 @@
     "hidden": []
   },
   "defaultPage": "/",
+  "homeBackgroundMode": "auto",
+  "homeBackgroundColor": "#f5f1eb",
+  "homeBackgroundBlur": 0,
+  "homeBackgroundBrightness": 100,
+  "albumBackgroundStyle": "muted",
   "lyricUnlockShortcut": "CommandOrControl+L",
   "lyricFontFamily": "",
   "lyricTextColor": "",

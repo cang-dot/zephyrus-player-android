@@ -73,7 +73,21 @@ export default {
     defaultPage: 'Default Startup Page',
     defaultPageDesc: 'Select the page to display when the app starts',
     sidebarOrder: 'Sidebar Customization',
-    sidebarOrderDesc: 'Adjust sidebar item order and visibility'
+    sidebarOrderDesc: 'Adjust sidebar item order and visibility',
+    homeBackground: 'Home Background',
+    homeBackgroundDesc: 'Background source of the home page',
+    homeBackgroundMd3: 'Dynamic Color',
+    homeBackgroundSolid: 'Solid Color',
+    homeBackgroundCover: 'Current Cover',
+    homeBackgroundImage: 'Custom Image',
+    homeBackgroundBlur: 'Background Blur',
+    homeBackgroundBrightness: 'Background Brightness',
+    chooseBackgroundImage: 'Choose Image',
+    clearBackgroundImage: 'Clear Image',
+    albumBackgroundStyle: 'Playlist / Album Background',
+    albumBackgroundStyleDesc: 'Color extraction strategy for detail page backgrounds',
+    albumBgMuted: 'Muted (soft)',
+    albumBgVivid: 'Vivid (cover-faithful)'
   },
   playback: {
     quality: 'Audio Quality',

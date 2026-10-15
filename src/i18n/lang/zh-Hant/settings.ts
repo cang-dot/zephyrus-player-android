@@ -70,7 +70,21 @@ export default {
     defaultPage: '啟動預設頁',
     defaultPageDesc: '選擇應用程式啟動時預設顯示的頁面',
     sidebarOrder: '側邊欄自訂',
-    sidebarOrderDesc: '調整側邊欄項目的顯示順序與可見性'
+    sidebarOrderDesc: '調整側邊欄項目的顯示順序與可見性',
+    homeBackground: '主頁背景',
+    homeBackgroundDesc: '主頁頁面的背景來源',
+    homeBackgroundMd3: '動態取色',
+    homeBackgroundSolid: '純色',
+    homeBackgroundCover: '當前封面',
+    homeBackgroundImage: '自訂圖片',
+    homeBackgroundBlur: '背景模糊',
+    homeBackgroundBrightness: '背景明暗',
+    chooseBackgroundImage: '選擇圖片',
+    clearBackgroundImage: '清除圖片',
+    albumBackgroundStyle: '歌單 / 專輯頁背景',
+    albumBackgroundStyleDesc: '詳情頁背景色的取色策略',
+    albumBgMuted: '低飽和（柔和）',
+    albumBgVivid: '高飽和（貼合封面）'
   },
   playback: {
     quality: '音質設定',
@@ -98,7 +112,8 @@ export default {
     autoPlay: '自動播放',
     autoPlayDesc: '重新開啟應用程式時是否自動繼續播放',
     autoMatchNetease: 'QQ/酷狗歌曲自動匹配網易雲音源',
-    autoMatchNeteaseDesc: '播放 QQ、酷狗歌曲時按歌名與歌手匹配網易雲版本，使用網易雲的播放位址（失敗時回退原平台）',
+    autoMatchNeteaseDesc:
+      '播放 QQ、酷狗歌曲時按歌名與歌手匹配網易雲版本，使用網易雲的播放位址（失敗時回退原平台）',
     audioDevice: '音訊輸出裝置',
     audioDeviceDesc: '選擇音訊輸出裝置，如揚聲器、耳機或藍牙裝置',
     testAudio: '測試',

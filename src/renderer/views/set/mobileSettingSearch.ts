@@ -1,11 +1,5 @@
 export interface MobileSettingSearchDefinition {
-  tabId:
-    | 'appearance'
-    | 'playback'
-    | 'lyrics'
-    | 'ai'
-    | 'advanced'
-    | 'about';
+  tabId: 'appearance' | 'playback' | 'lyrics' | 'ai' | 'advanced' | 'about';
   titleKey?: string;
   descKey?: string;
   title?: string;
@@ -29,6 +23,16 @@ export const MOBILE_SETTING_SEARCH_DEFINITIONS: readonly MobileSettingSearchDefi
     tabId: 'appearance',
     titleKey: 'settings.interface.defaultPage',
     descKey: 'settings.interface.defaultPageDesc'
+  },
+  {
+    tabId: 'appearance',
+    titleKey: 'settings.interface.homeBackground',
+    descKey: 'settings.interface.homeBackgroundDesc'
+  },
+  {
+    tabId: 'appearance',
+    titleKey: 'settings.interface.albumBackgroundStyle',
+    descKey: 'settings.interface.albumBackgroundStyleDesc'
   },
   {
     tabId: 'playback',

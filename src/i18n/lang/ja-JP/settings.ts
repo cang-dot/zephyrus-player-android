@@ -73,7 +73,21 @@ export default {
     defaultPage: '起動時のページ',
     defaultPageDesc: 'アプリ起動時に表示するページを選択',
     sidebarOrder: 'サイドバーのカスタマイズ',
-    sidebarOrderDesc: 'サイドバー項目の順序と表示を調整'
+    sidebarOrderDesc: 'サイドバー項目の順序と表示を調整',
+    homeBackground: 'ホーム背景',
+    homeBackgroundDesc: 'ホームページの背景ソース',
+    homeBackgroundMd3: 'ダイナミックカラー',
+    homeBackgroundSolid: '単色',
+    homeBackgroundCover: '現在のカバー',
+    homeBackgroundImage: 'カスタム画像',
+    homeBackgroundBlur: '背景のぼかし',
+    homeBackgroundBrightness: '背景の明るさ',
+    chooseBackgroundImage: '画像を選択',
+    clearBackgroundImage: '画像を削除',
+    albumBackgroundStyle: 'プレイリスト / アルバム背景',
+    albumBackgroundStyleDesc: '詳細ページ背景色の抽出方式',
+    albumBgMuted: '低彩度（ソフト）',
+    albumBgVivid: '高彩度（カバー準拠）'
   },
   playback: {
     quality: '音質設定',

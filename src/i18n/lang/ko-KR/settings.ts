@@ -73,7 +73,21 @@ export default {
     defaultPage: '기본 시작 페이지',
     defaultPageDesc: '앱 시작 시 표시할 페이지 선택',
     sidebarOrder: '사이드바 사용자 지정',
-    sidebarOrderDesc: '사이드바 항목 순서와 표시 여부 조정'
+    sidebarOrderDesc: '사이드바 항목 순서와 표시 여부 조정',
+    homeBackground: '홈 배경',
+    homeBackgroundDesc: '홈 페이지의 배경 소스',
+    homeBackgroundMd3: '다이내믹 컬러',
+    homeBackgroundSolid: '단색',
+    homeBackgroundCover: '현재 커버',
+    homeBackgroundImage: '사용자 지정 이미지',
+    homeBackgroundBlur: '배경 흐림',
+    homeBackgroundBrightness: '배경 밝기',
+    chooseBackgroundImage: '이미지 선택',
+    clearBackgroundImage: '이미지 삭제',
+    albumBackgroundStyle: '재생목록 / 앨범 배경',
+    albumBackgroundStyleDesc: '상세 페이지 배경색 추출 방식',
+    albumBgMuted: '저채도 (부드럽게)',
+    albumBgVivid: '고채도 (커버 충실)'
   },
   playback: {
     quality: '음질 설정',
