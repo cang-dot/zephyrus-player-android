@@ -15,10 +15,7 @@
       }"
       :style="{ ...surfaceStyle, ...lyricsSwipeStyle }"
       @click="handleTapToggle"
-      @pointerdown.capture="
-        onLyricsSwipePointerDown($event);
-        commentsSwipe.onPointerDown($event);
-      "
+      @pointerdown.capture="onRootPointerDown($event)"
       @pointermove.capture="
         onLyricsSwipePointerMove($event);
         commentsSwipe.onPointerMove($event);
@@ -100,6 +97,7 @@
         >
           <div
             v-if="showArtwork"
+            ref="artworkTriggerRef"
             class="artwork-preview-trigger"
             @click.capture="handleArtworkClick"
             @pointerdown="coverGesture.onPointerDown"
@@ -143,6 +141,7 @@
 
         <div
           v-if="!config.hideLyrics"
+          ref="lyricsZoneRef"
           class="lyrics-zone"
           :class="{
             expanded: lyricsExpanded || lyricsSwipePreview,
@@ -163,6 +162,27 @@
           <button v-else type="button" class="empty-lyrics" @click.stop="toggleLyricsExpanded">
             {{ t('player.lrc.noLrc') }}
           </button>
+        </div>
+
+        <!-- 沉浸歌词顶栏（morph=封面/信息飞入；top-in=整栏自上滑入；C 降级仅剩按钮行） -->
+        <lyric-immersive-header
+          v-if="headerVisible"
+          :cover-url="coverUrl"
+          :title="playMusic?.name || ''"
+          :show-cover="showArtwork"
+          :show-info="showTrackInfo"
+          :progress="immersiveProgress"
+          :entrance="headerEntrance"
+          @show-settings="handleHeaderSettings"
+        />
+        <!-- 封面克隆飞行层：预览期从大封面矩形飞向顶栏槽位，落定后由顶栏封面接管 -->
+        <div
+          v-if="coverCloneVisible"
+          class="lyric-cover-clone"
+          :style="coverCloneStyle"
+          aria-hidden="true"
+        >
+          <img :src="coverUrl" alt="" />
         </div>
       </main>
 
@@ -185,16 +205,18 @@
 
 <script setup lang="ts">
 import { useWindowSize } from '@vueuse/core';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import Aurora from '@/components/Aurora.vue';
 import MobileCommentsOverlay from '@/components/comment/MobileCommentsOverlay.vue';
 import SongTitleText from '@/components/common/SongTitleText.vue';
+import LyricImmersiveHeader from '@/components/lyric/LyricImmersiveHeader.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
+import { resetImmersiveLyrics, useImmersiveLyrics } from '@/composables/useImmersiveLyrics';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
@@ -375,6 +397,8 @@ const {
   overlayStyle: lyricsOverlayStyle,
   underlayStyle: lyricsUnderlayStyle,
   previewing: lyricsSwipePreview,
+  phase: lyricsSwipePhase,
+  progress: lyricsSwipeProgress,
   onPointerDown: onLyricsSwipePointerDown,
   onPointerMove: onLyricsSwipePointerMove,
   onPointerUp: onLyricsSwipePointerUp,
@@ -385,7 +409,139 @@ const {
   isOpen: () => lyricsExpanded.value,
   suppressed: () => playerStore.fullCommentsVisible,
   onOpen: () => commitLyricsExpanded(true),
-  onClose: () => commitLyricsExpanded(false)
+  onClose: () => commitLyricsExpanded(false),
+  variant: () => lyricsArrival.value,
+  scaleGeometry: () => zoneGeometry.value
+});
+
+// ── 沉浸歌词过渡：变体 / 顶栏 / 封面克隆飞行 ──
+const lyricsZoneRef = ref<HTMLElement | null>(null);
+const artworkTriggerRef = ref<HTMLElement | null>(null);
+const zoneGeometry = ref<{ originY: number; scaleX: number; scaleY: number } | null>(null);
+
+// 歌词区域开启 → 由小歌词区容器变换放大（scale）；关闭 → 保持横滑（slide）。
+// 三页布局（评论区参与横向分页）时强制 slide，容器变换会与分页语义冲突。
+const lyricsArrival = computed<'scale' | 'slide'>(() => {
+  if (config.value.showCommentSection === true) return 'slide';
+  return showLyricsZone.value ? 'scale' : 'slide';
+});
+// 封面或信息任一开启 → 顶栏由大封面/信息 morph 而来；都关 → 顶栏整体自上滑入（降级）
+const headerEntrance = computed<'morph' | 'top-in'>(() =>
+  showArtwork.value || showTrackInfo.value ? 'morph' : 'top-in'
+);
+
+function captureZoneGeometry() {
+  if (lyricsExpanded.value || !lyricsZoneRef.value) return;
+  const rect = lyricsZoneRef.value.getBoundingClientRect();
+  if (rect.height < 40 || rect.width < 40) return;
+  zoneGeometry.value = {
+    originY: rect.top + rect.height / 2,
+    scaleX: Math.min(1, rect.width / Math.max(1, window.innerWidth)),
+    scaleY: Math.min(1, rect.height / Math.max(1, window.innerHeight))
+  };
+}
+
+function onRootPointerDown(event: PointerEvent) {
+  captureZoneGeometry();
+  onLyricsSwipePointerDown(event);
+  commentsSwipe.onPointerDown(event);
+}
+
+// 顶栏/克隆/按钮迁移共用的过渡进度：预览期跟手，落定后 1/0
+const immersive = useImmersiveLyrics();
+const immersiveProgress = computed(() => {
+  if (!lyricsSwipePreview.value || !lyricsSwipePhase.value) {
+    return lyricsExpanded.value ? 1 : 0;
+  }
+  const raw = lyricsSwipeProgress.value;
+  const mapped = lyricsSwipePhase.value === 'opening' ? raw : 1 - raw;
+  return Math.max(0, Math.min(1, mapped));
+});
+watchEffect(() => {
+  immersive.progress.value = immersiveProgress.value;
+});
+
+const headerVisible = computed(
+  () => !config.value.hideLyrics && (lyricsExpanded.value || lyricsSwipePreview.value)
+);
+
+function handleHeaderSettings() {
+  playerTransition.setSurfaceMode('settings');
+  playerTransition.showControls();
+}
+
+// ── 封面克隆飞行（morph）：大封面矩形 → 顶栏 44px 槽位，进度即沉浸进度 ──
+const HEADER_SLOT = { inset: 20, size: 44, radius: 10, topInset: 12 };
+interface MorphRects {
+  source: { left: number; top: number; size: number; radius: number };
+  targetTop: number;
+}
+const morphRects = ref<MorphRects | null>(null);
+
+function readSafeAreaTop(): number {
+  const scope = surfaceRef.value ?? document.documentElement;
+  const raw = getComputedStyle(scope).getPropertyValue('--safe-area-inset-top').trim();
+  const value = parseFloat(raw);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function captureMorphRects() {
+  if (headerEntrance.value !== 'morph' || !showArtwork.value) {
+    morphRects.value = null;
+    return;
+  }
+  const frame = artworkTriggerRef.value?.querySelector('.artwork-frame');
+  if (!(frame instanceof HTMLElement)) {
+    morphRects.value = null;
+    return;
+  }
+  const rect = frame.getBoundingClientRect();
+  if (rect.width < 40) {
+    morphRects.value = null;
+    return;
+  }
+  const radiusPct = vinylDisc.value ? 50 : artworkRadius.value;
+  morphRects.value = {
+    source: {
+      left: rect.left,
+      top: rect.top,
+      size: rect.width,
+      radius: Math.max(0, (rect.width * Math.min(50, radiusPct)) / 100)
+    },
+    targetTop: readSafeAreaTop() + HEADER_SLOT.topInset
+  };
+}
+
+watch(
+  () => [lyricsSwipePreview.value, lyricsSwipePhase.value] as const,
+  ([previewing, phase]) => {
+    if (previewing && phase === 'opening') captureMorphRects();
+    if (!previewing && !lyricsExpanded.value) morphRects.value = null;
+  }
+);
+
+const coverCloneVisible = computed(
+  () => !!morphRects.value && !!coverUrl.value && lyricsSwipePreview.value
+);
+
+const coverCloneStyle = computed<Record<string, string>>(() => {
+  const rects = morphRects.value;
+  if (!rects) return {} as Record<string, string>;
+  const p = immersiveProgress.value;
+  const lerp = (a: number, b: number) => a + (b - a) * p;
+  const size = lerp(rects.source.size, HEADER_SLOT.size);
+  return {
+    position: 'fixed',
+    left: `${lerp(rects.source.left, HEADER_SLOT.inset).toFixed(2)}px`,
+    top: `${lerp(rects.source.top, rects.targetTop).toFixed(2)}px`,
+    width: `${size.toFixed(2)}px`,
+    height: `${size.toFixed(2)}px`,
+    borderRadius: `${lerp(rects.source.radius, HEADER_SLOT.radius).toFixed(2)}px`,
+    zIndex: '60',
+    overflow: 'hidden',
+    pointerEvents: 'none',
+    transform: 'translateZ(0)'
+  };
 });
 const isLandscape = computed(() => width.value > height.value);
 const isPlaying = computed(() => playerStore.isPlay);
@@ -601,6 +757,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('music-full-config-updated', handleConfigUpdate);
   document.body.classList.remove('default-player-active');
   window.dispatchEvent(new Event('default-player-style-changed'));
+  resetImmersiveLyrics();
 });
 </script>
 
@@ -735,6 +892,14 @@ onBeforeUnmount(() => {
 .background-preset-layer > * {
   width: 100%;
   height: 100%;
+}
+
+/* 封面克隆飞行层：位置/尺寸/圆角全部由内联样式逐帧驱动 */
+.lyric-cover-clone img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .lyrics-zone {

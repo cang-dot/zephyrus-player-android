@@ -15,6 +15,10 @@ type LyricSwipeGestureOptions = {
   role?: 'lyrics' | 'comments';
   /** 返回 true 时手势不响应（页面互斥：歌词页打开时抑制评论手势，反之亦然） */
   suppressed?: () => boolean;
+  /** 入场变体：slide=整层横滑（现状）；scale=以小歌词区为锚的容器变换放大 */
+  variant?: () => 'slide' | 'scale';
+  /** scale 变体的折叠态几何（区中心与区/全屏宽高比），由消费方在手势外测量 */
+  scaleGeometry?: () => { originY: number; scaleX: number; scaleY: number } | null;
 };
 
 export type LyricSwipePhase = 'opening' | 'closing' | null;
@@ -143,6 +147,7 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
 
   const overlayStyle = computed<CSSProperties>(() => {
     if (!previewing.value || !phase.value) return {};
+    if (options.variant?.() === 'scale') return scaleOverlayStyle();
     const width = viewportWidth();
     if (phase.value === 'opening') {
       const from = gestureSign * width;
@@ -154,8 +159,33 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
     return animatedStyle(`translate3d(${offset.value.toFixed(2)}px, 0, 0)`, 1 - progress.value);
   });
 
+  /**
+   * scale 变体：元素布局框已是全屏（.expanded 即时生效），
+   * 以折叠区中心为 transform-origin 反向缩放，使歌词层「从原小区域放大而来」。
+   * 横向滑动的 offset 只贡献 0-1 标量进度，方向无关。
+   */
+  function scaleOverlayStyle(): CSSProperties {
+    const opening = phase.value === 'opening';
+    const p = opening ? progress.value : 1 - progress.value;
+    const geometry = options.scaleGeometry?.();
+    if (!geometry) {
+      return animatedStyle(undefined, opening ? progress.value : 1 - progress.value);
+    }
+    const scaleY = geometry.scaleY + (1 - geometry.scaleY) * p;
+    const scaleX = geometry.scaleX + (1 - geometry.scaleX) * p;
+    return {
+      ...animatedStyle(`scale(${scaleX.toFixed(4)}, ${scaleY.toFixed(4)})`, 0.55 + 0.45 * p),
+      transformOrigin: `50% ${geometry.originY.toFixed(1)}px`
+    };
+  }
+
   const underlayStyle = computed<CSSProperties>(() => {
     if (!previewing.value || !phase.value) return {};
+    if (options.variant?.() === 'scale') {
+      // scale 变体：封面/信息区原地淡出（位移交给顶栏 morph 克隆），避免斜向视差
+      const opacity = phase.value === 'opening' ? 1 - progress.value : progress.value;
+      return animatedStyle(undefined, opacity);
+    }
     // 只在唤起(歌词滑入)时给封面层视差;收起时保持原位,
     // 否则歌词滑出后封面会先移开再弹回,看起来像瞬移
     const parallax = phase.value === 'opening' ? offset.value * 0.16 : 0;
