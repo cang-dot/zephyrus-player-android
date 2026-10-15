@@ -3,6 +3,17 @@ import type {
   PlayerStyleCustomConfig,
   PlayerStyleEffects
 } from '@/types/playerStyle';
+import { isLowEndDevice } from '@/utils/deviceTier';
+
+/**
+ * mesh 预设出厂帧率/渲染倍率:AMLL 的分辨率公式无 DPR 上限,60fps/1x 在高分屏
+ * 低端机上会顶满 GPU。低端机出厂即半档(用户仍可在面板调回),全端统一从这里取。
+ */
+export const MESH_DEFAULT_MAX_FPS = isLowEndDevice ? 15 : 30;
+export const MESH_DEFAULT_RENDER_SCALE = isLowEndDevice ? 0.5 : 0.75;
+/** 迁移基线:2026-10 之前的出厂值,视同未自定义 */
+export const MESH_LEGACY_MAX_FPS = 60;
+export const MESH_LEGACY_RENDER_SCALE = 1;
 
 const STYLE_LYRIC_COLORS: Record<MobilePlayerStyleKey, string> = {
   default: '#ffffff',
@@ -29,8 +40,8 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     backgroundPreset: 'none',
     auroraSpeed: 0.8,
     auroraPosition: 'top',
-    meshMaxFps: 60,
-    meshRenderScale: 1,
+    meshMaxFps: MESH_DEFAULT_MAX_FPS,
+    meshRenderScale: MESH_DEFAULT_RENDER_SCALE,
     meshStaticMode: false,
     meshBeatResponse: 1
   },
@@ -188,6 +199,19 @@ export function resolvePlayerStyleConfig(
       }
     }
   }
+  // mesh 出厂值迁移：同 smoke——resolve 结果会被整体固化，老用户存下的旧出厂
+  // 60fps/1x 会永久压住新默认（30/0.75，低端机 15/0.5）；等于旧出厂值视为未自定义
+  if (styleKey === 'default' && saved) {
+    const legacyMeshDefaults: Record<string, unknown> = {
+      meshMaxFps: MESH_LEGACY_MAX_FPS,
+      meshRenderScale: MESH_LEGACY_RENDER_SCALE
+    };
+    for (const [field, legacy] of Object.entries(legacyMeshDefaults)) {
+      if (field in saved && (saved as Record<string, unknown>)[field] === legacy) {
+        (config as Record<string, unknown>)[field] = (defaults as Record<string, unknown>)[field];
+      }
+    }
+  }
   config.fontWeight = Math.min(900, Math.max(100, Number(config.fontWeight) || 600));
   config.wordDropFontWeight = Math.min(
     900,
@@ -272,16 +296,31 @@ export function resolvePlayerStyleConfig(
   }
   config.meshMaxFps = Math.min(
     120,
-    Math.max(1, Math.round(Number.isFinite(Number(config.meshMaxFps)) ? Number(config.meshMaxFps) : 60))
+    Math.max(
+      1,
+      Math.round(
+        Number.isFinite(Number(config.meshMaxFps))
+          ? Number(config.meshMaxFps)
+          : MESH_DEFAULT_MAX_FPS
+      )
+    )
   );
   config.meshRenderScale = Math.min(
     2,
-    Math.max(0.25, Number.isFinite(Number(config.meshRenderScale)) ? Number(config.meshRenderScale) : 1)
+    Math.max(
+      0.25,
+      Number.isFinite(Number(config.meshRenderScale))
+        ? Number(config.meshRenderScale)
+        : MESH_DEFAULT_RENDER_SCALE
+    )
   );
   config.meshStaticMode = config.meshStaticMode === true;
   config.meshBeatResponse = Math.min(
     2,
-    Math.max(0, Number.isFinite(Number(config.meshBeatResponse)) ? Number(config.meshBeatResponse) : 1)
+    Math.max(
+      0,
+      Number.isFinite(Number(config.meshBeatResponse)) ? Number(config.meshBeatResponse) : 1
+    )
   );
   config.starBlockLines = Math.min(
     6,
@@ -307,18 +346,21 @@ export function resolvePlayerStyleConfig(
   }
   config.starDiscSize = Math.min(
     500,
-    Math.max(30, Math.round(Number.isFinite(Number(config.starDiscSize)) ? Number(config.starDiscSize) : 100))
+    Math.max(
+      30,
+      Math.round(Number.isFinite(Number(config.starDiscSize)) ? Number(config.starDiscSize) : 100)
+    )
   );
   config.starTextSize = Math.min(
     400,
-    Math.max(40, Math.round(Number.isFinite(Number(config.starTextSize)) ? Number(config.starTextSize) : 100))
+    Math.max(
+      40,
+      Math.round(Number.isFinite(Number(config.starTextSize)) ? Number(config.starTextSize) : 100)
+    )
   );
   config.starSpinSpeed = Math.min(
     10,
-    Math.max(
-      0,
-      Number.isFinite(Number(config.starSpinSpeed)) ? Number(config.starSpinSpeed) : 1
-    )
+    Math.max(0, Number.isFinite(Number(config.starSpinSpeed)) ? Number(config.starSpinSpeed) : 1)
   );
   if (!['solid', 'gradient', 'image'].includes(config.backgroundMode)) {
     config.backgroundMode = defaults.backgroundMode;

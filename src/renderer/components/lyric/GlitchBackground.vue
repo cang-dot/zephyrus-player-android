@@ -23,6 +23,8 @@ interface Props {
   speed?: number;
   showScanlines?: boolean;
   active?: boolean;
+  /** 帧率上限，≤0 不限；故障 shader 满帧在移动端代价高，默认 30 */
+  maxFps?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -32,7 +34,8 @@ const props = withDefaults(defineProps<Props>(), {
   crtIntensity: 0,
   speed: 1.0,
   showScanlines: true,
-  active: true
+  active: true,
+  maxFps: 30
 });
 
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -156,6 +159,7 @@ let animateId = 0;
 let startTime = 0;
 let resizeHandler: (() => void) | null = null;
 let lastRenderAt = 0;
+let lastFpsAt = 0;
 let pageVisible = true;
 let releaseCanvasLoop: (() => void) | null = null;
 const baseColor = new Float32Array([0.1, 0.1, 0.2]);
@@ -199,6 +203,11 @@ function startAnimation() {
     if (!program || !renderer || !mesh) return;
     if (shouldSkipMobilePlayerFrame(lastRenderAt, t)) return;
     lastRenderAt = t;
+    if (props.maxFps > 0) {
+      const fpsInterval = 1000 / props.maxFps;
+      if (t - lastFpsAt < fpsInterval) return;
+      lastFpsAt = t - ((t - lastFpsAt) % fpsInterval);
+    }
     const elapsed = (t - startTime) * 0.001;
     program.uniforms.iTime.value = elapsed * props.speed;
     program.uniforms.uIntensity.value = props.intensity;
@@ -221,7 +230,8 @@ onMounted(() => {
       webgl: 2,
       alpha: false,
       antialias: false,
-      dpr: Math.min(window.devicePixelRatio || 1, 2)
+      // DPR 钳 1.5:故障 shader 是全屏多效果叠加,2x 在高分屏等于 4 倍像素
+      dpr: Math.min(window.devicePixelRatio || 1, 1.5)
     });
 
     const gl = renderer.gl;

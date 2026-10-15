@@ -23,6 +23,7 @@
 import { BackgroundRender, MeshGradientRenderer } from '@applemusic-like-lyrics/core';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import { MESH_DEFAULT_MAX_FPS, MESH_DEFAULT_RENDER_SCALE } from '@/config/playerStyleConfig';
 import { audioService } from '@/services/audioService';
 import { drumDetector } from '@/services/drumDetector';
 import { AdaptiveBaseline, AttackReleaseEnvelope } from '@/utils/audio/beatResponse';
@@ -46,8 +47,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   coverUrl: '',
   paused: false,
-  maxFps: 60,
-  renderScale: 1,
+  maxFps: MESH_DEFAULT_MAX_FPS,
+  renderScale: MESH_DEFAULT_RENDER_SCALE,
   staticMode: false,
   beatResponse: 1
 });

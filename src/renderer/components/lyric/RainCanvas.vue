@@ -70,6 +70,7 @@ let raindrops: Raindrop[] = [];
 let groundRipples: GroundRipple[] = [];
 let puddles: Puddle[] = [];
 let lastRenderAt = 0;
+let lastFpsAt = 0;
 let pageVisible = !document.hidden;
 let releaseCanvasLoop: (() => void) | null = null;
 
@@ -113,7 +114,8 @@ function resizeCanvas() {
   const canvas = canvasRef.value;
   if (!canvas || !ctx) return;
 
-  const dpr = window.devicePixelRatio || 1;
+  // DPR 钳制:雨幕是全屏 2D 逐帧重绘,DPR3 时等于 9 倍像素,1.5 在清晰度与成本间取衡
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
   canvas.width = window.innerWidth * dpr;
   canvas.height = window.innerHeight * dpr;
   canvas.style.width = window.innerWidth + 'px';
@@ -269,6 +271,15 @@ function draw() {
     return;
   }
   lastRenderAt = now;
+
+  // 常规帧率上限 30fps:全屏 clearRect + 逐滴 stroke 对移动端 2D 是重活,
+  // shouldSkipMobilePlayerFrame 只在形变期节流,平时无人限速
+  const fpsInterval = 1000 / 30;
+  if (now - lastFpsAt < fpsInterval) {
+    animationId = requestAnimationFrame(draw);
+    return;
+  }
+  lastFpsAt = now - ((now - lastFpsAt) % fpsInterval);
 
   const canvasWidth = window.innerWidth;
   const canvasHeight = window.innerHeight;

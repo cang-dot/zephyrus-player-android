@@ -36,8 +36,8 @@
           <div class="background-overlay" :style="backgroundOverlayStyle" />
         </div>
 
-        <!-- 雨水效果层 -->
-        <rain-canvas :config="rainConfig" />
+        <!-- 雨水效果层（评论页全屏盖住播放面时暂停绘制） -->
+        <rain-canvas :config="rainConfig" :active="!playerStore.fullCommentsVisible" />
 
         <!-- 顶部：歌名 + 歌手 -->
         <div class="song-header" :class="{ 'song-header-visible': controlsVisible }">

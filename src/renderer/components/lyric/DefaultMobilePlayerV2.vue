@@ -45,6 +45,8 @@
           :blend="0.5"
           :speed="auroraSpeed"
           :position="auroraPosition"
+          :max-fps="auroraMaxFps"
+          :paused="reduceMotion || playerTransitionBusy"
         />
         <liquid-ether
           v-else-if="backgroundPreset === 'fluid'"
@@ -186,12 +188,14 @@ import { usePosterShare } from '@/composables/usePosterShare';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
+import { MESH_DEFAULT_MAX_FPS, MESH_DEFAULT_RENDER_SCALE } from '@/config/playerStyleConfig';
 import { artistList, lrcArray, playMusic, textColors } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import type { AuroraPosition } from '@/types/playerStyle';
 import { getImgUrl } from '@/utils';
 import { normalizeArtworkUrl, resolveArtworkSource } from '@/utils/artwork';
+import { isLowEndDevice } from '@/utils/deviceTier';
 import { animateGradient, getTextColors } from '@/utils/linearColor';
 import {
   choosePlayerInkTone,
@@ -251,11 +255,13 @@ const backgroundPreset = computed(() => {
 });
 const meshMaxFps = computed(() => {
   const value = Number(styleCustom.value.meshMaxFps);
-  return Number.isFinite(value) ? Math.min(120, Math.max(1, Math.round(value))) : 60;
+  return Number.isFinite(value)
+    ? Math.min(120, Math.max(1, Math.round(value)))
+    : MESH_DEFAULT_MAX_FPS;
 });
 const meshRenderScale = computed(() => {
   const value = Number(styleCustom.value.meshRenderScale);
-  return Number.isFinite(value) ? Math.min(2, Math.max(0.25, value)) : 1;
+  return Number.isFinite(value) ? Math.min(2, Math.max(0.25, value)) : MESH_DEFAULT_RENDER_SCALE;
 });
 const meshStaticMode = computed(() => styleCustom.value.meshStaticMode === true);
 const meshBeatResponse = computed(() => {
@@ -266,6 +272,8 @@ const auroraSpeed = computed(() => {
   const value = Number(styleCustom.value.auroraSpeed);
   return Number.isFinite(value) && value > 0 ? value : 0.8;
 });
+// 低端机极光再降一档帧率（可见性/暂停门控在 Aurora 内部）
+const auroraMaxFps = isLowEndDevice ? 15 : 30;
 const AURORA_POSITIONS: readonly AuroraPosition[] = [
   'top',
   'top-right',

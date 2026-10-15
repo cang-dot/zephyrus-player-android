@@ -16,6 +16,7 @@
           :amplitude="auroraAmplitude"
           :blend="0.5"
           :speed="auroraSpeed"
+          :max-fps="30"
         />
 
         <!-- 鼓点闪白效果（高潮时跟随鼓点闪烁） -->
@@ -79,6 +80,7 @@
       :amplitude="auroraAmplitude"
       :blend="0.5"
       :speed="auroraSpeed"
+      :max-fps="30"
     />
     <div class="beat-flash" :style="{ opacity: beatSpike }"></div>
 

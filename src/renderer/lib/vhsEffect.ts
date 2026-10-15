@@ -246,7 +246,9 @@ export function startVHSAnimation(
   let rafId = 0;
   function loop(now: number) {
     if (!running) return;
-    if (now - lastFrame >= frameInterval) {
+    // 页面不可见时跳过绘制:噪点填充是逐像素级重活,WebView 后台节流档位下
+    // rAF 仍可能低频触发,画一帧亏一帧
+    if (!document.hidden && now - lastFrame >= frameInterval) {
       drawFrame();
     }
     rafId = requestAnimationFrame(loop);

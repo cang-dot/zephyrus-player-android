@@ -9,8 +9,9 @@
  * 使用 OGL 渲染 WebGL 极光特效
  * Props 控制颜色、振幅、混合度、速度
  */
+import { useDocumentVisibility } from '@vueuse/core';
 import { Color, Mesh, Program, Renderer, Triangle } from 'ogl';
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import type { AuroraPosition } from '@/types/playerStyle';
 
@@ -21,6 +22,10 @@ interface Props {
   speed?: number;
   /** 极光带出现的位置（8 方向），默认 top */
   position?: AuroraPosition;
+  /** 外部暂停（减弱动画/形变期），保持最后一帧 */
+  paused?: boolean;
+  /** 帧率上限，≤0 不限；全屏 shader 常驻 60fps 在移动端代价过高，默认 30 */
+  maxFps?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -28,7 +33,9 @@ const props = withDefaults(defineProps<Props>(), {
   amplitude: 1.0,
   blend: 0.5,
   speed: 1.0,
-  position: 'top' as AuroraPosition
+  position: 'top' as AuroraPosition,
+  paused: false,
+  maxFps: 30
 });
 
 /** 8 方位 → 旋转角：以屏幕中心为轴旋转 uv，把目标方位映射到「顶部」 */
@@ -170,6 +177,23 @@ let program: Program | null = null;
 let mesh: Mesh | null = null;
 let animateId = 0;
 let startTime = 0;
+let lastFrameTime = 0;
+let pausedAt = 0;
+let pausedTotal = 0;
+
+// 页面级可见性:此前本组件是全库唯一无任何暂停门控的 WebGL 背景(无 visibility、
+// 无 IO、无 paused),后台标签页也满帧烧 GPU
+const documentVisibility = useDocumentVisibility();
+const renderSuspended = computed(() => props.paused || documentVisibility.value !== 'visible');
+// 暂停期间不累计动画时间,恢复后从断点续播,避免极光跳变
+watch(renderSuspended, (suspended) => {
+  if (suspended && pausedAt === 0) {
+    pausedAt = performance.now();
+  } else if (!suspended && pausedAt > 0) {
+    pausedTotal += performance.now() - pausedAt;
+    pausedAt = 0;
+  }
+});
 
 function hexToRgb(hex: string): [number, number, number] {
   const c = new Color(hex);
@@ -183,7 +207,8 @@ onMounted(() => {
   renderer = new Renderer({
     alpha: true,
     premultipliedAlpha: true,
-    antialias: true
+    // 全屏三角形单 pass 不需要 MSAA,antialias 在移动端是纯浪费的显存与带宽
+    antialias: false
   });
   const gl = renderer.gl;
   gl.clearColor(0, 0, 0, 0);
@@ -220,7 +245,15 @@ onMounted(() => {
   const update = (t: number) => {
     animateId = requestAnimationFrame(update);
     if (!program || !renderer || !mesh) return;
-    const elapsed = (t - startTime) * 0.001;
+    if (renderSuspended.value) return;
+    if (props.maxFps > 0) {
+      const interval = 1000 / props.maxFps;
+      if (t - lastFrameTime < interval) return;
+      lastFrameTime = t - ((t - lastFrameTime) % interval);
+    } else {
+      lastFrameTime = t;
+    }
+    const elapsed = (t - startTime - pausedTotal) * 0.001;
     // 修正：原先再乘 0.1 使噪声时间慢 10 倍，极光视觉上近乎静止
     program.uniforms.uTime.value = elapsed * props.speed;
     program.uniforms.uAmplitude.value = props.amplitude;

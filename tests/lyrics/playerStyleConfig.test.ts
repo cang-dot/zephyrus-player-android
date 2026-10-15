@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { createPlayerStyleConfig, resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
+import {
+  createPlayerStyleConfig,
+  MESH_DEFAULT_MAX_FPS,
+  MESH_DEFAULT_RENDER_SCALE,
+  resolvePlayerStyleConfig
+} from '@/config/playerStyleConfig';
 
 describe('smoke player style configuration', () => {
   it('defaults smoke and climax glow colors to the song theme', () => {
@@ -61,13 +66,24 @@ describe('smoke player style configuration', () => {
     expect(mesh.meshMaxFps).toBe(120);
     expect(mesh.meshRenderScale).toBe(2);
     expect(mesh.meshStaticMode).toBe(true);
-    expect(defaults.meshMaxFps).toBe(60);
-    expect(defaults.meshRenderScale).toBe(1);
+    expect(defaults.meshMaxFps).toBe(MESH_DEFAULT_MAX_FPS);
+    expect(defaults.meshRenderScale).toBe(MESH_DEFAULT_RENDER_SCALE);
     expect(defaults.meshStaticMode).toBe(false);
     expect(sanitized.backgroundPreset).toBe('none');
-    expect(sanitized.meshMaxFps).toBe(60);
+    expect(sanitized.meshMaxFps).toBe(MESH_DEFAULT_MAX_FPS);
     expect(sanitized.meshRenderScale).toBe(0.25);
     expect(sanitized.meshStaticMode).toBe(false);
+  });
+
+  it('migrates legacy factory mesh values to the current defaults', () => {
+    // 旧出厂值 60fps/1x 视同未自定义,回落当前默认(低端机分档值);用户真实调过的不动
+    const migrated = resolvePlayerStyleConfig('default', { meshMaxFps: 60, meshRenderScale: 1 });
+    expect(migrated.meshMaxFps).toBe(MESH_DEFAULT_MAX_FPS);
+    expect(migrated.meshRenderScale).toBe(MESH_DEFAULT_RENDER_SCALE);
+
+    const tuned = resolvePlayerStyleConfig('default', { meshMaxFps: 45, meshRenderScale: 1.25 });
+    expect(tuned.meshMaxFps).toBe(45);
+    expect(tuned.meshRenderScale).toBe(1.25);
   });
 
   it('clamps the mesh beat response sensitivity', () => {

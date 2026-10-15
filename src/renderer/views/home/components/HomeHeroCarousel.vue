@@ -44,6 +44,10 @@ const bgPaused = computed(
     (pagerActivePath ? pagerActivePath.value !== '/' : false)
 );
 
+// 离开首页即卸载两个 WebGL 背景:pager 页只挂不卸,上下文会带着显存永久存活,
+// 播放器再开一个预设背景就是 3 个 context 并存。停帧(bgPaused)保不住显存,必须真卸载。
+const isHomeTab = computed(() => (pagerActivePath ? pagerActivePath.value === '/' : true));
+
 /**
  * 鼠标滚轮切卡：竖向滚轮增量转为轨道 smooth 横向滚动，stop 后由 snap 吸附到最近卡
  * （instant 赋值会被 mandatory snap 逐次弹回起点，必须走平滑滚动）。
@@ -62,7 +66,7 @@ function onHeroWheel(event: WheelEvent) {
   const atStart = track.scrollLeft <= 0 && event.deltaY < 0;
   const atEnd = track.scrollLeft >= maxScroll - 1 && event.deltaY > 0;
   if (atStart || atEnd) return;
-  track.scrollBy({ left: event.deltaY, behavior: "smooth" });
+  track.scrollBy({ left: event.deltaY, behavior: 'smooth' });
   event.preventDefault();
 }
 
@@ -220,7 +224,7 @@ onMounted(async () => {
     <div class="hero-track" data-horizontal-scroll @wheel="onHeroWheel">
       <article class="hero-card roam">
         <molten-metal-background
-          v-if="!moltenFailed"
+          v-if="isHomeTab && !moltenFailed"
           class="hero-bg roam-fluid"
           :color1="roamColors.color1"
           :color2="roamColors.color2"
@@ -236,7 +240,7 @@ onMounted(async () => {
           :style="{ opacity: roamFluidOpacity }"
           @fallback="moltenFailed = true"
         />
-        <div v-else class="hero-bg roam-fallback" />
+        <div v-else-if="isHomeTab && moltenFailed" class="hero-bg roam-fallback" />
         <div class="hero-mask" :style="{ opacity: heroMaskOpacity }" />
 
         <div class="hero-copy">
@@ -260,7 +264,7 @@ onMounted(async () => {
 
       <article class="hero-card cloud">
         <dither-background
-          v-if="!ditherFailed"
+          v-if="isHomeTab && !ditherFailed"
           class="hero-bg"
           :wave-color="[0.92, 0.92, 0.92]"
           :wave-speed="0.05"

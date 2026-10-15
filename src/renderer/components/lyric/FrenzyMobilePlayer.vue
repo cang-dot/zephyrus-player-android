@@ -37,7 +37,7 @@
         @touchstart="onSwipeCloseTouchStart"
         @touchend="onSwipeCloseTouchEnd"
       >
-        <!-- CRT 故障背景层 -->
+        <!-- CRT 故障背景层（评论页全屏盖住播放面时暂停） -->
         <glitch-background
           baseColor="#f5f5f5"
           accentColor="#d0d0d0"
@@ -45,6 +45,7 @@
           :crtIntensity="crtIntensity"
           :speed="0.8"
           :showScanlines="effects.crt"
+          :active="!playerStore.fullCommentsVisible"
         />
 
         <!-- 高潮过渡闪光 -->
