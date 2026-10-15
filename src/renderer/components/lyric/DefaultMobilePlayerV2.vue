@@ -856,6 +856,11 @@ onBeforeUnmount(() => {
   padding-right: 24px;
 }
 
+/* 横屏 + 关闭歌词区域:折叠双列,封面/信息独占整行并居中(否则仍锁在 42% 左列) */
+.landscape .player-content.no-lyrics-zone {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .landscape.lyrics-expanded .player-content {
   grid-template-columns: minmax(0, 1fr);
 }
