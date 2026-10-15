@@ -191,6 +191,51 @@
             </button>
           </div>
         </div>
+        <label class="setting-row">
+          <span>{{ tr('player.styleCustomization.artworkShadow', '显示封面阴影') }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: local.artworkShadow !== false }"
+            role="switch"
+            :aria-checked="local.artworkShadow !== false"
+            @click.prevent="local.artworkShadow = local.artworkShadow === false"
+          >
+            <span></span>
+          </button>
+        </label>
+        <label class="range-row">
+          <span
+            >{{ tr('player.styleCustomization.artworkRadius', '大封面圆角') }}
+            {{ local.artworkRadius ?? 5 }}</span
+          >
+          <input
+            v-model.number="local.artworkRadius"
+            type="range"
+            min="0"
+            max="50"
+            step="1"
+            :disabled="local.vinylDisc === true"
+            :title="
+              local.vinylDisc === true
+                ? tr('player.styleCustomization.artworkRadiusLocked', '唱片型封面已锁定为圆形')
+                : undefined
+            "
+          />
+        </label>
+        <label class="setting-row">
+          <span>{{ tr('player.styleCustomization.vinylDisc', '唱片型封面') }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: local.vinylDisc === true }"
+            role="switch"
+            :aria-checked="local.vinylDisc === true"
+            @click.prevent="local.vinylDisc = local.vinylDisc !== true"
+          >
+            <span></span>
+          </button>
+        </label>
         <div class="setting-row">
           <span>{{ tr('player.styleCustomization.backgroundPreset', '背景预设') }}</span>
           <div class="segmented-control four-options">
@@ -258,14 +303,14 @@
           <label class="range-row">
             <span
               >{{ tr('player.styleCustomization.meshMaxFps', '背景帧率上限') }}
-              {{ local.meshMaxFps ?? 60 }}</span
+              {{ local.meshMaxFps ?? 30 }}</span
             >
             <input v-model.number="local.meshMaxFps" type="range" min="1" max="120" step="1" />
           </label>
           <label class="range-row">
             <span
               >{{ tr('player.styleCustomization.meshRenderScale', '渲染倍率') }}
-              {{ local.meshRenderScale ?? 1 }}</span
+              {{ local.meshRenderScale ?? 0.75 }}</span
             >
             <input
               v-model.number="local.meshRenderScale"
@@ -406,10 +451,7 @@
           <span>{{ tr('player.styleCustomization.lyricRecolor', '歌词变色') }}</span>
           <input v-model="local.effectLyricColor" type="checkbox" />
         </label>
-        <div
-          v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)"
-          class="setting-row"
-        >
+        <div v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)" class="setting-row">
           <span>{{ tr('player.styleCustomization.effectMode', '歌词字效') }}</span>
           <div class="segmented-control three-options">
             <button
@@ -469,214 +511,263 @@
           <i :class="showAdvancedParams ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"></i>
         </button>
         <div v-show="showAdvancedParams" class="advanced-params-body">
-      <label v-if="styleKey === 'stage'" class="range-row">
-        <span>Aurora {{ local.auroraSpeed }}</span>
-        <input v-model.number="local.auroraSpeed" type="range" min="0.4" max="2" step="0.1" />
-      </label>
-      <label v-if="styleKey === 'stage'" class="range-row">
-        <span
-          >{{ tr('player.styleCustomization.beatFlash', '鼓点闪白') }}
-          {{ local.beatFlashIntensity }}</span
-        >
-        <input v-model.number="local.beatFlashIntensity" type="range" min="0" max="1" step="0.05" />
-      </label>
-      <label v-if="styleKey === 'eerie'" class="range-row">
-        <span
-          >{{ tr('player.styleCustomization.newspaperFrequency', '报纸闪现频率') }}
-          {{ local.newspaperFreq }}ms</span
-        >
-        <input v-model.number="local.newspaperFreq" type="range" min="200" max="1000" step="100" />
-      </label>
-      <label v-if="styleKey === 'eerie'" class="range-row">
-        <span
-          >{{ tr('player.styleCustomization.keywordSize', '重点字字号') }}
-          {{ local.keywordSize }}</span
-        >
-        <input v-model.number="local.keywordSize" type="range" min="16" max="48" step="2" />
-      </label>
-      <label v-if="styleKey === 'neon'" class="range-row">
-        <span
-          >{{ tr('player.styleCustomization.glowRadius', '光晕半径') }} {{ local.glowRadius }}</span
-        >
-        <input v-model.number="local.glowRadius" type="range" min="4" max="30" step="2" />
-      </label>
-      <label v-if="styleKey === 'neon'" class="range-row">
-        <span
-          >{{ tr('player.styleCustomization.pulseSpeed', '脉冲速度') }} {{ local.pulseSpeed }}</span
-        >
-        <input v-model.number="local.pulseSpeed" type="range" min="0.5" max="3" step="0.1" />
-      </label>
-      <label v-if="styleKey === 'frenzy'" class="range-row">
-        <span
-          >{{ tr('player.styleCustomization.giantSize', '巨字字号') }} {{ local.giantSize }}</span
-        >
-        <input v-model.number="local.giantSize" type="range" min="40" max="120" step="5" />
-      </label>
-      <template v-if="styleKey === 'error'">
-        <label class="range-row">
-          <span
-            >{{ tr('player.styleCustomization.errorNoise', '噪点强度') }}
-            {{ Number(local.errorNoise ?? 0.5).toFixed(2) }}</span
-          >
-          <input v-model.number="local.errorNoise" type="range" min="0" max="1" step="0.05" />
-        </label>
-        <label class="range-row">
-          <span
-            >{{ tr('player.styleCustomization.errorJitter', '画面抖动') }}
-            {{ Number(local.errorJitter ?? 0.4).toFixed(2) }}</span
-          >
-          <input v-model.number="local.errorJitter" type="range" min="0" max="1" step="0.05" />
-        </label>
-        <label class="range-row">
-          <span
-            >{{ tr('player.styleCustomization.errorFlash', '错误爆发强度') }}
-            {{ Number(local.errorFlash ?? 0.6).toFixed(2) }}</span
-          >
-          <input v-model.number="local.errorFlash" type="range" min="0" max="1" step="0.05" />
-        </label>
-        <label class="range-row">
-          <span
-            >{{ tr('player.styleCustomization.errorFluidPower', '流体力度') }}
-            {{ Number(local.errorFluidPower ?? 1).toFixed(1) }}x</span
-          >
-          <input v-model.number="local.errorFluidPower" type="range" min="0.5" max="2" step="0.1" />
-        </label>
-        <label class="setting-row">
-          <span>{{ tr('player.styleCustomization.errorDecorMarks', '歌词装饰符号') }}</span>
-          <input v-model="local.errorDecorMarks" type="checkbox" />
-        </label>
-      </template>
-      <label v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)" class="range-row">
-        <span
-          >{{ tr('player.styleCustomization.wordDropFontWeight', '砸下巨字粗细') }}
-          {{ local.wordDropFontWeight }}</span
-        >
-        <input
-          v-model.number="local.wordDropFontWeight"
-          type="range"
-          min="100"
-          max="900"
-          step="50"
-        />
-      </label>
-      <template v-if="['frenzy', 'eerie', 'stage'].includes(styleKey)">
-        <label class="range-row">
-          <span
-            >{{ tr('player.styleCustomization.staggeredSize', '错落字号') }}
-            {{ local.staggeredSize }}</span
-          >
-          <input v-model.number="local.staggeredSize" type="range" min="24" max="96" step="2" />
-        </label>
-        <label class="range-row">
-          <span
-            >{{ tr('player.styleCustomization.staggeredRowGap', '错落行距') }}
-            {{ local.staggeredRowGap }}px</span
-          >
-          <input v-model.number="local.staggeredRowGap" type="range" min="8" max="48" step="2" />
-        </label>
-        <label class="range-row">
-          <span
-            >{{ tr('player.styleCustomization.staggeredOffset', 'Y 轴偏移') }}
-            {{ local.staggeredOffset }}px</span
-          >
-          <input v-model.number="local.staggeredOffset" type="range" min="0" max="30" step="1" />
-        </label>
-        <label class="range-row">
-          <span
-            >{{ tr('player.styleCustomization.staggeredRotation', '旋转偏移') }}
-            {{ local.staggeredRotation }}°</span
-          >
-          <input v-model.number="local.staggeredRotation" type="range" min="0" max="12" step="1" />
-        </label>
-      </template>
-      <template v-if="styleKey === 'smoke'">
-        <label class="setting-row">
-          <span>{{
-            tr('player.styleCustomization.smokeFollowThemeColor', '烟雾颜色跟随歌曲')
-          }}</span>
-          <button
-            type="button"
-            class="toggle-switch"
-            :class="{ on: local.smokeFollowThemeColor }"
-            role="switch"
-            :aria-checked="local.smokeFollowThemeColor"
-            @click.prevent="local.smokeFollowThemeColor = !local.smokeFollowThemeColor"
-          >
-            <span></span>
-          </button>
-        </label>
-        <label v-if="!local.smokeFollowThemeColor" class="setting-row">
-          <span>{{ tr('player.styleCustomization.smokeCustomColor', '自定义烟雾颜色') }}</span>
-          <AppColorPicker v-model="local.smokeCustomColor" />
-        </label>
-        <label class="setting-row">
-          <span>{{
-            tr('player.styleCustomization.smokeGlowFollowThemeColor', '高潮光晕跟随歌曲')
-          }}</span>
-          <button
-            type="button"
-            class="toggle-switch"
-            :class="{ on: local.smokeGlowFollowThemeColor }"
-            role="switch"
-            :aria-checked="local.smokeGlowFollowThemeColor"
-            @click.prevent="local.smokeGlowFollowThemeColor = !local.smokeGlowFollowThemeColor"
-          >
-            <span></span>
-          </button>
-        </label>
-        <label v-if="!local.smokeGlowFollowThemeColor" class="setting-row">
-          <span>{{
-            tr('player.styleCustomization.smokeGlowCustomColor', '自定义高潮光晕颜色')
-          }}</span>
-          <AppColorPicker v-model="local.smokeGlowCustomColor" />
-        </label>
-        <label class="range-row"
-          ><span
-            >{{ tr('player.styleCustomization.smokeDensity', '烟雾密度') }}
-            {{ local.smokeDensity }}</span
-          ><input v-model.number="local.smokeDensity" type="range" min="0.05" max="1" step="0.01"
-        /></label>
-        <label class="range-row"
-          ><span
-            >{{ tr('player.styleCustomization.smokeChaos', '烟雾混乱度') }}
-            {{ local.smokeChaos }}</span
-          ><input v-model.number="local.smokeChaos" type="range" min="0" max="1" step="0.01"
-        /></label>
-        <label class="range-row"
-          ><span
-            >{{ tr('player.styleCustomization.smokeLoudnessResponse', '响度响应') }}
-            {{ local.smokeLoudnessResponse }}</span
-          ><input
-            v-model.number="local.smokeLoudnessResponse"
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-        /></label>
-        <label class="range-row"
-          ><span
-            >{{ tr('player.styleCustomization.smokeOpacity', '烟雾透明度') }}
-            {{ local.smokeOpacity }}</span
-          ><input v-model.number="local.smokeOpacity" type="range" min="0.05" max="1" step="0.01"
-        /></label>
-        <label class="range-row"
-          ><span
-            >{{ tr('player.styleCustomization.smokeVignette', '高潮暗角') }}
-            {{ local.smokeVignette }}</span
-          ><input v-model.number="local.smokeVignette" type="range" min="0" max="1" step="0.01"
-        /></label>
-        <label class="range-row"
-          ><span
-            >{{ tr('player.styleCustomization.smokeFontStretch', '字体拉伸') }}
-            {{ local.smokeFontStretch }}</span
-          ><input
-            v-model.number="local.smokeFontStretch"
-            type="range"
-            min="0.75"
-            max="1.8"
-            step="0.01"
-        /></label>
-      </template>
+          <label v-if="styleKey === 'stage'" class="range-row">
+            <span>Aurora {{ local.auroraSpeed }}</span>
+            <input v-model.number="local.auroraSpeed" type="range" min="0.4" max="2" step="0.1" />
+          </label>
+          <label v-if="styleKey === 'stage'" class="range-row">
+            <span
+              >{{ tr('player.styleCustomization.beatFlash', '鼓点闪白') }}
+              {{ local.beatFlashIntensity }}</span
+            >
+            <input
+              v-model.number="local.beatFlashIntensity"
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+            />
+          </label>
+          <label v-if="styleKey === 'eerie'" class="range-row">
+            <span
+              >{{ tr('player.styleCustomization.newspaperFrequency', '报纸闪现频率') }}
+              {{ local.newspaperFreq }}ms</span
+            >
+            <input
+              v-model.number="local.newspaperFreq"
+              type="range"
+              min="200"
+              max="1000"
+              step="100"
+            />
+          </label>
+          <label v-if="styleKey === 'eerie'" class="range-row">
+            <span
+              >{{ tr('player.styleCustomization.keywordSize', '重点字字号') }}
+              {{ local.keywordSize }}</span
+            >
+            <input v-model.number="local.keywordSize" type="range" min="16" max="48" step="2" />
+          </label>
+          <label v-if="styleKey === 'neon'" class="range-row">
+            <span
+              >{{ tr('player.styleCustomization.glowRadius', '光晕半径') }}
+              {{ local.glowRadius }}</span
+            >
+            <input v-model.number="local.glowRadius" type="range" min="4" max="30" step="2" />
+          </label>
+          <label v-if="styleKey === 'neon'" class="range-row">
+            <span
+              >{{ tr('player.styleCustomization.pulseSpeed', '脉冲速度') }}
+              {{ local.pulseSpeed }}</span
+            >
+            <input v-model.number="local.pulseSpeed" type="range" min="0.5" max="3" step="0.1" />
+          </label>
+          <label v-if="styleKey === 'frenzy'" class="range-row">
+            <span
+              >{{ tr('player.styleCustomization.giantSize', '巨字字号') }}
+              {{ local.giantSize }}</span
+            >
+            <input v-model.number="local.giantSize" type="range" min="40" max="120" step="5" />
+          </label>
+          <template v-if="styleKey === 'error'">
+            <label class="range-row">
+              <span
+                >{{ tr('player.styleCustomization.errorNoise', '噪点强度') }}
+                {{ Number(local.errorNoise ?? 0.5).toFixed(2) }}</span
+              >
+              <input v-model.number="local.errorNoise" type="range" min="0" max="1" step="0.05" />
+            </label>
+            <label class="range-row">
+              <span
+                >{{ tr('player.styleCustomization.errorJitter', '画面抖动') }}
+                {{ Number(local.errorJitter ?? 0.4).toFixed(2) }}</span
+              >
+              <input v-model.number="local.errorJitter" type="range" min="0" max="1" step="0.05" />
+            </label>
+            <label class="range-row">
+              <span
+                >{{ tr('player.styleCustomization.errorFlash', '错误爆发强度') }}
+                {{ Number(local.errorFlash ?? 0.6).toFixed(2) }}</span
+              >
+              <input v-model.number="local.errorFlash" type="range" min="0" max="1" step="0.05" />
+            </label>
+            <label class="range-row">
+              <span
+                >{{ tr('player.styleCustomization.errorFluidPower', '流体力度') }}
+                {{ Number(local.errorFluidPower ?? 1).toFixed(1) }}x</span
+              >
+              <input
+                v-model.number="local.errorFluidPower"
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.1"
+              />
+            </label>
+            <label class="setting-row">
+              <span>{{ tr('player.styleCustomization.errorDecorMarks', '歌词装饰符号') }}</span>
+              <input v-model="local.errorDecorMarks" type="checkbox" />
+            </label>
+          </template>
+          <label v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)" class="range-row">
+            <span
+              >{{ tr('player.styleCustomization.wordDropFontWeight', '砸下巨字粗细') }}
+              {{ local.wordDropFontWeight }}</span
+            >
+            <input
+              v-model.number="local.wordDropFontWeight"
+              type="range"
+              min="100"
+              max="900"
+              step="50"
+            />
+          </label>
+          <template v-if="['frenzy', 'eerie', 'stage'].includes(styleKey)">
+            <label class="range-row">
+              <span
+                >{{ tr('player.styleCustomization.staggeredSize', '错落字号') }}
+                {{ local.staggeredSize }}</span
+              >
+              <input v-model.number="local.staggeredSize" type="range" min="24" max="96" step="2" />
+            </label>
+            <label class="range-row">
+              <span
+                >{{ tr('player.styleCustomization.staggeredRowGap', '错落行距') }}
+                {{ local.staggeredRowGap }}px</span
+              >
+              <input
+                v-model.number="local.staggeredRowGap"
+                type="range"
+                min="8"
+                max="48"
+                step="2"
+              />
+            </label>
+            <label class="range-row">
+              <span
+                >{{ tr('player.styleCustomization.staggeredOffset', 'Y 轴偏移') }}
+                {{ local.staggeredOffset }}px</span
+              >
+              <input
+                v-model.number="local.staggeredOffset"
+                type="range"
+                min="0"
+                max="30"
+                step="1"
+              />
+            </label>
+            <label class="range-row">
+              <span
+                >{{ tr('player.styleCustomization.staggeredRotation', '旋转偏移') }}
+                {{ local.staggeredRotation }}°</span
+              >
+              <input
+                v-model.number="local.staggeredRotation"
+                type="range"
+                min="0"
+                max="12"
+                step="1"
+              />
+            </label>
+          </template>
+          <template v-if="styleKey === 'smoke'">
+            <label class="setting-row">
+              <span>{{
+                tr('player.styleCustomization.smokeFollowThemeColor', '烟雾颜色跟随歌曲')
+              }}</span>
+              <button
+                type="button"
+                class="toggle-switch"
+                :class="{ on: local.smokeFollowThemeColor }"
+                role="switch"
+                :aria-checked="local.smokeFollowThemeColor"
+                @click.prevent="local.smokeFollowThemeColor = !local.smokeFollowThemeColor"
+              >
+                <span></span>
+              </button>
+            </label>
+            <label v-if="!local.smokeFollowThemeColor" class="setting-row">
+              <span>{{ tr('player.styleCustomization.smokeCustomColor', '自定义烟雾颜色') }}</span>
+              <AppColorPicker v-model="local.smokeCustomColor" />
+            </label>
+            <label class="setting-row">
+              <span>{{
+                tr('player.styleCustomization.smokeGlowFollowThemeColor', '高潮光晕跟随歌曲')
+              }}</span>
+              <button
+                type="button"
+                class="toggle-switch"
+                :class="{ on: local.smokeGlowFollowThemeColor }"
+                role="switch"
+                :aria-checked="local.smokeGlowFollowThemeColor"
+                @click.prevent="local.smokeGlowFollowThemeColor = !local.smokeGlowFollowThemeColor"
+              >
+                <span></span>
+              </button>
+            </label>
+            <label v-if="!local.smokeGlowFollowThemeColor" class="setting-row">
+              <span>{{
+                tr('player.styleCustomization.smokeGlowCustomColor', '自定义高潮光晕颜色')
+              }}</span>
+              <AppColorPicker v-model="local.smokeGlowCustomColor" />
+            </label>
+            <label class="range-row"
+              ><span
+                >{{ tr('player.styleCustomization.smokeDensity', '烟雾密度') }}
+                {{ local.smokeDensity }}</span
+              ><input
+                v-model.number="local.smokeDensity"
+                type="range"
+                min="0.05"
+                max="1"
+                step="0.01"
+            /></label>
+            <label class="range-row"
+              ><span
+                >{{ tr('player.styleCustomization.smokeChaos', '烟雾混乱度') }}
+                {{ local.smokeChaos }}</span
+              ><input v-model.number="local.smokeChaos" type="range" min="0" max="1" step="0.01"
+            /></label>
+            <label class="range-row"
+              ><span
+                >{{ tr('player.styleCustomization.smokeLoudnessResponse', '响度响应') }}
+                {{ local.smokeLoudnessResponse }}</span
+              ><input
+                v-model.number="local.smokeLoudnessResponse"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+            /></label>
+            <label class="range-row"
+              ><span
+                >{{ tr('player.styleCustomization.smokeOpacity', '烟雾透明度') }}
+                {{ local.smokeOpacity }}</span
+              ><input
+                v-model.number="local.smokeOpacity"
+                type="range"
+                min="0.05"
+                max="1"
+                step="0.01"
+            /></label>
+            <label class="range-row"
+              ><span
+                >{{ tr('player.styleCustomization.smokeVignette', '高潮暗角') }}
+                {{ local.smokeVignette }}</span
+              ><input v-model.number="local.smokeVignette" type="range" min="0" max="1" step="0.01"
+            /></label>
+            <label class="range-row"
+              ><span
+                >{{ tr('player.styleCustomization.smokeFontStretch', '字体拉伸') }}
+                {{ local.smokeFontStretch }}</span
+              ><input
+                v-model.number="local.smokeFontStretch"
+                type="range"
+                min="0.75"
+                max="1.8"
+                step="0.01"
+            /></label>
+          </template>
         </div>
       </div>
     </div>

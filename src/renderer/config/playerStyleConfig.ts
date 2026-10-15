@@ -37,6 +37,9 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     showLyricsZone: true,
     artworkSize: 100,
     artworkAlign: 'center',
+    artworkShadow: true,
+    artworkRadius: 5,
+    vinylDisc: false,
     backgroundPreset: 'none',
     auroraSpeed: 0.8,
     auroraPosition: 'top',
@@ -291,6 +294,12 @@ export function resolvePlayerStyleConfig(
   if (!['start', 'center', 'end'].includes(String(config.artworkAlign))) {
     config.artworkAlign = 'center';
   }
+  config.artworkShadow = config.artworkShadow !== false;
+  config.artworkRadius = Math.min(
+    50,
+    Math.max(0, Number.isFinite(Number(config.artworkRadius)) ? Number(config.artworkRadius) : 5)
+  );
+  config.vinylDisc = config.vinylDisc === true;
   if (!['none', 'aurora', 'fluid', 'mesh'].includes(String(config.backgroundPreset))) {
     config.backgroundPreset = 'none';
   }

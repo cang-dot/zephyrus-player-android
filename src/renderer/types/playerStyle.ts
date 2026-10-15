@@ -115,6 +115,12 @@ export interface PlayerStyleCustomConfig {
   artworkSize?: number;
   /** 默认样式：封面块对齐 */
   artworkAlign?: 'start' | 'center' | 'end';
+  /** 默认样式：大封面阴影开关 */
+  artworkShadow?: boolean;
+  /** 默认样式：大封面圆角 0-50（百分比语义，50=圆形） */
+  artworkRadius?: number;
+  /** 默认样式：唱片型封面（锁定圆形、封面缩小、外围黑胶刻纹圈） */
+  vinylDisc?: boolean;
   /** 默认样式：背景预设（后续可扩展 vuebits 背景板块；mesh 为 AMLL 音频响应网格） */
   backgroundPreset?: 'none' | 'aurora' | 'fluid' | 'mesh';
   /** 网格背景：最高帧率 1-120 */

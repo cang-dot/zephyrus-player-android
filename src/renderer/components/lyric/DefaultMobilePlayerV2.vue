@@ -111,8 +111,11 @@
             <default-player-artwork
               :source="coverUrl"
               :title="playMusic?.name || 'Zephyrus'"
-              mode="full"
+              :mode="vinylDisc ? 'record' : 'full'"
               :playing="isPlaying"
+              :radius="vinylDisc ? 50 : artworkRadius"
+              :shadow="artworkShadow"
+              :vinyl-tint="vinylTint"
               :style="[artworkTransitionStyle, artworkFrameStyle]"
             />
           </div>
@@ -123,7 +126,18 @@
                 :song-id="playMusic?.id"
                 hide-suffix
             /></strong>
-            <span v-if="artistText" class="artwork-info-artist">{{ artistText }}</span>
+            <span v-if="artistText" class="artwork-info-artist">
+              <template v-for="(artist, index) in artistList" :key="`${artist.id}-${index}`">
+                <button
+                  type="button"
+                  class="artwork-info-artist-link"
+                  @click.stop="handleArtistClick(artist)"
+                >
+                  {{ artist.name }}
+                </button>
+                <span v-if="index < artistList.length - 1" class="artwork-info-artist-sep">/</span>
+              </template>
+            </span>
           </div>
         </div>
 
@@ -190,6 +204,8 @@ import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { MESH_DEFAULT_MAX_FPS, MESH_DEFAULT_RENDER_SCALE } from '@/config/playerStyleConfig';
 import { artistList, lrcArray, playMusic, textColors } from '@/hooks/MusicHook';
+import { useArtist } from '@/hooks/useArtist';
+import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
 import { usePlayerStore } from '@/store/modules/player';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import type { AuroraPosition } from '@/types/playerStyle';
@@ -245,6 +261,12 @@ const artworkAlign = computed(() => {
     | 'center'
     | 'end';
 });
+const artworkShadow = computed(() => styleCustom.value.artworkShadow !== false);
+const artworkRadius = computed(() => {
+  const value = Number(styleCustom.value.artworkRadius);
+  return Number.isFinite(value) ? Math.min(50, Math.max(0, value)) : 5;
+});
+const vinylDisc = computed(() => styleCustom.value.vinylDisc === true);
 const backgroundPreset = computed(() => {
   const value = String(styleCustom.value.backgroundPreset);
   return (['none', 'aurora', 'fluid', 'mesh'].includes(value) ? value : 'none') as
@@ -328,6 +350,11 @@ function rgbToHex(r: number, g: number, b: number) {
 const themeRgb = computed(
   () => parseRepresentativeCssColor(tweenedBackgroundColor.value) || { r: 23, g: 23, b: 23 }
 );
+/** 黑胶圈染色:跟随 600ms 渐变后的封面代表色,与播放器底色同源 */
+const vinylTint = computed(() => {
+  const { r, g, b } = themeRgb.value;
+  return `${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}`;
+});
 const auroraColorStops = computed(() => {
   const { r, g, b } = themeRgb.value;
   const mix = (t: number, tr: number, tg: number, tb: number) =>
@@ -501,6 +528,22 @@ function closePlayer() {
   });
 }
 
+const { navigateToArtist } = useArtist();
+const { navigate } = useOverlayNavigate();
+
+/** 信息区作者名跳歌手页：先收起播放器（与 MusicFull 同策略），跨平台 mid 带平台 query */
+function handleArtistClick(artist: { id: number | string; name?: string }) {
+  const id = artist?.id;
+  if (id === undefined || id === null || id === '') return;
+  const platform = (playMusic.value as { platform?: string } | undefined)?.platform;
+  closePlayer();
+  if (platform && platform !== 'netease' && typeof id === 'string' && !/^\d+$/.test(id)) {
+    navigate(`/artist/detail/${id}?platform=qq&name=${encodeURIComponent(artist.name || '')}`);
+    return;
+  }
+  navigateToArtist(Number(id), { name: artist.name || '' });
+}
+
 function commitLyricsExpanded(value: boolean) {
   lyricsExpanded.value = value;
   playerStore.setFullLyricsVisible(value);
@@ -660,6 +703,25 @@ onBeforeUnmount(() => {
   color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.62);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 作者名可点跳歌手页:容器整体 pointer-events:none(歌词手势区),仅按钮放行 */
+.artwork-info-artist-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  pointer-events: auto;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.artwork-info-artist-sep {
+  margin: 0 4px;
 }
 
 .background-preset-layer {
