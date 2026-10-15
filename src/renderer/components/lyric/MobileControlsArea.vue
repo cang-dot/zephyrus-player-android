@@ -20,6 +20,7 @@
     <div
       class="player-info-row"
       :class="{ 'info-compact': defaultStyleCompact }"
+      :style="immersiveRowStyle"
     >
       <div
         v-if="!defaultStyleCompact"
@@ -183,6 +184,13 @@ import { useI18n } from 'vue-i18n';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import { useControlsDock } from '@/composables/useControlsDock';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
+import {
+  prefersReducedMotion,
+  projectMomentum,
+  requestImmersiveOpen,
+  springTo,
+  useImmersiveLyrics
+} from '@/composables/useImmersiveLyrics';
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import {
   allTime,
@@ -338,7 +346,8 @@ const refreshPinned = () => {
     const raw = localStorage.getItem('music-full-config');
     const cfg = raw ? JSON.parse(raw) : {};
     controlsPinned.value = cfg.alwaysShowPlayerControls === true;
-    defaultStyleCompact.value = props.sharedSurface === true && (cfg.playerStyle || 'default') === 'default';
+    defaultStyleCompact.value =
+      props.sharedSurface === true && (cfg.playerStyle || 'default') === 'default';
   } catch {
     controlsPinned.value = false;
   }
@@ -485,6 +494,12 @@ const onInfoPointerDown = (event: PointerEvent) => {
   infoStartY = event.clientY;
   infoStartTime = Date.now();
   infoAxis = 'none';
+  // 上拉唤起手势与横滑切歌共用指针，按轴分工（vertical → rise）
+  riseCancelSpring?.();
+  riseCancelSpring = null;
+  riseGestureDriving.value = false;
+  riseLastY = event.clientY;
+  riseSamples = [];
 };
 
 const onInfoPointerMove = (event: PointerEvent) => {
@@ -493,6 +508,10 @@ const onInfoPointerMove = (event: PointerEvent) => {
   const deltaY = event.clientY - infoStartY;
   if (infoAxis === 'none' && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
     infoAxis = Math.abs(deltaX) > Math.abs(deltaY) * 1.08 ? 'horizontal' : 'vertical';
+  }
+  if (infoAxis === 'vertical') {
+    onInfoRiseMove(event);
+    return;
   }
   if (infoAxis !== 'horizontal') return;
   if (!(event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) {
@@ -505,6 +524,7 @@ const onInfoPointerMove = (event: PointerEvent) => {
 
 const onInfoPointerUp = (event: PointerEvent) => {
   if (infoPointerId !== event.pointerId) return;
+  const wasRise = riseGestureDriving.value;
   const deltaX = event.clientX - infoStartX;
   const elapsed = Math.max(1, Date.now() - infoStartTime);
   const projectedX = deltaX + (deltaX / elapsed) * 110;
@@ -512,9 +532,14 @@ const onInfoPointerUp = (event: PointerEvent) => {
   const commitThreshold = Math.min(40, Math.max(32, swipeLimit));
   const projectedThreshold = Math.min(58, Math.max(48, swipeLimit * 1.45));
   const commit =
+    !wasRise &&
     infoAxis === 'horizontal' &&
     (Math.abs(deltaX) >= commitThreshold || Math.abs(projectedX) >= projectedThreshold);
   releaseInfoPointer(event);
+  if (wasRise) {
+    settleImmersiveRise(false);
+    return;
+  }
   if (commit) switchTrackWithAnimation(deltaX < 0 ? 'left' : 'right');
   else finishInfoSwipeAnimation();
 };
@@ -522,11 +547,108 @@ const onInfoPointerUp = (event: PointerEvent) => {
 const onInfoPointerCancel = (event: PointerEvent) => {
   if (infoPointerId !== event.pointerId) return;
   releaseInfoPointer(event);
+  if (riseGestureDriving.value) {
+    settleImmersiveRise(true);
+    return;
+  }
   finishInfoSwipeAnimation();
 };
 
+// ── 信息栏上拉唤起沉浸歌词（其他样式；进度写入 useImmersiveLyrics 单一真值）──
+const immersive = useImmersiveLyrics();
+const riseGestureDriving = ref(false);
+let riseCancelSpring: (() => void) | null = null;
+let riseLastY = 0;
+let riseSamples: { y: number; time: number }[] = [];
+
+const riseDistance = () => Math.max(180, Math.min(280, window.innerHeight * 0.28));
+
+const canRise = () =>
+  props.sharedSurface === true &&
+  !defaultStyleCompact.value &&
+  !playerStore.fullLyricsVisible &&
+  immersive.progress.value <= 0.01;
+
+function riseVelocity(): number {
+  if (riseSamples.length < 2) return 0;
+  const last = riseSamples[riseSamples.length - 1];
+  const first = riseSamples.find((s) => last.time - s.time <= 90) || riseSamples[0];
+  return ((first.y - last.y) / Math.max(1, last.time - first.time)) * 1000;
+}
+
+function onInfoRiseMove(event: PointerEvent) {
+  if (!canRise()) return;
+  const target = event.currentTarget as HTMLElement;
+  if (!target.hasPointerCapture(event.pointerId)) {
+    try {
+      target.setPointerCapture(event.pointerId);
+    } catch {
+      /* 老内核可能不支持，忽略 */
+    }
+  }
+  event.preventDefault();
+  if (!riseGestureDriving.value) {
+    riseGestureDriving.value = true;
+    immersive.variant.value = 'rise';
+  }
+  riseSamples.push({ y: event.clientY, time: event.timeStamp || performance.now() });
+  if (riseSamples.length > 6) riseSamples.shift();
+  const step = riseLastY - event.clientY;
+  riseLastY = event.clientY;
+  if (step === 0) return;
+  // 只向上累加；起点边界不弹（下方没有可揭示的内容）
+  immersive.progress.value = Math.min(1, immersive.progress.value + step / riseDistance());
+}
+
+/** 松手：按动量投影决定提交，速度交接给弹簧（apple-design §5/§6） */
+function settleImmersiveRise(cancelled: boolean) {
+  riseGestureDriving.value = false;
+  const start = immersive.progress.value;
+  const velocity = cancelled ? 0 : riseVelocity();
+  const projected = start + projectMomentum(velocity) / riseDistance();
+  const commit = projected >= 0.55 || velocity > 620;
+  if (prefersReducedMotion()) {
+    immersive.progress.value = commit ? 1 : 0;
+    if (commit) requestImmersiveOpen();
+    return;
+  }
+  riseCancelSpring = springTo(
+    (value) => {
+      immersive.progress.value = value;
+    },
+    start,
+    commit ? 1 : 0,
+    velocity / riseDistance(),
+    () => {
+      riseCancelSpring = null;
+      if (commit) requestImmersiveOpen();
+    }
+  );
+}
+
+/**
+ * 信息栏让位：默认样式（紧凑按钮行）右移出屏迁往顶栏；
+ * 其他样式整体上移（与顶栏交叉淡入完成 morph）。进度为跨组件单一真值。
+ */
+const immersiveRowStyle = computed(() => {
+  const p = immersive.progress.value;
+  if (p <= 0.001) return undefined;
+  const base: Record<string, string> = { transition: 'none' };
+  if (p > 0.5) base.pointerEvents = 'none';
+  if (defaultStyleCompact.value) {
+    base.transform = `translate3d(${(p * 130).toFixed(1)}%, 0, 0)`;
+    base.opacity = String(Math.max(0, 1 - p * 1.15));
+  } else {
+    base.transform = `translate3d(0, ${(-p * 140).toFixed(1)}px, 0)`;
+    base.opacity = String(Math.max(0, 1 - p * 0.9));
+  }
+  return base;
+});
+
 onBeforeUnmount(() => {
   if (infoSwipeTimer) window.clearTimeout(infoSwipeTimer);
+  riseCancelSpring?.();
+  riseCancelSpring = null;
   document.removeEventListener('mousemove', handleMouseMove);
   document.removeEventListener('mouseup', handleMouseUp);
 });
@@ -780,6 +902,8 @@ const handleThumbTouchEnd = () => {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+  /* 竖直上拉唤起沉浸歌词：阻止浏览器把手势判给滚动 */
+  touch-action: none;
 }
 
 /* default 样式共享底面:去掉信息主体后整行右对齐收窄,只留收藏/更多 */

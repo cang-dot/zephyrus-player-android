@@ -158,24 +158,32 @@
 
         <!-- 半透明遮罩 + 滚动歌词 -->
         <div
-          v-show="showFullLyrics || lyricsSwipePreview"
+          v-show="showFullLyrics || lyricsSwipePreview || risePreviewing"
           class="lyrics-mask"
-          :style="lyricsBackdropStyle"
-          @click="closeLyricsAnimated"
+          :style="riseMaskStyle || lyricsBackdropStyle"
+          @click="closeImmersive"
         ></div>
         <mobile-comments-overlay :gesture="commentsSwipe" />
         <div
-          v-show="showFullLyrics || lyricsSwipePreview"
+          v-show="showFullLyrics || lyricsSwipePreview || risePreviewing"
           class="scrolling-lyrics-overlay"
-          :style="lyricsOverlayStyle"
+          :style="riseOverlayStyle || lyricsOverlayStyle"
         >
           <mobile-scrolling-lyrics
             class="scrolling-lyrics-content"
             :back-closes="showFullLyrics"
-            :active="showFullLyrics || lyricsSwipePreview"
-            @close="closeLyricsAnimated"
+            :active="showFullLyrics || lyricsSwipePreview || risePreviewing"
+            @close="closeImmersive"
             @interact="showControls"
             @generatePoster="handleGeneratePoster"
+          />
+          <!-- 沉浸歌词顶部栏：小封面 + 歌名/作者 + 收藏/更多 -->
+          <lyric-immersive-header
+            :cover-url="playMusic?.picUrl || ''"
+            :title="playMusic?.name || 'Zephyrus'"
+            :progress="immersiveProgress"
+            entrance="rise"
+            @show-settings="showPlayerSettings = true"
           />
         </div>
 
@@ -196,7 +204,7 @@
         <mobile-controls-area
           :visible="controlsVisible"
           :is-fullscreen="showFullLyrics"
-          @close="closeLyricsAnimated"
+          @close="closeImmersive"
           @showPlaylist="openPlaylist"
           @show-settings="showPlayerSettings = true"
           @interact="showControls"
@@ -233,6 +241,7 @@ import { computed, onBeforeUnmount, ref } from 'vue';
 
 import MobileCommentsOverlay from '@/components/comment/MobileCommentsOverlay.vue';
 import CoverRipple from '@/components/lyric/CoverRipple.vue';
+import LyricImmersiveHeader from '@/components/lyric/LyricImmersiveHeader.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import RainCanvas from '@/components/lyric/RainCanvas.vue';
@@ -241,6 +250,7 @@ import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
+import { useStyleImmersiveLyrics } from '@/composables/useImmersiveLyrics';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
@@ -302,8 +312,7 @@ const {
   onPointerMove: onLyricsSwipePointerMove,
   onPointerUp: onLyricsSwipePointerUp,
   onPointerCancel: onLyricsSwipePointerCancel,
-  animateOpen: openLyricsAnimated,
-  animateClose: closeLyricsAnimated
+  animateOpen: openLyricsAnimated
 } = useLyricSwipeGesture({
   isOpen: () => showFullLyrics.value,
   suppressed: () => playerStore.fullCommentsVisible,
@@ -312,10 +321,20 @@ const {
     playerStore.setFullLyricsVisible(true);
   },
   onClose: () => {
+    resetOnGestureClose();
     showFullLyrics.value = false;
     playerStore.setFullLyricsVisible(false);
   }
 });
+// 沉浸歌词 rise 路径：信息栏上拉手势经共享模块调起，关闭下沉镜像；横滑路径保持现状
+const {
+  risePreviewing,
+  immersiveProgress,
+  riseOverlayStyle,
+  riseMaskStyle,
+  closeImmersive,
+  resetOnGestureClose
+} = useStyleImmersiveLyrics({ showFullLyrics, openAnimated: openLyricsAnimated });
 const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({
   shouldClose: () =>
     !showFullLyrics.value && !playerStore.fullCommentsVisible && !isLandscape.value,
