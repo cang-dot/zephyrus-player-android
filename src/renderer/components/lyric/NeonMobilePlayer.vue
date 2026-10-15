@@ -96,6 +96,7 @@
           :style="riseOverlayStyle || lyricsOverlayStyle"
         >
           <mobile-scrolling-lyrics
+            v-if="immersiveSurfaceMode === 'lyrics'"
             class="scrolling-lyrics-content"
             :back-closes="showFullLyrics"
             :active="showFullLyrics || lyricsSwipePreview || risePreviewing"
@@ -103,14 +104,39 @@
             @interact="showControls"
             @generatePoster="handleGeneratePoster"
           />
-          <!-- 沉浸歌词顶部栏：小封面 + 歌名/作者 + 收藏/更多 -->
-          <lyric-immersive-header
-            :cover-url="playMusic?.picUrl || ''"
-            :title="playMusic?.name || 'Zephyrus'"
-            :progress="immersiveProgress"
-            entrance="rise"
-            @show-settings="showPlayerSettings = true"
+          <!-- 沉浸态内容区替换：设置/播放列表就地取代歌词区（按钮为切换型） -->
+          <div
+            v-else-if="showFullLyrics && immersiveSurfaceMode === 'settings'"
+            class="immersive-panel"
+          >
+            <mobile-player-settings
+              embedded
+              :visible="true"
+              @update:visible="toggleImmersiveSurface('settings')"
+            />
+          </div>
+          <playing-list-drawer
+            v-else-if="showFullLyrics && immersiveSurfaceMode === 'playlist'"
+            embedded
+            class="immersive-panel"
           />
+          <!-- 沉浸歌词顶部栏：让位顶部关闭条，显隐随控件栏 -->
+          <div
+            class="immersive-header-wrap"
+            :class="{
+              'header-hidden':
+                showFullLyrics && !controlsVisible && !lyricsSwipePreview && !risePreviewing
+            }"
+          >
+            <lyric-immersive-header
+              :cover-url="playMusic?.picUrl || ''"
+              :title="playMusic?.name || 'Zephyrus'"
+              :progress="immersiveProgress"
+              :settings-active="immersiveSurfaceMode === 'settings'"
+              entrance="rise"
+              @show-settings="toggleImmersiveSurface('settings')"
+            />
+          </div>
         </div>
 
         <!-- 底部控件（3秒自动隐藏） -->
@@ -145,9 +171,14 @@ import LyricImmersiveHeader from '@/components/lyric/LyricImmersiveHeader.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
+import PlayingListDrawer from '@/components/player/PlayingListDrawer.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
-import { useStyleImmersiveLyrics } from '@/composables/useImmersiveLyrics';
+import {
+  immersiveSurfaceMode,
+  toggleImmersiveSurface,
+  useStyleImmersiveLyrics
+} from '@/composables/useImmersiveLyrics';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
@@ -199,6 +230,7 @@ const {
   onOpen: () => {
     showFullLyrics.value = true;
     playerStore.setFullLyricsVisible(true);
+    showControls();
   },
   onClose: () => {
     resetOnGestureClose();

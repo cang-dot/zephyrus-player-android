@@ -577,7 +577,13 @@ function riseVelocity(): number {
 }
 
 function onInfoRiseMove(event: PointerEvent) {
-  if (!canRise()) return;
+  // canRise 只作首次激活门槛（含 progress≈0 检查）——若在每次 move 重查，
+  // 起步几像素后 progress>0.01 会把后续拖拽全部拒掉，表现为"滑一段就卡死"
+  if (!riseGestureDriving.value) {
+    if (!canRise()) return;
+    riseGestureDriving.value = true;
+    immersive.variant.value = 'rise';
+  }
   const target = event.currentTarget as HTMLElement;
   if (!target.hasPointerCapture(event.pointerId)) {
     try {
@@ -587,10 +593,6 @@ function onInfoRiseMove(event: PointerEvent) {
     }
   }
   event.preventDefault();
-  if (!riseGestureDriving.value) {
-    riseGestureDriving.value = true;
-    immersive.variant.value = 'rise';
-  }
   riseSamples.push({ y: event.clientY, time: event.timeStamp || performance.now() });
   if (riseSamples.length > 6) riseSamples.shift();
   const step = riseLastY - event.clientY;
@@ -607,9 +609,25 @@ function settleImmersiveRise(cancelled: boolean) {
   const velocity = cancelled ? 0 : riseVelocity();
   const projected = start + projectMomentum(velocity) / riseDistance();
   const commit = projected >= 0.55 || velocity > 620;
+  // opener 缺失（重挂竞态等）：回弹归零，避免停在半开状态
+  const openOrBounceBack = () => {
+    if (requestImmersiveOpen()) return;
+    if (prefersReducedMotion()) {
+      immersive.progress.value = 0;
+      return;
+    }
+    springTo(
+      (value) => {
+        immersive.progress.value = value;
+      },
+      immersive.progress.value,
+      0,
+      0
+    );
+  };
   if (prefersReducedMotion()) {
     immersive.progress.value = commit ? 1 : 0;
-    if (commit) requestImmersiveOpen();
+    if (commit) openOrBounceBack();
     return;
   }
   riseCancelSpring = springTo(
@@ -621,7 +639,7 @@ function settleImmersiveRise(cancelled: boolean) {
     velocity / riseDistance(),
     () => {
       riseCancelSpring = null;
-      if (commit) requestImmersiveOpen();
+      if (commit) openOrBounceBack();
     }
   );
 }

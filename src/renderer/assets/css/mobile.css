@@ -131,6 +131,36 @@
   border-bottom-color: transparent;
 }
 
+/* ==================== 沉浸歌词页 ==================== */
+/* 顶部栏包装层：让位于样式组件的顶部关闭条（.top-controls，safe+16 起 40px 高），
+   显隐与底部控件栏联动（.header-hidden 由组件按 controlsVisible 绑定） */
+.immersive-header-wrap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  padding-top: calc(var(--safe-area-inset-top, 0px) + 66px);
+  pointer-events: none;
+  transition:
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 240ms ease;
+}
+
+.immersive-header-wrap.header-hidden {
+  transform: translate3d(0, -120%, 0);
+  opacity: 0;
+}
+
+/* 沉浸页内容区替换面板（设置/播放列表）——实色底，遵循全库禁新增 backdrop-filter */
+.immersive-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  background: #161618;
+}
+
 .mobile .mobile-header .logo-text {
   font-family: var(--m-font-serif);
   font-weight: 700;

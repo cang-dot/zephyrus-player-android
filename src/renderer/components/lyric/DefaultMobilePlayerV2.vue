@@ -150,31 +150,50 @@
           :style="lyricsSwipePreview ? lyricsOverlayStyle : undefined"
           @dblclick.stop="toggleLyricsExpanded"
         >
-          <mobile-scrolling-lyrics
-            v-if="lrcArray.length"
-            class="default-scrolling-lyrics"
-            :active="true"
-            :back-closes="lyricsExpanded"
-            @close="handleLyricsSurfaceClose"
-            @interact="playerTransition.showControls()"
-            @generate-poster="handleGeneratePoster"
+          <template v-if="immersiveSurfaceMode === 'lyrics' || !lyricsExpanded">
+            <mobile-scrolling-lyrics
+              v-if="lrcArray.length"
+              class="default-scrolling-lyrics"
+              :active="true"
+              :back-closes="lyricsExpanded"
+              @close="handleLyricsSurfaceClose"
+              @interact="playerTransition.showControls()"
+              @generate-poster="handleGeneratePoster"
+            />
+            <button v-else type="button" class="empty-lyrics" @click.stop="toggleLyricsExpanded">
+              {{ t('player.lrc.noLrc') }}
+            </button>
+          </template>
+          <!-- 沉浸态内容区替换：设置/播放列表就地取代歌词区，按钮为切换型 -->
+          <mobile-player-settings
+            v-else-if="lyricsExpanded && immersiveSurfaceMode === 'settings'"
+            embedded
+            :visible="true"
+            @update:visible="toggleImmersiveSurface('settings')"
           />
-          <button v-else type="button" class="empty-lyrics" @click.stop="toggleLyricsExpanded">
-            {{ t('player.lrc.noLrc') }}
-          </button>
+          <playing-list-drawer
+            v-else-if="lyricsExpanded && immersiveSurfaceMode === 'playlist'"
+            embedded
+          />
         </div>
 
-        <!-- 沉浸歌词顶栏（morph=封面/信息飞入；top-in=整栏自上滑入；C 降级仅剩按钮行） -->
-        <lyric-immersive-header
+        <!-- 沉浸歌词顶栏：整体位于顶部关闭条之下，显隐随底部控件栏（controlsShown） -->
+        <div
           v-if="headerVisible"
-          :cover-url="coverUrl"
-          :title="playMusic?.name || ''"
-          :show-cover="showArtwork"
-          :show-info="showTrackInfo"
-          :progress="immersiveProgress"
-          :entrance="headerEntrance"
-          @show-settings="handleHeaderSettings"
-        />
+          class="immersive-header-wrap"
+          :class="{ 'header-hidden': lyricsExpanded && !controlsShown && !lyricsSwipePreview }"
+        >
+          <lyric-immersive-header
+            :cover-url="coverUrl"
+            :title="playMusic?.name || ''"
+            :show-cover="showArtwork"
+            :show-info="showTrackInfo"
+            :progress="immersiveProgress"
+            :entrance="headerEntrance"
+            :settings-active="immersiveSurfaceMode === 'settings'"
+            @show-settings="toggleImmersiveSurface('settings')"
+          />
+        </div>
         <!-- 封面克隆飞行层：预览期从大封面矩形飞向顶栏槽位，落定后由顶栏封面接管 -->
         <div
           v-if="coverCloneVisible"
@@ -205,7 +224,7 @@
 
 <script setup lang="ts">
 import { useWindowSize } from '@vueuse/core';
-import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import Aurora from '@/components/Aurora.vue';
@@ -213,10 +232,17 @@ import MobileCommentsOverlay from '@/components/comment/MobileCommentsOverlay.vu
 import SongTitleText from '@/components/common/SongTitleText.vue';
 import LyricImmersiveHeader from '@/components/lyric/LyricImmersiveHeader.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
+import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
+import PlayingListDrawer from '@/components/player/PlayingListDrawer.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
-import { resetImmersiveLyrics, useImmersiveLyrics } from '@/composables/useImmersiveLyrics';
+import {
+  immersiveSurfaceMode,
+  resetImmersiveLyrics,
+  toggleImmersiveSurface,
+  useImmersiveLyrics
+} from '@/composables/useImmersiveLyrics';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
@@ -420,11 +446,8 @@ const artworkTriggerRef = ref<HTMLElement | null>(null);
 const zoneGeometry = ref<{ originY: number; scaleX: number; scaleY: number } | null>(null);
 
 // 歌词区域开启 → 由小歌词区容器变换放大（scale）；关闭 → 保持横滑（slide）。
-// 三页布局（评论区参与横向分页）时强制 slide，容器变换会与分页语义冲突。
-const lyricsArrival = computed<'scale' | 'slide'>(() => {
-  if (config.value.showCommentSection === true) return 'slide';
-  return showLyricsZone.value ? 'scale' : 'slide';
-});
+// 评论三页开启时同样走 scale：横滑语义只属于歌词↔播放页导航，与放大入场不冲突。
+const lyricsArrival = computed<'scale' | 'slide'>(() => (showLyricsZone.value ? 'scale' : 'slide'));
 // 封面或信息任一开启 → 顶栏由大封面/信息 morph 而来；都关 → 顶栏整体自上滑入（降级）
 const headerEntrance = computed<'morph' | 'top-in'>(() =>
   showArtwork.value || showTrackInfo.value ? 'morph' : 'top-in'
@@ -465,13 +488,8 @@ const headerVisible = computed(
   () => !config.value.hideLyrics && (lyricsExpanded.value || lyricsSwipePreview.value)
 );
 
-function handleHeaderSettings() {
-  playerTransition.setSurfaceMode('settings');
-  playerTransition.showControls();
-}
-
 // ── 封面克隆飞行（morph）：大封面矩形 → 顶栏 44px 槽位，进度即沉浸进度 ──
-const HEADER_SLOT = { inset: 20, size: 44, radius: 10, topInset: 12 };
+const HEADER_SLOT = { inset: 20, size: 44, radius: 10, topInset: 66 };
 interface MorphRects {
   source: { left: number; top: number; size: number; radius: number };
   targetTop: number;
@@ -516,6 +534,10 @@ watch(
   () => [lyricsSwipePreview.value, lyricsSwipePhase.value] as const,
   ([previewing, phase]) => {
     if (previewing && phase === 'opening') captureMorphRects();
+    if (previewing && phase === 'closing') {
+      // 关闭起始时 zone 刚重挂：按当前布局重测源矩形（控件栏显隐会改变封面尺寸/位置）
+      nextTick(captureMorphRects);
+    }
     if (!previewing && !lyricsExpanded.value) morphRects.value = null;
   }
 );

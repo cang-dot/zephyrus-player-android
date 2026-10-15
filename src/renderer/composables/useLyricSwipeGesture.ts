@@ -182,9 +182,9 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
   const underlayStyle = computed<CSSProperties>(() => {
     if (!previewing.value || !phase.value) return {};
     if (options.variant?.() === 'scale') {
-      // scale 变体：封面/信息区原地淡出（位移交给顶栏 morph 克隆），避免斜向视差
-      const opacity = phase.value === 'opening' ? 1 - progress.value : progress.value;
-      return animatedStyle(undefined, opacity);
+      // scale/morph 变体：原封面/信息区在预览全程隐藏——克隆层负责飞行呈现，
+      // 落定后由顶栏与重挂的 zone 同帧交接，原封面与克隆同屏会叠出重影
+      return animatedStyle(undefined, 0);
     }
     // 只在唤起(歌词滑入)时给封面层视差;收起时保持原位,
     // 否则歌词滑出后封面会先移开再弹回,看起来像瞬移
@@ -419,6 +419,8 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
 
   function suppressGestureClick(event: MouseEvent) {
     if (performance.now() >= suppressClickUntil) return;
+    // 手势结束瞬间的合法点击放行（顶栏按钮等），只拦误触发的非交互 click
+    if (isInteractiveTarget(event.target)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
   }

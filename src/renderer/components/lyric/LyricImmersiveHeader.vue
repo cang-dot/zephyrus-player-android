@@ -24,10 +24,10 @@
       <button
         type="button"
         class="lih-action"
-        aria-label="播放设置"
+        :aria-label="settingsActive ? '返回歌词' : '播放设置'"
         @click.stop="emit('showSettings')"
       >
-        <i class="ri-more-2-fill"></i>
+        <i :class="settingsActive ? 'ri-close-line' : 'ri-more-2-fill'"></i>
       </button>
     </div>
   </div>
@@ -55,6 +55,8 @@ const props = withDefaults(
     showInfo?: boolean;
     progress?: number;
     entrance?: 'morph' | 'top-in' | 'rise';
+    /** 内容区已被设置面板替换：更多按钮切换为关闭型图标 */
+    settingsActive?: boolean;
   }>(),
   {
     coverUrl: '',
@@ -62,7 +64,8 @@ const props = withDefaults(
     showCover: true,
     showInfo: true,
     progress: 1,
-    entrance: 'morph'
+    entrance: 'morph',
+    settingsActive: false
   }
 );
 
@@ -130,7 +133,8 @@ const actionsStyle = computed(() => ({
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: calc(var(--safe-area-inset-top, 0px) + 12px) 20px 0;
+  /* 顶部安全区与关闭条留白由外层 immersive-header-wrap 负责，本组件只管一行 */
+  padding: 0 20px;
   color: var(--player-ink, #fff);
 }
 
