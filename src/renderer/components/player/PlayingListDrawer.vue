@@ -83,6 +83,7 @@
       @play="invokeSongAction('play')"
       @play-next="invokeSongAction('playNext')"
       @match-netease="invokeSongAction('matchNetease')"
+      @match-lyric="invokeSongAction('matchLyric')"
       @favorite="invokeSongAction('favorite')"
       @remove="invokeSongAction('remove')"
       @goto-artist="(id) => invokeSongAction('gotoArtist', id)"
@@ -146,7 +147,8 @@ const invokeSongAction = (
     | 'remove'
     | 'gotoArtist'
     | 'gotoAlbum'
-    | 'matchNetease',
+    | 'matchNetease'
+    | 'matchLyric',
   id?: number | string
 ) => {
   const callback = songActionSurface.request.value?.callbacks?.[action] as
@@ -423,7 +425,7 @@ const handleDeleteSong = (song: SongResult) => {
 
       /* 深色播放器内嵌时,浅白 hover 层会发白发亮,降为轻微提亮 */
       &:hover {
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(var(--panel-ink-rgb, 255, 255, 255), 0.06);
       }
     }
 
@@ -486,6 +488,49 @@ const handleDeleteSong = (song: SongResult) => {
 
 .music-play-list-content {
   @apply hover:bg-light-100 dark:hover:bg-dark-100;
+}
+
+/* ── 面板墨色跟随页面明暗（仅「底栏 dock 宿主」路径）─────────────────
+   1) 面板表面（MobilePlayBar 的 .playlist-open 规则）已跟随 --page-chrome-bg，
+      这里把面板内文字令牌对齐页面墨色：暗歌单页→浅字，亮歌单页→深字。
+      MiniSongItem 全部消费 --d-text-*，靠继承即可生效，无需改该组件。
+   2) 用 .mobile-bottom-dock 祖先限定：全屏播放器的同一面板 Teleport 到 body、
+      没有该祖先，故不会被命中（避免暗玻璃上出现深字）。
+   3) 无 chrome 页面回退主题墨色，外观与改动前一致（近似，视觉不可辨）。 */
+.mobile-bottom-dock .playlist-panel.embedded {
+  --panel-ink-rgb: var(--page-chrome-ink-rgb, 23, 23, 26);
+  --d-text-primary: rgba(var(--panel-ink-rgb), 0.92);
+  --d-text-secondary: rgba(var(--panel-ink-rgb), 0.62);
+
+  .playlist-panel-header {
+    /* header 文字原本是 Tailwind 字面色（text-gray-800 dark:text-gray-200），
+       不随令牌，必须显式覆盖 */
+    .title {
+      color: rgba(var(--panel-ink-rgb), 0.92);
+    }
+
+    .action-btn,
+    .close-btn {
+      color: rgba(var(--panel-ink-rgb), 0.92);
+
+      &:hover {
+        background: rgba(var(--panel-ink-rgb), 0.08);
+      }
+    }
+
+    .action-btn {
+      color: rgba(var(--panel-ink-rgb), 0.6);
+    }
+  }
+
+  .empty-playlist {
+    color: rgba(var(--panel-ink-rgb), 0.55);
+  }
+}
+
+/* 深色主题且页面未注入 chrome 墨色时，兜底墨色改浅色 */
+.dark .mobile-bottom-dock .playlist-panel.embedded {
+  --panel-ink-rgb: var(--page-chrome-ink-rgb, 240, 236, 228);
 }
 
 // 移动端适配
