@@ -410,11 +410,6 @@ export default {
       'The "Error" style contains intense flashing. Tap again to confirm (photosensitivity)'
   },
   lyricSettings: {
-    interfaceLayout: 'Interface Layout',
-    interfaceLayoutDescription:
-      'Zephyrus = swipe lyrics + bottom sheets; AppleMusic = immersive header + double-tap/pull-up',
-    interfaceLayoutZephyrus: 'Zephyrus (swipe lyrics)',
-    interfaceLayoutAppleMusic: 'AppleMusic (immersive header)',
     title: 'Layout',
     showCommentSection: 'Show comment section',
     pageLayout: 'Page layout',

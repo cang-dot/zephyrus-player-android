@@ -410,11 +410,6 @@ export default {
       '「エラー」スタイルには強い点滅が含まれます。光過敏性発作予防のため、もう一度タップして確認してください'
   },
   lyricSettings: {
-    interfaceLayout: 'インターフェースレイアウト',
-    interfaceLayoutDescription:
-      'Zephyrus=スワイプ歌詞+ボトムパネル；AppleMusic=イマーシブヘッダー+ダブルタップ/上スワイプ',
-    interfaceLayoutZephyrus: 'Zephyrus（スワイプ歌詞）',
-    interfaceLayoutAppleMusic: 'AppleMusic（イマーシブヘッダー）',
     title: 'レイアウト設定',
     showCommentSection: 'コメント欄を表示',
     pageLayout: 'ページレイアウト',

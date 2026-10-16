@@ -166,26 +166,20 @@
           </template>
           <!-- 沉浸态内容区替换：设置/播放列表/评论区就地取代歌词区，按钮为切换型 -->
           <mobile-player-settings
-            v-else-if="isAppleMusicLayout && lyricsExpanded && immersiveSurfaceMode === 'settings'"
+            v-else-if="lyricsExpanded && immersiveSurfaceMode === 'settings'"
             embedded
             :visible="true"
             @update:visible="toggleImmersiveSurface('settings')"
           />
           <playing-list-drawer
-            v-else-if="isAppleMusicLayout && lyricsExpanded && immersiveSurfaceMode === 'playlist'"
+            v-else-if="lyricsExpanded && immersiveSurfaceMode === 'playlist'"
             embedded
-          />
-          <mobile-comments-overlay
-            v-else-if="isAppleMusicLayout && lyricsExpanded && immersiveSurfaceMode === 'comments'"
-            :gesture="commentsSwipe"
-            :bottom-inset="150"
-            feature-override
           />
         </div>
 
         <!-- 沉浸歌词顶栏：整体位于顶部关闭条之下，显隐随底部控件栏（controlsShown） -->
         <div
-          v-if="headerVisible && isAppleMusicLayout"
+          v-if="headerVisible"
           class="immersive-header-wrap"
           :class="{ 'header-hidden': lyricsExpanded && !controlsShown && !lyricsSwipePreview }"
           :style="immersiveHeaderDragStyle"
@@ -251,10 +245,8 @@ import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import {
   IMMERSIVE_HEADER_SLOT,
   immersiveSurfaceMode,
-  registerImmersiveOpener,
   resetImmersiveLyrics,
   toggleImmersiveSurface,
-  unregisterImmersiveOpener,
   useImmersiveHeaderCollapse,
   useImmersiveLyrics
 } from '@/composables/useImmersiveLyrics';
@@ -432,7 +424,7 @@ const fluidColors = computed(() => {
 const surfaceRef = ref<HTMLElement | null>(null);
 const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
 const lyricsExpanded = ref(false);
-const commentsSwipe = useCommentsPage(() => !isAppleMusicLayout.value);
+const commentsSwipe = useCommentsPage();
 const {
   style: lyricsSwipeStyle,
   overlayStyle: lyricsOverlayStyle,
@@ -451,8 +443,6 @@ const {
   suppressed: () => playerStore.fullCommentsVisible,
   onOpen: () => commitLyricsExpanded(true),
   onClose: () => commitLyricsExpanded(false),
-  // AppleMusic 方案弃用横滑：唤起=双击歌词区/⋯，收起=顶栏下滑/侧边热区/返回键
-  pointerEnabled: () => !isAppleMusicLayout.value,
   variant: () => lyricsArrival.value,
   scaleGeometry: () => zoneGeometry.value
 });
@@ -500,14 +490,7 @@ const immersiveProgress = computed(() => {
 watchEffect(() => {
   immersive.progress.value = immersiveProgress.value;
 });
-const { isAppleMusicLayout } = immersive;
 
-// 默认样式自身的沉浸打开回调（⋯/评论区按钮经 requestImmersiveOpen 调起，走 scale+morph）
-const immersiveOpenerFn = () => {
-  immersive.variant.value = 'slide';
-  openLyricsAnimated();
-};
-registerImmersiveOpener(immersiveOpenerFn);
 const immersiveHeaderCollapse = useImmersiveHeaderCollapse(() => setLyricsExpanded(false));
 const immersiveHeaderDragStyle = computed(() =>
   immersiveHeaderCollapse.dragOffset.value > 0
@@ -534,7 +517,7 @@ function readSafeAreaTop(): number {
 }
 
 function captureMorphRects() {
-  if (!isAppleMusicLayout.value || headerEntrance.value !== 'morph' || !showArtwork.value) {
+  if (headerEntrance.value !== 'morph' || !showArtwork.value) {
     morphRects.value = null;
     return;
   }
@@ -563,8 +546,8 @@ function captureMorphRects() {
 watch(
   () => [lyricsSwipePreview.value, lyricsSwipePhase.value] as const,
   ([previewing, phase]) => {
-    if (previewing && phase === 'opening' && isAppleMusicLayout.value) captureMorphRects();
-    if (previewing && phase === 'closing' && isAppleMusicLayout.value) {
+    if (previewing && phase === 'opening') captureMorphRects();
+    if (previewing && phase === 'closing') {
       // 关闭起始时 zone 刚重挂：按当前布局重测源矩形（控件栏显隐会改变封面尺寸/位置）
       nextTick(captureMorphRects);
     }
@@ -797,15 +780,6 @@ watch(
 watch(isVisible, (visible) => {
   if (!visible) setLyricsExpanded(false);
 });
-// 评论区面板内部关闭（store 旗标复位）后，内容区切回歌词
-watch(
-  () => playerStore.fullCommentsVisible,
-  (visible) => {
-    if (!visible && immersiveSurfaceMode.value === 'comments') {
-      immersiveSurfaceMode.value = 'lyrics';
-    }
-  }
-);
 
 onMounted(() => {
   loadConfig();
@@ -818,7 +792,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('music-full-config-updated', handleConfigUpdate);
   document.body.classList.remove('default-player-active');
   window.dispatchEvent(new Event('default-player-style-changed'));
-  unregisterImmersiveOpener(immersiveOpenerFn);
   resetImmersiveLyrics();
 });
 </script>

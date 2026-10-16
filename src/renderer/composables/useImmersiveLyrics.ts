@@ -1,14 +1,13 @@
-import { computed, type CSSProperties, onUnmounted, type Ref,ref } from 'vue';
+import { computed, type CSSProperties, onUnmounted, type Ref, ref } from 'vue';
 
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStore } from '@/store/modules/player';
-import type { InterfaceLayoutScheme } from '@/types/lyric';
 import { prefersReducedMotion, projectMomentum, springTo } from '@/utils/immersiveMotion';
 
 export { prefersReducedMotion, projectMomentum, springTo };
 
 export type ImmersiveVariant = 'slide' | 'scale' | 'rise';
-export type ImmersiveSurfaceMode = 'lyrics' | 'settings' | 'playlist' | 'comments';
+export type ImmersiveSurfaceMode = 'lyrics' | 'settings' | 'playlist';
 
 /** 沉浸顶栏槽位（克隆飞行落点）：与 .immersive-header-wrap 的 padding 严格一致 */
 export const IMMERSIVE_HEADER_SLOT = { inset: 20, size: 44, radius: 10, topInset: 66 };
@@ -19,29 +18,6 @@ const variant = ref<ImmersiveVariant>('slide');
 export const immersiveSurfaceMode = ref<ImmersiveSurfaceMode>('lyrics');
 
 const active = computed(() => progress.value > 0.001);
-
-// ── 界面布局方案（appleMusic=沉浸顶栏方案；zephyrus=横滑+底部面板，默认）──
-function readInterfaceLayout(): InterfaceLayoutScheme {
-  try {
-    const raw = JSON.parse(localStorage.getItem('music-full-config') || '{}') as {
-      interfaceLayout?: unknown;
-    };
-    return raw.interfaceLayout === 'appleMusic' ? 'appleMusic' : 'zephyrus';
-  } catch {
-    return 'zephyrus';
-  }
-}
-
-const interfaceLayout = ref<InterfaceLayoutScheme>(
-  typeof window === 'undefined' ? 'zephyrus' : readInterfaceLayout()
-);
-export const isAppleMusicLayout = computed(() => interfaceLayout.value === 'appleMusic');
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('music-full-config-updated', () => {
-    interfaceLayout.value = readInterfaceLayout();
-  });
-}
 
 type ImmersiveOpener = () => void;
 let opener: ImmersiveOpener | null = null;
@@ -68,7 +44,7 @@ export function resetImmersiveLyrics(): void {
 }
 
 export function useImmersiveLyrics() {
-  return { progress, variant, active, immersiveSurfaceMode, interfaceLayout, isAppleMusicLayout };
+  return { progress, variant, active, immersiveSurfaceMode };
 }
 
 /** 沉浸页内容区切换：再点同一模式即回歌词（按钮为切换型） */
@@ -131,7 +107,6 @@ export function useStyleImmersiveLyrics(options: {
   });
 
   const openerFn = () => {
-    if (!isAppleMusicLayout.value) return;
     immersive.variant.value = 'rise';
     options.showFullLyrics.value = true;
     playerStore.setFullLyricsVisible(true);
@@ -201,7 +176,7 @@ export function useImmersiveHeaderCollapse(onClose: () => void) {
   let cancelAnim: (() => void) | null = null;
 
   function onHeaderPointerDown(event: PointerEvent) {
-    if (!isAppleMusicLayout.value || !active.value) return;
+    if (!active.value) return;
     if (event.pointerType === 'mouse') return;
     if (event.target instanceof Element && event.target.closest('button, a, input')) return;
     cancelAnim?.();

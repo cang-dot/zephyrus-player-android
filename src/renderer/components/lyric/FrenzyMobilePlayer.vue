@@ -143,7 +143,7 @@
           :style="riseOverlayStyle || lyricsOverlayStyle"
         >
           <mobile-scrolling-lyrics
-            v-if="!isAppleMusicLayout || immersiveSurfaceMode === 'lyrics'"
+            v-if="immersiveSurfaceMode === 'lyrics'"
             class="scrolling-lyrics-content"
             :back-closes="showFullLyrics"
             :active="showFullLyrics || lyricsSwipePreview || risePreviewing"
@@ -153,7 +153,7 @@
           />
           <!-- 沉浸态内容区替换：设置/播放列表就地取代歌词区（按钮为切换型） -->
           <div
-            v-else-if="isAppleMusicLayout && showFullLyrics && immersiveSurfaceMode === 'settings'"
+            v-else-if="showFullLyrics && immersiveSurfaceMode === 'settings'"
             class="immersive-panel"
           >
             <mobile-player-settings
@@ -163,18 +163,12 @@
             />
           </div>
           <playing-list-drawer
-            v-else-if="isAppleMusicLayout && showFullLyrics && immersiveSurfaceMode === 'playlist'"
+            v-else-if="showFullLyrics && immersiveSurfaceMode === 'playlist'"
             embedded
             class="immersive-panel"
           />
-          <mobile-comments-overlay
-            v-else-if="showFullLyrics && immersiveSurfaceMode === 'comments'"
-            :gesture="commentsSwipe"
-            feature-override
-          />
           <!-- 沉浸歌词顶部栏：让位顶部关闭条，显隐随控件栏 -->
           <div
-            v-if="isAppleMusicLayout"
             class="immersive-header-wrap"
             :class="{
               'header-hidden':
@@ -248,7 +242,6 @@ import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import {
   immersiveSurfaceMode,
-  isAppleMusicLayout,
   toggleImmersiveSurface,
   useImmersiveHeaderCollapse,
   useStyleImmersiveLyrics
@@ -288,7 +281,7 @@ const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
   }
 });
 
-const commentsSwipe = useCommentsPage(() => !isAppleMusicLayout.value);
+const commentsSwipe = useCommentsPage();
 const showFullLyrics = ref(false);
 const {
   style: lyricsSwipeStyle,
@@ -305,11 +298,10 @@ const {
 } = useLyricSwipeGesture({
   isOpen: () => showFullLyrics.value,
   suppressed: () => playerStore.fullCommentsVisible,
-  pointerEnabled: () => !isAppleMusicLayout.value,
   onOpen: () => {
     showFullLyrics.value = true;
     playerStore.setFullLyricsVisible(true);
-    if (isAppleMusicLayout.value) showControls();
+    showControls();
   },
   onClose: () => {
     resetOnGestureClose();
@@ -326,14 +318,6 @@ const {
   closeImmersive,
   resetOnGestureClose
 } = useStyleImmersiveLyrics({ showFullLyrics, openAnimated: openLyricsAnimated });
-watch(
-  () => playerStore.fullCommentsVisible,
-  (visible) => {
-    if (!visible && immersiveSurfaceMode.value === 'comments') {
-      immersiveSurfaceMode.value = 'lyrics';
-    }
-  }
-);
 const immersiveHeaderCollapse = useImmersiveHeaderCollapse(closeImmersive);
 const immersiveHeaderDragStyle = computed(() =>
   immersiveHeaderCollapse.dragOffset.value > 0

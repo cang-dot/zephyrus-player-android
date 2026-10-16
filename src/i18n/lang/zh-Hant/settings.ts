@@ -399,10 +399,6 @@ export default {
     errorConfirmHint: '「錯誤」樣式包含強烈閃爍效果，為防光敏不適請再次點擊確認'
   },
   lyricSettings: {
-    interfaceLayout: '介面佈局方案',
-    interfaceLayoutDescription: 'Zephyrus=橫滑歌詞+底部面板；AppleMusic=沉浸頂欄+雙擊/上拉喚起',
-    interfaceLayoutZephyrus: 'Zephyrus（橫滑歌詞）',
-    interfaceLayoutAppleMusic: 'AppleMusic（沉浸頂欄）',
     title: '佈局設定',
     showCommentSection: '顯示評論區',
     pageLayout: '頁面佈局',

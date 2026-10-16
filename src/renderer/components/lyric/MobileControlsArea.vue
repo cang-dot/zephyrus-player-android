@@ -146,12 +146,7 @@
     </div>
 
     <!-- 控制按钮 -->
-    <div
-      class="control-buttons"
-      :style="{
-        gridTemplateColumns: `repeat(${isAppleMusicLayout ? 6 : 5}, minmax(0, 1fr))`
-      }"
-    >
+    <div class="control-buttons">
       <div class="side-button" @click="handleTogglePlayMode">
         <i :class="[playModeIcon, { 'intelligence-active': playMode === 3 }]"></i>
       </div>
@@ -160,14 +155,6 @@
       </div>
       <div v-if="isLandscape" class="side-button" aria-label="播放设置" @click="handleShowSettings">
         <i class="ri-equalizer-3-line"></i>
-      </div>
-      <div
-        v-if="isLandscape && isAppleMusicLayout"
-        class="side-button"
-        aria-label="评论区"
-        @click="handleShowComments"
-      >
-        <i class="ri-chat-3-line"></i>
       </div>
       <div class="main-button prev" @click="handlePrev">
         <i class="ri-skip-back-fill"></i>
@@ -180,14 +167,6 @@
       </div>
       <div v-if="!isLandscape" class="side-button" @click="handleShowPlaylist">
         <i class="iconfont icon-list"></i>
-      </div>
-      <div
-        v-if="!isLandscape && isAppleMusicLayout"
-        class="side-button"
-        aria-label="评论区"
-        @click="handleShowComments"
-      >
-        <i class="ri-chat-3-line"></i>
       </div>
     </div>
 
@@ -222,14 +201,11 @@ import { useControlsDock } from '@/composables/useControlsDock';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import {
   IMMERSIVE_HEADER_SLOT,
-  immersiveSurfaceMode,
-  isAppleMusicLayout,
   prefersReducedMotion,
   projectMomentum,
   readImmersiveSafeTop,
   requestImmersiveOpen,
   springTo,
-  toggleImmersiveSurface,
   useImmersiveLyrics
 } from '@/composables/useImmersiveLyrics';
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
@@ -605,7 +581,6 @@ let riseSamples: { y: number; time: number }[] = [];
 const riseDistance = () => Math.max(180, Math.min(280, window.innerHeight * 0.28));
 
 const canRise = () =>
-  isAppleMusicLayout.value &&
   props.sharedSurface === true &&
   !defaultStyleCompact.value &&
   !playerStore.fullLyricsVisible &&
@@ -691,7 +666,6 @@ function settleImmersiveRise(cancelled: boolean) {
  * Zephyrus 方案行保持原样。
  */
 const immersiveRowStyle = computed(() => {
-  if (!isAppleMusicLayout.value) return undefined;
   const p = immersive.progress.value;
   if (p <= 0.001) return undefined;
   return {
@@ -737,7 +711,6 @@ watch(
 
 const infoFlightVisible = computed(
   () =>
-    isAppleMusicLayout.value &&
     !!infoFlightRects.value &&
     immersive.variant.value === 'rise' &&
     immersive.progress.value > 0.001 &&
@@ -793,26 +766,7 @@ async function handleFavorite() {
 
 function handleShowSettings() {
   playerSurfaceFeedback.pulse();
-  // AppleMusic：⋯ 始终为「打开沉浸歌词并替换为设置页」；Zephyrus 维持原分发
-  if (isAppleMusicLayout.value && requestImmersiveOpen()) {
-    immersiveSurfaceMode.value = 'settings';
-    emitInteract();
-    return;
-  }
   emit('showSettings');
-}
-
-function handleShowComments() {
-  playerSurfaceFeedback.pulse();
-  if (!isAppleMusicLayout.value) return;
-  if (playerStore.fullLyricsVisible) {
-    toggleImmersiveSurface('comments');
-    emitInteract();
-    return;
-  }
-  immersiveSurfaceMode.value = 'comments';
-  if (!requestImmersiveOpen()) immersiveSurfaceMode.value = 'lyrics';
-  emitInteract();
 }
 
 function emitInteract() {

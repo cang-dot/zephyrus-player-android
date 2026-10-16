@@ -204,8 +204,6 @@ const props = defineProps<{
   gesture: LyricSwipeGestureApi;
   /** 底部控制条避让高度(px)，缺省按横竖屏取 96/168 */
   bottomInset?: number;
-  /** 强制启用（AppleMusic 方案的沉浸内容替换路径，绕过 showCommentSection 配置） */
-  featureOverride?: boolean;
 }>();
 
 const { t } = useI18n();
@@ -225,13 +223,10 @@ const refreshConfig = () => {
   side.value = readPageSwipeDirection('comments') === 'right' ? 'right' : 'left';
 };
 
-const isOpen = computed(
-  () => (props.featureOverride || featureOn.value) && playerStore.fullCommentsVisible
-);
+const isOpen = computed(() => featureOn.value && playerStore.fullCommentsVisible);
 // 手势预览/落位期间保持挂载，避免收尾瞬间闪断
 const overlayMounted = computed(
-  () =>
-    (props.featureOverride || featureOn.value) && (isOpen.value || props.gesture.previewing.value)
+  () => featureOn.value && (isOpen.value || props.gesture.previewing.value)
 );
 
 // 进出场 transform 直接复用手势实例的 overlayStyle（跟手 + 弹簧落位）

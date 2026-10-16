@@ -86,7 +86,7 @@ import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } fr
 
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import { useControlsDock } from '@/composables/useControlsDock';
-import { isAppleMusicLayout, toggleImmersiveSurface } from '@/composables/useImmersiveLyrics';
+import { toggleImmersiveSurface } from '@/composables/useImmersiveLyrics';
 import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
@@ -345,8 +345,8 @@ const sheetPaneStyle = computed<CSSProperties>(() => ({
 }));
 
 const openPlaylist = () => {
-  // AppleMusic 沉浸态：播放列表就地替换歌词内容区（切换型），不再展开底部面板
-  if (isAppleMusicLayout.value && playerStore.fullLyricsVisible) {
+  // 沉浸歌词打开时，播放列表改为就地替换歌词内容区（切换型），不再展开底部面板
+  if (playerStore.fullLyricsVisible) {
     toggleImmersiveSurface('playlist');
     return;
   }
@@ -355,7 +355,7 @@ const openPlaylist = () => {
 };
 
 const openSettings = () => {
-  if (isAppleMusicLayout.value && playerStore.fullLyricsVisible) {
+  if (playerStore.fullLyricsVisible) {
     toggleImmersiveSurface('settings');
     return;
   }
