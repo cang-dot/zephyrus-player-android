@@ -272,6 +272,11 @@ export default {
     clearConfirmContent:
       'これによりプレイリスト内のすべての楽曲がクリアされ、現在の再生が停止されます。続行しますか？'
   },
+  queuePanel: {
+    continuePlaying: '続けて再生',
+    fromSource: '{name} から',
+    clearQueue: '再生キューを削除'
+  },
   commentPanel: {
     commentsCount: 'コメント {n}件',
     hot: '人気',

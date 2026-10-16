@@ -138,7 +138,7 @@
             v-else-if="showFullLyrics && immersiveSurfaceMode === 'playlist'"
             class="immersive-panel"
           >
-            <playing-list-drawer embedded />
+            <immersive-playlist-panel />
           </div>
           <!-- 沉浸歌词顶部栏：让位顶部关闭条，显隐随控件栏 -->
           <div
@@ -146,7 +146,7 @@
             :class="{
               'header-hidden':
                 showFullLyrics &&
-                (immersiveSurfaceMode !== 'lyrics' ||
+                (immersiveSurfaceMode === 'settings' ||
                   (!controlsVisible && !lyricsSwipePreview && !risePreviewing))
             }"
             :style="immersiveHeaderDragStyle"
@@ -206,7 +206,6 @@ import SmokeBackground from '@/components/lyric/SmokeBackground.vue';
 import StaggeredClimaxLyrics from '@/components/lyric/StaggeredClimaxLyrics.vue';
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
-import PlayingListDrawer from '@/components/player/PlayingListDrawer.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import {

@@ -141,6 +141,8 @@ export const usePlayerStore = defineStore('player', () => {
 
     // Playlist - Actions
     setPlayList: playlist.setPlayList,
+    setPlayListSourceName: playlist.setPlayListSourceName,
+    reorderPlayList: playlist.reorderPlayList,
     addToNextPlay: playlist.addToNextPlay,
     replacePlayListSong: playlist.replacePlayListSong,
     removeFromPlayList: playlist.removeFromPlayList,

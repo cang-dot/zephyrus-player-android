@@ -268,6 +268,11 @@ export default {
     clearConfirmTitle: '清空播放清單',
     clearConfirmContent: '這將清空所有播放清單中的歌曲並停止目前播放。是否繼續？'
   },
+  queuePanel: {
+    continuePlaying: '繼續播放',
+    fromSource: '來自 {name}',
+    clearQueue: '清空播放列表'
+  },
   commentPanel: {
     commentsCount: '{n} 條評論',
     hot: '熱門',

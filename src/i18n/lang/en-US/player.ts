@@ -271,6 +271,11 @@ export default {
     clearConfirmContent:
       'This will clear all songs in the playlist and stop the current playback. Continue?'
   },
+  queuePanel: {
+    continuePlaying: 'Continue Playing',
+    fromSource: 'From {name}',
+    clearQueue: 'Clear Play Queue'
+  },
   commentPanel: {
     commentsCount: '{n} comments',
     hot: 'Hot',

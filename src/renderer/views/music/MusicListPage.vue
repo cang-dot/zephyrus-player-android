@@ -702,6 +702,7 @@ const handleShuffleAll = () => {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     if (!shuffled.length) return;
+    playerStore.setPlayListSourceName(String(listInfo.value?.name || ''));
     playerStore.setPlayList(shuffled);
     void playerStore.setPlay(shuffled[0]);
     if (!isFullPlaylistLoaded.value) loadFullPlaylist();
@@ -1103,6 +1104,7 @@ const handlePlayAll = () => {
       : isFullPlaylistLoaded.value
         ? completePlaylist.value
         : allFilteredSongs.value;
+    playerStore.setPlayListSourceName(String(listInfo.value?.name || ''));
     playerStore.setPlayList(list.map(formatSong));
     playAllState.value = 'loading';
     try {
@@ -1132,6 +1134,7 @@ const handlePlayItem = (item: any) => {
   const isCurrentSong =
     playerStore.playMusic?.id === selectedSong.id &&
     (playerStore.playMusic?.source || '') === (selectedSong.source || '');
+  playerStore.setPlayListSourceName(String(listInfo.value?.name || ''));
   playerStore.setPlayList(queue);
   if (!isCurrentSong || !playerStore.isPlay) void playerStore.setPlay(selectedSong);
 
@@ -1145,6 +1148,7 @@ const handlePlayItem = (item: any) => {
         );
       if (!queueWasNotReplaced || !isFullPlaylistLoaded.value) return;
       const fullQueue = allFilteredSongs.value.map(formatSong).filter(Boolean) as SongResult[];
+      playerStore.setPlayListSourceName(String(listInfo.value?.name || ''));
       playerStore.setPlayList(fullQueue);
     });
   }

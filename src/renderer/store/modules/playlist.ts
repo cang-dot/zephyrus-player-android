@@ -85,6 +85,8 @@ export const usePlaylistStore = defineStore(
     const playMode = ref(0);
     const originalPlayList = shallowRef<SongResult[]>([]);
     const playListDrawerVisible = ref(false);
+    /** 队列来源歌单名（沉浸播放列表副标题用；单曲插入等无来源场景为空） */
+    const playListSourceName = ref('');
 
     // 连续失败计数器（用于防止无限循环）
     const consecutiveFailCount = ref(0);
@@ -260,8 +262,10 @@ export const usePlaylistStore = defineStore(
     const setPlayList = (
       list: SongResult[],
       keepIndex: boolean = false,
-      fromIntelligenceMode: boolean = false
+      fromIntelligenceMode: boolean = false,
+      sourceName: string = ''
     ) => {
+      playListSourceName.value = sourceName;
       // 如果不是从心动模式调用，清除心动模式状态并切换播放模式
       if (!fromIntelligenceMode) {
         const intelligenceStore = useIntelligenceModeStore();
@@ -320,6 +324,30 @@ export const usePlaylistStore = defineStore(
         playList.value = list;
       }
       // pinia-plugin-persistedstate 会自动保存状态
+    };
+
+    /**
+     * 队列内拖拽排序：把 from 位置的曲目移动到 to，并同步修正当前播放索引
+     * （移动当前曲 → 索引跟随；跨越当前曲 → 索引 ±1）。shallowRef 需整体替换。
+     */
+    const reorderPlayList = (from: number, to: number) => {
+      const list = [...playList.value];
+      if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) {
+        return;
+      }
+      const [moved] = list.splice(from, 1);
+      list.splice(to, 0, moved);
+      playList.value = list;
+
+      const current = playListIndex.value;
+      if (current === from) playListIndex.value = to;
+      else if (from < current && to >= current) playListIndex.value = current - 1;
+      else if (from > current && to <= current) playListIndex.value = current + 1;
+    };
+
+    /** 记录/清除队列来源歌单名 */
+    const setPlayListSourceName = (name: string) => {
+      playListSourceName.value = name;
     };
 
     /**
@@ -787,6 +815,7 @@ export const usePlaylistStore = defineStore(
       playMode,
       originalPlayList,
       playListDrawerVisible,
+      playListSourceName,
 
       // Computed
       currentPlayList,
@@ -801,6 +830,8 @@ export const usePlaylistStore = defineStore(
       togglePlayMode,
       shufflePlayList,
       restoreOriginalOrder,
+      reorderPlayList,
+      setPlayListSourceName,
       preloadNextSongs,
       nextPlay: nextPlay as unknown as typeof _nextPlay,
       prevPlay: prevPlay as unknown as typeof _prevPlay,
@@ -825,7 +856,7 @@ export const usePlaylistStore = defineStore(
     persist: {
       key: 'playlist-store',
       storage: debouncedLocalStorage,
-      pick: ['playList', 'playListIndex', 'playMode', 'originalPlayList'],
+      pick: ['playList', 'playListIndex', 'playMode', 'originalPlayList', 'playListSourceName'],
       serializer: {
         serialize: (state: any) => {
           return JSON.stringify({

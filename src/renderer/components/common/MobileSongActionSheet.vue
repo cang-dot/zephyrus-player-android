@@ -8,13 +8,7 @@
         @click="$emit('update:show', false)"
       >
         <div class="mobile-action-sheet" :style="panelStyle" @click.stop>
-          <div
-            class="sheet-handle"
-            @pointerdown="onSheetPointerDown"
-            @pointermove="onSheetPointerMove"
-            @pointerup="onSheetPointerUp"
-            @pointercancel="onSheetPointerCancel"
-          />
+          <!-- 歌曲信息头（紧凑，可拖拽下滑关闭） -->
           <div
             class="sheet-song-preview"
             @pointerdown="onSheetPointerDown"
@@ -36,6 +30,36 @@
             </div>
           </div>
 
+          <!-- 快捷行：下载 / 喜爱 / 分享 -->
+          <div class="sheet-quick-row">
+            <button
+              type="button"
+              class="sheet-quick-btn"
+              :class="{ downloading: isDownloadingSong }"
+              @click="handleDownload"
+            >
+              <i v-if="isDownloadingSong" class="ri-loader-4-line is-spinning"></i>
+              <i v-else class="ri-download-2-line"></i>
+              <span>{{ isDownloadingSong ? downloadProgressText : '下载' }}</span>
+            </button>
+            <button type="button" class="sheet-quick-btn" @click="handleAction('favorite')">
+              <i
+                :class="[
+                  isFavorite ? 'ri-heart-fill' : 'ri-heart-line',
+                  { 'favorite-icon': isFavorite }
+                ]"
+              />
+              <span>{{
+                isFavorite ? t('songItem.menu.unfavorite') : t('songItem.menu.favorite')
+              }}</span>
+            </button>
+            <button type="button" class="sheet-quick-btn" @click="handleShareSong">
+              <i class="ri-share-forward-line"></i>
+              <span>分享</span>
+            </button>
+          </div>
+          <div class="sheet-divider"></div>
+
           <div v-if="audioParamSegments.length" class="sheet-audio-params">
             <span v-for="segment in audioParamSegments" :key="segment">{{ segment }}</span>
             <button type="button" class="sheet-audio-edit" @click.stop="metadataEditorShow = true">
@@ -52,6 +76,13 @@
               <i class="ri-play-list-2-line"></i>
               <span>{{ t('songItem.menu.playNext') }}</span>
             </button>
+            <inline-playlist-picker
+              :song="item"
+              :expanded="playlistExpanded"
+              back-layer-id="song-action-playlist-picker"
+              @update:expanded="playlistExpanded = $event"
+              @added="$emit('update:show', false)"
+            />
             <button
               v-if="isCrossPlatformItem"
               class="sheet-action-btn"
@@ -59,6 +90,10 @@
             >
               <i class="ri-netease-cloud-music-line"></i>
               <span>{{ t('songItem.menu.matchNetease') }}</span>
+            </button>
+            <button class="sheet-action-btn" @click="handleAction('matchLyric')">
+              <i class="ri-file-text-line"></i>
+              <span>{{ t('songItem.menu.matchLyric') }}</span>
             </button>
             <button
               v-if="firstArtistId"
@@ -83,37 +118,6 @@
                 <strong>{{ album.name || '未知专辑' }}</strong>
               </span>
               <i class="ri-arrow-right-s-line sheet-action-arrow" />
-            </button>
-            <inline-playlist-picker
-              :song="item"
-              :expanded="playlistExpanded"
-              back-layer-id="song-action-playlist-picker"
-              @update:expanded="playlistExpanded = $event"
-              @added="$emit('update:show', false)"
-            />
-            <button class="sheet-action-btn" @click="handleShareSong">
-              <i class="ri-share-forward-line"></i>
-              <span>分享歌曲</span>
-            </button>
-            <button
-              class="sheet-action-btn"
-              :class="{ downloading: isDownloadingSong }"
-              @click="handleDownload"
-            >
-              <i v-if="isDownloadingSong" class="ri-loader-4-line is-spinning"></i>
-              <i v-else class="ri-download-2-line"></i>
-              <span>{{ isDownloadingSong ? downloadProgressText : '下载歌曲' }}</span>
-            </button>
-            <button class="sheet-action-btn" @click="handleAction('favorite')">
-              <i
-                :class="[
-                  isFavorite ? 'ri-heart-fill' : 'ri-heart-line',
-                  { 'favorite-icon': isFavorite }
-                ]"
-              />
-              <span>{{
-                isFavorite ? t('songItem.menu.unfavorite') : t('songItem.menu.favorite')
-              }}</span>
             </button>
             <button
               v-if="canRemove"
@@ -179,6 +183,7 @@ const emit = defineEmits<{
   'goto-artist': [id: number | string];
   'goto-album': [id: number | string];
   'match-netease': [];
+  'match-lyric': [];
 }>();
 
 const artistNames = computed(() => {
@@ -366,6 +371,9 @@ const handleAction = (action: string) => {
     case 'matchNetease':
       emit('match-netease');
       break;
+    case 'matchLyric':
+      emit('match-lyric');
+      break;
     case 'favorite':
       emit('favorite');
       break;
@@ -404,12 +412,16 @@ const handleAction = (action: string) => {
   position: fixed;
   inset: 0;
   z-index: 99999;
-  background: rgba(0, 0, 0, 0.42);
+  background: rgba(0, 0, 0, 0.3);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: center;
+  /* 锚定在触发行附近（--action-source-top 由触发几何注入），无几何时居中偏下 */
+  padding-top: max(12px, calc(var(--action-source-top, 50vh) - 32px));
+  padding-left: 12px;
+  padding-right: 12px;
 }
 
 /* In the playing-list variant the sheet borrows the very same glass surface:
@@ -446,44 +458,47 @@ const handleAction = (action: string) => {
 }
 
 .mobile-action-sheet {
-  width: 100%;
-  max-height: min(70dvh, 600px);
+  width: min(340px, 100%);
+  max-height: min(72dvh, 640px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.14);
-  border-bottom: 0;
-  border-radius: 24px 24px 0 0;
-  padding: 6px 0 max(6px, var(--safe-area-inset-bottom, 0px));
-  /* 跟随页面 chrome 明暗（暗色歌单页 → 暗色菜单；非 chrome 页回退主题表面） */
+  border: 0;
+  border-radius: 16px;
+  padding: 4px 0 max(4px, var(--safe-area-inset-bottom, 0px));
+  /* 实色底（无毛玻璃），墨色沿用页面/播放器令牌避免错配 */
+  --sheet-ink-rgb: var(--page-chrome-ink-rgb, 23, 23, 26);
   background: color-mix(
     in srgb,
-    var(--page-chrome-bg, var(--m-surface-raised, var(--d-surface, #fff))) 88%,
-    rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.45) 12%
+    var(--page-chrome-bg, var(--d-surface, #fff)) 92%,
+    rgba(var(--sheet-ink-rgb), 0.08) 8%
   );
-  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.18);
-  --d-text-primary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.94);
-  --d-text-secondary: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.62);
-  --d-border: rgba(var(--page-chrome-ink-rgb, 23, 23, 26), 0.14);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.36);
+  --d-text-primary: rgba(var(--sheet-ink-rgb), 0.94);
+  --d-text-secondary: rgba(var(--sheet-ink-rgb), 0.62);
+  --d-text-muted: rgba(var(--sheet-ink-rgb), 0.45);
+  --d-border: rgba(var(--sheet-ink-rgb), 0.14);
+  --d-surface-hover: rgba(var(--sheet-ink-rgb), 0.08);
 }
 
-.sheet-handle {
-  width: 32px;
-  height: 4px;
-  flex-shrink: 0;
-  margin: 0 auto 4px;
-  border-radius: 9999px;
-  background: var(--d-border, rgba(128, 128, 128, 0.24));
-  touch-action: none;
-  cursor: grab;
+/* 深色主题且页面未注入 chrome 墨色时，兜底墨色改浅色，
+   修掉「暗底暗字」不可读（无 chrome 页面上的长按菜单）。 */
+.dark .mobile-action-sheet {
+  --sheet-ink-rgb: var(--page-chrome-ink-rgb, 240, 236, 228);
+}
+
+/* 全屏播放器共享底面内的同一菜单：那里的表面恒为封面暗玻璃、墨色由
+   --player-ink-rgb 驱动（同面其它文字亦然）。此处固定跟随播放器墨色，
+   避免「亮底歌单页 + 暗玻璃」组合下菜单文字被页面墨色带深而不可读。 */
+.shared-player-bottom-surface .mobile-action-sheet {
+  --sheet-ink-rgb: var(--player-ink-rgb, 255, 255, 255);
 }
 
 .sheet-song-preview {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 16px 12px;
-  border-bottom: 1px solid var(--d-border, rgba(0, 0, 0, 0.06));
+  padding: 10px 12px 8px;
   touch-action: none;
   cursor: grab;
 }
@@ -531,7 +546,6 @@ const handleAction = (action: string) => {
   gap: 4px 6px;
   margin-top: 8px;
   padding: 0 16px 10px;
-
   span {
     padding: 2px 7px;
     border-radius: 999px;
@@ -565,9 +579,56 @@ const handleAction = (action: string) => {
 }
 
 .sheet-actions {
-  padding: 6px 0;
+  padding: 2px 0 6px;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* 快捷行（下载/喜爱/分享）：三项均分图标+文字 */
+.sheet-quick-row {
+  display: flex;
+  align-items: stretch;
+  padding: 2px 6px 6px;
+  border-bottom: 1px solid var(--d-border, rgba(0, 0, 0, 0.06));
+}
+
+.sheet-quick-btn {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--d-text-primary, #1a1a1a);
+  font-size: 12px;
+  cursor: pointer;
+
+  i {
+    font-size: 20px;
+    color: var(--d-text-primary, #1a1a1a);
+  }
+
+  &.downloading {
+    opacity: 0.7;
+    cursor: default;
+  }
+
+  &:active {
+    background: var(--d-surface-hover, rgba(0, 0, 0, 0.05));
+  }
+
+  .favorite-icon {
+    color: var(--accent-color);
+  }
+}
+
+.sheet-divider {
+  height: 1px;
+  margin: 0 12px;
+  background: var(--d-border, rgba(0, 0, 0, 0.06));
 }
 
 .sheet-action-btn {

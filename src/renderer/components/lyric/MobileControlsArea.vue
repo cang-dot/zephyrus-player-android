@@ -150,7 +150,13 @@
       <div class="side-button" @click="handleTogglePlayMode">
         <i :class="[playModeIcon, { 'intelligence-active': playMode === 3 }]"></i>
       </div>
-      <div v-if="isLandscape" class="side-button" aria-label="播放列表" @click="handleShowPlaylist">
+      <div
+        v-if="isLandscape"
+        class="side-button"
+        :class="{ 'queue-active': queueButtonActive }"
+        aria-label="播放列表"
+        @click="handleShowPlaylist"
+      >
         <i class="iconfont icon-list"></i>
       </div>
       <div v-if="isLandscape" class="side-button" aria-label="播放设置" @click="handleShowSettings">
@@ -165,7 +171,13 @@
       <div class="main-button next" @click="handleNext">
         <i class="ri-skip-forward-fill"></i>
       </div>
-      <div v-if="!isLandscape" class="side-button" @click="handleShowPlaylist">
+      <div
+        v-if="!isLandscape"
+        class="side-button"
+        :class="{ 'queue-active': queueButtonActive }"
+        aria-label="播放列表"
+        @click="handleShowPlaylist"
+      >
         <i class="iconfont icon-list"></i>
       </div>
     </div>
@@ -201,6 +213,7 @@ import { useControlsDock } from '@/composables/useControlsDock';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import {
   IMMERSIVE_HEADER_SLOT,
+  immersiveSurfaceMode,
   prefersReducedMotion,
   projectMomentum,
   readImmersiveSafeTop,
@@ -660,6 +673,11 @@ function settleImmersiveRise(cancelled: boolean) {
     }
   );
 }
+
+/** 底栏列表钮高亮：沉浸页内容区正展示播放列表面板时 */
+const queueButtonActive = computed(
+  () => playerStore.fullLyricsVisible && immersiveSurfaceMode.value === 'playlist'
+);
 
 /**
  * 信息栏让位（AppleMusic）：激活即整行隐藏，由克隆飞行层接管位移；
@@ -1413,6 +1431,12 @@ const handleThumbTouchEnd = () => {
   font-size: 20px;
   color: var(--text-color-active, #fff);
   opacity: 0.7;
+
+  /* 沉浸页内容区正展示播放列表面板时的高亮态 */
+  &.queue-active {
+    background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.16);
+    opacity: 1;
+  }
 
   &:active {
     opacity: 1;

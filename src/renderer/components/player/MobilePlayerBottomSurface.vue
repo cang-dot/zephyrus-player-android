@@ -237,7 +237,7 @@ const chromeVisibility = computed(() => {
   // elementFromPoint 命中 shared-controls-pane，拦截全部点击并形成暗色玻璃带
   if (playerStore.fullCommentsVisible) return 0;
   // 沉浸页内容区被设置/播放列表面板替换时：底面整体渐隐让位（与评论区同款避让）
-  if (playerStore.fullLyricsVisible && immersiveSurfaceMode.value !== 'lyrics') return 0;
+  if (playerStore.fullLyricsVisible && immersiveSurfaceMode.value === 'settings') return 0;
   const transitionState = playerTransition.state.value;
   // 非 default 样式:底板稍晚浮现(0.28),给「迷你信息重排为信息行」留出可感知的时序
   const revealDenominator = defaultStyleSurface.value ? 0.08 : 0.28;

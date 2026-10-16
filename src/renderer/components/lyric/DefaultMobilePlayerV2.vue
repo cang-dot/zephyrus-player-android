@@ -175,7 +175,7 @@
             v-else-if="lyricsExpanded && immersiveSurfaceMode === 'playlist'"
             class="immersive-panel"
           >
-            <playing-list-drawer embedded />
+            <immersive-playlist-panel />
           </div>
         </div>
 
@@ -187,7 +187,7 @@
             'header-hidden':
               lyricsExpanded &&
               !lyricsSwipePreview &&
-              (immersiveSurfaceMode !== 'lyrics' || (!surfacePinned && !controlsShown))
+              (immersiveSurfaceMode === 'settings' || (!surfacePinned && !controlsShown))
           }"
           :style="immersiveHeaderDragStyle"
           @pointerdown="immersiveHeaderCollapse.onHeaderPointerDown"
@@ -244,8 +244,8 @@ import MobileCommentsOverlay from '@/components/comment/MobileCommentsOverlay.vu
 import SongTitleText from '@/components/common/SongTitleText.vue';
 import LyricImmersiveHeader from '@/components/lyric/LyricImmersiveHeader.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
+import ImmersivePlaylistPanel from '@/components/player/ImmersivePlaylistPanel.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
-import PlayingListDrawer from '@/components/player/PlayingListDrawer.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
