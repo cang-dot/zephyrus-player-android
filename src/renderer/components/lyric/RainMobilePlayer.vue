@@ -181,7 +181,8 @@
           <!-- 沉浸态内容区替换：设置/播放列表就地取代歌词区（按钮为切换型） -->
           <div
             v-else-if="showFullLyrics && immersiveSurfaceMode === 'settings'"
-            class="immersive-panel immersive-panel-compact"
+            class="immersive-panel"
+            :style="panelSurfaceVars"
           >
             <mobile-player-settings
               embedded
@@ -192,7 +193,7 @@
           <div
             v-else-if="showFullLyrics && immersiveSurfaceMode === 'playlist'"
             class="immersive-panel"
-            :style="panelFadeVars"
+            :style="panelSurfaceVars"
           >
             <immersive-playlist-panel />
           </div>
@@ -382,9 +383,15 @@ const immersiveHeaderDragStyle = computed(() =>
     ? { transform: `translate3d(0, ${immersiveHeaderCollapse.dragOffset.value.toFixed(1)}px, 0)` }
     : undefined
 );
-const panelFadeVars = computed(() => ({
-  '--ip-fade-top': controlsVisible.value ? '128px' : '24px',
-  '--ip-fade-bottom': controlsVisible.value ? '168px' : '24px'
+// 沉浸面板几何：控件栏可见时夹在顶栏（safe+66 起 44px 高）与底部控件栏之间，
+// 控件栏隐藏后才扩展到全屏；渐隐截断只保留边缘小截
+const panelSurfaceVars = computed(() => ({
+  '--ip-inset-top': controlsVisible.value ? 'calc(var(--safe-area-inset-top, 0px) + 120px)' : '0px',
+  '--ip-inset-bottom': controlsVisible.value
+    ? 'calc(var(--safe-area-inset-bottom, 0px) + 170px)'
+    : '0px',
+  '--ip-fade-top': controlsVisible.value ? '18px' : '24px',
+  '--ip-fade-bottom': controlsVisible.value ? '18px' : '24px'
 }));
 const { onTouchStart: onSwipeCloseTouchStart, onTouchEnd: onSwipeCloseTouchEnd } = useSwipeClose({
   shouldClose: () =>

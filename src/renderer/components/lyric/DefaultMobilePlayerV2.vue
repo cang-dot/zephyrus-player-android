@@ -167,7 +167,8 @@
           <!-- 沉浸态内容区替换：设置/播放列表/评论区就地取代歌词区，按钮为切换型 -->
           <div
             v-else-if="lyricsExpanded && immersiveSurfaceMode === 'settings'"
-            class="immersive-panel immersive-panel-compact"
+            class="immersive-panel"
+            :style="panelSurfaceVars"
           >
             <mobile-player-settings
               embedded
@@ -178,7 +179,7 @@
           <div
             v-else-if="lyricsExpanded && immersiveSurfaceMode === 'playlist'"
             class="immersive-panel"
-            :style="panelFadeVars"
+            :style="panelSurfaceVars"
           >
             <immersive-playlist-panel />
           </div>
@@ -509,11 +510,19 @@ const immersiveHeaderDragStyle = computed(() =>
     ? { transform: `translate3d(0, ${immersiveHeaderCollapse.dragOffset.value.toFixed(1)}px, 0)` }
     : undefined
 );
-// 沉浸面板上下渐隐边界：跟随顶栏（常显/自动隐藏）与底部控件栏的显隐
-const panelFadeVars = computed(() => ({
-  '--ip-fade-top': surfacePinned.value || controlsShown.value ? '128px' : '24px',
-  '--ip-fade-bottom': controlsShown.value ? '168px' : '24px'
-}));
+// 沉浸面板几何：上下栏可见时夹在顶栏（safe+66 起 44px 高）与底栏（controlHeight 150）
+// 之间，控件栏隐藏后才扩展到全屏；渐隐截断只保留边缘小截（跟随上下栏显隐）。
+// 设置模式例外：顶栏与底部控件栏均让位渐隐，面板直接全屏。
+const panelSurfaceVars = computed(() => {
+  const barsShown =
+    immersiveSurfaceMode.value !== 'settings' && (surfacePinned.value || controlsShown.value);
+  return {
+    '--ip-inset-top': barsShown ? 'calc(var(--safe-area-inset-top, 0px) + 120px)' : '0px',
+    '--ip-inset-bottom': barsShown ? 'calc(var(--safe-area-inset-bottom, 0px) + 150px)' : '0px',
+    '--ip-fade-top': barsShown ? '18px' : '24px',
+    '--ip-fade-bottom': barsShown ? '18px' : '24px'
+  };
+});
 
 const headerVisible = computed(
   () => !config.value.hideLyrics && (lyricsExpanded.value || lyricsSwipePreview.value)

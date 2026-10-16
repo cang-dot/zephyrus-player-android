@@ -152,29 +152,36 @@
   opacity: 0;
 }
 
-/* 沉浸页内容区替换面板（设置/播放列表）：无实色底，透出播放器背景；
-   上下边缘做跟随顶栏/底栏边界与显隐的「渐隐+模糊截断」：
+/* 沉浸页内容区替换面板（设置/播放列表）：无实色底，透出播放器背景。
+   几何约束：上下栏可见时面板夹在顶栏（immersive-header-wrap，safe+66 起 44px 高）
+   与底栏（控件栏）之间——边界由宿主经 --ip-inset-top/-bottom 注入；控件栏隐藏后
+   面板扩展到全屏（变量回落 0）。上下边缘再做「渐隐+模糊截断」软化：
    - 面板 mask 提供透明渐隐（边界由 --ip-fade-top/-bottom 驱动，@property 可过渡）
    - ::before/::after 为 backdrop-blur 截断条（blur 渐隐），随变量平滑伸缩 */
 @property --ip-fade-top {
   syntax: '<length>';
   inherits: true;
-  initial-value: 128px;
+  initial-value: 24px;
 }
 
 @property --ip-fade-bottom {
   syntax: '<length>';
   inherits: true;
-  initial-value: 168px;
+  initial-value: 24px;
 }
 
 .immersive-panel {
   position: absolute;
-  inset: 0;
+  top: var(--ip-inset-top, 0px);
+  right: 0;
+  bottom: var(--ip-inset-bottom, 0px);
+  left: 0;
   z-index: 2;
   overflow: hidden;
-  --ip-fade-top: 128px;
-  --ip-fade-bottom: 168px;
+  --ip-inset-top: 0px;
+  --ip-inset-bottom: 0px;
+  --ip-fade-top: 24px;
+  --ip-fade-bottom: 24px;
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
@@ -190,6 +197,8 @@
     transparent 100%
   );
   transition:
+    top 350ms cubic-bezier(0.32, 0.72, 0, 1),
+    bottom 350ms cubic-bezier(0.32, 0.72, 0, 1),
     --ip-fade-top 320ms cubic-bezier(0.32, 0.72, 0, 1),
     --ip-fade-bottom 320ms cubic-bezier(0.32, 0.72, 0, 1);
 }
@@ -218,12 +227,6 @@
   height: var(--ip-fade-bottom);
   -webkit-mask-image: linear-gradient(to top, #000 30%, transparent);
   mask-image: linear-gradient(to top, #000 30%, transparent);
-}
-
-/* 设置面板：顶栏/底栏均渐隐，仅保留屏幕边缘的小截断 */
-.immersive-panel.immersive-panel-compact {
-  --ip-fade-top: 24px;
-  --ip-fade-bottom: 24px;
 }
 
 /* 沉浸内容区的播放列表面板：几何约束（面板 embedded 以最近定位祖先为锚，
