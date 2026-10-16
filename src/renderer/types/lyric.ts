@@ -19,6 +19,8 @@ export function normalizeLyricSwipeDirection(value: unknown): LyricSwipeDirectio
 }
 
 export type PlayerPageLayout = 'comment-player-lyrics' | 'lyrics-player-comments';
+/** 界面布局方案：appleMusic=沉浸顶栏方案；zephyrus=横滑歌词+底部面板（旧方案，默认） */
+export type InterfaceLayoutScheme = 'appleMusic' | 'zephyrus';
 
 export function normalizePlayerPageLayout(value: unknown): PlayerPageLayout {
   return value === 'lyrics-player-comments' ? value : 'comment-player-lyrics';
@@ -174,6 +176,8 @@ export interface LyricConfig {
   hideCover: boolean;
   centerLyrics: boolean;
   lyricAlignment: LyricAlignment;
+  /** 界面布局方案：appleMusic=沉浸顶栏+双击/上拉唤起；zephyrus=横滑歌词+底部面板（默认） */
+  interfaceLayout: InterfaceLayoutScheme;
   lyricSwipeDirection: LyricSwipeDirection;
   showCommentSection: boolean; // 播放界面显示评论区（三页布局：评论/播放/歌词）
   playerPageLayout: PlayerPageLayout; // 三页排布顺序，仅 showCommentSection 开启时生效
@@ -257,6 +261,7 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   hideCover: false,
   centerLyrics: false,
   lyricAlignment: 'left',
+  interfaceLayout: 'zephyrus',
   lyricSwipeDirection: 'left',
   showCommentSection: false,
   playerPageLayout: 'comment-player-lyrics',

@@ -164,6 +164,34 @@
                   :inert="!isControlSectionExpanded('lyrics')"
                 >
                   <div id="control-section-lyrics" class="control-section-body">
+                    <!-- 界面布局方案 -->
+                    <div class="p-3 rounded-2xl bg-white/5 mb-2">
+                      <div class="text-sm text-white/80">
+                        {{ tr('settings.lyricSettings.interfaceLayout', '界面布局方案') }}
+                      </div>
+                      <div class="text-xs text-white/40 mt-1 mb-2">
+                        {{
+                          tr(
+                            'settings.lyricSettings.interfaceLayoutDescription',
+                            'Zephyrus=横滑歌词+底部面板；AppleMusic=沉浸顶栏+双击/上拉唤起'
+                          )
+                        }}
+                      </div>
+                      <div class="lyric-swipe-control" role="radiogroup">
+                        <button
+                          v-for="option in interfaceLayoutOptions"
+                          :key="option.value"
+                          type="button"
+                          :class="{ active: lyricConfig.interfaceLayout === option.value }"
+                          :aria-checked="lyricConfig.interfaceLayout === option.value"
+                          role="radio"
+                          @click="setInterfaceLayout(option.value)"
+                        >
+                          {{ option.label }}
+                        </button>
+                      </div>
+                    </div>
+
                     <!-- 显示翻译 -->
                     <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
                       <div>
@@ -250,8 +278,11 @@
                       </div>
                     </div>
 
-                    <!-- 显示评论区（三页布局） -->
-                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                    <!-- 显示评论区（三页布局；仅 Zephyrus 方案） -->
+                    <div
+                      v-if="lyricConfig.interfaceLayout === 'zephyrus'"
+                      class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2"
+                    >
                       <div class="min-w-0 pr-3">
                         <div class="text-sm text-white/80">
                           {{ tr('settings.lyricSettings.showCommentSection', '显示评论区') }}
@@ -274,9 +305,11 @@
                       </button>
                     </div>
 
-                    <!-- 页面布局（评论区开启时替换手势方向项） -->
+                    <!-- 页面布局（评论区开启时替换手势方向项；仅 Zephyrus 方案） -->
                     <div
-                      v-if="lyricConfig.showCommentSection"
+                      v-if="
+                        lyricConfig.interfaceLayout === 'zephyrus' && lyricConfig.showCommentSection
+                      "
                       class="p-3 rounded-2xl bg-white/5 mb-2"
                     >
                       <div class="text-sm text-white/80">
@@ -306,7 +339,10 @@
                     </div>
 
                     <div
-                      v-if="!lyricConfig.showCommentSection"
+                      v-if="
+                        lyricConfig.interfaceLayout === 'zephyrus' &&
+                        !lyricConfig.showCommentSection
+                      "
                       class="p-3 rounded-2xl bg-white/5 mb-2"
                     >
                       <div class="text-sm text-white/80">
@@ -1384,6 +1420,7 @@ import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import { useUserStore } from '@/store/modules/user';
 import type {
+  InterfaceLayoutScheme,
   LyricAlignment,
   LyricConfig,
   LyricSwipeDirection,
@@ -2525,6 +2562,25 @@ function setLyricSwipeDirection(direction: LyricSwipeDirection) {
 
 function setPageLayout(layout: PlayerPageLayout) {
   lyricConfig.value.playerPageLayout = layout;
+}
+
+// 界面布局方案（写入即广播 music-full-config-updated，沉浸层即时切换）
+const interfaceLayoutOptions = computed<Array<{ value: InterfaceLayoutScheme; label: string }>>(
+  () => [
+    {
+      value: 'zephyrus',
+      label: tr('settings.lyricSettings.interfaceLayoutZephyrus', 'Zephyrus（横滑歌词）')
+    },
+    {
+      value: 'appleMusic',
+      label: tr('settings.lyricSettings.interfaceLayoutAppleMusic', 'AppleMusic（沉浸顶栏）')
+    }
+  ]
+);
+
+function setInterfaceLayout(layout: InterfaceLayoutScheme) {
+  lyricConfig.value.interfaceLayout = layout;
+  persistLyricConfig(lyricConfig.value);
 }
 
 // 滚动歌词字体选项（内置字体，含"默认"空选项）

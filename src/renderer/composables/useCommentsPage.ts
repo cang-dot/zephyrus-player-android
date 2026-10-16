@@ -7,8 +7,11 @@ import { useLyricSwipeGesture } from './useLyricSwipeGesture';
  * 各样式播放器用它创建评论侧手势实例，并把返回的四个
  * onPointer* 以 capture 方式绑到样式根节点上，
  * 再挂载 <MobileCommentsOverlay :gesture="..." />。
+ *
+ * @param extraSuppressed 额外抑制条件（AppleMusic 方案弃用横滑，由调用方传
+ *   `() => interfaceLayout !== 'zephyrus'` 让评论手势完全惰性）
  */
-export function useCommentsPage() {
+export function useCommentsPage(extraSuppressed?: () => boolean) {
   const playerStore = usePlayerStore();
   return useLyricSwipeGesture({
     isOpen: () => playerStore.fullCommentsVisible,
@@ -16,6 +19,6 @@ export function useCommentsPage() {
     onClose: () => playerStore.setFullCommentsVisible(false),
     role: 'comments',
     // 歌词页打开期间抑制评论手势，防止双浮层同帧动画
-    suppressed: () => playerStore.fullLyricsVisible
+    suppressed: () => playerStore.fullLyricsVisible || (extraSuppressed?.() ?? false)
   });
 }

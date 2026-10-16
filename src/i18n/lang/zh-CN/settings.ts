@@ -404,6 +404,10 @@ export default {
   },
   lyricSettings: {
     title: '布局设置',
+    interfaceLayout: '界面布局方案',
+    interfaceLayoutDescription: 'Zephyrus=横滑歌词+底部面板；AppleMusic=沉浸顶栏+双击/上拉唤起',
+    interfaceLayoutZephyrus: 'Zephyrus（横滑歌词）',
+    interfaceLayoutAppleMusic: 'AppleMusic（沉浸顶栏）',
     showCommentSection: '显示评论区',
     pageLayout: '页面布局',
     pageLayoutCommentFirst: '评论 · 播放界面 · 歌词',

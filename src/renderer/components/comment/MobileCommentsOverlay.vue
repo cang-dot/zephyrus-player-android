@@ -63,21 +63,20 @@
           <p>{{ t('player.commentPanel.empty') }}</p>
         </div>
         <template v-else>
-          <article
-            v-for="node in listTree"
-            :key="node.comment.commentId"
-            class="comment-item"
-          >
+          <article v-for="node in listTree" :key="node.comment.commentId" class="comment-item">
             <img class="comment-avatar" :src="avatarUrl(node.comment)" loading="lazy" alt="" />
             <div class="comment-main">
               <div class="comment-meta">
-                <span class="comment-nick">{{ node.comment.user?.nickname || t('player.commentPanel.anonymous') }}</span>
+                <span class="comment-nick">{{
+                  node.comment.user?.nickname || t('player.commentPanel.anonymous')
+                }}</span>
                 <time class="comment-time">{{ formatTime(node.comment.time) }}</time>
               </div>
               <p class="comment-content">
                 <span v-if="node.replyingTo" class="reply-to-tag">{{
                   t('player.commentPanel.replyToTag', { name: node.replyingTo })
-                }}</span>{{ node.comment.content }}
+                }}</span
+                >{{ node.comment.content }}
               </p>
               <div class="comment-actions">
                 <button
@@ -105,7 +104,9 @@
               </div>
               <!-- 盖楼（合并逻辑足够）：主评论下的回复直接显示在圆角矩形框内，无懒加载展开 -->
               <div
-                v-if="node.children.length || (node.comment.beReplied && node.comment.beReplied.length)"
+                v-if="
+                  node.children.length || (node.comment.beReplied && node.comment.beReplied.length)
+                "
                 class="comment-floor"
               >
                 <div
@@ -115,11 +116,7 @@
                   <span class="floor-nick">@{{ node.comment.beReplied[0].user?.nickname }}：</span>
                   <span class="floor-content">{{ node.comment.beReplied[0].content }}</span>
                 </div>
-                <div
-                  v-for="child in node.children"
-                  :key="child.commentId"
-                  class="floor-item"
-                >
+                <div v-for="child in node.children" :key="child.commentId" class="floor-item">
                   <span class="floor-nick">{{ child.user?.nickname }}：</span>
                   <span class="floor-content">{{ child.content }}</span>
                 </div>
@@ -207,6 +204,8 @@ const props = defineProps<{
   gesture: LyricSwipeGestureApi;
   /** 底部控制条避让高度(px)，缺省按横竖屏取 96/168 */
   bottomInset?: number;
+  /** 强制启用（AppleMusic 方案的沉浸内容替换路径，绕过 showCommentSection 配置） */
+  featureOverride?: boolean;
 }>();
 
 const { t } = useI18n();
@@ -226,10 +225,13 @@ const refreshConfig = () => {
   side.value = readPageSwipeDirection('comments') === 'right' ? 'right' : 'left';
 };
 
-const isOpen = computed(() => featureOn.value && playerStore.fullCommentsVisible);
+const isOpen = computed(
+  () => (props.featureOverride || featureOn.value) && playerStore.fullCommentsVisible
+);
 // 手势预览/落位期间保持挂载，避免收尾瞬间闪断
 const overlayMounted = computed(
-  () => featureOn.value && (isOpen.value || props.gesture.previewing.value)
+  () =>
+    (props.featureOverride || featureOn.value) && (isOpen.value || props.gesture.previewing.value)
 );
 
 // 进出场 transform 直接复用手势实例的 overlayStyle（跟手 + 弹簧落位）
@@ -275,7 +277,9 @@ const listTree = computed<ListNode[]>(() => {
     }
     // 未归属的回复型按锚点位置插回（锚点后一位），保持时间序
     for (const { node, anchorKey } of trailing) {
-      const idx = order.findIndex((n) => `${n.comment.user?.userId}|${n.comment.content}` === anchorKey);
+      const idx = order.findIndex(
+        (n) => `${n.comment.user?.userId}|${n.comment.content}` === anchorKey
+      );
       if (idx >= 0) order.splice(idx + 1, 0, node);
       else order.push(node);
     }
@@ -726,7 +730,6 @@ const formatTime = (ms: number) => {
   color: var(--accent-color, #77836e);
   font-weight: 600;
 }
-
 
 /* 楼层引用条：被回复内容预览（矩形框内首行） */
 .floor-quote-row {

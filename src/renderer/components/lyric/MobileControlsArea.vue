@@ -18,6 +18,7 @@
     @mousedown.stop="emitInteract"
   >
     <div
+      ref="infoRowRef"
       class="player-info-row"
       :class="{ 'info-compact': defaultStyleCompact }"
       :style="immersiveRowStyle"
@@ -145,7 +146,12 @@
     </div>
 
     <!-- 控制按钮 -->
-    <div class="control-buttons">
+    <div
+      class="control-buttons"
+      :style="{
+        gridTemplateColumns: `repeat(${isAppleMusicLayout ? 6 : 5}, minmax(0, 1fr))`
+      }"
+    >
       <div class="side-button" @click="handleTogglePlayMode">
         <i :class="[playModeIcon, { 'intelligence-active': playMode === 3 }]"></i>
       </div>
@@ -154,6 +160,14 @@
       </div>
       <div v-if="isLandscape" class="side-button" aria-label="播放设置" @click="handleShowSettings">
         <i class="ri-equalizer-3-line"></i>
+      </div>
+      <div
+        v-if="isLandscape && isAppleMusicLayout"
+        class="side-button"
+        aria-label="评论区"
+        @click="handleShowComments"
+      >
+        <i class="ri-chat-3-line"></i>
       </div>
       <div class="main-button prev" @click="handlePrev">
         <i class="ri-skip-back-fill"></i>
@@ -166,6 +180,28 @@
       </div>
       <div v-if="!isLandscape" class="side-button" @click="handleShowPlaylist">
         <i class="iconfont icon-list"></i>
+      </div>
+      <div
+        v-if="!isLandscape && isAppleMusicLayout"
+        class="side-button"
+        aria-label="评论区"
+        @click="handleShowComments"
+      >
+        <i class="ri-chat-3-line"></i>
+      </div>
+    </div>
+
+    <!-- 信息栏克隆飞行层（AM）：从行矩形飞向顶栏槽位，落点前淡出交接给真顶栏 -->
+    <div
+      v-if="infoFlightVisible"
+      class="info-flight-clone"
+      :style="infoFlightStyle"
+      aria-hidden="true"
+    >
+      <img class="info-flight-cover" :src="currentCoverUrl" alt="" />
+      <div class="info-flight-copy">
+        <strong>{{ songTitle }}</strong>
+        <span>{{ artistText }}</span>
       </div>
     </div>
   </div>
@@ -185,10 +221,15 @@ import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import { useControlsDock } from '@/composables/useControlsDock';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import {
+  IMMERSIVE_HEADER_SLOT,
+  immersiveSurfaceMode,
+  isAppleMusicLayout,
   prefersReducedMotion,
   projectMomentum,
+  readImmersiveSafeTop,
   requestImmersiveOpen,
   springTo,
+  toggleImmersiveSurface,
   useImmersiveLyrics
 } from '@/composables/useImmersiveLyrics';
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
@@ -564,6 +605,7 @@ let riseSamples: { y: number; time: number }[] = [];
 const riseDistance = () => Math.max(180, Math.min(280, window.innerHeight * 0.28));
 
 const canRise = () =>
+  isAppleMusicLayout.value &&
   props.sharedSurface === true &&
   !defaultStyleCompact.value &&
   !playerStore.fullLyricsVisible &&
@@ -645,22 +687,82 @@ function settleImmersiveRise(cancelled: boolean) {
 }
 
 /**
- * 信息栏让位：默认样式（紧凑按钮行）右移出屏迁往顶栏；
- * 其他样式整体上移（与顶栏交叉淡入完成 morph）。进度为跨组件单一真值。
+ * 信息栏让位（AppleMusic）：激活即整行隐藏，由克隆飞行层接管位移；
+ * Zephyrus 方案行保持原样。
  */
 const immersiveRowStyle = computed(() => {
+  if (!isAppleMusicLayout.value) return undefined;
   const p = immersive.progress.value;
   if (p <= 0.001) return undefined;
-  const base: Record<string, string> = { transition: 'none' };
-  if (p > 0.5) base.pointerEvents = 'none';
-  if (defaultStyleCompact.value) {
-    base.transform = `translate3d(${(p * 130).toFixed(1)}%, 0, 0)`;
-    base.opacity = String(Math.max(0, 1 - p * 1.15));
-  } else {
-    base.transform = `translate3d(0, ${(-p * 140).toFixed(1)}px, 0)`;
-    base.opacity = String(Math.max(0, 1 - p * 0.9));
+  return {
+    opacity: '0',
+    transition: 'none',
+    pointerEvents: 'none'
+  } as Record<string, string>;
+});
+
+// ── 信息栏克隆飞行（AM）：整行内容从行矩形飞向顶栏槽位，落点前交叉给真顶栏 ──
+const infoRowRef = ref<HTMLElement | null>(null);
+interface InfoFlightRects {
+  source: { left: number; top: number; width: number; height: number };
+  targetTop: number;
+}
+const infoFlightRects = ref<InfoFlightRects | null>(null);
+
+function captureInfoFlightRects() {
+  if (!infoRowRef.value) {
+    infoFlightRects.value = null;
+    return;
   }
-  return base;
+  const rect = infoRowRef.value.getBoundingClientRect();
+  if (rect.width < 80 || rect.height < 24) {
+    infoFlightRects.value = null;
+    return;
+  }
+  infoFlightRects.value = {
+    source: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+    targetTop: readImmersiveSafeTop() + IMMERSIVE_HEADER_SLOT.topInset
+  };
+}
+
+// rise 驱动期间保持矩形；完全关闭后清理
+watch(
+  () => immersive.progress.value,
+  (p) => {
+    if (immersive.variant.value !== 'rise') return;
+    if (p > 0.001 && !infoFlightRects.value) captureInfoFlightRects();
+    if (p <= 0.001) infoFlightRects.value = null;
+  }
+);
+
+const infoFlightVisible = computed(
+  () =>
+    isAppleMusicLayout.value &&
+    !!infoFlightRects.value &&
+    immersive.variant.value === 'rise' &&
+    immersive.progress.value > 0.001 &&
+    immersive.progress.value < 0.999
+);
+
+const infoFlightStyle = computed<Record<string, string>>(() => {
+  const rects = infoFlightRects.value;
+  if (!rects) return {} as Record<string, string>;
+  const p = Math.max(0, Math.min(1, immersive.progress.value));
+  const lerp = (a: number, b: number) => a + (b - a) * p;
+  const targetLeft = IMMERSIVE_HEADER_SLOT.inset;
+  const targetWidth = Math.max(240, window.innerWidth - IMMERSIVE_HEADER_SLOT.inset * 2);
+  return {
+    position: 'fixed',
+    left: `${lerp(rects.source.left, targetLeft).toFixed(2)}px`,
+    top: `${lerp(rects.source.top, rects.targetTop).toFixed(2)}px`,
+    width: `${lerp(rects.source.width, targetWidth).toFixed(2)}px`,
+    height: `${lerp(rects.source.height, IMMERSIVE_HEADER_SLOT.size + 4).toFixed(2)}px`,
+    opacity: (1 - Math.max(0, Math.min(1, (p - 0.85) / 0.15))).toFixed(3),
+    zIndex: '60',
+    pointerEvents: 'none',
+    transform: 'translateZ(0)',
+    transition: 'none'
+  };
 });
 
 onBeforeUnmount(() => {
@@ -691,7 +793,26 @@ async function handleFavorite() {
 
 function handleShowSettings() {
   playerSurfaceFeedback.pulse();
+  // AppleMusic：⋯ 始终为「打开沉浸歌词并替换为设置页」；Zephyrus 维持原分发
+  if (isAppleMusicLayout.value && requestImmersiveOpen()) {
+    immersiveSurfaceMode.value = 'settings';
+    emitInteract();
+    return;
+  }
   emit('showSettings');
+}
+
+function handleShowComments() {
+  playerSurfaceFeedback.pulse();
+  if (!isAppleMusicLayout.value) return;
+  if (playerStore.fullLyricsVisible) {
+    toggleImmersiveSurface('comments');
+    emitInteract();
+    return;
+  }
+  immersiveSurfaceMode.value = 'comments';
+  if (!requestImmersiveOpen()) immersiveSurfaceMode.value = 'lyrics';
+  emitInteract();
 }
 
 function emitInteract() {
@@ -922,6 +1043,47 @@ const handleThumbTouchEnd = () => {
   margin-bottom: 12px;
   /* 竖直上拉唤起沉浸歌词：阻止浏览器把手势判给滚动 */
   touch-action: none;
+}
+
+/* 信息栏克隆飞行层（AM）：位置/尺寸由内联样式逐帧驱动 */
+.info-flight-clone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.info-flight-cover {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex: none;
+}
+
+.info-flight-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.info-flight-copy strong {
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.info-flight-copy span {
+  overflow: hidden;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.62);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* default 样式共享底面:去掉信息主体后整行右对齐收窄,只留收藏/更多 */

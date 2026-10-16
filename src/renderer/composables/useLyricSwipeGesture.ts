@@ -19,6 +19,8 @@ type LyricSwipeGestureOptions = {
   variant?: () => 'slide' | 'scale';
   /** scale 变体的折叠态几何（区中心与区/全屏宽高比），由消费方在手势外测量 */
   scaleGeometry?: () => { originY: number; scaleX: number; scaleY: number } | null;
+  /** 返回 false 时禁用指针手势（程序化 animateOpen/Close 不受影响；AppleMusic 方案弃用横滑） */
+  pointerEnabled?: () => boolean;
 };
 
 export type LyricSwipePhase = 'opening' | 'closing' | null;
@@ -291,6 +293,7 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
 
   function onPointerDown(event: PointerEvent) {
     if (!event.isPrimary || event.pointerType === 'mouse' || direction.value === 'none') return;
+    if (options.pointerEnabled && !options.pointerEnabled()) return;
     if (isInteractiveTarget(event.target)) return;
     if (options.suppressed?.()) return;
 

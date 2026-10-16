@@ -164,24 +164,35 @@
               {{ t('player.lrc.noLrc') }}
             </button>
           </template>
-          <!-- 沉浸态内容区替换：设置/播放列表就地取代歌词区，按钮为切换型 -->
+          <!-- 沉浸态内容区替换：设置/播放列表/评论区就地取代歌词区，按钮为切换型 -->
           <mobile-player-settings
-            v-else-if="lyricsExpanded && immersiveSurfaceMode === 'settings'"
+            v-else-if="isAppleMusicLayout && lyricsExpanded && immersiveSurfaceMode === 'settings'"
             embedded
             :visible="true"
             @update:visible="toggleImmersiveSurface('settings')"
           />
           <playing-list-drawer
-            v-else-if="lyricsExpanded && immersiveSurfaceMode === 'playlist'"
+            v-else-if="isAppleMusicLayout && lyricsExpanded && immersiveSurfaceMode === 'playlist'"
             embedded
+          />
+          <mobile-comments-overlay
+            v-else-if="isAppleMusicLayout && lyricsExpanded && immersiveSurfaceMode === 'comments'"
+            :gesture="commentsSwipe"
+            :bottom-inset="150"
+            feature-override
           />
         </div>
 
         <!-- 沉浸歌词顶栏：整体位于顶部关闭条之下，显隐随底部控件栏（controlsShown） -->
         <div
-          v-if="headerVisible"
+          v-if="headerVisible && isAppleMusicLayout"
           class="immersive-header-wrap"
           :class="{ 'header-hidden': lyricsExpanded && !controlsShown && !lyricsSwipePreview }"
+          :style="immersiveHeaderDragStyle"
+          @pointerdown="immersiveHeaderCollapse.onHeaderPointerDown"
+          @pointermove="immersiveHeaderCollapse.onHeaderPointerMove"
+          @pointerup="immersiveHeaderCollapse.onHeaderPointerUp"
+          @pointercancel="immersiveHeaderCollapse.onHeaderPointerCancel"
         >
           <lyric-immersive-header
             :cover-url="coverUrl"
@@ -238,9 +249,13 @@ import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import {
+  IMMERSIVE_HEADER_SLOT,
   immersiveSurfaceMode,
+  registerImmersiveOpener,
   resetImmersiveLyrics,
   toggleImmersiveSurface,
+  unregisterImmersiveOpener,
+  useImmersiveHeaderCollapse,
   useImmersiveLyrics
 } from '@/composables/useImmersiveLyrics';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
@@ -417,7 +432,7 @@ const fluidColors = computed(() => {
 const surfaceRef = ref<HTMLElement | null>(null);
 const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
 const lyricsExpanded = ref(false);
-const commentsSwipe = useCommentsPage();
+const commentsSwipe = useCommentsPage(() => !isAppleMusicLayout.value);
 const {
   style: lyricsSwipeStyle,
   overlayStyle: lyricsOverlayStyle,
@@ -436,6 +451,8 @@ const {
   suppressed: () => playerStore.fullCommentsVisible,
   onOpen: () => commitLyricsExpanded(true),
   onClose: () => commitLyricsExpanded(false),
+  // AppleMusic 方案弃用横滑：唤起=双击歌词区/⋯，收起=顶栏下滑/侧边热区/返回键
+  pointerEnabled: () => !isAppleMusicLayout.value,
   variant: () => lyricsArrival.value,
   scaleGeometry: () => zoneGeometry.value
 });
@@ -483,13 +500,26 @@ const immersiveProgress = computed(() => {
 watchEffect(() => {
   immersive.progress.value = immersiveProgress.value;
 });
+const { isAppleMusicLayout } = immersive;
+
+// 默认样式自身的沉浸打开回调（⋯/评论区按钮经 requestImmersiveOpen 调起，走 scale+morph）
+const immersiveOpenerFn = () => {
+  immersive.variant.value = 'slide';
+  openLyricsAnimated();
+};
+registerImmersiveOpener(immersiveOpenerFn);
+const immersiveHeaderCollapse = useImmersiveHeaderCollapse(() => setLyricsExpanded(false));
+const immersiveHeaderDragStyle = computed(() =>
+  immersiveHeaderCollapse.dragOffset.value > 0
+    ? { transform: `translate3d(0, ${immersiveHeaderCollapse.dragOffset.value.toFixed(1)}px, 0)` }
+    : undefined
+);
 
 const headerVisible = computed(
   () => !config.value.hideLyrics && (lyricsExpanded.value || lyricsSwipePreview.value)
 );
 
 // ── 封面克隆飞行（morph）：大封面矩形 → 顶栏 44px 槽位，进度即沉浸进度 ──
-const HEADER_SLOT = { inset: 20, size: 44, radius: 10, topInset: 66 };
 interface MorphRects {
   source: { left: number; top: number; size: number; radius: number };
   targetTop: number;
@@ -504,7 +534,7 @@ function readSafeAreaTop(): number {
 }
 
 function captureMorphRects() {
-  if (headerEntrance.value !== 'morph' || !showArtwork.value) {
+  if (!isAppleMusicLayout.value || headerEntrance.value !== 'morph' || !showArtwork.value) {
     morphRects.value = null;
     return;
   }
@@ -526,15 +556,15 @@ function captureMorphRects() {
       size: rect.width,
       radius: Math.max(0, (rect.width * Math.min(50, radiusPct)) / 100)
     },
-    targetTop: readSafeAreaTop() + HEADER_SLOT.topInset
+    targetTop: readSafeAreaTop() + IMMERSIVE_HEADER_SLOT.topInset
   };
 }
 
 watch(
   () => [lyricsSwipePreview.value, lyricsSwipePhase.value] as const,
   ([previewing, phase]) => {
-    if (previewing && phase === 'opening') captureMorphRects();
-    if (previewing && phase === 'closing') {
+    if (previewing && phase === 'opening' && isAppleMusicLayout.value) captureMorphRects();
+    if (previewing && phase === 'closing' && isAppleMusicLayout.value) {
       // 关闭起始时 zone 刚重挂：按当前布局重测源矩形（控件栏显隐会改变封面尺寸/位置）
       nextTick(captureMorphRects);
     }
@@ -551,14 +581,14 @@ const coverCloneStyle = computed<Record<string, string>>(() => {
   if (!rects) return {} as Record<string, string>;
   const p = immersiveProgress.value;
   const lerp = (a: number, b: number) => a + (b - a) * p;
-  const size = lerp(rects.source.size, HEADER_SLOT.size);
+  const size = lerp(rects.source.size, IMMERSIVE_HEADER_SLOT.size);
   return {
     position: 'fixed',
-    left: `${lerp(rects.source.left, HEADER_SLOT.inset).toFixed(2)}px`,
+    left: `${lerp(rects.source.left, IMMERSIVE_HEADER_SLOT.inset).toFixed(2)}px`,
     top: `${lerp(rects.source.top, rects.targetTop).toFixed(2)}px`,
     width: `${size.toFixed(2)}px`,
     height: `${size.toFixed(2)}px`,
-    borderRadius: `${lerp(rects.source.radius, HEADER_SLOT.radius).toFixed(2)}px`,
+    borderRadius: `${lerp(rects.source.radius, IMMERSIVE_HEADER_SLOT.radius).toFixed(2)}px`,
     zIndex: '60',
     overflow: 'hidden',
     pointerEvents: 'none',
@@ -767,6 +797,15 @@ watch(
 watch(isVisible, (visible) => {
   if (!visible) setLyricsExpanded(false);
 });
+// 评论区面板内部关闭（store 旗标复位）后，内容区切回歌词
+watch(
+  () => playerStore.fullCommentsVisible,
+  (visible) => {
+    if (!visible && immersiveSurfaceMode.value === 'comments') {
+      immersiveSurfaceMode.value = 'lyrics';
+    }
+  }
+);
 
 onMounted(() => {
   loadConfig();
@@ -779,6 +818,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('music-full-config-updated', handleConfigUpdate);
   document.body.classList.remove('default-player-active');
   window.dispatchEvent(new Event('default-player-style-changed'));
+  unregisterImmersiveOpener(immersiveOpenerFn);
   resetImmersiveLyrics();
 });
 </script>

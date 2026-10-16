@@ -409,6 +409,11 @@ export default {
       '"오류" 스타일은 강한 깜빡임을 포함합니다. 광과민성 예방을 위해 다시 탭해 확인해 주세요'
   },
   lyricSettings: {
+    interfaceLayout: '인터페이스 레이아웃',
+    interfaceLayoutDescription:
+      'Zephyrus=스와이프 가사+바텀 패널; AppleMusic=이머시브 헤더+더블탭/위로 당기기',
+    interfaceLayoutZephyrus: 'Zephyrus (스와이프 가사)',
+    interfaceLayoutAppleMusic: 'AppleMusic (이머시브 헤더)',
     title: '레이아웃 설정',
     showCommentSection: '댓글 표시',
     pageLayout: '페이지 레이아웃',

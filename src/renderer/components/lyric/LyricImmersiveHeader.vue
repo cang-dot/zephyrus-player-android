@@ -125,10 +125,9 @@ const actionsStyle = computed(() => ({
 
 <style scoped>
 .lyric-immersive-header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  /* 流内布局：由外层 immersive-header-wrap 的 padding-top 真正下推
+     （此前 absolute+top:0 不受 padding 约束，顶栏会贴到屏幕顶与克隆落点分离） */
+  position: relative;
   z-index: 6;
   display: flex;
   align-items: center;
