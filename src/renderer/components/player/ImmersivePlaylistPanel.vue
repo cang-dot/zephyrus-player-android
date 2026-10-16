@@ -39,7 +39,7 @@
             @pointercancel.stop="onHandlePointerCancel"
             @click.stop
           >
-            <i></i><i></i><i></i>
+            <i class="iconfont icon-list"></i>
           </div>
         </div>
       </TransitionGroup>
@@ -428,21 +428,14 @@ function closeMenu() {
   flex: none;
   width: 36px;
   height: 36px;
-  padding: 0 8px;
   place-items: center;
   touch-action: none;
   cursor: grab;
 
+  /* 复用控件栏播放列表按钮的 icon-list，压暗作拖拽把手 */
   i {
-    display: block;
-    width: 18px;
-    height: 2px;
-    border-radius: 1px;
-    background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.4);
-
-    & + i {
-      margin-top: 4px;
-    }
+    font-size: 16px;
+    color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.35);
   }
 
   &.dragging {

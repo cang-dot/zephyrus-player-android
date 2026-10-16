@@ -185,25 +185,29 @@
             @interact="showControls"
             @generatePoster="handleGeneratePoster"
           />
-          <!-- 沉浸态内容区替换：设置/播放列表就地取代歌词区（按钮为切换型） -->
-          <div
-            v-else-if="showFullLyrics && immersiveSurfaceMode === 'settings'"
-            class="immersive-panel"
-            :style="panelSurfaceVars"
-          >
-            <mobile-player-settings
-              embedded
-              :visible="true"
-              @update:visible="toggleImmersiveSurface('settings')"
-            />
-          </div>
-          <div
-            v-else-if="showFullLyrics && immersiveSurfaceMode === 'playlist'"
-            class="immersive-panel"
-            :style="panelSurfaceVars"
-          >
-            <immersive-playlist-panel />
-          </div>
+          <!-- 沉浸态内容区替换：设置/播放列表就地取代歌词区（按钮为切换型，带显隐动画） -->
+          <Transition name="ip-surface">
+            <div
+              v-if="showFullLyrics && immersiveSurfaceMode === 'settings'"
+              class="immersive-panel"
+              :style="panelSurfaceVars"
+            >
+              <mobile-player-settings
+                embedded
+                :visible="true"
+                @update:visible="toggleImmersiveSurface('settings')"
+              />
+            </div>
+          </Transition>
+          <Transition name="ip-surface">
+            <div
+              v-if="showFullLyrics && immersiveSurfaceMode === 'playlist'"
+              class="immersive-panel"
+              :style="panelSurfaceVars"
+            >
+              <immersive-playlist-panel />
+            </div>
+          </Transition>
           <!-- 沉浸歌词顶部栏：让位顶部关闭条，显隐随控件栏 -->
           <div
             class="immersive-header-wrap"

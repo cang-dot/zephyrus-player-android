@@ -229,6 +229,40 @@
   mask-image: linear-gradient(to top, #000 30%, transparent);
 }
 
+/* 面板显隐动画（宿主经 <Transition name="ip-surface"> 包裹分支）：
+   显示 = 自下浅浮 + 微放大入场；隐藏 = 下收淡出；夹在栏间 ↔ 全屏的
+   扩大/缩小由面板自身的 top/bottom 过渡承担（enter-active 保留该过渡） */
+.ip-surface-enter-active {
+  transition:
+    opacity 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    top 350ms cubic-bezier(0.32, 0.72, 0, 1),
+    bottom 350ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.ip-surface-leave-active {
+  transition:
+    opacity 220ms cubic-bezier(0.4, 0, 1, 1),
+    transform 220ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+.ip-surface-enter-from {
+  opacity: 0;
+  transform: translate3d(0, 28px, 0) scale(0.96);
+}
+
+.ip-surface-leave-to {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0) scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ip-surface-enter-active,
+  .ip-surface-leave-active {
+    transition: none;
+  }
+}
+
 /* 沉浸内容区的播放列表面板：几何约束（面板 embedded 以最近定位祖先为锚，
    需收进容器）与墨色覆盖（面板 header/列表是 Tailwind 字面色，深底上不可读） */
 .immersive-panel .playlist-panel.embedded {

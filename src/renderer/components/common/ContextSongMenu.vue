@@ -161,13 +161,14 @@ const menuStyle = computed(() => {
 .csm-scrim {
   position: fixed;
   inset: 0;
-  z-index: 9990;
+  /* 播放器页 z-index 9998，菜单 teleport 到 body 必须压过它，否则被整页遮住 */
+  z-index: 20000;
   background: rgba(0, 0, 0, 0.28);
 }
 
 .context-song-menu {
   position: fixed;
-  z-index: 9991;
+  z-index: 20001;
   overflow: hidden;
   border-radius: 14px;
   background: #242426;

@@ -164,25 +164,29 @@
               {{ t('player.lrc.noLrc') }}
             </button>
           </template>
-          <!-- 沉浸态内容区替换：设置/播放列表/评论区就地取代歌词区，按钮为切换型 -->
-          <div
-            v-else-if="lyricsExpanded && immersiveSurfaceMode === 'settings'"
-            class="immersive-panel"
-            :style="panelSurfaceVars"
-          >
-            <mobile-player-settings
-              embedded
-              :visible="true"
-              @update:visible="toggleImmersiveSurface('settings')"
-            />
-          </div>
-          <div
-            v-else-if="lyricsExpanded && immersiveSurfaceMode === 'playlist'"
-            class="immersive-panel"
-            :style="panelSurfaceVars"
-          >
-            <immersive-playlist-panel />
-          </div>
+          <!-- 沉浸态内容区替换：设置/播放列表/评论区就地取代歌词区（按钮为切换型，带显隐动画） -->
+          <Transition name="ip-surface">
+            <div
+              v-if="lyricsExpanded && immersiveSurfaceMode === 'settings'"
+              class="immersive-panel"
+              :style="panelSurfaceVars"
+            >
+              <mobile-player-settings
+                embedded
+                :visible="true"
+                @update:visible="toggleImmersiveSurface('settings')"
+              />
+            </div>
+          </Transition>
+          <Transition name="ip-surface">
+            <div
+              v-if="lyricsExpanded && immersiveSurfaceMode === 'playlist'"
+              class="immersive-panel"
+              :style="panelSurfaceVars"
+            >
+              <immersive-playlist-panel />
+            </div>
+          </Transition>
         </div>
 
         <!-- 沉浸歌词顶栏：整体位于顶部关闭条之下，显隐随底部控件栏（controlsShown） -->
