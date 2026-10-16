@@ -15,8 +15,9 @@
     @pointermove.capture="handlePointerMove"
     @pointerup.capture="handlePointerEnd"
     @pointercancel.capture="handlePointerCancel"
+    @wheel="notifyScrollActivity"
     @touchstart.stop
-    @touchmove.stop
+    @touchmove.stop="notifyScrollActivity"
     @touchend.stop
     @touchcancel.stop
   >
@@ -155,6 +156,14 @@ let longPressTarget: HTMLElement | null = null;
 let longPressSourceIndex: number | null = null;
 let longPressTriggered = false;
 let suppressLineClickUntil = 0;
+// 滚动浏览歌词（滚轮/触摸拖动）即视为一次交互：节流后上抛，宿主显示控件与顶栏
+let lastScrollInteractAt = 0;
+function notifyScrollActivity() {
+  const now = performance.now();
+  if (now - lastScrollInteractAt < 1200) return;
+  lastScrollInteractAt = now;
+  emit('interact');
+}
 let suppressedLineSourceIndex: number | null = null;
 let mountTimer: ReturnType<typeof setTimeout> | null = null;
 let mountIdleCallback = 0;

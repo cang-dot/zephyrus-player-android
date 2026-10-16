@@ -206,7 +206,9 @@
             class="immersive-header-wrap"
             :class="{
               'header-hidden':
-                showFullLyrics && !controlsVisible && !lyricsSwipePreview && !risePreviewing
+                showFullLyrics &&
+                (immersiveSurfaceMode !== 'lyrics' ||
+                  (!controlsVisible && !lyricsSwipePreview && !risePreviewing))
             }"
             :style="immersiveHeaderDragStyle"
             @pointerdown="immersiveHeaderCollapse.onHeaderPointerDown"

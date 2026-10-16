@@ -284,7 +284,7 @@ export default {
     cancel: 'キャンセル',
     expandReplies: '返信 {n}件',
     expandNested: '{n} 件の返信を表示',
-    replyToTag: '@{name} への返信：',
+    replyToTag: "{'@'}{name} への返信：",
     anonymous: '匿名ユーザー',
     noMore: 'コメントはこれ以上ありません',
     loadFailed: 'コメントの読み込みに失敗しました',

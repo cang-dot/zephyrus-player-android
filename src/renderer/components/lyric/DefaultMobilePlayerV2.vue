@@ -181,7 +181,12 @@
         <div
           v-if="headerVisible"
           class="immersive-header-wrap"
-          :class="{ 'header-hidden': lyricsExpanded && !controlsShown && !lyricsSwipePreview }"
+          :class="{
+            'header-hidden':
+              lyricsExpanded &&
+              !lyricsSwipePreview &&
+              (immersiveSurfaceMode !== 'lyrics' || (!surfacePinned && !controlsShown))
+          }"
           :style="immersiveHeaderDragStyle"
           @pointerdown="immersiveHeaderCollapse.onHeaderPointerDown"
           @pointermove="immersiveHeaderCollapse.onHeaderPointerMove"
