@@ -44,6 +44,7 @@ export function resetImmersiveLyrics(): void {
 }
 
 export function useImmersiveLyrics() {
+  ensureImmersiveSurfaceSync();
   return { progress, variant, active, immersiveSurfaceMode };
 }
 
@@ -52,11 +53,16 @@ export function toggleImmersiveSurface(mode: Exclude<ImmersiveSurfaceMode, 'lyri
   immersiveSurfaceMode.value = immersiveSurfaceMode.value === mode ? 'lyrics' : mode;
 }
 
-// ── 内容区模式 ↔ 播放列表抽屉旗标的双向同步（模块级注册一次）──
+// ── 内容区模式 ↔ 播放列表抽屉旗标的双向同步 ──
 // PlayingListDrawer 的 internalVisible 由 playListDrawerVisible 驱动：
 // 内容区展示播放列表时必须打开旗标，否则面板 v-if 不成立（内容区空白）；
 // 抽屉自身被关闭（右上角 ×）时内容区切回歌词；离开沉浸时一并复位。
-if (typeof window !== 'undefined') {
+// 注意：watch 的 getter 会立即求值 usePlayerStore()，必须延迟到宿主
+// setup（pinia 已激活）注册，模块顶层注册会在导入期抛错。
+let surfaceSyncRegistered = false;
+function ensureImmersiveSurfaceSync(): void {
+  if (surfaceSyncRegistered || typeof window === 'undefined') return;
+  surfaceSyncRegistered = true;
   watch(immersiveSurfaceMode, (mode, prev) => {
     const playerStore = usePlayerStore();
     if (mode === 'playlist' && prev !== 'playlist') {

@@ -171,10 +171,12 @@
             :visible="true"
             @update:visible="toggleImmersiveSurface('settings')"
           />
-          <playing-list-drawer
+          <div
             v-else-if="lyricsExpanded && immersiveSurfaceMode === 'playlist'"
-            embedded
-          />
+            class="immersive-panel"
+          >
+            <playing-list-drawer embedded />
+          </div>
         </div>
 
         <!-- 沉浸歌词顶栏：整体位于顶部关闭条之下，显隐随底部控件栏（controlsShown） -->

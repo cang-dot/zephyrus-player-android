@@ -161,6 +161,24 @@
   background: #161618;
 }
 
+/* 沉浸内容区的播放列表面板：几何约束（面板 embedded 以最近定位祖先为锚，
+   需收进容器）与墨色覆盖（面板 header/列表是 Tailwind 字面色，深底上不可读） */
+.immersive-panel .playlist-panel.embedded {
+  inset: 0 !important;
+}
+
+.immersive-panel .playlist-panel.embedded .playlist-panel-content {
+  height: calc(100% - 42px);
+}
+
+.immersive-panel .playlist-panel-header .title,
+.immersive-panel .playlist-panel-header .action-btn,
+.immersive-panel .playlist-panel-header .close-btn,
+.immersive-panel .music-play-list-content,
+.immersive-panel .music-play-list-content .text-gray-800 {
+  color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.9) !important;
+}
+
 .mobile .mobile-header .logo-text {
   font-family: var(--m-font-serif);
   font-weight: 700;
