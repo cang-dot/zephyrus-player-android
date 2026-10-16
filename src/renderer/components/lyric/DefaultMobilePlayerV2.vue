@@ -165,15 +165,20 @@
             </button>
           </template>
           <!-- 沉浸态内容区替换：设置/播放列表/评论区就地取代歌词区，按钮为切换型 -->
-          <mobile-player-settings
+          <div
             v-else-if="lyricsExpanded && immersiveSurfaceMode === 'settings'"
-            embedded
-            :visible="true"
-            @update:visible="toggleImmersiveSurface('settings')"
-          />
+            class="immersive-panel immersive-panel-compact"
+          >
+            <mobile-player-settings
+              embedded
+              :visible="true"
+              @update:visible="toggleImmersiveSurface('settings')"
+            />
+          </div>
           <div
             v-else-if="lyricsExpanded && immersiveSurfaceMode === 'playlist'"
             class="immersive-panel"
+            :style="panelFadeVars"
           >
             <immersive-playlist-panel />
           </div>
@@ -504,6 +509,11 @@ const immersiveHeaderDragStyle = computed(() =>
     ? { transform: `translate3d(0, ${immersiveHeaderCollapse.dragOffset.value.toFixed(1)}px, 0)` }
     : undefined
 );
+// 沉浸面板上下渐隐边界：跟随顶栏（常显/自动隐藏）与底部控件栏的显隐
+const panelFadeVars = computed(() => ({
+  '--ip-fade-top': surfacePinned.value || controlsShown.value ? '128px' : '24px',
+  '--ip-fade-bottom': controlsShown.value ? '168px' : '24px'
+}));
 
 const headerVisible = computed(
   () => !config.value.hideLyrics && (lyricsExpanded.value || lyricsSwipePreview.value)

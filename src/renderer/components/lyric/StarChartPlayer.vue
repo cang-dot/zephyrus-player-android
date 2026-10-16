@@ -151,7 +151,7 @@
           <!-- 沉浸态内容区替换：设置/播放列表就地取代歌词区（按钮为切换型） -->
           <div
             v-else-if="showFullLyrics && immersiveSurfaceMode === 'settings'"
-            class="immersive-panel"
+            class="immersive-panel immersive-panel-compact"
           >
             <mobile-player-settings
               embedded
@@ -162,6 +162,7 @@
           <div
             v-else-if="showFullLyrics && immersiveSurfaceMode === 'playlist'"
             class="immersive-panel"
+            :style="panelFadeVars"
           >
             <immersive-playlist-panel />
           </div>
@@ -305,6 +306,10 @@ const immersiveHeaderDragStyle = computed(() =>
     ? { transform: `translate3d(0, ${immersiveHeaderCollapse.dragOffset.value.toFixed(1)}px, 0)` }
     : undefined
 );
+const panelFadeVars = computed(() => ({
+  '--ip-fade-top': controlsVisible.value ? '128px' : '24px',
+  '--ip-fade-bottom': controlsVisible.value ? '168px' : '24px'
+}));
 const chartFrame = ref<HTMLElement>();
 const chartCanvas = ref<HTMLCanvasElement>();
 let resizeObserver: ResizeObserver | undefined;
