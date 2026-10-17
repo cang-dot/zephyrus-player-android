@@ -94,10 +94,11 @@ function handleFavorite() {
 }
 
 const containerStyle = computed(() => {
+  // 注意：本体必须可命中（顶栏是下拖关闭的把手）；按钮的排除由手势侧
+  // closest('button') 承担，拖拽从封面/歌名区发起
   const base = {
     transition: 'none',
-    willChange: 'transform, opacity',
-    pointerEvents: 'none'
+    willChange: 'transform, opacity'
   } as Record<string, string>;
   if (props.entrance === 'top-in') {
     return { ...base, transform: `translate3d(0, ${((p.value - 1) * 100).toFixed(3)}%, 0)` };
@@ -135,6 +136,10 @@ const actionsStyle = computed(() => ({
   /* 顶部安全区与关闭条留白由外层 immersive-header-wrap 负责，本组件只管一行 */
   padding: 0 20px;
   color: var(--player-ink, #fff);
+  /* 下拖关闭把手：本体必须可命中（外层 wrap 是 pointer-events:none 穿透层），
+     touch-action:none 防滚动意图接管竖直拖拽 */
+  pointer-events: auto;
+  touch-action: none;
 }
 
 .lih-cover {

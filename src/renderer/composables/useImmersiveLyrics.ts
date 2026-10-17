@@ -255,7 +255,7 @@ export function useStyleImmersiveHeaderCollapse(
     sinkCancelSpring?.();
     sinkCancelSpring = null;
   });
-  return useImmersiveHeaderCollapse(onClose, {
+  const collapse = useImmersiveHeaderCollapse(onClose, {
     onSinkPreview: (ratio) => {
       sinkCancelSpring?.();
       sinkCancelSpring = null;
@@ -278,6 +278,20 @@ export function useStyleImmersiveHeaderCollapse(
       );
     }
   });
+  return {
+    ...collapse,
+    onHeaderPointerDown: (event: PointerEvent) => {
+      // 面板模式（播放列表/设置）不抢：内容区替换态顶栏仅作静态栏
+      if (immersiveSurfaceMode.value !== 'lyrics') return;
+      // 横滑打开的态没有进度值（progress=0）：播种成 1 并切 rise 变体，
+      // 下沉预览/回弹才有真实映射（关闭提交复用 closeImmersive 的 rise 路径）
+      if (usePlayerStore().fullLyricsVisible && immersive.progress.value <= 0.001) {
+        immersive.variant.value = 'rise';
+        immersive.progress.value = 1;
+      }
+      collapse.onHeaderPointerDown(event);
+    }
+  };
 }
 
 /**
@@ -306,7 +320,8 @@ export function useImmersiveHeaderCollapse(
   const sinkDistance = () => Math.max(180, Math.min(280, window.innerHeight * 0.28));
 
   function onHeaderPointerDown(event: PointerEvent) {
-    if (!active.value) return;
+    // 打开态即可拖（不按 progress 判定——横滑打开的态 progress 恒为 0）
+    if (!usePlayerStore().fullLyricsVisible) return;
     if (event.pointerType === 'mouse') return;
     if (event.target instanceof Element && event.target.closest('button, a, input')) return;
     cancelAnim?.();
