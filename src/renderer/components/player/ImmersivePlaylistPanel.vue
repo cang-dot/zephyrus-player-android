@@ -13,7 +13,11 @@
           :key="song.id"
           class="iq-row"
           :class="{ current: isCurrent(song), dragging: dragIndex === index }"
-          @click.stop="handlePlay(song)"
+          @click.stop="handleRowClick(song)"
+          @pointerdown="onRowPointerDown($event, index)"
+          @pointermove="onRowPointerMove"
+          @pointerup="onRowPointerUp"
+          @pointercancel="onRowPointerCancel"
         >
           <!-- 拖拽位移挂在 body 内层：TransitionGroup 的 FLIP 会改写行本身的 transform -->
           <div class="iq-row-body" :style="dragRowStyle(index)">
@@ -120,7 +124,7 @@ watch(immersiveModeActive, async (active) => {
   el.scrollTop = Math.max(0, playlistStore.playListIndex * ROW_H - ROW_H * 2);
 });
 
-// ── 手柄拖拽排序 + 单击/长按菜单 ──
+// ── 手柄拖拽排序 + 单击手柄菜单 + 行任意处长按菜单 ──
 const dragIndex = ref(-1);
 const dragOrigin = ref(-1);
 const dragStartY = ref(0);
@@ -129,18 +133,6 @@ const dragPointerId = ref(-1);
 let dragMoved = false;
 const menuSong = ref<SongResult | null>(null);
 const menuAnchorRect = ref<ContextMenuAnchorRect | null>(null);
-
-/** 长按 500ms 唤起菜单（与单击同锚点）；唤起后本次按压不再进入拖拽 */
-const LONG_PRESS_MS = 500;
-let longPressTimer: ReturnType<typeof setTimeout> | null = null;
-let longPressFired = false;
-
-function clearLongPressTimer() {
-  if (longPressTimer) {
-    clearTimeout(longPressTimer);
-    longPressTimer = null;
-  }
-}
 
 function openMenuForIndex(index: number, rect: DOMRect) {
   menuAnchorRect.value = {
@@ -159,31 +151,18 @@ function onHandlePointerDown(event: PointerEvent, index: number) {
   dragStartY.value = event.clientY;
   dragY.value = 0;
   dragMoved = false;
-  longPressFired = false;
-  const surface = event.currentTarget as HTMLElement;
+  const target = event.currentTarget as HTMLElement;
   try {
-    surface.setPointerCapture(event.pointerId);
+    target.setPointerCapture(event.pointerId);
   } catch {
     /* 老内核可能不支持 */
   }
-  clearLongPressTimer();
-  longPressTimer = setTimeout(() => {
-    longPressTimer = null;
-    if (dragMoved || dragOrigin.value < 0) return;
-    longPressFired = true;
-    playerSurfaceFeedback.pulse();
-    openMenuForIndex(dragOrigin.value, surface.getBoundingClientRect());
-  }, LONG_PRESS_MS);
 }
 
 function onHandlePointerMove(event: PointerEvent) {
   if (event.pointerId !== dragPointerId.value || dragIndex.value < 0) return;
-  if (longPressFired) return;
   const dy = event.clientY - dragStartY.value;
-  if (Math.abs(dy) > 6) {
-    if (!dragMoved) clearLongPressTimer();
-    dragMoved = true;
-  }
+  if (Math.abs(dy) > 6) dragMoved = true;
   dragY.value = dy;
   const len = playList.value.length;
   const target = Math.max(0, Math.min(len - 1, dragOrigin.value + Math.round(dy / ROW_H)));
@@ -195,12 +174,10 @@ function onHandlePointerMove(event: PointerEvent) {
 
 function onHandlePointerUp(event: PointerEvent) {
   if (event.pointerId !== dragPointerId.value) return;
-  clearLongPressTimer();
   const index = dragOrigin.value;
   const song = playList.value[index] || null;
+  const wasTap = !dragMoved;
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-  const wasTap = !dragMoved && !longPressFired;
-  longPressFired = false;
   dragPointerId.value = -1;
   dragIndex.value = -1;
   dragOrigin.value = -1;
@@ -212,12 +189,69 @@ function onHandlePointerUp(event: PointerEvent) {
 
 function onHandlePointerCancel(event: PointerEvent) {
   if (event.pointerId !== dragPointerId.value) return;
-  clearLongPressTimer();
-  longPressFired = false;
   dragPointerId.value = -1;
   dragIndex.value = -1;
   dragOrigin.value = -1;
   dragY.value = 0;
+}
+
+/** 行长按 500ms 唤起菜单（任意位置；把手的 pointerdown 已 stop，不与此冲突） */
+const ROW_LONG_PRESS_MS = 500;
+let rowPressTimer: ReturnType<typeof setTimeout> | null = null;
+let rowPressFired = false;
+let rowPressPointerId = -1;
+let rowPressStartX = 0;
+let rowPressStartY = 0;
+
+function clearRowPressTimer() {
+  if (rowPressTimer) {
+    clearTimeout(rowPressTimer);
+    rowPressTimer = null;
+  }
+}
+
+function onRowPointerDown(event: PointerEvent, index: number) {
+  rowPressFired = false;
+  rowPressPointerId = event.pointerId;
+  rowPressStartX = event.clientX;
+  rowPressStartY = event.clientY;
+  const surface = event.currentTarget as HTMLElement;
+  clearRowPressTimer();
+  rowPressTimer = setTimeout(() => {
+    rowPressTimer = null;
+    if (rowPressPointerId < 0) return;
+    rowPressFired = true;
+    playerSurfaceFeedback.pulse();
+    openMenuForIndex(index, surface.getBoundingClientRect());
+  }, ROW_LONG_PRESS_MS);
+}
+
+function onRowPointerMove(event: PointerEvent) {
+  if (event.pointerId !== rowPressPointerId) return;
+  const dx = event.clientX - rowPressStartX;
+  const dy = event.clientY - rowPressStartY;
+  if (Math.hypot(dx, dy) > 8) clearRowPressTimer();
+}
+
+function onRowPointerUp(event: PointerEvent) {
+  if (event.pointerId !== rowPressPointerId) return;
+  clearRowPressTimer();
+  rowPressPointerId = -1;
+}
+
+function onRowPointerCancel(event: PointerEvent) {
+  if (event.pointerId !== rowPressPointerId) return;
+  clearRowPressTimer();
+  rowPressPointerId = -1;
+}
+
+function handleRowClick(song: SongResult) {
+  // 长按唤起菜单后的收尾 click 不再当作播放
+  if (rowPressFired) {
+    rowPressFired = false;
+    return;
+  }
+  handlePlay(song);
 }
 
 /** 被拖行的跟手位移：挂在行内 body 上（行本身让给 TransitionGroup 的 FLIP） */
@@ -391,10 +425,13 @@ function closeMenu() {
   transition: none;
 }
 
+/* 实色卡片（与 ContextSongMenu 同底色）；深底卡在亮色主题上需把墨色翻转为白 */
 .iq-row.dragging .iq-row-body {
-  background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.1);
+  background: #242426;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
   will-change: transform;
+  --player-ink: #fff;
+  --player-ink-rgb: 255, 255, 255;
 }
 
 .iq-cover {

@@ -270,7 +270,7 @@ export default {
     clearConfirmContent: '재생 목록의 모든 곡을 삭제하고 현재 재생을 중지합니다. 계속하시겠습니까?'
   },
   queuePanel: {
-    continuePlaying: '이어서 재생',
+    continuePlaying: '재생목록',
     fromSource: '{name}에서',
     clearQueue: '재생 목록 비우기'
   },

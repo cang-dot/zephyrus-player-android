@@ -173,8 +173,9 @@ function clampPercent(ratio: number): string {
 .csm-scrim {
   position: fixed;
   inset: 0;
-  /* 播放器页 z-index 9998，菜单 teleport 到 body 必须压过它，否则被整页遮住 */
-  z-index: 20000;
+  /* 须压过共享底栏层（进度条/控件，100100）与设置/资料编辑浮层（100200），
+     否则菜单被进度条遮挡；低于封面预览(10000000)与消息(99999999999) */
+  z-index: 100400;
   background: rgba(0, 0, 0, 0.28);
 }
 
@@ -190,7 +191,7 @@ function clampPercent(ratio: number): string {
 
 .context-song-menu {
   position: fixed;
-  z-index: 20001;
+  z-index: 100401;
   overflow: hidden;
   border-radius: 14px;
   background: #242426;

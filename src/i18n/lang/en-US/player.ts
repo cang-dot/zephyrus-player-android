@@ -272,7 +272,7 @@ export default {
       'This will clear all songs in the playlist and stop the current playback. Continue?'
   },
   queuePanel: {
-    continuePlaying: 'Continue Playing',
+    continuePlaying: 'Playlist',
     fromSource: 'From {name}',
     clearQueue: 'Clear Play Queue'
   },

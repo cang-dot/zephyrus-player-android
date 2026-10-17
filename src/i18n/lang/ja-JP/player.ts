@@ -273,7 +273,7 @@ export default {
       'これによりプレイリスト内のすべての楽曲がクリアされ、現在の再生が停止されます。続行しますか？'
   },
   queuePanel: {
-    continuePlaying: '続けて再生',
+    continuePlaying: 'プレイリスト',
     fromSource: '{name} から',
     clearQueue: '再生キューを削除'
   },

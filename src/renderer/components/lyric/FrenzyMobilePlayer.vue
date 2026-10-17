@@ -633,7 +633,14 @@ function close() {
 }
 
 function openPlaylist() {
-  playerStore.setPlayListDrawerVisible(true);
+  // 歌词页内：就地切换为队列面板；其他分页（封面/评论）：先跳转歌词页再打开
+  if (showFullLyrics.value) {
+    toggleImmersiveSurface('playlist');
+    return;
+  }
+  if (playerStore.fullCommentsVisible) playerStore.setFullCommentsVisible(false);
+  openLyricsAnimated();
+  toggleImmersiveSurface('playlist');
 }
 </script>
 

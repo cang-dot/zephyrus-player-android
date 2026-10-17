@@ -262,8 +262,10 @@ import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import {
   IMMERSIVE_HEADER_SLOT,
   immersiveSurfaceMode,
+  registerImmersiveOpener,
   resetImmersiveLyrics,
   toggleImmersiveSurface,
+  unregisterImmersiveOpener,
   useImmersiveHeaderCollapse,
   useImmersiveLyrics
 } from '@/composables/useImmersiveLyrics';
@@ -463,6 +465,11 @@ const {
   variant: () => lyricsArrival.value,
   scaleGeometry: () => zoneGeometry.value
 });
+
+// 沉浸打开回调：底栏播放列表按钮在其他分页（封面/评论）时经 requestImmersiveOpen
+// 跳转到滚动歌词页，再就地打开队列面板；卸载按身份注销防跨样式误调
+const immersiveOpener = () => openLyricsAnimated();
+registerImmersiveOpener(immersiveOpener);
 
 // ── 沉浸歌词过渡：变体 / 顶栏 / 封面克隆飞行 ──
 const lyricsZoneRef = ref<HTMLElement | null>(null);
@@ -819,6 +826,7 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   playerStore.setFullLyricsVisible(false);
+  unregisterImmersiveOpener(immersiveOpener);
   window.removeEventListener('music-full-config-updated', handleConfigUpdate);
   document.body.classList.remove('default-player-active');
   window.dispatchEvent(new Event('default-player-style-changed'));

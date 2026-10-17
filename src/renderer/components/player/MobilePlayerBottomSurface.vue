@@ -86,7 +86,11 @@ import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } fr
 
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import { useControlsDock } from '@/composables/useControlsDock';
-import { immersiveSurfaceMode, toggleImmersiveSurface } from '@/composables/useImmersiveLyrics';
+import {
+  immersiveSurfaceMode,
+  requestImmersiveOpen,
+  toggleImmersiveSurface
+} from '@/composables/useImmersiveLyrics';
 import { useLyricSelectionSurface } from '@/composables/useLyricSelectionSurface';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
@@ -351,6 +355,14 @@ const openPlaylist = () => {
   if (playerStore.fullLyricsVisible) {
     toggleImmersiveSurface('playlist');
     return;
+  }
+  // 播放界面其他分页（封面页/评论区）：跳转到滚动歌词页并就地打开队列面板
+  if (playerStore.musicFull) {
+    if (playerStore.fullCommentsVisible) playerStore.setFullCommentsVisible(false);
+    if (requestImmersiveOpen()) {
+      toggleImmersiveSurface('playlist');
+      return;
+    }
   }
   playerStore.setPlayListDrawerVisible(true);
   playerTransition.setSurfaceMode('playlist');
