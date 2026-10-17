@@ -14,10 +14,10 @@
           class="iq-row"
           :class="{ current: isCurrent(song), dragging: dragIndex === index }"
           @click.stop="handleRowClick(song)"
-          @pointerdown="onRowPointerDown($event, index)"
-          @pointermove="onRowPointerMove"
-          @pointerup="onRowPointerUp"
-          @pointercancel="onRowPointerCancel"
+          @touchstart="onRowTouchStart($event, index)"
+          @touchmove.passive="onRowTouchMove"
+          @touchend="onRowTouchEnd"
+          @touchcancel="onRowTouchCancel"
           @contextmenu.prevent="onRowContextMenu($event, index)"
         >
           <!-- 拖拽位移挂在 body 内层：TransitionGroup 的 FLIP 会改写行本身的 transform -->
@@ -43,6 +43,7 @@
               @pointermove.stop="onHandlePointerMove"
               @pointerup.stop="onHandlePointerUp"
               @pointercancel.stop="onHandlePointerCancel"
+              @touchstart.stop
               @click.stop
             >
               <i class="iconfont icon-list"></i>
@@ -196,15 +197,17 @@ function onHandlePointerCancel(event: PointerEvent) {
   dragY.value = 0;
 }
 
-/** 行长按 500ms 唤起菜单（任意位置；把手的 pointerdown 已 stop，不与此冲突） */
+/** 行长按 500ms 唤起菜单（任意位置）。
+    事件流用 touch 而非 pointer——与 BaseSongItem 的歌曲列表长按完全同款（iOS 实证可靠）：
+    pointer 版在 iOS 会因系统手势接管收到 pointercancel，touch 版只有真实 touchcancel。
+    把手区 @touchstart.stop 独占（拖拽/单击手柄语义），桌面右键走 contextmenu。 */
 const ROW_LONG_PRESS_MS = 500;
-/** 长按唤起后的 click 压制窗口（BaseSongItem 同款）：一次性标志挡不住 iOS 长按
-    松手后可能派发的多条（含穿透/幽灵）click——按时间窗统一吞掉 */
+/** 长按唤起后的 click 压制窗口：iOS 松手时可能向原按压目标派发幽灵 click，按时间窗吞掉 */
 let rowPressTimer: ReturnType<typeof setTimeout> | null = null;
 let rowSuppressClickUntil = 0;
-let rowPressPointerId = -1;
 let rowPressStartX = 0;
 let rowPressStartY = 0;
+let rowPressSurface: HTMLElement | null = null;
 
 function clearRowPressTimer() {
   if (rowPressTimer) {
@@ -213,38 +216,40 @@ function clearRowPressTimer() {
   }
 }
 
-function onRowPointerDown(event: PointerEvent, index: number) {
-  rowPressPointerId = event.pointerId;
-  rowPressStartX = event.clientX;
-  rowPressStartY = event.clientY;
-  const surface = event.currentTarget as HTMLElement;
+function onRowTouchStart(event: TouchEvent, index: number) {
+  if (event.touches.length !== 1) {
+    clearRowPressTimer();
+    return;
+  }
+  const touch = event.touches[0];
+  rowPressStartX = touch.clientX;
+  rowPressStartY = touch.clientY;
+  rowPressSurface = event.currentTarget as HTMLElement;
   clearRowPressTimer();
   rowPressTimer = setTimeout(() => {
     rowPressTimer = null;
-    if (rowPressPointerId < 0) return;
+    if (!rowPressSurface) return;
     rowSuppressClickUntil = performance.now() + 700;
     playerSurfaceFeedback.pulse();
-    openMenuForIndex(index, surface.getBoundingClientRect());
+    openMenuForIndex(index, rowPressSurface.getBoundingClientRect());
   }, ROW_LONG_PRESS_MS);
 }
 
-function onRowPointerMove(event: PointerEvent) {
-  if (event.pointerId !== rowPressPointerId) return;
-  const dx = event.clientX - rowPressStartX;
-  const dy = event.clientY - rowPressStartY;
-  if (Math.hypot(dx, dy) > 8) clearRowPressTimer();
+function onRowTouchMove(event: TouchEvent) {
+  if (!rowPressTimer) return;
+  const touch = event.touches[0];
+  if (!touch) return;
+  const dx = touch.clientX - rowPressStartX;
+  const dy = touch.clientY - rowPressStartY;
+  if (Math.hypot(dx, dy) > 10) clearRowPressTimer();
 }
 
-function onRowPointerUp(event: PointerEvent) {
-  if (event.pointerId !== rowPressPointerId) return;
+function onRowTouchEnd() {
   clearRowPressTimer();
-  rowPressPointerId = -1;
 }
 
-function onRowPointerCancel(event: PointerEvent) {
-  if (event.pointerId !== rowPressPointerId) return;
+function onRowTouchCancel() {
   clearRowPressTimer();
-  rowPressPointerId = -1;
 }
 
 function handleRowClick(song: SongResult) {

@@ -1,7 +1,13 @@
 <template>
   <Teleport to="body">
     <Transition name="csm-fade">
-      <div v-if="visible" class="csm-scrim" @click.stop="emit('close')" @contextmenu.prevent />
+      <div
+        v-if="visible"
+        class="csm-scrim"
+        @pointerdown.stop="emit('close')"
+        @click.stop
+        @contextmenu.prevent
+      />
     </Transition>
     <Transition name="csm-pop">
       <div

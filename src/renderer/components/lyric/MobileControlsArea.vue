@@ -80,6 +80,7 @@
     <div class="progress-container">
       <div
         class="apple-style-progress"
+        :class="{ scrubbing: isScrubbing }"
         data-no-lyrics-swipe
         @pointerdown="handleScrubPointerDown"
         @pointermove="handleScrubPointerMove"
@@ -1267,6 +1268,21 @@ const handleScrubPointerCancel = (e: PointerEvent) => {
   cursor: pointer;
   /* 无圆点设计：条本体即拖柄，触摸拖动期间不允许滚动手势接管指针 */
   touch-action: none;
+  /* 拖动微动效：按下即放大变亮（apple-design §1 反馈在 pointer-down），
+     只动 transform/背景色，居中origin对称增厚 */
+  transform-origin: 50% 50%;
+  transition:
+    transform 200ms cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.apple-style-progress.scrubbing {
+  transform: scaleY(1.5);
+  background-color: rgba(var(--player-ink-rgb, 255, 255, 255), 0.3);
+}
+
+.apple-style-progress.scrubbing .progress-fill {
+  filter: brightness(1.18);
 }
 
 .progress-track {
@@ -1282,7 +1298,9 @@ const handleScrubPointerCancel = (e: PointerEvent) => {
   height: 100%;
   background: var(--accent-color, #fff);
   border-radius: 3px;
-  transition: width 0.1s linear;
+  transition:
+    width 0.1s linear,
+    filter 200ms cubic-bezier(0.32, 0.72, 0, 1);
   z-index: 1;
 
   /* 上一首播放到尽头后：主体色渐变为轨道背景色，然后隐藏 */
@@ -1413,6 +1431,15 @@ const handleScrubPointerCancel = (e: PointerEvent) => {
 @media (prefers-reduced-motion: reduce) {
   .mobile-controls {
     transition-duration: 100ms;
+  }
+
+  /* 拖动反馈降级：保留变亮（非前庭），去掉缩放 */
+  .apple-style-progress {
+    transition: background-color 200ms ease;
+  }
+
+  .apple-style-progress.scrubbing {
+    transform: none;
   }
 }
 </style>
