@@ -131,6 +131,23 @@
   border-bottom-color: transparent;
 }
 
+/* 全局自定义背景墙纸：布局级 fixed 层，置于一切页面内容之下；
+   播放界面是不透明浮层自然盖住，其余页面（四页轨道/二级页宿主）透明露墙纸 */
+.global-home-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  pointer-events: none;
+}
+
+.mobile.home-custom-bg .pager-page,
+.mobile.home-custom-bg .secondary-page-host {
+  background: transparent;
+}
+
 /* ==================== 沉浸歌词页 ==================== */
 /* 顶部栏包装层：让位于样式组件的顶部关闭条（.top-controls，safe+16 起 40px 高），
    显隐与底部控件栏联动（.header-hidden 由组件按 controlsVisible 绑定） */

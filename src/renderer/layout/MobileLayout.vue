@@ -14,6 +14,9 @@
       '--mobile-dock-content-inset': `${mobileDockContentInset}px`
     }"
   >
+    <!-- 全局自定义背景墙纸（solid/cover/image）：一切页面内容之下，播放页被盖住 -->
+    <div v-if="homeBgActive" class="global-home-bg" :style="homeBgStyle" aria-hidden="true"></div>
+
     <!-- 浮动顶栏（所有页面统一显示） -->
     <mobile-header />
 
@@ -240,6 +243,7 @@ import { useRoute, useRouter } from 'vue-router';
 
 import MobileSongActionSheet from '@/components/common/MobileSongActionSheet.vue';
 import { useDockMergeGesture } from '@/composables/useDockMergeGesture';
+import { useHomeBackground } from '@/composables/useHomeBackground';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
 import { usePlaylistOpenTransition } from '@/composables/usePlaylistOpenTransition';
@@ -838,11 +842,13 @@ let lastPageSwipeVelocity = 0;
 const pagerActivePath = computed(() => menuStore.menus[pagerIndex.value]?.path || route.path);
 provide('mobilePagerActivePath', readonly(pagerActivePath));
 
-// 主页自定义背景激活：顶栏让位于封面/图片背景（transparent 叠加，见 mobile.css）
+// 主页自定义背景激活：全局墙纸（播放页被不透明播放器盖住）+ 顶栏/页面轨道让位透明。
+// 此前仅限首页——墙纸层提升到布局级后，其他页面同样透出背景（见 .global-home-bg）
+const { homeBgActive, homeBgStyle } = useHomeBackground();
 const homeCustomBgActive = computed(
   () =>
-    pagerActivePath.value === '/' &&
-    ['solid', 'cover', 'image'].includes(String(settingsStore.setData?.homeBackgroundMode))
+    ['solid', 'cover', 'image'].includes(String(settingsStore.setData?.homeBackgroundMode)) &&
+    homeBgActive.value
 );
 
 const mountPagerPage = (path: string) => {

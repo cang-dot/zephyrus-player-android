@@ -91,7 +91,7 @@
               v-if="backgroundImage"
               type="button"
               class="home-bg-action home-bg-action-quiet"
-              @click="clearBackgroundImage"
+              @click="onClearBackgroundImage"
             >
               {{ t('settings.interface.clearBackgroundImage') }}
             </button>
@@ -138,12 +138,12 @@
 </template>
 
 <script setup lang="ts">
-import { useStorage } from '@vueuse/core';
 import { computed, inject, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import AppColorPicker from '@/components/common/AppColorPicker.vue';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
+import { useHomeBackground } from '@/composables/useHomeBackground';
 import { useSettingsStore } from '@/store/modules/settings';
 import { compressImage } from '@/utils/imageCompress';
 
@@ -190,8 +190,9 @@ const albumBgStyleOptions = computed(() => [
   { label: t('settings.interface.albumBgVivid'), value: 'vivid' }
 ]);
 
-// 自选图存独立 localStorage key：base64 不进 appSettings，避免每次设置写入全量序列化大图
-const backgroundImage = useStorage('home-background-image', '');
+// 自选图存 IndexedDB（经 useHomeBackground 单例共享）：localStorage 版本会撞配额
+// （QuotaExceededError 且 vueuse 异步 flush 抛错连 toast 都走不到）
+const { backgroundImage, saveBackgroundImage, clearBackgroundImage } = useHomeBackground();
 const backgroundImageInput = ref<HTMLInputElement | null>(null);
 
 const onBackgroundImagePicked = async (event: Event) => {
@@ -200,10 +201,10 @@ const onBackgroundImagePicked = async (event: Event) => {
   if (!file) return;
   try {
     const compressed = await compressImage(file, 1280, 0.85);
-    backgroundImage.value = compressed.dataUrl;
+    await saveBackgroundImage(compressed.dataUrl);
     message.success(t('settings.interface.backgroundImageSaved'));
   } catch (error) {
-    // 压缩/存储失败不再静默——此前 iOS 选 HEIC 原图会静默失败，表现为"自定义无效"
+    // 压缩/存储失败不再静默——HEIC 解不了、配额超限等在此统一提示
     console.warn('[Appearance] 背景图处理失败:', error);
     message.error(t('settings.interface.backgroundImageFailed'));
   } finally {
@@ -211,8 +212,12 @@ const onBackgroundImagePicked = async (event: Event) => {
   }
 };
 
-const clearBackgroundImage = () => {
-  backgroundImage.value = '';
+const onClearBackgroundImage = async () => {
+  try {
+    await clearBackgroundImage();
+  } catch (error) {
+    console.warn('[Appearance] 背景图清除失败:', error);
+  }
 };
 </script>
 
