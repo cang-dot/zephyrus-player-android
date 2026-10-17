@@ -12,34 +12,36 @@
           v-for="(song, index) in playList"
           :key="song.id"
           class="iq-row"
-          :class="{ current: isCurrent(song) }"
+          :class="{ current: isCurrent(song), dragging: dragIndex === index }"
           @click.stop="handlePlay(song)"
         >
-          <img class="iq-cover" :src="getImgUrl(song.picUrl, '100y100')" loading="lazy" alt="" />
-          <div class="iq-copy">
-            <div class="iq-name">
-              <span
-                v-if="isCurrent(song)"
-                class="iq-eq"
-                :class="{ paused: !playerStore.isPlaying }"
-                aria-hidden="true"
-                ><i></i><i></i><i></i
-              ></span>
-              <span class="iq-name-text">{{ song.name }}</span>
+          <!-- 拖拽位移挂在 body 内层：TransitionGroup 的 FLIP 会改写行本身的 transform -->
+          <div class="iq-row-body" :style="dragRowStyle(index)">
+            <img class="iq-cover" :src="getImgUrl(song.picUrl, '100y100')" loading="lazy" alt="" />
+            <div class="iq-copy">
+              <div class="iq-name">
+                <span
+                  v-if="isCurrent(song)"
+                  class="iq-eq"
+                  :class="{ paused: !playerStore.isPlaying }"
+                  aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span class="iq-name-text">{{ song.name }}</span>
+              </div>
+              <div class="iq-artist">{{ artistText(song) }}</div>
             </div>
-            <div class="iq-artist">{{ artistText(song) }}</div>
-          </div>
-          <div
-            class="iq-handle"
-            :class="{ dragging: dragIndex === index }"
-            :style="handleStyle(index)"
-            @pointerdown.stop="onHandlePointerDown($event, index)"
-            @pointermove.stop="onHandlePointerMove"
-            @pointerup.stop="onHandlePointerUp"
-            @pointercancel.stop="onHandlePointerCancel"
-            @click.stop
-          >
-            <i class="iconfont icon-list"></i>
+            <div
+              class="iq-handle"
+              :class="{ dragging: dragIndex === index }"
+              @pointerdown.stop="onHandlePointerDown($event, index)"
+              @pointermove.stop="onHandlePointerMove"
+              @pointerup.stop="onHandlePointerUp"
+              @pointercancel.stop="onHandlePointerCancel"
+              @click.stop
+            >
+              <i class="iconfont icon-list"></i>
+            </div>
           </div>
         </div>
       </TransitionGroup>
@@ -74,6 +76,7 @@ import ContextSongMenu, {
   type ContextMenuAnchorRect
 } from '@/components/common/ContextSongMenu.vue';
 import { immersiveSurfaceMode } from '@/composables/useImmersiveLyrics';
+import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import { playMusic } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
 import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
@@ -87,6 +90,7 @@ const ROW_H = 64;
 const { t } = useI18n();
 const playlistStore = usePlaylistStore();
 const playerStore = usePlayerStore();
+const playerSurfaceFeedback = usePlayerSurfaceFeedback();
 const navigate = useOverlayNavigate().navigate;
 const { navigateToArtist } = useArtist();
 
@@ -116,7 +120,7 @@ watch(immersiveModeActive, async (active) => {
   el.scrollTop = Math.max(0, playlistStore.playListIndex * ROW_H - ROW_H * 2);
 });
 
-// ── 手柄拖拽排序 + 单击菜单 ──
+// ── 手柄拖拽排序 + 单击/长按菜单 ──
 const dragIndex = ref(-1);
 const dragOrigin = ref(-1);
 const dragStartY = ref(0);
@@ -126,6 +130,28 @@ let dragMoved = false;
 const menuSong = ref<SongResult | null>(null);
 const menuAnchorRect = ref<ContextMenuAnchorRect | null>(null);
 
+/** 长按 500ms 唤起菜单（与单击同锚点）；唤起后本次按压不再进入拖拽 */
+const LONG_PRESS_MS = 500;
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+let longPressFired = false;
+
+function clearLongPressTimer() {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+}
+
+function openMenuForIndex(index: number, rect: DOMRect) {
+  menuAnchorRect.value = {
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height
+  };
+  menuSong.value = playList.value[index] || null;
+}
+
 function onHandlePointerDown(event: PointerEvent, index: number) {
   dragIndex.value = index;
   dragOrigin.value = index;
@@ -133,18 +159,31 @@ function onHandlePointerDown(event: PointerEvent, index: number) {
   dragStartY.value = event.clientY;
   dragY.value = 0;
   dragMoved = false;
-  const target = event.currentTarget as HTMLElement;
+  longPressFired = false;
+  const surface = event.currentTarget as HTMLElement;
   try {
-    target.setPointerCapture(event.pointerId);
+    surface.setPointerCapture(event.pointerId);
   } catch {
     /* 老内核可能不支持 */
   }
+  clearLongPressTimer();
+  longPressTimer = setTimeout(() => {
+    longPressTimer = null;
+    if (dragMoved || dragOrigin.value < 0) return;
+    longPressFired = true;
+    playerSurfaceFeedback.pulse();
+    openMenuForIndex(dragOrigin.value, surface.getBoundingClientRect());
+  }, LONG_PRESS_MS);
 }
 
 function onHandlePointerMove(event: PointerEvent) {
   if (event.pointerId !== dragPointerId.value || dragIndex.value < 0) return;
+  if (longPressFired) return;
   const dy = event.clientY - dragStartY.value;
-  if (Math.abs(dy) > 6) dragMoved = true;
+  if (Math.abs(dy) > 6) {
+    if (!dragMoved) clearLongPressTimer();
+    dragMoved = true;
+  }
   dragY.value = dy;
   const len = playList.value.length;
   const target = Math.max(0, Math.min(len - 1, dragOrigin.value + Math.round(dy / ROW_H)));
@@ -156,40 +195,38 @@ function onHandlePointerMove(event: PointerEvent) {
 
 function onHandlePointerUp(event: PointerEvent) {
   if (event.pointerId !== dragPointerId.value) return;
+  clearLongPressTimer();
   const index = dragOrigin.value;
   const song = playList.value[index] || null;
-  const wasTap = !dragMoved;
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const wasTap = !dragMoved && !longPressFired;
+  longPressFired = false;
   dragPointerId.value = -1;
   dragIndex.value = -1;
   dragOrigin.value = -1;
   dragY.value = 0;
   if (wasTap && song) {
-    menuAnchorRect.value = {
-      left: rect.left,
-      top: rect.top,
-      width: rect.width,
-      height: rect.height
-    };
-    menuSong.value = song;
+    openMenuForIndex(index, rect);
   }
 }
 
 function onHandlePointerCancel(event: PointerEvent) {
   if (event.pointerId !== dragPointerId.value) return;
+  clearLongPressTimer();
+  longPressFired = false;
   dragPointerId.value = -1;
   dragIndex.value = -1;
   dragOrigin.value = -1;
   dragY.value = 0;
 }
 
-function handleStyle(index: number): Record<string, string> | undefined {
+/** 被拖行的跟手位移：挂在行内 body 上（行本身让给 TransitionGroup 的 FLIP） */
+function dragRowStyle(index: number): Record<string, string> | undefined {
   if (dragIndex.value !== index) return undefined;
   const offset = dragY.value - (dragIndex.value - dragOrigin.value) * ROW_H;
   return {
     transform: `translate3d(0, ${offset.toFixed(1)}px, 0)`,
-    transition: 'none',
-    zIndex: '5'
+    transition: 'none'
   };
 }
 
@@ -323,21 +360,41 @@ function closeMenu() {
 }
 
 .iq-row {
+  position: relative;
+  height: 64px;
+  cursor: pointer;
+}
+
+/* 行视觉（flex/底色/圆角）都在 body 内层：拖拽时 body 跟手位移并浮顶，
+   行本身静止让位给 TransitionGroup FLIP */
+.iq-row-body {
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 64px;
+  height: 100%;
   padding: 0 8px;
   border-radius: 12px;
-  cursor: pointer;
-
-  &:active {
-    background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.06);
-  }
 }
 
-.iq-row.current {
+.iq-row:active .iq-row-body {
   background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.06);
+}
+
+.iq-row.current .iq-row-body {
+  background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.06);
+}
+
+/* 拖拽中：整行浮在其他行之上（transition:none 同时压掉本行的 FLIP 让位动画，
+   让落位瞬时完成、由 body 位移保证始终跟手） */
+.iq-row.dragging {
+  z-index: 10;
+  transition: none;
+}
+
+.iq-row.dragging .iq-row-body {
+  background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.1);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  will-change: transform;
 }
 
 .iq-cover {

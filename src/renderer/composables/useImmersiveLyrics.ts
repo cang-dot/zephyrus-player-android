@@ -69,6 +69,18 @@ function ensureImmersiveCloseSync(): void {
       }
     }
   );
+  // 队列面板展开期间钉住控件栏：进入时确保常显并清掉在途的 3s 隐藏定时器，
+  // 离开时重新武装自动隐藏（hideControls/resetControlsHideTimer 内也有同源守卫兜底）
+  watch(immersiveSurfaceMode, (mode, prev) => {
+    const transition = useMobilePlayerTransition();
+    if (mode === 'playlist' && prev !== 'playlist') {
+      transition.showControls(false);
+      return;
+    }
+    if (prev === 'playlist' && mode !== 'playlist') {
+      transition.resetControlsHideTimer();
+    }
+  });
 }
 
 /** 顶栏槽位的绝对顶端（安全区 + 让位高度），克隆飞行落点用；取不到时回退 0 */

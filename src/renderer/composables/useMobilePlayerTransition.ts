@@ -1,5 +1,6 @@
 import { readonly, ref } from 'vue';
 
+import { immersiveSurfaceMode } from '@/composables/useImmersiveLyrics';
 import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 
 export type MobilePlayerTransitionState = 'idle' | 'dragging' | 'opening' | 'open' | 'closing';
@@ -74,6 +75,9 @@ const controlsArePinned = () => {
   }
 };
 
+/** 沉浸页队列面板展开期间钉住控件栏：顶栏/底栏不自动隐藏，面板免于扩收过渡 */
+const surfacePinsControls = () => immersiveSurfaceMode.value === 'playlist';
+
 const clearControlsHideTimer = () => {
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
   controlsHideTimer = undefined;
@@ -82,7 +86,7 @@ const clearControlsHideTimer = () => {
 };
 
 const hideControls = () => {
-  if (controlsArePinned()) {
+  if (controlsArePinned() || surfacePinsControls()) {
     controlsVisible.value = true;
     return;
   }
@@ -93,7 +97,7 @@ const hideControls = () => {
 
 const resetControlsHideTimer = () => {
   clearControlsHideTimer();
-  if (controlsArePinned()) {
+  if (controlsArePinned() || surfacePinsControls()) {
     controlsVisible.value = true;
     return;
   }

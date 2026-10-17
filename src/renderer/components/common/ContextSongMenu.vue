@@ -1,14 +1,17 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="csm-scrim" @click.stop="emit('close')" @contextmenu.prevent />
-    <div
-      v-if="visible"
-      ref="menuRef"
-      class="context-song-menu"
-      :style="menuStyle"
-      @click.stop
-      @contextmenu.prevent
-    >
+    <Transition name="csm-fade">
+      <div v-if="visible" class="csm-scrim" @click.stop="emit('close')" @contextmenu.prevent />
+    </Transition>
+    <Transition name="csm-pop">
+      <div
+        v-if="visible"
+        ref="menuRef"
+        class="context-song-menu"
+        :style="menuStyle"
+        @click.stop
+        @contextmenu.prevent
+      >
       <!-- 歌曲信息头（紧凑：仅比两个操作项略矮） -->
       <div class="csm-song" @click.stop="emit('action', cardActionId)">
         <img class="csm-cover" :src="coverUrl" alt="" />
@@ -52,7 +55,8 @@
           </span>
         </button>
       </template>
-    </div>
+      </div>
+    </Transition>
   </Teleport>
 </template>
 
@@ -132,10 +136,11 @@ const menuStyle = computed(() => {
   const style: Record<string, string> = { width: `${width}px` };
   const anchor = props.anchorRect;
   if (!anchor) {
-    // 无锚点：屏幕下方居中兜底
+    // 无锚点：屏幕下方居中兜底（margin-left 定位，避免 base transform 干扰弹出动画）
     style.left = '50%';
-    style.transform = 'translateX(-50%)';
+    style.marginLeft = `${-width / 2}px`;
     style.bottom = '24px';
+    style.transformOrigin = '50% 100%';
     return style;
   }
   const maxLeft = Math.max(12, window.innerWidth - width - 12);
@@ -149,12 +154,19 @@ const menuStyle = computed(() => {
     anchor.top > viewportH * 0.5
   ) {
     style.top = `${Math.min(below, viewportH - 12).toFixed(1)}px`;
+    // 从锚点处展开：原点取菜单顶边（贴锚点一侧）的水平对应点
+    style.transformOrigin = `${clampPercent((anchor.left + anchor.width / 2 - left) / width)}% 0%`;
   } else {
     // 上方放不下：底边对齐锚点上方
     style.bottom = `${Math.max(12, viewportH - anchor.top + 8).toFixed(1)}px`;
+    style.transformOrigin = `${clampPercent((anchor.left + anchor.width / 2 - left) / width)}% 100%`;
   }
   return style;
 });
+
+function clampPercent(ratio: number): string {
+  return Math.max(0, Math.min(100, ratio * 100)).toFixed(1);
+}
 </script>
 
 <style scoped>
@@ -166,6 +178,16 @@ const menuStyle = computed(() => {
   background: rgba(0, 0, 0, 0.28);
 }
 
+.csm-fade-enter-active,
+.csm-fade-leave-active {
+  transition: opacity 160ms ease;
+}
+
+.csm-fade-enter-from,
+.csm-fade-leave-to {
+  opacity: 0;
+}
+
 .context-song-menu {
   position: fixed;
   z-index: 20001;
@@ -174,6 +196,29 @@ const menuStyle = computed(() => {
   background: #242426;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
   color: #fff;
+}
+
+/* 从点击锚点处放大展开 / 收回（原点由 menuStyle 按锚点方位注入） */
+.csm-pop-enter-active {
+  transition:
+    opacity 180ms ease,
+    transform 240ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.csm-pop-leave-active {
+  transition:
+    opacity 130ms ease,
+    transform 130ms ease;
+}
+
+.csm-pop-enter-from {
+  opacity: 0;
+  transform: scale(0.55);
+}
+
+.csm-pop-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
 }
 
 /* 歌曲信息头：紧凑，仅比两个操作项略矮 */
@@ -307,7 +352,11 @@ const menuStyle = computed(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .context-song-menu {
+  .context-song-menu,
+  .csm-pop-enter-active,
+  .csm-pop-leave-active,
+  .csm-fade-enter-active,
+  .csm-fade-leave-active {
     transition: none;
   }
 }

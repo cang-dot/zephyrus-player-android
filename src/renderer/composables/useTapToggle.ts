@@ -19,6 +19,7 @@
  */
 import { type Ref, ref } from 'vue';
 
+import { immersiveSurfaceMode } from '@/composables/useImmersiveLyrics';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { isMobile } from '@/utils';
 
@@ -80,10 +81,13 @@ export function useTapToggle(options?: {
       mobilePlayerTransition.resetControlsHideTimer();
       return;
     }
+    // 队列面板展开期间钉住控件栏（与 useMobilePlayerTransition 的移动端守卫同源）
+    if (immersiveSurfaceMode.value === 'playlist') return;
     if (hideTimer) {
       clearTimeout(hideTimer);
     }
     hideTimer = setTimeout(() => {
+      if (immersiveSurfaceMode.value === 'playlist') return;
       controlsVisible.value = false;
     }, autoHideDelay);
   }
