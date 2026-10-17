@@ -242,10 +242,57 @@ export function useStyleImmersiveLyrics(options: {
 }
 
 /**
+ * 8 彩色样式的顶栏下沉把手：在通用 useImmersiveHeaderCollapse 上接进度映射——
+ * 下拖时歌词覆盖层跟手下沉（progress 1→0，软边界），松手回弹时进度弹簧回 1，
+ * 提交时 closeImmersive 从当前进度带速度落定（拖拽与关闭动画无断档）。
+ */
+export function useStyleImmersiveHeaderCollapse(
+  onClose: (sinkVelocityPxPerSec?: number) => void
+) {
+  const immersive = useImmersiveLyrics();
+  let sinkCancelSpring: (() => void) | null = null;
+  onUnmounted(() => {
+    sinkCancelSpring?.();
+    sinkCancelSpring = null;
+  });
+  return useImmersiveHeaderCollapse(onClose, {
+    onSinkPreview: (ratio) => {
+      sinkCancelSpring?.();
+      sinkCancelSpring = null;
+      immersive.progress.value = rubberbandClamp01(1 - ratio);
+    },
+    onSinkCancel: (velocityPxPerSec) => {
+      if (immersive.progress.value >= 0.999) return;
+      if (prefersReducedMotion()) {
+        immersive.progress.value = 1;
+        return;
+      }
+      // 回弹方向与手指相反，速度阻尼交接（对齐本钩子 dragOffset 回弹的 0.4 系数）
+      sinkCancelSpring = springTo(
+        (value) => {
+          immersive.progress.value = value;
+        },
+        immersive.progress.value,
+        1,
+        (velocityPxPerSec * 0.4) / 280
+      );
+    }
+  });
+}
+
+/**
  * AM 顶栏下滑收起：包装层 pointer 手势（按钮放行），下拉跟手（阻尼位移反馈），
  * 松手 dy≥40px 或速度≥450px/s 提交 → 调用方以既有的关闭动画收起（同动画镜像），否则回弹。
+ * hooks（8 彩色样式用）：onSinkPreview 让歌词覆盖层跟手下沉（进度映射），
+ * onSinkCancel 在回弹时把进度弹簧回展开态——顶栏作为把手的完整跟手关闭。
  */
-export function useImmersiveHeaderCollapse(onClose: (sinkVelocityPxPerSec?: number) => void) {
+export function useImmersiveHeaderCollapse(
+  onClose: (sinkVelocityPxPerSec?: number) => void,
+  hooks?: {
+    onSinkPreview?: (ratio: number) => void;
+    onSinkCancel?: (velocityPxPerSec: number) => void;
+  }
+) {
   const dragOffset = ref(0);
   const dragging = ref(false);
   let pointerId = -1;
@@ -254,6 +301,9 @@ export function useImmersiveHeaderCollapse(onClose: (sinkVelocityPxPerSec?: numb
   let prevTime = 0;
   let velocity = 0;
   let cancelAnim: (() => void) | null = null;
+
+  /** 下沉满程：与信息栏上拉 riseDistance 同式，两个把手手感一致 */
+  const sinkDistance = () => Math.max(180, Math.min(280, window.innerHeight * 0.28));
 
   function onHeaderPointerDown(event: PointerEvent) {
     if (!active.value) return;
@@ -288,6 +338,8 @@ export function useImmersiveHeaderCollapse(onClose: (sinkVelocityPxPerSec?: numb
     const dy = event.clientY - startY;
     // 只认下拉；上拖轻阻尼归零
     dragOffset.value = dy > 0 ? Math.min(72, dy * 0.55) : Math.max(0, dy * 0.2);
+    // 跟手下沉预览（原始位移/满程，未阻尼；软边界由映射方 rubber-band）
+    hooks?.onSinkPreview?.(dy / sinkDistance());
   }
 
   function settle(event: PointerEvent, cancelled: boolean) {
@@ -297,11 +349,24 @@ export function useImmersiveHeaderCollapse(onClose: (sinkVelocityPxPerSec?: numb
     const dy = dragOffset.value;
     const commit = !cancelled && (dy >= 40 || velocity > 450);
     if (commit) {
-      dragOffset.value = 0;
-      // 速度交接（§5）：下拉速度交给下沉弹簧，消除拖拽反馈与关闭动画的断档
+      // 速度交接（§5）：下拉速度交给下沉弹簧，消除拖拽反馈与关闭动画的断档；
+      // dragOffset 随关闭淡出弹回 0（硬归零会在半透明顶栏上跳出 72px 台阶）
+      cancelAnim = springTo(
+        (value) => {
+          dragOffset.value = value;
+        },
+        dy,
+        0,
+        -velocity * 0.4,
+        () => {
+          cancelAnim = null;
+        },
+        0.5
+      );
       onClose(velocity);
       return;
     }
+    hooks?.onSinkCancel?.(velocity);
     if (prefersReducedMotion() || dy === 0) {
       dragOffset.value = 0;
       return;

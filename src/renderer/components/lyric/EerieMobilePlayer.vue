@@ -176,9 +176,7 @@
             class="immersive-header-wrap"
             :class="{
               'header-hidden':
-                showFullLyrics &&
-                (immersiveSurfaceMode === 'settings' ||
-                  (!controlsVisible && !lyricsSwipePreview && !risePreviewing))
+                showFullLyrics && immersiveSurfaceMode === 'settings'
             }"
             :style="immersiveHeaderDragStyle"
             @pointerdown="immersiveHeaderCollapse.onHeaderPointerDown"
@@ -249,7 +247,7 @@ import { useCommentsPage } from '@/composables/useCommentsPage';
 import {
   immersiveSurfaceMode,
   toggleImmersiveSurface,
-  useImmersiveHeaderCollapse,
+  useStyleImmersiveHeaderCollapse,
   useStyleImmersiveLyrics
 } from '@/composables/useImmersiveLyrics';
 import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
@@ -435,7 +433,7 @@ const {
   openAnimated: openLyricsAnimated,
   swipePreviewing: () => lyricsSwipePreview.value
 });
-const immersiveHeaderCollapse = useImmersiveHeaderCollapse(closeImmersive);
+const immersiveHeaderCollapse = useStyleImmersiveHeaderCollapse(closeImmersive);
 const immersiveHeaderDragStyle = computed(() =>
   immersiveHeaderCollapse.dragOffset.value > 0
     ? { transform: `translate3d(0, ${immersiveHeaderCollapse.dragOffset.value.toFixed(1)}px, 0)` }

@@ -590,7 +590,8 @@ const canDragLyricsSurface = () =>
   !defaultStyleCompact.value &&
   !playerStore.fullCommentsVisible &&
   immersiveSurfaceMode.value === 'lyrics' &&
-  (playerStore.fullLyricsVisible || immersive.progress.value <= 0.01);
+  !playerStore.fullLyricsVisible &&
+  immersive.progress.value <= 0.01;
 
 function riseVelocity(): number {
   if (riseSamples.length < 2) return 0;
@@ -605,11 +606,7 @@ function onInfoRiseMove(event: PointerEvent) {
     if (!canDragLyricsSurface()) return;
     riseGestureDriving.value = true;
     immersive.variant.value = 'rise';
-    // 横滑打开的态没有进度值（progress=0），下拖前播种成 1，下沉预览才有真实映射
-    if (playerStore.fullLyricsVisible && immersive.progress.value <= 0.001) {
-      immersive.progress.value = 1;
-    }
-    // 拖拽期间钉住控件栏（打开态信息栏只在控件可见时存在，3s 自动隐藏不能掐断拖拽）
+    // 拖拽期间钉住控件栏（信息栏随控件栏显隐，3s 自动隐藏不能掐断拖拽）
     emitInteract();
   }
   const target = event.currentTarget as HTMLElement;
@@ -688,11 +685,10 @@ const queueButtonActive = computed(
 );
 
 /**
- * 信息栏让位（AppleMusic）：仅关闭态的升起预览隐藏（克隆飞行层接管位移）；
- * 打开态整行保持可见可拖——它是"下拖关闭歌词区"的把手。
+ * 信息栏让位（AppleMusic）：激活/展开即整行隐藏，由克隆飞行层接管位移；
+ * 展开后下拖关闭的把手是顶部沉浸栏（useStyleImmersiveHeaderCollapse）。
  */
 const immersiveRowStyle = computed(() => {
-  if (playerStore.fullLyricsVisible) return undefined;
   const p = immersive.progress.value;
   if (p <= 0.001) return undefined;
   return {
