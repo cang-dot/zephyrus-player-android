@@ -72,6 +72,8 @@ export default {
     sidebarOrder: '侧边栏自定义',
     sidebarOrderDesc: '调整侧边栏项目的显示顺序和可见性',
     homeBackground: '主页背景',
+    backgroundImageSaved: '背景图已更新',
+    backgroundImageFailed: '背景图处理失败，请换一张图片试试',
     homeBackgroundDesc: '主页页面的背景来源',
     homeBackgroundMd3: '动态取色',
     homeBackgroundSolid: '纯色',

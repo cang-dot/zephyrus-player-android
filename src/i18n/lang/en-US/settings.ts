@@ -75,6 +75,8 @@ export default {
     sidebarOrder: 'Sidebar Customization',
     sidebarOrderDesc: 'Adjust sidebar item order and visibility',
     homeBackground: 'Home Background',
+    backgroundImageSaved: 'Background image updated',
+    backgroundImageFailed: 'Failed to process the image, please try another one',
     homeBackgroundDesc: 'Background source of the home page',
     homeBackgroundMd3: 'Dynamic Color',
     homeBackgroundSolid: 'Solid Color',

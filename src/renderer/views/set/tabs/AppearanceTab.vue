@@ -147,7 +147,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 import { useSettingsStore } from '@/store/modules/settings';
 import { compressImage } from '@/utils/imageCompress';
 
-import { SETTINGS_DATA_KEY } from '../keys';
+import { SETTINGS_DATA_KEY, SETTINGS_MESSAGE_KEY } from '../keys';
 import SettingItem from '../SettingItem.vue';
 import SettingSection from '../SettingSection.vue';
 import SSelect from '../SSelect.vue';
@@ -155,6 +155,7 @@ import SSelect from '../SSelect.vue';
 const { t } = useI18n();
 const settingsStore = useSettingsStore();
 const setData = inject(SETTINGS_DATA_KEY)!;
+const message = inject(SETTINGS_MESSAGE_KEY)!;
 
 const isDarkTheme = computed({
   get: () => settingsStore.theme === 'dark',
@@ -200,8 +201,11 @@ const onBackgroundImagePicked = async (event: Event) => {
   try {
     const compressed = await compressImage(file, 1280, 0.85);
     backgroundImage.value = compressed.dataUrl;
+    message.success(t('settings.interface.backgroundImageSaved'));
   } catch (error) {
+    // 压缩/存储失败不再静默——此前 iOS 选 HEIC 原图会静默失败，表现为"自定义无效"
     console.warn('[Appearance] 背景图处理失败:', error);
+    message.error(t('settings.interface.backgroundImageFailed'));
   } finally {
     input.value = '';
   }

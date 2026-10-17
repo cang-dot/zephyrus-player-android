@@ -72,6 +72,8 @@ export default {
     sidebarOrder: '側邊欄自訂',
     sidebarOrderDesc: '調整側邊欄項目的顯示順序與可見性',
     homeBackground: '主頁背景',
+    backgroundImageSaved: '背景圖已更新',
+    backgroundImageFailed: '背景圖處理失敗，請換一張圖片試試',
     homeBackgroundDesc: '主頁頁面的背景來源',
     homeBackgroundMd3: '動態取色',
     homeBackgroundSolid: '純色',

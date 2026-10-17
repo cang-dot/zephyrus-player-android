@@ -75,6 +75,8 @@ export default {
     sidebarOrder: 'サイドバーのカスタマイズ',
     sidebarOrderDesc: 'サイドバー項目の順序と表示を調整',
     homeBackground: 'ホーム背景',
+    backgroundImageSaved: '背景画像を更新しました',
+    backgroundImageFailed: '画像の処理に失敗しました。別の画像をお試しください',
     homeBackgroundDesc: 'ホームページの背景ソース',
     homeBackgroundMd3: 'ダイナミックカラー',
     homeBackgroundSolid: '単色',

@@ -1269,10 +1269,10 @@ const handleScrubPointerCancel = (e: PointerEvent) => {
   /* 无圆点设计：条本体即拖柄，触摸拖动期间不允许滚动手势接管指针 */
   touch-action: none;
   /* 拖动微动效：按下即放大变亮（apple-design §1 反馈在 pointer-down），
-     只动 transform/背景色，居中origin对称增厚 */
+     只动 transform/背景色，居中origin对称增厚；放大走弹性曲线（带过冲） */
   transform-origin: 50% 50%;
   transition:
-    transform 200ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
     background-color 200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 

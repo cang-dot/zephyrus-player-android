@@ -75,6 +75,8 @@ export default {
     sidebarOrder: '사이드바 사용자 지정',
     sidebarOrderDesc: '사이드바 항목 순서와 표시 여부 조정',
     homeBackground: '홈 배경',
+    backgroundImageSaved: '배경 이미지가 업데이트되었습니다',
+    backgroundImageFailed: '이미지 처리에 실패했습니다. 다른 이미지를 시도해 주세요',
     homeBackgroundDesc: '홈 페이지의 배경 소스',
     homeBackgroundMd3: '다이내믹 컬러',
     homeBackgroundSolid: '단색',
