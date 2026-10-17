@@ -1298,9 +1298,9 @@ const handleThumbTouchEnd = () => {
 
 .apple-style-progress {
   position: relative;
-  height: 4px;
+  height: 6px;
   background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.15);
-  border-radius: 2px;
+  border-radius: 3px;
   cursor: pointer;
 }
 
@@ -1316,7 +1316,7 @@ const handleThumbTouchEnd = () => {
   top: 0;
   height: 100%;
   background: var(--accent-color, #fff);
-  border-radius: 2px;
+  border-radius: 3px;
   transition: width 0.1s linear;
   z-index: 1;
 
@@ -1335,7 +1335,7 @@ const handleThumbTouchEnd = () => {
   left: 0;
   top: 0;
   height: 100%;
-  border-radius: 2px;
+  border-radius: 3px;
   z-index: 1;
   pointer-events: none;
   transition: width 0.1s linear;
@@ -1359,8 +1359,8 @@ const handleThumbTouchEnd = () => {
 .progress-thumb {
   position: absolute;
   top: 50%;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--accent-color, #fff);
   transform: translate(-50%, -50%) scale(0);
@@ -1404,7 +1404,7 @@ const handleThumbTouchEnd = () => {
   top: 0;
   bottom: 0;
   background: rgba(255, 200, 50, 0.35);
-  border-radius: 1px;
+  border-radius: 3px;
 
   &.climax-active {
     background: rgba(255, 200, 50, 0.7);

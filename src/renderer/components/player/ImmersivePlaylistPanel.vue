@@ -18,6 +18,7 @@
           @pointermove="onRowPointerMove"
           @pointerup="onRowPointerUp"
           @pointercancel="onRowPointerCancel"
+          @contextmenu.prevent="onRowContextMenu($event, index)"
         >
           <!-- 拖拽位移挂在 body 内层：TransitionGroup 的 FLIP 会改写行本身的 transform -->
           <div class="iq-row-body" :style="dragRowStyle(index)">
@@ -254,6 +255,14 @@ function handleRowClick(song: SongResult) {
   handlePlay(song);
 }
 
+/** iOS 长按在计时器前后派发 contextmenu：同步开菜单并压掉收尾 click（桌面右键同路） */
+function onRowContextMenu(event: MouseEvent, index: number) {
+  clearRowPressTimer();
+  rowPressFired = true;
+  playerSurfaceFeedback.pulse();
+  openMenuForIndex(index, (event.currentTarget as HTMLElement).getBoundingClientRect());
+}
+
 /** 被拖行的跟手位移：挂在行内 body 上（行本身让给 TransitionGroup 的 FLIP） */
 function dragRowStyle(index: number): Record<string, string> | undefined {
   if (dragIndex.value !== index) return undefined;
@@ -362,6 +371,11 @@ function closeMenu() {
   flex-direction: column;
   min-height: 0;
   color: var(--player-ink, #fff);
+  /* iOS 长按文本选择/图片系统 callout 会接管触摸并派发 pointercancel，
+     杀掉行长按的 500ms 计时器——禁选中禁 callout（对齐 BaseSongItem 方案） */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .iq-head {
