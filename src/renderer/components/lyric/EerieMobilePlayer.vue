@@ -131,7 +131,7 @@
           v-show="showFullLyrics || lyricsSwipePreview || risePreviewing"
           class="lyrics-mask"
           :style="riseMaskStyle || lyricsBackdropStyle"
-          @click="closeImmersive"
+          @click="closeImmersive()"
         ></div>
         <mobile-comments-overlay :gesture="commentsSwipe" />
         <div
@@ -430,7 +430,11 @@ const {
   riseMaskStyle,
   closeImmersive,
   resetOnGestureClose
-} = useStyleImmersiveLyrics({ showFullLyrics, openAnimated: openLyricsAnimated });
+} = useStyleImmersiveLyrics({
+  showFullLyrics,
+  openAnimated: openLyricsAnimated,
+  swipePreviewing: () => lyricsSwipePreview.value
+});
 const immersiveHeaderCollapse = useImmersiveHeaderCollapse(closeImmersive);
 const immersiveHeaderDragStyle = computed(() =>
   immersiveHeaderCollapse.dragOffset.value > 0

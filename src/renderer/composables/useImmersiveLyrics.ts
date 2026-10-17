@@ -2,9 +2,21 @@ import { computed, type CSSProperties, onUnmounted, type Ref, ref } from 'vue';
 
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStore } from '@/store/modules/player';
-import { prefersReducedMotion, projectMomentum, springTo } from '@/utils/immersiveMotion';
+import {
+  decideImmersiveDragSettle,
+  prefersReducedMotion,
+  projectMomentum,
+  rubberbandClamp01,
+  springTo
+} from '@/utils/immersiveMotion';
 
-export { prefersReducedMotion, projectMomentum, springTo };
+export {
+  decideImmersiveDragSettle,
+  prefersReducedMotion,
+  projectMomentum,
+  rubberbandClamp01,
+  springTo
+};
 
 export type ImmersiveVariant = 'slide' | 'scale' | 'rise';
 export type ImmersiveSurfaceMode = 'lyrics' | 'settings' | 'playlist';
@@ -34,6 +46,24 @@ export function unregisterImmersiveOpener(fn: ImmersiveOpener): void {
 export function requestImmersiveOpen(): boolean {
   if (!opener) return false;
   opener();
+  return true;
+}
+
+/** 沉浸关闭分发（镜像 opener）：信息栏下拖提交关闭时由共享层调用，
+    由当前挂载样式组件注册的 closer 复位状态——免去逐宿主 emit 接线 */
+let closer: (() => void) | null = null;
+
+export function registerImmersiveCloser(fn: () => void): void {
+  closer = fn;
+}
+
+export function unregisterImmersiveCloser(fn: () => void): void {
+  if (closer === fn) closer = null;
+}
+
+export function requestImmersiveClose(): boolean {
+  if (!closer) return false;
+  closer();
   return true;
 }
 
@@ -105,22 +135,29 @@ export function useStyleImmersiveLyrics(options: {
   showFullLyrics: Ref<boolean>;
   /** 横滑路径的程序化打开（useLyricSwipeGesture.animateOpen） */
   openAnimated: () => void;
+  /** 横滑预览进行中（宿主传入歌词横滑手势的 previewing）：
+      rise 样式在其期间让位，否则 rise 打开后横滑关闭的位移预览会被压成无动画瞬消 */
+  swipePreviewing?: () => boolean;
 }) {
   const immersive = useImmersiveLyrics();
   const playerStore = usePlayerStore();
 
-  const risePreviewing = computed(
-    () => immersive.variant.value === 'rise' && immersive.progress.value > 0.001
+  const riseStyleAllowed = computed(
+    () =>
+      immersive.variant.value === 'rise' &&
+      immersive.progress.value > 0.001 &&
+      !(options.swipePreviewing?.() ?? false)
   );
+  const risePreviewing = computed(() => riseStyleAllowed.value);
   const immersiveProgress = computed(() => immersive.progress.value);
 
   /**
-   * rise 变体：歌词覆盖层从中间显现（缩放 + 上浮 + 淡入）。
+   * rise 变体：歌词覆盖层从中间显现（缩放 + 上浮 + 淡入），下沉关闭复用同一进度。
    * progress≈0 时必须回退 undefined 走横滑样式——否则 rise 用过一次后
    * variant 残留，横滑预览会被 opacity 0 的 rise 样式压成空白。
    */
   const riseOverlayStyle = computed<CSSProperties | undefined>(() => {
-    if (immersive.variant.value !== 'rise' || immersive.progress.value <= 0.001) return undefined;
+    if (!riseStyleAllowed.value) return undefined;
     const p = immersive.progress.value;
     return {
       opacity: String(p),
@@ -133,7 +170,7 @@ export function useStyleImmersiveLyrics(options: {
 
   /** rise 变体的背景遮罩：与横滑 backdropStyle 同为 0.82 封顶；同样带 progress 守卫 */
   const riseMaskStyle = computed<CSSProperties | undefined>(() => {
-    if (immersive.variant.value !== 'rise' || immersive.progress.value <= 0.001) return undefined;
+    if (!riseStyleAllowed.value) return undefined;
     return { opacity: String(immersive.progress.value * 0.82), transition: 'none' };
   });
 
@@ -147,8 +184,19 @@ export function useStyleImmersiveLyrics(options: {
   registerImmersiveOpener(openerFn);
   onUnmounted(() => unregisterImmersiveOpener(openerFn));
 
-  /** 关闭分发：rise 路径下沉镜像（进度弹簧回 0），其余走横滑动画；内容区复位歌词 */
-  function closeImmersive() {
+  /** closer：仅复位状态（进度/变体由手势或弹簧先行落定），信息栏下拖提交时经注册表调达 */
+  const closerFn = () => {
+    immersiveSurfaceMode.value = 'lyrics';
+    options.showFullLyrics.value = false;
+    playerStore.setFullLyricsVisible(false);
+    immersive.progress.value = 0;
+    immersive.variant.value = 'slide';
+  };
+  registerImmersiveCloser(closerFn);
+  onUnmounted(() => unregisterImmersiveCloser(closerFn));
+
+  /** 关闭分发：rise 路径下沉镜像（进度弹簧回 0，可带速度交接），其余走横滑动画 */
+  function closeImmersive(sinkVelocityPxPerSec = 0) {
     if (immersive.variant.value === 'rise' && immersive.progress.value > 0.001) {
       if (prefersReducedMotion()) {
         immersive.progress.value = 0;
@@ -163,7 +211,8 @@ export function useStyleImmersiveLyrics(options: {
         },
         immersive.progress.value,
         0,
-        0,
+        // 下沉速度 px/s（向下为正）→ progress/s（进度减小方向为负）
+        -sinkVelocityPxPerSec / 280,
         () => {
           immersiveSurfaceMode.value = 'lyrics';
           options.showFullLyrics.value = false;
@@ -196,7 +245,7 @@ export function useStyleImmersiveLyrics(options: {
  * AM 顶栏下滑收起：包装层 pointer 手势（按钮放行），下拉跟手（阻尼位移反馈），
  * 松手 dy≥40px 或速度≥450px/s 提交 → 调用方以既有的关闭动画收起（同动画镜像），否则回弹。
  */
-export function useImmersiveHeaderCollapse(onClose: () => void) {
+export function useImmersiveHeaderCollapse(onClose: (sinkVelocityPxPerSec?: number) => void) {
   const dragOffset = ref(0);
   const dragging = ref(false);
   let pointerId = -1;
@@ -249,7 +298,8 @@ export function useImmersiveHeaderCollapse(onClose: () => void) {
     const commit = !cancelled && (dy >= 40 || velocity > 450);
     if (commit) {
       dragOffset.value = 0;
-      onClose();
+      // 速度交接（§5）：下拉速度交给下沉弹簧，消除拖拽反馈与关闭动画的断档
+      onClose(velocity);
       return;
     }
     if (prefersReducedMotion() || dy === 0) {

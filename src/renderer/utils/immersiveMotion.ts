@@ -55,3 +55,38 @@ export function prefersReducedMotion(): boolean {
     !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   );
 }
+
+/**
+ * progress 维度的软边界（§9 rubber-band）：越界阻尼随深度递增，
+ * 不再硬 clamp——消除"下拖累积负值死行程"与上顶过冲。
+ */
+export function rubberbandClamp01(value: number, constant = 0.55): number {
+  const soft = (overshoot: number) => (overshoot * constant) / (1 + constant * overshoot);
+  if (value < 0) return -soft(-value);
+  if (value > 1) return 1 + soft(value - 1);
+  return value;
+}
+
+/**
+ * 信息栏上下拖拽的落点决策（§6 动量投影 + 速度阈值）：
+ * - 关闭态（isOpen=false）：投影 ≥0.55 或上拖速度过阈 → 打开（1），否则回弹（0）；
+ * - 打开态：镜像判定（投影 ≤0.45 或下拖速度过阈 → 关闭）；
+ * - 系统打断（cancelled）一律回原状态，与 useImmersiveHeaderCollapse 语义对齐。
+ * velocity 为 progress/s（向上为正）；commitVelocity 同单位，默认 ≈620px/s ÷ 260px 行程。
+ */
+export function decideImmersiveDragSettle(input: {
+  progress: number;
+  velocity: number;
+  isOpen: boolean;
+  cancelled?: boolean;
+  commitVelocity?: number;
+}): 0 | 1 {
+  const { progress, velocity, isOpen, cancelled = false } = input;
+  if (cancelled) return isOpen ? 1 : 0;
+  const commitVelocity = input.commitVelocity ?? 620 / 260;
+  const projected = progress + projectMomentum(velocity);
+  if (isOpen) {
+    return projected <= 0.45 || velocity < -commitVelocity ? 0 : 1;
+  }
+  return projected >= 0.55 || velocity > commitVelocity ? 1 : 0;
+}

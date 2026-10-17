@@ -208,12 +208,14 @@ import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import { useControlsDock } from '@/composables/useControlsDock';
 import { useCoverPreviewGesture } from '@/composables/useCoverPreviewGesture';
 import {
+  decideImmersiveDragSettle,
   IMMERSIVE_HEADER_SLOT,
   immersiveSurfaceMode,
   prefersReducedMotion,
-  projectMomentum,
   readImmersiveSafeTop,
+  requestImmersiveClose,
   requestImmersiveOpen,
+  rubberbandClamp01,
   springTo,
   useImmersiveLyrics
 } from '@/composables/useImmersiveLyrics';
@@ -572,7 +574,9 @@ const onInfoPointerCancel = (event: PointerEvent) => {
   finishInfoSwipeAnimation();
 };
 
-// ── 信息栏上拉唤起沉浸歌词（其他样式；进度写入 useImmersiveLyrics 单一真值）──
+// ── 信息栏上下拖拽 显隐歌词区（其他样式；进度写入 useImmersiveLyrics 单一真值）──
+// 双向跟手：关闭态上拖=升起预览，打开态下拖=下沉预览；中途反转直接重跟踪（§3）。
+// 打开态信息栏保持可见（见 immersiveRowStyle），是下拖关闭的把手。
 const immersive = useImmersiveLyrics();
 const riseGestureDriving = ref(false);
 let riseCancelSpring: (() => void) | null = null;
@@ -581,11 +585,12 @@ let riseSamples: { y: number; time: number }[] = [];
 
 const riseDistance = () => Math.max(180, Math.min(280, window.innerHeight * 0.28));
 
-const canRise = () =>
+const canDragLyricsSurface = () =>
   props.sharedSurface === true &&
   !defaultStyleCompact.value &&
-  !playerStore.fullLyricsVisible &&
-  immersive.progress.value <= 0.01;
+  !playerStore.fullCommentsVisible &&
+  immersiveSurfaceMode.value === 'lyrics' &&
+  (playerStore.fullLyricsVisible || immersive.progress.value <= 0.01);
 
 function riseVelocity(): number {
   if (riseSamples.length < 2) return 0;
@@ -595,12 +600,17 @@ function riseVelocity(): number {
 }
 
 function onInfoRiseMove(event: PointerEvent) {
-  // canRise 只作首次激活门槛（含 progress≈0 检查）——若在每次 move 重查，
-  // 起步几像素后 progress>0.01 会把后续拖拽全部拒掉，表现为"滑一段就卡死"
+  // 门槛只作首次激活判定——每次 move 重查会让起步几像素后的状态把后续拖拽拒掉
   if (!riseGestureDriving.value) {
-    if (!canRise()) return;
+    if (!canDragLyricsSurface()) return;
     riseGestureDriving.value = true;
     immersive.variant.value = 'rise';
+    // 横滑打开的态没有进度值（progress=0），下拖前播种成 1，下沉预览才有真实映射
+    if (playerStore.fullLyricsVisible && immersive.progress.value <= 0.001) {
+      immersive.progress.value = 1;
+    }
+    // 拖拽期间钉住控件栏（打开态信息栏只在控件可见时存在，3s 自动隐藏不能掐断拖拽）
+    emitInteract();
   }
   const target = event.currentTarget as HTMLElement;
   if (!target.hasPointerCapture(event.pointerId)) {
@@ -616,36 +626,49 @@ function onInfoRiseMove(event: PointerEvent) {
   const step = riseLastY - event.clientY;
   riseLastY = event.clientY;
   if (step === 0) return;
-  // 只向上累加；起点边界不弹（下方没有可揭示的内容）
-  immersive.progress.value = Math.min(1, immersive.progress.value + step / riseDistance());
+  // 双向 1:1 跟手，两端 rubber-band（§9）——负值不再累积成死行程
+  immersive.progress.value = rubberbandClamp01(
+    immersive.progress.value + step / riseDistance()
+  );
 }
 
-/** 松手：按动量投影决定提交，速度交接给弹簧（apple-design §5/§6） */
+/** 松手：按动量投影决定提交方向，速度交接给弹簧（§5/§6/§7 打开与关闭镜像对称） */
 function settleImmersiveRise(cancelled: boolean) {
   riseGestureDriving.value = false;
+  const wasOpen = playerStore.fullLyricsVisible;
   const start = immersive.progress.value;
-  const velocity = cancelled ? 0 : riseVelocity();
-  const projected = start + projectMomentum(velocity) / riseDistance();
-  const commit = projected >= 0.55 || velocity > 620;
-  // opener 缺失（重挂竞态等）：回弹归零，避免停在半开状态
-  const openOrBounceBack = () => {
-    if (requestImmersiveOpen()) return;
-    if (prefersReducedMotion()) {
-      immersive.progress.value = 0;
+  const velocity = (cancelled ? 0 : riseVelocity()) / riseDistance();
+  const target = decideImmersiveDragSettle({
+    progress: start,
+    velocity,
+    isOpen: wasOpen,
+    cancelled,
+    commitVelocity: 620 / riseDistance()
+  });
+  const finish = () => {
+    riseCancelSpring = null;
+    if (target === 1 && !wasOpen) {
+      // opener 缺失（重挂竞态等）：回弹归零，避免停在半开状态
+      if (requestImmersiveOpen()) return;
+      if (prefersReducedMotion()) {
+        immersive.progress.value = 0;
+        return;
+      }
+      springTo(
+        (value) => {
+          immersive.progress.value = value;
+        },
+        immersive.progress.value,
+        0,
+        0
+      );
       return;
     }
-    springTo(
-      (value) => {
-        immersive.progress.value = value;
-      },
-      immersive.progress.value,
-      0,
-      0
-    );
+    if (target === 0 && wasOpen) requestImmersiveClose();
   };
   if (prefersReducedMotion()) {
-    immersive.progress.value = commit ? 1 : 0;
-    if (commit) openOrBounceBack();
+    immersive.progress.value = target;
+    finish();
     return;
   }
   riseCancelSpring = springTo(
@@ -653,12 +676,9 @@ function settleImmersiveRise(cancelled: boolean) {
       immersive.progress.value = value;
     },
     start,
-    commit ? 1 : 0,
-    velocity / riseDistance(),
-    () => {
-      riseCancelSpring = null;
-      if (commit) openOrBounceBack();
-    }
+    target,
+    velocity,
+    finish
   );
 }
 
@@ -668,10 +688,11 @@ const queueButtonActive = computed(
 );
 
 /**
- * 信息栏让位（AppleMusic）：激活即整行隐藏，由克隆飞行层接管位移；
- * Zephyrus 方案行保持原样。
+ * 信息栏让位（AppleMusic）：仅关闭态的升起预览隐藏（克隆飞行层接管位移）；
+ * 打开态整行保持可见可拖——它是"下拖关闭歌词区"的把手。
  */
 const immersiveRowStyle = computed(() => {
+  if (playerStore.fullLyricsVisible) return undefined;
   const p = immersive.progress.value;
   if (p <= 0.001) return undefined;
   return {
