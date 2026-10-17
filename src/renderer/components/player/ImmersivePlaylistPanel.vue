@@ -198,8 +198,10 @@ function onHandlePointerCancel(event: PointerEvent) {
 
 /** 行长按 500ms 唤起菜单（任意位置；把手的 pointerdown 已 stop，不与此冲突） */
 const ROW_LONG_PRESS_MS = 500;
+/** 长按唤起后的 click 压制窗口（BaseSongItem 同款）：一次性标志挡不住 iOS 长按
+    松手后可能派发的多条（含穿透/幽灵）click——按时间窗统一吞掉 */
 let rowPressTimer: ReturnType<typeof setTimeout> | null = null;
-let rowPressFired = false;
+let rowSuppressClickUntil = 0;
 let rowPressPointerId = -1;
 let rowPressStartX = 0;
 let rowPressStartY = 0;
@@ -212,7 +214,6 @@ function clearRowPressTimer() {
 }
 
 function onRowPointerDown(event: PointerEvent, index: number) {
-  rowPressFired = false;
   rowPressPointerId = event.pointerId;
   rowPressStartX = event.clientX;
   rowPressStartY = event.clientY;
@@ -221,7 +222,7 @@ function onRowPointerDown(event: PointerEvent, index: number) {
   rowPressTimer = setTimeout(() => {
     rowPressTimer = null;
     if (rowPressPointerId < 0) return;
-    rowPressFired = true;
+    rowSuppressClickUntil = performance.now() + 700;
     playerSurfaceFeedback.pulse();
     openMenuForIndex(index, surface.getBoundingClientRect());
   }, ROW_LONG_PRESS_MS);
@@ -247,18 +248,14 @@ function onRowPointerCancel(event: PointerEvent) {
 }
 
 function handleRowClick(song: SongResult) {
-  // 长按唤起菜单后的收尾 click 不再当作播放
-  if (rowPressFired) {
-    rowPressFired = false;
-    return;
-  }
+  if (performance.now() < rowSuppressClickUntil) return;
   handlePlay(song);
 }
 
 /** iOS 长按在计时器前后派发 contextmenu：同步开菜单并压掉收尾 click（桌面右键同路） */
 function onRowContextMenu(event: MouseEvent, index: number) {
   clearRowPressTimer();
-  rowPressFired = true;
+  rowSuppressClickUntil = performance.now() + 700;
   playerSurfaceFeedback.pulse();
   openMenuForIndex(index, (event.currentTarget as HTMLElement).getBoundingClientRect());
 }

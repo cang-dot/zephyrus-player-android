@@ -80,8 +80,11 @@
     <div class="progress-container">
       <div
         class="apple-style-progress"
-        @click="handleProgressBarClick"
-        @mousedown="handleMouseDown"
+        data-no-lyrics-swipe
+        @pointerdown="handleScrubPointerDown"
+        @pointermove="handleScrubPointerMove"
+        @pointerup="handleScrubPointerUp"
+        @pointercancel="handleScrubPointerCancel"
         @mousemove="handleProgressHover"
         @mouseleave="handleProgressLeave"
       >
@@ -110,14 +113,6 @@
             v-if="transitionStore.isCrossfadingUI"
             class="progress-fill-next"
             :style="nextFillStyle"
-          ></div>
-          <div
-            class="progress-thumb"
-            :class="{ active: isThumbDragging }"
-            :style="{ left: thumbPosition }"
-            @touchstart="handleThumbTouchStart"
-            @touchmove="handleThumbTouchMove"
-            @touchend="handleThumbTouchEnd"
           ></div>
         </div>
       </div>
@@ -334,14 +329,6 @@ const nextFillStyle = computed(() => {
     width: `${transitionStore.nextProgress}%`,
     boxShadow: `0 0 8px ${color}80`
   };
-});
-
-/** 进度条 thumb 位置：crossfade 时跟随下一首进度 */
-const thumbPosition = computed(() => {
-  if (transitionStore.isCrossfadingUI) {
-    return `${transitionStore.nextProgress}%`;
-  }
-  return `${(displayNowTime.value / Math.max(1, allTime.value)) * 100}%`;
 });
 
 const props = defineProps<{
@@ -760,8 +747,6 @@ onBeforeUnmount(() => {
   if (infoSwipeTimer) window.clearTimeout(infoSwipeTimer);
   riseCancelSpring?.();
   riseCancelSpring = null;
-  document.removeEventListener('mousemove', handleMouseMove);
-  document.removeEventListener('mouseup', handleMouseUp);
 });
 
 function handleTogglePlayMode() {
@@ -793,10 +778,11 @@ function emitInteract() {
 }
 
 // ==================== 进度条交互 ====================
-const isThumbDragging = ref(false);
+// 无圆点设计：条本体即拖柄——pointerdown 直接进入跟手拖动（不再区分 click/drag，
+// 也不会出现「想拖动却被判定为点击而跳转进度」）。指针捕获保证拖出条外仍跟手。
+const isScrubbing = ref(false);
 const dragPreviewTime = ref<number | null>(null);
-const skipNextProgressClick = ref(false);
-const dragProgressElement = ref<HTMLElement | null>(null);
+let scrubPointerId = -1;
 
 // ==================== 进度条悬停预览（桌面端 pointer:fine 专属） ====================
 const isPointerFine = window.matchMedia?.('(pointer: fine)').matches ?? false;
@@ -806,7 +792,7 @@ const hoverTimeStr = ref('');
 const hoverLeft = ref('50%');
 
 const handleProgressHover = (e: MouseEvent) => {
-  if (!isPointerFine || isThumbDragging.value || allTime.value <= 0) return;
+  if (!isPointerFine || isScrubbing.value || allTime.value <= 0) return;
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
   const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
   const timeSec = percent * allTime.value;
@@ -822,9 +808,7 @@ const handleProgressLeave = () => {
 };
 
 const getSeekTime = (clientX: number, target: HTMLElement): number | null => {
-  const rect = (
-    target.closest('.apple-style-progress') || dragProgressElement.value
-  )?.getBoundingClientRect();
+  const rect = target.closest('.apple-style-progress')?.getBoundingClientRect();
   if (!rect) return null;
   const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
   return ratio * allTime.value;
@@ -836,61 +820,40 @@ const commitSeek = (time: number | null) => {
   emitInteract();
 };
 
-const handleProgressBarClick = (e: MouseEvent) => {
-  if (skipNextProgressClick.value) {
-    skipNextProgressClick.value = false;
-    return;
-  }
-  commitSeek(getSeekTime(e.clientX, e.target as HTMLElement));
-};
-
-const handleMouseDown = (e: MouseEvent) => {
-  if (e.button !== 0) return;
-  isThumbDragging.value = true;
+const handleScrubPointerDown = (e: PointerEvent) => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (allTime.value <= 0) return;
+  isScrubbing.value = true;
   showHoverTooltip.value = false;
-  skipNextProgressClick.value = true;
-  dragProgressElement.value = (e.currentTarget as HTMLElement).closest('.apple-style-progress');
-  dragPreviewTime.value = getSeekTime(e.clientX, e.target as HTMLElement);
+  scrubPointerId = e.pointerId;
+  const bar = e.currentTarget as HTMLElement;
+  try {
+    bar.setPointerCapture(e.pointerId);
+  } catch {
+    /* 老内核可能不支持 */
+  }
+  dragPreviewTime.value = getSeekTime(e.clientX, bar);
   emitInteract();
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
 };
 
-const handleMouseMove = (e: MouseEvent) => {
-  if (!isThumbDragging.value) return;
-  dragPreviewTime.value = getSeekTime(e.clientX, e.target as HTMLElement);
+const handleScrubPointerMove = (e: PointerEvent) => {
+  if (!isScrubbing.value || e.pointerId !== scrubPointerId) return;
+  dragPreviewTime.value = getSeekTime(e.clientX, e.currentTarget as HTMLElement);
 };
 
-const handleMouseUp = () => {
-  if (!isThumbDragging.value) return;
+const handleScrubPointerUp = (e: PointerEvent) => {
+  if (e.pointerId !== scrubPointerId) return;
   commitSeek(dragPreviewTime.value);
-  isThumbDragging.value = false;
+  isScrubbing.value = false;
+  scrubPointerId = -1;
   dragPreviewTime.value = null;
-  dragProgressElement.value = null;
-  document.removeEventListener('mousemove', handleMouseMove);
-  document.removeEventListener('mouseup', handleMouseUp);
 };
 
-// 触摸拖拽
-const handleThumbTouchStart = (e: TouchEvent) => {
-  isThumbDragging.value = true;
-  dragProgressElement.value = (e.currentTarget as HTMLElement).parentElement?.parentElement || null;
-  emitInteract();
-  e.stopPropagation();
-};
-
-const handleThumbTouchMove = (e: TouchEvent) => {
-  if (!isThumbDragging.value) return;
-  dragPreviewTime.value = getSeekTime(e.touches[0].clientX, e.target as HTMLElement);
-  e.preventDefault();
-};
-
-const handleThumbTouchEnd = () => {
-  commitSeek(dragPreviewTime.value);
-  isThumbDragging.value = false;
+const handleScrubPointerCancel = (e: PointerEvent) => {
+  if (e.pointerId !== scrubPointerId) return;
+  isScrubbing.value = false;
+  scrubPointerId = -1;
   dragPreviewTime.value = null;
-  dragProgressElement.value = null;
-  emitInteract();
 };
 </script>
 
@@ -1302,6 +1265,8 @@ const handleThumbTouchEnd = () => {
   background: rgba(var(--player-ink-rgb, 255, 255, 255), 0.15);
   border-radius: 3px;
   cursor: pointer;
+  /* 无圆点设计：条本体即拖柄，触摸拖动期间不允许滚动手势接管指针 */
+  touch-action: none;
 }
 
 .progress-track {
@@ -1354,26 +1319,6 @@ const handleThumbTouchEnd = () => {
   background-size: 300% 100%;
   will-change: background-position;
   animation: song-progress-color-cycle 1.8s ease-in-out infinite;
-}
-
-.progress-thumb {
-  position: absolute;
-  top: 50%;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--accent-color, #fff);
-  transform: translate(-50%, -50%) scale(0);
-  transition: transform 0.2s ease;
-
-  &.active {
-    transform: translate(-50%, -50%) scale(1.3);
-  }
-}
-
-.apple-style-progress:hover .progress-thumb,
-.apple-style-progress:active .progress-thumb {
-  transform: translate(-50%, -50%) scale(1);
 }
 
 @media (prefers-reduced-motion: reduce) {
