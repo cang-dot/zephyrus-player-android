@@ -71,10 +71,11 @@ export async function getMusicDB(): Promise<Awaited<ReturnType<typeof useIndexed
         { name: 'music_failed_cache', keyPath: 'id' },
         { name: 'climax_cache', keyPath: 'id' },
         { name: 'local_climax_data', keyPath: 'id' },
+        { name: 'auto_climax_data', keyPath: 'id' },
         { name: 'keywords_cache', keyPath: 'id' },
         { name: 'community_lyric_cache', keyPath: 'id' }
       ],
-      5
+      6
     ).then((db) => {
       _musicDB = db;
       return db;

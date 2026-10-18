@@ -485,6 +485,8 @@ export default {
     hidePlayBar: '재생바 숨기기',
     hideMiniPlayBar: '미니 재생바 숨기기',
     alwaysShowPlayerControls: '재생 컨트롤 항상 표시',
+    autoClimaxAnalysis: '자동 하이라이트 분석',
+    autoClimaxAnalysisDescription: '수동/커뮤니티 표시가 없을 때 오디오에서 후렴 구간을 자동으로 찾습니다',
     showMiniPlayBar: '미니 재생바 표시',
     backgroundTheme: '배경 테마',
     themeOptions: {

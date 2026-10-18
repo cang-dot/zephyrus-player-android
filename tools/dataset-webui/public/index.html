@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>歌曲段落标注工具 · dataset-webui</title>
+<style>
+  :root {
+    --bg: #141416; --panel: #1e1e21; --line: #2c2c30; --ink: #e8e8ea;
+    --ink-dim: #9a9aa2; --accent: #e8963f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, sans-serif; }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 700; }
+  .tabs { display: flex; gap: 6px; }
+  .tabs button { background: none; border: 1px solid var(--line); color: var(--ink-dim); padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+  .tabs button.active { color: var(--ink); border-color: var(--accent); }
+  main { padding: 16px 20px; max-width: 1280px; margin: 0 auto; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  input[type=text], input[type=number] {
+    background: var(--bg); border: 1px solid var(--line); color: var(--ink);
+    padding: 7px 10px; border-radius: 8px; outline: none; font: inherit;
+  }
+  button.act { background: var(--accent); border: 0; color: #1a1a1a; font-weight: 700; padding: 7px 14px; border-radius: 8px; cursor: pointer; }
+  button.ghost { background: none; border: 1px solid var(--line); color: var(--ink-dim); padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+  button.ghost.danger { color: #ff6b62; border-color: #4a2c2a; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--ink-dim); font-weight: 500; }
+  .muted { color: var(--ink-dim); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .hidden { display: none !important; }
+  #queueList td:first-child { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* 标注编辑器 */
+  #waveWrap { position: relative; user-select: none; }
+  #wave { display: block; width: 100%; height: 180px; background: #101012; border-radius: 8px; cursor: crosshair; }
+  #lane { position: absolute; left: 0; right: 0; top: 0; bottom: 0; }
+  .seg { position: absolute; top: 8px; bottom: 8px; border-radius: 6px; opacity: 0.85; border: 1.5px solid transparent; cursor: grab; }
+  .seg.selected { border-color: #fff; opacity: 1; }
+  .seg .tag { position: absolute; top: 2px; left: 4px; font-size: 10px; color: #111; font-weight: 700; pointer-events: none; }
+  .seg .handle { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
+  .seg .handle.l { left: -1px; } .seg .handle.r { right: -1px; }
+  #labelBar { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+  #labelBar button { border: 1px solid var(--line); background: none; color: var(--ink); padding: 5px 12px; border-radius: 999px; cursor: pointer; font-size: 12px; }
+  #labelBar button.active { color: #111; font-weight: 700; }
+  #timeRow { display: flex; justify-content: space-between; color: var(--ink-dim); font-size: 12px; margin-top: 4px; }
+  .status-ok { color: #7ed07e; } .status-fail { color: #ff6b62; } .status-wait { color: var(--ink-dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1>歌曲段落标注工具</h1>
+  <div class="tabs">
+    <button data-tab="crawl" class="active">搜索爬取</button>
+    <button data-tab="annotate">段落标注</button>
+    <button data-tab="export">导出</button>
+  </div>
+  <span class="muted" id="headInfo"></span>
+</header>
+
+<main>
+  <!-- ============ 爬取 ============ -->
+  <section id="tab-crawl">
+    <div class="panel">
+      <div class="row">
+        <input type="text" id="kw" placeholder="搜索网易云歌曲…" style="width: 320px" />
+        <button class="act" id="btnSearch">搜索</button>
+        <span class="muted">或歌单 id：</span>
+        <input type="text" id="playlistId" placeholder="歌单 id" style="width: 160px" />
+        <button class="ghost" id="btnPlaylist">拉取歌单</button>
+        <button class="ghost" id="btnDownloadAll">下载全部选中</button>
+      </div>
+      <div id="searchResult" style="margin-top: 10px"></div>
+    </div>
+    <div class="panel">
+      <strong>下载队列</strong>
+      <span class="muted">（音频落盘 dataset/，同名跳过）</span>
+      <table style="margin-top: 8px"><tbody id="queueList"></tbody></table>
+    </div>
+  </section>
+
+  <!-- ============ 标注 ============ -->
+  <section id="tab-annotate" class="hidden">
+    <div class="panel">
+      <div class="row">
+        <span class="muted">已下载音频：</span>
+        <select id="audioPick" style="background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 7px"></select>
+        <button class="ghost" id="btnLoadAudio">载入</button>
+        <span class="muted" id="annoStatus"></span>
+      </div>
+    </div>
+    <div class="panel hidden" id="editorPanel">
+      <div id="labelBar"></div>
+      <div id="waveWrap">
+        <canvas id="wave" height="180"></canvas>
+        <div id="lane"></div>
+      </div>
+      <div id="timeRow"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
+      <div class="row" style="margin-top: 10px">
+        <span class="muted">操作：拖动画布建段（当前标签）· 拖边缘微调 · 点选段后 Del 删除 · Space 播放/暂停 · 数字键切标签</span>
+        <span style="flex: 1"></span>
+        <button class="act" id="btnSave">保存标注</button>
+        <button class="ghost danger" id="btnClearSegs">清空段落</button>
+      </div>
+      <div class="row" style="margin-top: 8px">
+        <span class="muted">曲名</span><input type="text" id="metaName" style="width: 220px" />
+        <span class="muted">歌手</span><input type="text" id="metaArtist" style="width: 160px" />
+      </div>
+    </div>
+    <audio id="player" controls style="width: 100%; margin-top: 12px"></audio>
+  </section>
+
+  <!-- ============ 导出 ============ -->
+  <section id="tab-export" class="hidden">
+    <div class="panel">
+      <div class="row">
+        <button class="act" id="btnExport">导出训练数据 JSON</button>
+        <span class="muted">格式：{manifest, items:[{id,name,artist,duration,audioFile,sections:[{label,start,end}]}]}</span>
+      </div>
+      <table style="margin-top: 10px"><tbody id="exportList"></tbody></table>
+    </div>
+  </section>
+</main>
+
+<script>
+'use strict';
+/* ==================== 通用 ==================== */
+const $ = (s) => document.querySelector(s);
+const fmt = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || data.error) throw new Error(data.error || r.status);
+  return data;
+}
+
+document.querySelectorAll('.tabs button').forEach((btn) => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', b === btn));
+    ['crawl', 'annotate', 'export'].forEach((t) => $('#tab-' + t).classList.toggle('hidden', t !== btn.dataset.tab));
+    if (btn.dataset.tab === 'annotate') refreshAudioPick();
+    if (btn.dataset.tab === 'export') refreshExport();
+  };
+});
+
+/* ==================== 爬取 ==================== */
+const queue = []; // {id, name, artist, status, file}
+function renderQueue() {
+  $('#queueList').innerHTML = queue
+    .map(
+      (q, i) =>
+        `<tr><td>${q.name} <span class="muted">- ${q.artist}</span></td>` +
+        `<td class="${q.status === '完成' ? 'status-ok' : q.status === '失败' ? 'status-fail' : 'status-wait'}">${q.status}${q.file ? ' · ' + q.file : ''}</td>` +
+        `<td><button class="ghost" data-dl="${i}">${q.status === '完成' ? '重下' : '下载'}</button></td></tr>`
+    )
+    .join('');
+  $('#queueList').querySelectorAll('button[data-dl]').forEach((b) => {
+    b.onclick = () => downloadOne(queue[Number(b.dataset.dl)]);
+  });
+  $('#headInfo').textContent = `队列 ${queue.length}`;
+}
+async function downloadOne(q) {
+  q.status = '下载中';
+  renderQueue();
+  try {
+    const r = await api(`/api/download?id=${q.id}`);
+    q.status = '完成';
+    q.file = r.file;
+  } catch (e) {
+    q.status = '失败';
+    q.error = e.message;
+  }
+  renderQueue();
+}
+
+async function addToQueue(songs) {
+  for (const s of songs) {
+    if (!queue.some((q) => q.id === s.id)) queue.push({ ...s, status: '待下载' });
+  }
+  renderQueue();
+}
+
+$('#btnSearch').onclick = async () => {
+  const kw = $('#kw').value.trim();
+  if (!kw) return;
+  const { songs } = await api('/api/search?kw=' + encodeURIComponent(kw));
+  $('#searchResult').innerHTML = songs.length
+    ? `<table><thead><tr><th></th><th>歌曲</th><th>歌手</th><th>专辑</th><th>时长</th></tr></thead><tbody>` +
+      songs
+        .map(
+          (s) =>
+            `<tr><td><input type="checkbox" checked data-id="${s.id}" /></td>` +
+            `<td>${s.name}</td><td>${s.artist}</td><td class="muted">${s.album}</td><td class="muted">${fmt((s.duration || 0) / 1000)}</td></tr>`
+        )
+        .join('') +
+      `</tbody></table>`
+    : '<span class="muted">无结果</span>';
+  window._lastSearch = songs;
+};
+$('#btnPlaylist').onclick = async () => {
+  const id = $('#playlistId').value.trim();
+  if (!id) return;
+  try {
+    const { name, tracks } = await api('/api/playlist?id=' + id);
+    await addToQueue(tracks);
+    alert(`已导入歌单「${name}」${tracks.length} 首`);
+  } catch (e) {
+    alert('拉取失败：' + e.message);
+  }
+};
+$('#btnDownloadAll').onclick = async () => {
+  const checked = new Set(
+    Array.from(document.querySelectorAll('#searchResult input:checked')).map((i) => Number(i.dataset.id))
+  );
+  const picked = window._lastSearch
+    ? window._lastSearch.filter((s) => checked.has(s.id))
+    : [];
+  if (picked.length) await addToQueue(picked);
+  for (const q of queue.filter((x) => x.status !== '完成')) await downloadOne(q);
+};
+
+/* ==================== 标注 ==================== */
+const LABELS = [
+  ['intro', '前奏', '#8a8a94'],
+  ['verse', '主歌', '#5b8def'],
+  ['prechorus', '预副歌', '#39b3a6'],
+  ['chorus', '副歌', '#e8963f'],
+  ['bridge', '桥段', '#a06ee0'],
+  ['interlude', '间奏', '#3fa7d6'],
+  ['outro', '尾奏', '#6d6d78']
+];
+let activeLabel = 'chorus';
+let sections = []; // {label, start, end}
+let currentFile = '';
+let audioBuffer = null;
+let duration = 0;
+let selectedIdx = -1;
+
+function renderLabelBar() {
+  $('#labelBar').innerHTML =
+    LABELS.map(
+      ([id, name, color], i) =>
+        `<button data-label="${id}" style="${activeLabel === id ? `background:${color};border-color:${color}` : ''}" ` +
+        `title="快捷键 ${i + 1}">${name}</button>`
+    ).join('') + `<span class="muted" style="align-self:center">当前标签：${LABELS.find((l) => l[0] === activeLabel)[1]}</span>`;
+  $('#labelBar').querySelectorAll('button[data-label]').forEach((b) => {
+    b.onclick = () => {
+      activeLabel = b.dataset.label;
+      renderLabelBar();
+    };
+  });
+}
+renderLabelBar();
+
+async function refreshAudioPick() {
+  const [{ items }, { files }] = await Promise.all([
+    api('/api/annotations').catch(() => ({ items: [] })),
+    api('/api/files').catch(() => ({ files: [] }))
+  ]);
+  const annotated = new Map((items || []).map((a) => [a.audioFile, a]));
+  const options = (files || []).map((f) => {
+    const a = annotated.get(f.file);
+    return {
+      file: f.file,
+      name: a ? `${a.name || f.file}（已标注 ${a.sections.length} 段）` : f.file
+    };
+  });
+  $('#audioPick').innerHTML =
+    `<option value="">选择…</option>` +
+    options.map((o) => `<option value="${o.file}">${o.name}</option>`).join('');
+}
+
+$('#btnLoadAudio').onclick = async () => {
+  const file = $('#audioPick').value;
+  if (!file) return;
+  currentFile = file;
+  const audio = $('#player');
+  audio.src = '/dataset/' + file;
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const buf = await ctx.decodeAudioData(await (await fetch('/dataset/' + file)).arrayBuffer());
+  audioBuffer = buf;
+  duration = buf.duration;
+  $('#tDur').textContent = fmt(duration);
+  // 载入已有标注
+  sections = [];
+  selectedIdx = -1;
+  const list = await api('/api/annotations').catch(() => ({ items: [] }));
+  const existing = (list.items || []).find((a) => a.audioFile === file);
+  if (existing) {
+    sections = existing.sections.map((s) => ({ ...s }));
+    $('#metaName').value = existing.name || '';
+    $('#metaArtist').value = existing.artist || '';
+  }
+  $('#editorPanel').classList.remove('hidden');
+  $('#annoStatus').textContent = sections.length ? `已有 ${sections.length} 段标注` : '无标注，开始新建';
+  drawWave();
+  renderSegs();
+};
+
+function drawWave() {
+  const canvas = $('#wave');
+  const wrap = $('#waveWrap');
+  canvas.width = wrap.clientWidth;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!audioBuffer) return;
+  const ch = audioBuffer.getChannelData(0);
+  const per = Math.floor(ch.length / canvas.width);
+  // 每列 RMS → 能量着色
+  const energies = [];
+  for (let x = 0; x < canvas.width; x++) {
+    let sum = 0;
+    for (let i = 0; i < per; i += 8) {
+      const v = ch[x * per + i] || 0;
+      sum += v * v;
+    }
+    energies.push(Math.sqrt(sum / Math.max(1, per / 8)));
+  }
+  const maxE = Math.max(...energies, 0.01);
+  for (let x = 0; x < canvas.width; x++) {
+    const e = energies[x] / maxE;
+    const h = Math.max(2, e * (canvas.height - 10));
+    const warm = Math.min(1, e * 1.6);
+    ctx.fillStyle = `rgba(${Math.round(90 + 140 * warm)},${Math.round(160 - 60 * warm)},${Math.round(230 - 120 * warm)},0.9)`;
+    ctx.fillRect(x, (canvas.height - h) / 2, 1, h);
+  }
+}
+
+const xToTime = (px, width) => (px / width) * duration;
+
+function renderSegs() {
+  const lane = $('#lane');
+  lane.innerHTML = '';
+  const width = $('#wave').clientWidth || 1;
+  sections.forEach((s, i) => {
+    const color = LABELS.find((l) => l[0] === s.label)?.[2] || '#888';
+    const div = document.createElement('div');
+    div.className = 'seg' + (i === selectedIdx ? ' selected' : '');
+    div.style.left = (s.start / duration) * width + 'px';
+    div.style.width = Math.max(6, ((s.end - s.start) / duration) * width) + 'px';
+    div.style.background = color;
+    div.innerHTML = `<span class="tag">${LABELS.find((l) => l[0] === s.label)?.[1] || s.label}</span>` +
+      `<span class="handle l"></span><span class="handle r"></span>`;
+    lane.appendChild(div);
+  });
+  lane.querySelectorAll('.seg').forEach((el, i) => {
+    el.onpointerdown = (ev) => startSegDrag(ev, i, el);
+  });
+}
+
+function startSegDrag(ev, i, el) {
+  ev.stopPropagation();
+  const rect = el.getBoundingClientRect();
+  const onEdgeL = ev.clientX - rect.left < 9;
+  const onEdgeR = rect.right - ev.clientX < 9;
+  selectedIdx = i;
+  renderSegs();
+  const startX = ev.clientX;
+  const orig = { ...sections[i] };
+  const width = $('#wave').clientWidth;
+  const move = (e) => {
+    const dt = ((e.clientX - startX) / width) * duration;
+    if (onEdgeL) sections[i].start = Math.min(orig.end - 1, Math.max(0, orig.start + dt));
+    else if (onEdgeR) sections[i].end = Math.max(orig.start + 1, Math.min(duration, orig.end + dt));
+    else {
+      const len = orig.end - orig.start;
+      let ns = Math.max(0, Math.min(duration - len, orig.start + dt));
+      sections[i].start = ns;
+      sections[i].end = ns + len;
+    }
+    renderSegs();
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
+$('#lane').addEventListener('pointerdown', (ev) => {
+  if (!audioBuffer) return;
+  if (ev.target !== $('#lane')) return; // 命中的是已有段，交给段内拖拽
+  const width = $('#wave').clientWidth;
+  const t0 = xToTime(ev.offsetX, width);
+  const preview = document.createElement('div');
+  preview.className = 'seg';
+  preview.style.background = LABELS.find((l) => l[0] === activeLabel)[2];
+  $('#lane').appendChild(preview);
+  let cur = t0;
+  const move = (e) => {
+    cur = xToTime(e.clientX - $('#wave').getBoundingClientRect().left, width);
+    const a = Math.min(t0, cur);
+    const b = Math.max(t0, cur);
+    preview.style.left = (a / duration) * width + 'px';
+    preview.style.width = Math.max(2, ((b - a) / duration) * width) + 'px';
+  };
+  const up = (e) => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    preview.remove();
+    const a = Math.min(t0, cur);
+    const b = Math.max(t0, cur);
+    if (b - a < 1) {
+      // 单击 = 定位播放
+      $('#player').currentTime = a;
+      return;
+    }
+    sections.push({ label: activeLabel, start: Math.round(a * 10) / 10, end: Math.round(b * 10) / 10 });
+    sections.sort((x, y) => x.start - y.start);
+    selectedIdx = sections.length - 1;
+    renderSegs();
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+});
+
+$('#player').ontimeupdate = () => {
+  $('#tCur').textContent = fmt($('#player').currentTime);
+};
+
+$('#btnSave').onclick = async () => {
+  if (!currentFile) return;
+  const body = {
+    id: currentFile.replace(/\.[^.]+$/, ''),
+    audioFile: currentFile,
+    name: $('#metaName').value.trim(),
+    artist: $('#metaArtist').value.trim(),
+    duration: Math.round(duration * 100) / 100,
+    sections
+  };
+  await api('/api/annotations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  $('#annoStatus').textContent = `已保存（${sections.length} 段）`;
+};
+
+$('#btnClearSegs').onclick = () => {
+  sections = [];
+  selectedIdx = -1;
+  renderSegs();
+};
+
+document.addEventListener('keydown', (e) => {
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+  if (e.code === 'Space' && $('#player').src) {
+    e.preventDefault();
+    $('#player').paused ? $('#player').play() : $('#player').pause();
+  }
+  const n = Number(e.key);
+  if (n >= 1 && n <= LABELS.length) {
+    activeLabel = LABELS[n - 1][0];
+    renderLabelBar();
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdx >= 0) {
+    sections.splice(selectedIdx, 1);
+    selectedIdx = -1;
+    renderSegs();
+  }
+});
+
+window.addEventListener('resize', () => {
+  if (audioBuffer) {
+    drawWave();
+    renderSegs();
+  }
+});
+
+/* ==================== 导出 ==================== */
+async function refreshExport() {
+  const { items } = await api('/api/annotations');
+  $('#exportList').innerHTML = items.length
+    ? items
+        .map(
+          (a) =>
+            `<tr><td>${a.name || a.id}</td><td class="muted">${a.artist || ''}</td>` +
+            `<td>${a.sections.length} 段</td><td class="muted">${a.audioFile}</td></tr>`
+        )
+        .join('')
+    : '<tr><td class="muted">暂无标注</td></tr>';
+}
+$('#btnExport').onclick = () => {
+  window.open('/api/export');
+};
+</script>
+</body>
+</html>

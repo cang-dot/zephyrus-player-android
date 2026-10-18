@@ -1031,6 +1031,34 @@
                   :inert="!isControlSectionExpanded('climax')"
                 >
                   <div id="control-section-climax" class="control-section-body">
+                    <!-- 自动高潮分析（DSP，第四优先级数据源） -->
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
+                      <div class="min-w-0 pr-3">
+                        <div class="text-sm text-white/80">
+                          {{
+                            tr('settings.lyricSettings.autoClimaxAnalysis', '自动高潮分析')
+                          }}
+                        </div>
+                        <div class="text-xs text-white/40 mt-1">
+                          {{
+                            tr(
+                              'settings.lyricSettings.autoClimaxAnalysisDescription',
+                              '无手动/社区标注时自动从音频定位副歌段落'
+                            )
+                          }}
+                        </div>
+                      </div>
+                      <button
+                        class="share-toggle-switch"
+                        :class="{ on: lyricConfig.autoClimaxAnalysis !== false }"
+                        @click="
+                          lyricConfig.autoClimaxAnalysis = !(lyricConfig.autoClimaxAnalysis !== false)
+                        "
+                      >
+                        <span class="share-toggle-knob"></span>
+                      </button>
+                    </div>
+
                     <!-- 当前播放时间显示 -->
                     <div class="flex items-center justify-between mb-2 px-1">
                       <span class="text-xs text-white/50">在时间轴上拖动以标记高潮段落</span>

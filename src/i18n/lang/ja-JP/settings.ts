@@ -487,6 +487,8 @@ export default {
     hidePlayBar: '再生バーを非表示',
     hideMiniPlayBar: 'ミニ再生バーを非表示',
     alwaysShowPlayerControls: '再生コントロールを常に表示',
+    autoClimaxAnalysis: '自動サビ分析',
+    autoClimaxAnalysisDescription: '手動/コミュニティの標註がない場合、音声からサビ区間を自動検出します',
     showMiniPlayBar: 'ミニ再生バーを表示',
     backgroundTheme: '背景テーマ',
     themeOptions: {

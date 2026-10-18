@@ -62,6 +62,12 @@ export const useCommunityDataStore = defineStore('communityData', () => {
 
     await loadClimax(songId);
 
+    // 第四级数据源：本地手动/社区/server 都没有时，异步触发 DSP 自动分析并回填
+    // （不阻塞 loadAll；完成后若仍是当前歌且仍无数据则写入，styleEngine 经 watch 同步）
+    if (currentSongId.value === songId && climaxSegments.value.length === 0) {
+      void autoFillFromAnalysis(songId);
+    }
+
     if (currentSongId.value !== songId) return;
 
     if (songId.startsWith('server:')) return;
@@ -71,6 +77,27 @@ export const useCommunityDataStore = defineStore('communityData', () => {
     }
 
     await loadCommunityLyric(songId);
+  }
+
+  /**
+   * DSP 自动高潮分析回填（第四优先级，contributor='auto-dsp'）。
+   * 结果只写本地 auto_climax_data 缓存，不上传社区服务器。
+   */
+  async function autoFillFromAnalysis(songId: string) {
+    try {
+      const { ensureAutoClimax } = await import('@/services/autoClimaxAnalyzer');
+      const { usePlayerStore } = await import('./player');
+      const song = usePlayerStore().playMusic;
+      if (!song) return;
+      const duration = song?.dt || song?.duration;
+      const result = await ensureAutoClimax(songId, song.playMusicUrl, duration);
+      if (!result || !result.segments.length) return;
+      if (currentSongId.value !== songId || climaxSegments.value.length > 0) return;
+      climaxSegments.value = normalizeClimaxSegments(result.segments, duration);
+      climaxContributor.value = 'auto-dsp';
+    } catch (err) {
+      console.warn('[CommunityData] 自动高潮分析回填失败:', err);
+    }
   }
 
   /**

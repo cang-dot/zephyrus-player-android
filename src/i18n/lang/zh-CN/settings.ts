@@ -479,6 +479,8 @@ export default {
     hidePlayBar: '隐藏播放栏',
     hideMiniPlayBar: '隐藏迷你播放栏',
     alwaysShowPlayerControls: '始终显示播放控件',
+    autoClimaxAnalysis: '自动高潮分析',
+    autoClimaxAnalysisDescription: '无手动/社区标注时自动从音频定位副歌段落',
     showMiniPlayBar: '显示迷你播放栏',
     backgroundTheme: '背景主题',
     themeOptions: {

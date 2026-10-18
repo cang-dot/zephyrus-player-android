@@ -169,6 +169,21 @@ export const usePlaylistStore = defineStore(
             } catch (e) {
               console.warn('BPM 预分析触发失败:', e);
             }
+            // 触发 DSP 自动高潮预分析（有缓存/禁用/不可达时内部直接跳过）
+            try {
+              const { ensureAutoClimax, isAutoClimaxEnabled, shouldPreanalyze } = await import(
+                '@/services/autoClimaxAnalyzer'
+              );
+              if (isAutoClimaxEnabled() && shouldPreanalyze()) {
+                void ensureAutoClimax(
+                  String(nextSong.id),
+                  nextSong.playMusicUrl,
+                  nextSong.dt || nextSong.duration
+                );
+              }
+            } catch (e) {
+              console.warn('高潮预分析触发失败:', e);
+            }
           }
           if (nextSong.picUrl) {
             preloadCoverImage(nextSong.picUrl, getImgUrl);

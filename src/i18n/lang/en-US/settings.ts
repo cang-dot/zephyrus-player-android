@@ -487,6 +487,8 @@ export default {
     hidePlayBar: 'Hide Play Bar',
     hideMiniPlayBar: 'Hide Mini Play Bar',
     alwaysShowPlayerControls: 'Always show player controls',
+    autoClimaxAnalysis: 'Auto Climax Detection',
+    autoClimaxAnalysisDescription: 'Detect chorus segments from audio when no manual/community annotation exists',
     showMiniPlayBar: 'Show Mini Play Bar',
     backgroundTheme: 'Background Theme',
     themeOptions: {

@@ -193,6 +193,8 @@ export interface LyricConfig {
   translationEngine?: 'none' | 'opencc';
   hideMiniPlayBar: boolean;
   alwaysShowPlayerControls: boolean;
+  /** DSP 自动高潮分析（第四优先级数据源），缺省视为开启 */
+  autoClimaxAnalysis: boolean;
   hideLyrics: boolean;
   contentWidth: number; // 内容区域宽度百分比
   playerStyle: MobilePlayerStyleKey | 'classic';
@@ -275,6 +277,7 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   hidePlayBar: true,
   hideMiniPlayBar: false,
   alwaysShowPlayerControls: false,
+  autoClimaxAnalysis: true,
   hideLyrics: false,
   contentWidth: 75, // 默认100%宽度
   playerStyle: 'default',

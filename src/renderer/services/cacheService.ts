@@ -129,6 +129,33 @@ export async function deleteLocalClimax(songId: string): Promise<void> {
   }
 }
 
+// ==================== Auto Climax Data (DSP 自动分析，永久存储) ====================
+
+/**
+ * 读取 DSP 自动分析的高潮数据（永久存储，无 TTL；segments 为空数组即"分析过但无结论"的负缓存）
+ */
+export async function getAutoClimax(songId: string): Promise<ClimaxCacheData | null | undefined> {
+  try {
+    const db = await getMusicDB();
+    const entry = (await db.getData('auto_climax_data' as any, songId)) as
+      | { data: ClimaxCacheData }
+      | undefined;
+    if (!entry) return undefined;
+    return entry.data;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function saveAutoClimax(songId: string, data: ClimaxCacheData): Promise<void> {
+  try {
+    const db = await getMusicDB();
+    await db.saveData('auto_climax_data' as any, { id: songId, data } as any);
+  } catch (err) {
+    console.error('[CacheService] 保存自动高潮数据失败:', err);
+  }
+}
+
 // ==================== Keywords Cache ====================
 
 export async function getKeywordsCache(songId: string): Promise<KeywordMark | null | undefined> {
