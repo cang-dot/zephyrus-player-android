@@ -7,7 +7,6 @@
  * 分析失败只记内存冷却，不持久化（网络类失败下次应重试）。
  */
 import type { ClimaxSegment } from '@/api/climax';
-import { normalizeClimaxSegments } from '@/api/climax';
 import { probeAnalysisCapability, upgradeToHttps } from '@/services/audioAnalysisGate';
 import { getAutoClimax, saveAutoClimax } from '@/services/cacheService';
 import { isElectron } from '@/utils';
@@ -114,6 +113,7 @@ function analyzeBytes(arrayBuffer: ArrayBuffer, duration?: number): Promise<Auto
 /**
  * 确保某歌的自动高潮数据可用（缓存 → 分析 → 持久化）。
  * 返回 null = 不可分析/失败/禁用；segments 为空数组 = 分析过但无结论（负缓存已写入）。
+ * duration 接受毫秒（song.dt）或秒，内部统一为秒。
  */
 export async function ensureAutoClimax(
   songId: string,
@@ -121,6 +121,8 @@ export async function ensureAutoClimax(
   duration?: number
 ): Promise<AutoClimaxResult | null> {
   if (!isAutoClimaxEnabled() || !songId || !url) return null;
+  const durationSec =
+    duration && duration > 1000 ? duration / 1000 : duration && duration > 0 ? duration : undefined;
   const cached = await getAutoClimax(songId);
   if (cached != null) {
     return { segments: cached.segments, confidence: 0 };
@@ -145,12 +147,20 @@ export async function ensureAutoClimax(
         failureCooldown.set(url, Date.now() + FAILURE_COOLDOWN_MS);
         return null;
       }
-      const result = await analyzeBytes(bytes, duration);
+      const result = await analyzeBytes(bytes, durationSec);
       if (!result) {
         failureCooldown.set(url, Date.now() + FAILURE_COOLDOWN_MS);
         return null;
       }
-      const segments = normalizeClimaxSegments(result.segments, duration);
+      // worker 输出已是秒制且排序/钳制过；这里只做曲长范围内的最终过滤
+      // （不走 normalizeClimaxSegments——它的毫秒启发式在 >16.7min 歌上会误判）
+      const segments = result.segments
+        .map((s) => ({
+          start: Math.max(0, Math.min(durationSec ?? Infinity, s.start)),
+          end: Math.max(0, Math.min(durationSec ?? Infinity, s.end))
+        }))
+        .filter((s) => s.end > s.start)
+        .sort((a, b) => a.start - b.start);
       await saveAutoClimax(songId, { segments, contributor: 'auto-dsp' });
       return { segments, confidence: result.confidence };
     } catch {

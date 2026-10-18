@@ -82,18 +82,40 @@ export const useCommunityDataStore = defineStore('communityData', () => {
   /**
    * DSP 自动高潮分析回填（第四优先级，contributor='auto-dsp'）。
    * 结果只写本地 auto_climax_data 缓存，不上传社区服务器。
+   * 关键时序：loadAll 在歌曲详情解析前执行，此刻播放地址（playerStore.playMusicUrl）
+   * 可能还没解析出来——轮询等待其出现再分析（切歌即放弃），完成后歌曲中途也能即时回填。
    */
   async function autoFillFromAnalysis(songId: string) {
     try {
-      const { ensureAutoClimax } = await import('@/services/autoClimaxAnalyzer');
+      const { ensureAutoClimax, isAutoClimaxEnabled } = await import(
+        '@/services/autoClimaxAnalyzer'
+      );
+      if (!isAutoClimaxEnabled()) return;
       const { usePlayerStore } = await import('./player');
-      const song = usePlayerStore().playMusic;
-      if (!song) return;
-      const duration = song?.dt || song?.duration;
-      const result = await ensureAutoClimax(songId, song.playMusicUrl, duration);
+      const store = usePlayerStore();
+
+      let url: string | undefined = store.playMusicUrl || store.playMusic?.playMusicUrl || undefined;
+      if (!url) {
+        const deadline = Date.now() + 20000;
+        while (!url && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          if (String(store.playMusic?.id || '') !== songId) return;
+          url = store.playMusicUrl || store.playMusic?.playMusicUrl || undefined;
+        }
+        if (!url) return;
+      }
+
+      const song = store.playMusic;
+      const durationMs = song?.dt || song?.duration;
+      const durationSec = durationMs && durationMs > 1000 ? durationMs / 1000 : durationMs;
+      const result = await ensureAutoClimax(songId, url, durationMs);
       if (!result || !result.segments.length) return;
       if (currentSongId.value !== songId || climaxSegments.value.length > 0) return;
-      climaxSegments.value = normalizeClimaxSegments(result.segments, duration);
+      // worker 输出为秒制；避开 normalizeClimaxSegments 的毫秒启发式，直接按曲长钳制
+      climaxSegments.value = result.segments.map((s) => ({
+        start: Math.max(0, Math.min(durationSec ?? Infinity, s.start)),
+        end: Math.max(0, Math.min(durationSec ?? Infinity, s.end))
+      }));
       climaxContributor.value = 'auto-dsp';
     } catch (err) {
       console.warn('[CommunityData] 自动高潮分析回填失败:', err);
