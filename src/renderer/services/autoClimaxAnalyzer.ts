@@ -92,14 +92,38 @@ async function fetchAudioBytes(url: string): Promise<ArrayBuffer | null> {
   return response.arrayBuffer();
 }
 
-/** 分析一首歌的音频字节（Worker Promise 化） */
-function analyzeBytes(arrayBuffer: ArrayBuffer, duration?: number): Promise<AutoClimaxResult | null> {
+/**
+ * 主线程解码 + 重采样到 8kHz 单声道 PCM。
+ * Chromium 的 Worker 作用域没有 OfflineAudioContext（decodeAudioData 必须主线程），
+ * Worker 只承担纯计算。decodeAudioData 会把音频重采样到 context 的采样率。
+ */
+async function decodeToMono8k(arrayBuffer: ArrayBuffer): Promise<Float32Array> {
+  const OfflineCtx =
+    window.OfflineAudioContext ||
+    (window as unknown as { webkitOfflineAudioContext?: typeof OfflineAudioContext })
+      .webkitOfflineAudioContext;
+  if (!OfflineCtx) throw new Error('OfflineAudioContext unavailable');
+  const ctx = new OfflineCtx(1, 1, 8000);
+  const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+  return audioBuffer.getChannelData(0);
+}
+
+/** 分析一首歌的音频字节（主线程解码 → Worker 纯计算，Promise 化） */
+async function analyzeBytes(arrayBuffer: ArrayBuffer, duration?: number): Promise<AutoClimaxResult | null> {
   const w = ensureWorker();
   if (!w) return Promise.resolve(null);
+  let pcm: Float32Array;
+  try {
+    pcm = await decodeToMono8k(arrayBuffer);
+  } catch (err) {
+    console.warn('[AutoClimax] 解码失败:', err);
+    return null;
+  }
   const id = ++pendingId;
   return new Promise((resolve) => {
     pending.set(id, { resolve });
-    w.postMessage({ type: 'analyze', arrayBuffer, duration, __id: id }, [arrayBuffer]);
+    const pcmCopy = new Float32Array(pcm); // transfer 需要独立 buffer
+    w.postMessage({ type: 'analyze', pcm: pcmCopy, duration, __id: id }, [pcmCopy.buffer]);
     // 兜底超时：worker 卡死不悬挂调用方
     setTimeout(() => {
       if (pending.has(id)) {

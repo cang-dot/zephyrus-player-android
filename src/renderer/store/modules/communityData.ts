@@ -94,13 +94,19 @@ export const useCommunityDataStore = defineStore('communityData', () => {
       const { usePlayerStore } = await import('./player');
       const store = usePlayerStore();
 
-      let url: string | undefined = store.playMusicUrl || store.playMusic?.playMusicUrl || undefined;
+      let url: string | undefined;
+      // 只在 playMusic 已切到本歌时读取地址——否则可能拿到上一首歌的旧直链
+      const currentUrl = () =>
+        String(store.playMusic?.id || '') === songId
+          ? store.playMusicUrl || store.playMusic?.playMusicUrl || undefined
+          : undefined;
+      url = currentUrl();
       if (!url) {
         const deadline = Date.now() + 20000;
         while (!url && Date.now() < deadline) {
           await new Promise((resolve) => setTimeout(resolve, 500));
           if (String(store.playMusic?.id || '') !== songId) return;
-          url = store.playMusicUrl || store.playMusic?.playMusicUrl || undefined;
+          url = currentUrl();
         }
         if (!url) return;
       }
