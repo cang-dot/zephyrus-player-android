@@ -26,6 +26,7 @@ import { isElectron } from '@/utils';
 import { applyBandSplitCrossfade, type BandSplitChain,createBandSplitChain } from '@/utils/audio/bandSplitter';
 import { calculateBeatAlignedTransition } from '@/utils/audio/beatAlign';
 import { applyEqualPowerCrossfade } from '@/utils/audio/crossfade';
+import { decodeToMono8k } from '@/utils/audio/decodeToMono8k';
 import { AudioScheduler, type AudioSchedulerScope } from '@/utils/audio/scheduler';
 
 export interface CrossfadeResult {
@@ -180,7 +181,11 @@ export function useSmartAudio() {
         return null;
       }
 
-      bpmWorker.value.postMessage({ type: 'analyze', arrayBuffer }, [arrayBuffer]);
+      // Chromium 的 Worker 作用域没有 OfflineAudioContext：解码在主线程完成后
+      // 把 8kHz 单声道 PCM transfer 给 Worker 做纯计算
+      const pcm = await decodeToMono8k(arrayBuffer);
+      const pcmCopy = new Float32Array(pcm);
+      bpmWorker.value.postMessage({ type: 'analyze', pcm: pcmCopy }, [pcmCopy.buffer]);
     } catch (e) {
       console.warn('[useSmartAudio] BPM 预分析失败:', e);
     }

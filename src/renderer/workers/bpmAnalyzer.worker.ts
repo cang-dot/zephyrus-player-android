@@ -5,21 +5,21 @@
  * 避免阻塞主线程 UI。
  *
  * 算法:
- *   1. 使用 OfflineAudioContext 解码 ArrayBuffer → PCM 数据
- *   2. 降采样到 ~8kHz（减少计算量，足够检测低频鼓点）
- *   3. 计算能量包络：窗口 RMS
- *   4. 自相关：对 lag 范围 0.3s~1.0s（对应 60~200 BPM）
- *   5. 取自相关峰值对应的 lag → BPM = 60 / lag
- *   6. 倍频校正：检查 2x / 0.5x 是否更强
+ *   1. 主线程 OfflineAudioContext 解码并重采样到 ~8kHz 单声道
+ *      （Chromium 的 Worker 作用域没有 OfflineAudioContext，解码必须主线程做）
+ *   2. Worker 内计算能量包络：窗口 RMS
+ *   3. 自相关：对 lag 范围 0.3s~1.0s（对应 60~200 BPM）
+ *   4. 取自相关峰值对应的 lag → BPM = 60 / lag
+ *   5. 倍频校正：检查 2x / 0.5x 是否更强
  *
  * 通信协议:
- *   主线程 postMessage({ type: 'analyze', arrayBuffer, sampleRate })
+ *   主线程 postMessage({ type: 'analyze', pcm: Float32Array(8kHz 单声道) }, [pcm.buffer])
  *   Worker → postMessage({ type: 'result', bpm, confidence, beatOffset })
  */
 
 interface AnalyzeMessage {
   type: 'analyze';
-  arrayBuffer: ArrayBuffer;
+  pcm: Float32Array;
 }
 
 interface BpmResult {
@@ -34,23 +34,13 @@ const MAX_BPM = 200;
 const DOWNSAMPLE_RATE = 8000;
 const FRAME_SIZE = 1024;
 const HOP_SIZE = 512;
-
 self.onmessage = async (e: MessageEvent<AnalyzeMessage>) => {
-  const { type, arrayBuffer } = e.data;
+  const { type, pcm } = e.data;
   if (type !== 'analyze') return;
 
   try {
-    // 使用 OfflineAudioContext 解码音频
-    const tempCtx = new OfflineAudioContext(1, 1, DOWNSAMPLE_RATE);
-    const audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
-
-    // 取第一个声道，降采样
-    const originalData = audioBuffer.getChannelData(0);
-    const originalRate = audioBuffer.sampleRate;
-    const downsampled = downsample(originalData, originalRate, DOWNSAMPLE_RATE);
-
     // 计算能量包络（RMS）
-    const energy = computeEnergyEnvelope(downsampled, FRAME_SIZE, HOP_SIZE);
+    const energy = computeEnergyEnvelope(pcm, FRAME_SIZE, HOP_SIZE);
 
     // 自相关分析
     const { bpm, confidence, beatOffset } = autocorrelateBPM(energy, HOP_SIZE, DOWNSAMPLE_RATE);
@@ -64,24 +54,6 @@ self.onmessage = async (e: MessageEvent<AnalyzeMessage>) => {
     });
   }
 };
-
-/** 降采样 */
-function downsample(data: Float32Array, fromRate: number, toRate: number): Float32Array {
-  if (fromRate === toRate) return data;
-  const ratio = fromRate / toRate;
-  const newLength = Math.floor(data.length / ratio);
-  const result = new Float32Array(newLength);
-  for (let i = 0; i < newLength; i++) {
-    const start = Math.floor(i * ratio);
-    const end = Math.floor((i + 1) * ratio);
-    let sum = 0;
-    for (let j = start; j < end && j < data.length; j++) {
-      sum += data[j];
-    }
-    result[i] = sum / (end - start);
-  }
-  return result;
-}
 
 /** 计算能量包络（RMS） */
 function computeEnergyEnvelope(

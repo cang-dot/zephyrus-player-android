@@ -8,6 +8,7 @@
  */
 import type { ClimaxSegment } from '@/api/climax';
 import { probeAnalysisCapability, upgradeToHttps } from '@/services/audioAnalysisGate';
+import { decodeToMono8k } from '@/utils/audio/decodeToMono8k';
 import { getAutoClimax, saveAutoClimax } from '@/services/cacheService';
 import { isElectron } from '@/utils';
 import { deviceTier } from '@/utils/deviceTier';
@@ -93,22 +94,9 @@ async function fetchAudioBytes(url: string): Promise<ArrayBuffer | null> {
 }
 
 /**
- * 主线程解码 + 重采样到 8kHz 单声道 PCM。
- * Chromium 的 Worker 作用域没有 OfflineAudioContext（decodeAudioData 必须主线程），
- * Worker 只承担纯计算。decodeAudioData 会把音频重采样到 context 的采样率。
+ * 主线程解码 + 重采样到 8kHz 单声道 PCM（decodeToMono8k 见 utils/audio）。
+ * Worker 只承担纯计算。
  */
-async function decodeToMono8k(arrayBuffer: ArrayBuffer): Promise<Float32Array> {
-  const OfflineCtx =
-    window.OfflineAudioContext ||
-    (window as unknown as { webkitOfflineAudioContext?: typeof OfflineAudioContext })
-      .webkitOfflineAudioContext;
-  if (!OfflineCtx) throw new Error('OfflineAudioContext unavailable');
-  const ctx = new OfflineCtx(1, 1, 8000);
-  const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-  return audioBuffer.getChannelData(0);
-}
-
-/** 分析一首歌的音频字节（主线程解码 → Worker 纯计算，Promise 化） */
 async function analyzeBytes(arrayBuffer: ArrayBuffer, duration?: number): Promise<AutoClimaxResult | null> {
   const w = ensureWorker();
   if (!w) return Promise.resolve(null);
