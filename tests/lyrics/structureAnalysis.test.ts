@@ -58,16 +58,13 @@ describe('structureAnalysis (DSP auto climax)', () => {
     }
   });
 
-  it('副歌定位：重复的高能量段被选中，边界落在换段附近', () => {
+  it('副歌定位：重复周期法命中重复的高能量段', () => {
     const sampleRate = 8000;
     const { pcm, chorus } = makeSyntheticPcm(sampleRate);
     const features = computeFrameFeatures(pcm, sampleRate, 1.0, 0.5);
-    const novelty = computeNovelty(features, 4);
-    const duration = pcm.length / sampleRate; // 120s
-    const boundaries = pickBoundaries(novelty, features.hopSec, duration, 12);
-    expect(boundaries.length).toBeGreaterThanOrEqual(3);
+    const duration = pcm.length / sampleRate; // 120s，副歌 30-60 与 80-110（周期 50s）
 
-    const { segments, confidence } = selectChorusSegments(features, boundaries, duration);
+    const { segments, confidence } = selectChorusSegments(features, duration);
     expect(segments.length).toBeGreaterThanOrEqual(1);
     expect(confidence).toBeGreaterThan(0);
     // 至少一个结果段与真实副歌重叠超过一半

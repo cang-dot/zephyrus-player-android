@@ -242,116 +242,207 @@ function cosineSim(a: Float32Array, b: Float32Array): number {
 }
 
 /**
- * 在边界切出的段里定位副歌：
- * - 段描述子 = 均值色度（+能量维度弱权重）；
- * - 相互相似度 > 0.92 的段归为同一"曲式组"；
- * - 副歌组 = 组内出现次数最多、其次平均能量最高；
- * - 找不到重复（组内仅 1 段）→ 能量兜底：平滑能量曲线上最长的持续高能量区间。
+ * 副歌定位（滞后自相似/重复周期法，对流行乐结构稳健）：
+ * 1. 对候选滞后量 L（12s..min(100s, 半曲)）计算整曲色度帧的平移相似度
+ *    sim(L) = mean_i cos(chroma[i], chroma[i+L])——副歌每轮周期重复会在
+ *    其周期长度处形成相似度峰；
+ * 2. 取峰值周期 L*，再沿时间轴计算局部平移相似度 localSim(t)（±2s 窗），
+ *    localSim 高的时段即「互为重复」的区间对 (t, t+L*)；
+ * 3. 每对取能量更高的一侧为副歌候选，合并相邻、钳制曲长；
+ * 4. 无可靠重复 → 能量兜底（平滑能量最长的持续高能量区间）。
  */
 export function selectChorusSegments(
   features: FrameFeatures,
-  boundaries: number[],
   duration: number,
-  options?: { minSegmentSec?: number; similarity?: number }
+  options?: { minSegmentSec?: number; minLagSec?: number; maxLagSec?: number }
 ): AnalysisResult {
   const minSegmentSec = options?.minSegmentSec ?? 15;
-  const similarity = options?.similarity ?? 0.92;
   const { chroma, energy, hopSec } = features;
   const n = chroma.length;
-  const totalFrames = Math.max(1, Math.round(duration / hopSec));
+  if (n < 8) return { segments: [], confidence: 0 };
 
-  // 边界 → 段（首尾补全 + 丢弃过短段）
-  const edges = [0, ...boundaries.filter((t) => t > 0 && t < duration), duration].sort(
-    (x, y) => x - y
+  const minLag = Math.max(2, Math.round((options?.minLagSec ?? 12) / hopSec));
+  const maxLag = Math.min(
+    Math.round((options?.maxLagSec ?? 100) / hopSec),
+    Math.floor(n / 2)
   );
-  const segments: { start: number; end: number; desc: Float32Array; energy: number }[] = [];
-  for (let i = 0; i < edges.length - 1; i++) {
-    const start = edges[i];
-    const end = edges[i + 1];
-    if (end - start < minSegmentSec) continue;
-    const lo = Math.floor(start / hopSec);
-    const hi = Math.min(n, Math.ceil(end / hopSec));
-    const desc = new Float32Array(PITCH_CLASSES);
-    let e = 0;
-    let count = Math.max(1, hi - lo);
-    for (let f = lo; f < hi; f++) {
-      const c = chroma[f];
-      for (let k = 0; k < PITCH_CLASSES; k++) desc[k] += c[k];
-      e += energy[Math.min(energy.length - 1, f)];
+  if (maxLag <= minLag) return { segments: [], confidence: 0 };
+
+  // 1) 滞后相似度轮廓（步长 2 帧省一半计算）
+  const lagScores = new Float32Array(maxLag + 1);
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let sum = 0;
+    let count = 0;
+    for (let i = 0; i + lag < n; i += 2) {
+      sum += cosineSim(chroma[i], chroma[i + lag]);
+      count++;
     }
-    for (let k = 0; k < PITCH_CLASSES; k++) desc[k] /= count;
-    segments.push({ start, end, desc, energy: e / count });
+    lagScores[lag] = count ? sum / count : 0;
   }
-  if (!segments.length) return { segments: [], confidence: 0 };
+  // 峰值周期（±1s 邻域内取最大，抑制相邻 lag 抖动）
+  let bestLag = -1;
+  let bestScore = -Infinity;
+  for (let lag = minLag + 1; lag < maxLag; lag++) {
+    const smoothed =
+      (lagScores[lag - 1] + lagScores[lag] * 2 + lagScores[lag + 1]) / 4;
+    if (smoothed > bestScore) {
+      bestScore = smoothed;
+      bestLag = lag;
+    }
+  }
+  if (bestLag < 0) return { segments: [], confidence: 0 };
 
-  // 分组（贪心：按能量降序入组）
-  const order = segments
-    .map((_, i) => i)
-    .sort((a, b) => segments[b].energy - segments[a].energy);
-  const groupOf = new Map<number, number>();
-  const groups: number[][] = [];
-  for (const idx of order) {
-    let assigned = -1;
-    for (let g = 0; g < groups.length; g++) {
-      const rep = segments[groups[g][0]];
-      if (cosineSim(rep.desc, segments[idx].desc) >= similarity) {
-        assigned = g;
-        break;
+  // 2) 局部平移相似度
+  const localSim = new Float32Array(n);
+  const halfWin = Math.max(2, Math.round(2 / hopSec));
+  for (let i = 0; i < n; i++) {
+    if (i + bestLag >= n) break;
+    let sum = 0;
+    let count = 0;
+    for (let k = -halfWin; k <= halfWin; k++) {
+      const j = i + k;
+      if (j < 0 || j + bestLag >= n) continue;
+      sum += cosineSim(chroma[j], chroma[j + bestLag]);
+      count++;
+    }
+    localSim[i] = count ? sum / count : 0;
+  }
+  // 阈值：均值 + 0.6σ，且不低于绝对下限
+  let mean = 0;
+  for (let i = 0; i < n; i++) mean += localSim[i];
+  mean /= n;
+  let variance = 0;
+  for (let i = 0; i < n; i++) variance += (localSim[i] - mean) ** 2;
+  const std = Math.sqrt(variance / n);
+  const threshold = Math.max(0.78, mean + 0.6 * std);
+
+  // 3) 高相似时段成对出现 → 每对取能量更高的一侧
+  const pairs: { a: Segment; b: Segment }[] = [];
+  let runStart = -1;
+  for (let i = 0; i <= n; i++) {
+    const high = i < n && localSim[i] >= threshold;
+    if (high && runStart < 0) runStart = i;
+    if (!high && runStart >= 0) {
+      const len = i - runStart;
+      if (len >= Math.round(6 / hopSec)) {
+        const a: Segment = { start: runStart * hopSec, end: i * hopSec };
+        const b: Segment = { start: a.start + bestLag * hopSec, end: a.end + bestLag * hopSec };
+        pairs.push({ a, b });
       }
+      runStart = -1;
     }
-    if (assigned < 0) {
-      groups.push([idx]);
-      assigned = groups.length - 1;
-    }
-    groupOf.set(idx, assigned);
-    groups[assigned].push(idx);
+  }
+  // 尾段未闭合
+  if (runStart >= 0 && n - runStart >= Math.round(6 / hopSec)) {
+    const a: Segment = { start: runStart * hopSec, end: n * hopSec };
+    const b: Segment = { start: a.start + bestLag * hopSec, end: a.end + bestLag * hopSec };
+    pairs.push({ a, b });
   }
 
-  // 副歌组：出现次数优先，其次平均能量
-  let bestGroup = -1;
-  let bestScore = -1;
-  groups.forEach((members, g) => {
-    const avgEnergy = members.reduce((sum, i) => sum + segments[i].energy, 0) / members.length;
-    const score = members.length * 10 + avgEnergy;
-    if (score > bestScore) {
-      bestScore = score;
-      bestGroup = g;
-    }
-  });
-  const chorusGroup = groups[bestGroup] || [];
-  const repeated = chorusGroup.length >= 2;
+  const meanEnergyAt = (s: Segment): number => {
+    const lo = Math.max(0, Math.floor(s.start / hopSec));
+    const hi = Math.min(energy.length, Math.ceil(s.end / hopSec));
+    let sum = 0;
+    for (let i = lo; i < hi; i++) sum += energy[i];
+    return sum / Math.max(1, hi - lo);
+  };
 
-  let result: Segment[];
-  let confidence: number;
-  if (repeated) {
-    result = chorusGroup
-      .map((i) => ({ start: segments[i].start, end: segments[i].end }))
-      .sort((a, b) => a.start - b.start);
-    // 置信度：组内两两相似度均值 × 能量相对全曲的裕度
-    let simSum = 0;
-    let simCount = 0;
-    for (let i = 0; i < chorusGroup.length; i++) {
-      for (let j = i + 1; j < chorusGroup.length; j++) {
-        simSum += cosineSim(segments[chorusGroup[i]].desc, segments[chorusGroup[j]].desc);
-        simCount++;
-      }
-    }
-    const avgSim = simCount ? simSum / simCount : 0;
-    const globalEnergy =
-      energy.slice(0, Math.min(energy.length, totalFrames)).reduce((s, v) => s + v, 0) /
-      Math.max(1, Math.min(energy.length, totalFrames));
+  let candidates: Segment[] = [];
+  let peakSim = 0;
+  for (const { a, b } of pairs) {
+    const aOk = a.start >= 0 && a.end <= duration && a.end - a.start >= minSegmentSec;
+    const bOk = b.start >= 0 && b.end <= duration && b.end - b.start >= minSegmentSec;
+    if (!aOk && !bOk) continue;
+    const chosen = !aOk ? b : !bOk ? a : meanEnergyAt(a) >= meanEnergyAt(b) ? a : b;
+    candidates.push(expandByEnergy({ start: chosen.start, end: chosen.end }, energy, hopSec, duration));
+    // 置信度采样：该段内局部相似度峰值
+    const lo = Math.max(0, Math.floor(chosen.start / hopSec));
+    const hi = Math.min(n - 1, Math.ceil(chosen.end / hopSec));
+    for (let i = lo; i <= hi; i++) peakSim = Math.max(peakSim, localSim[i]);
+  }
+  candidates = normalizeSegments(candidates, duration, minSegmentSec);
+
+  if (candidates.length) {
+    const globalEnergy = energy.reduce((s, v) => s + v, 0) / energy.length;
     const chorusEnergy =
-      chorusGroup.reduce((s, i) => s + segments[i].energy, 0) / chorusGroup.length;
-    const energyMargin = Math.max(0, Math.min(1, (chorusEnergy - globalEnergy) / (globalEnergy + 1e-9)));
-    confidence = Math.max(0.2, Math.min(0.95, avgSim * 0.6 + energyMargin * 0.4));
-  } else {
-    // 能量兜底：平滑能量（3s 滑窗）超过「均值+0.4σ」的最长连续区间
-    const fallback = findHighEnergyStretch(energy, hopSec, duration, minSegmentSec);
-    result = fallback ? [fallback] : [];
-    confidence = fallback ? 0.3 : 0;
+      candidates.reduce((s, seg) => s + meanEnergyAt(seg), 0) / candidates.length;
+    const energyMargin = Math.max(
+      0,
+      Math.min(1, (chorusEnergy - globalEnergy) / (globalEnergy + 1e-9))
+    );
+    const confidence = Math.max(0.2, Math.min(0.95, peakSim * 0.6 + energyMargin * 0.4));
+    return { segments: candidates, confidence };
   }
 
-  return { segments: normalizeSegments(result, duration, minSegmentSec), confidence };
+  // 4) 能量兜底
+  const fallback = findHighEnergyStretch(energy, hopSec, duration, minSegmentSec);
+  return fallback
+    ? { segments: [fallback], confidence: 0.3 }
+    : { segments: [], confidence: 0 };
+}
+
+/**
+ * 重复路径选中的段沿能量向外扩展：副歌的强重复"钩子"往往只有一部分帧
+ * 超过局部相似阈值，但整个副歌块的能量都维持在高位——按平滑能量
+ * （≥ 段均能×0.8 且 ≥ 全曲均值+0.3σ）向外走，允许 ≤3s 毛刺，单边最多 30s。
+ */
+function expandByEnergy(
+  seg: Segment,
+  energy: Float32Array,
+  hopSec: number,
+  duration: number
+): Segment {
+  const smoothSpan = Math.max(1, Math.round(3 / hopSec));
+  const smooth = new Float32Array(energy.length);
+  let running = 0;
+  for (let i = 0; i < energy.length; i++) {
+    running += energy[i];
+    if (i >= smoothSpan) running -= energy[i - smoothSpan];
+    smooth[i] = running / Math.min(i + 1, smoothSpan);
+  }
+  let mean = 0;
+  for (let i = 0; i < smooth.length; i++) mean += smooth[i];
+  mean /= smooth.length;
+  let variance = 0;
+  for (let i = 0; i < smooth.length; i++) variance += (smooth[i] - mean) ** 2;
+  const std = Math.sqrt(variance / smooth.length);
+
+  const segEnergy = (() => {
+    const lo = Math.max(0, Math.floor(seg.start / hopSec));
+    const hi = Math.min(energy.length, Math.ceil(seg.end / hopSec));
+    let sum = 0;
+    for (let i = lo; i < hi; i++) sum += energy[i];
+    return sum / Math.max(1, hi - lo);
+  })();
+  const threshold = Math.max(segEnergy * 0.8, mean + 0.3 * std);
+  const maxWalk = Math.round(30 / hopSec);
+  const gapTolerance = Math.round(3 / hopSec);
+
+  const expand = (dir: -1 | 1): number => {
+    let idx = dir === -1 ? Math.floor(seg.start / hopSec) : Math.ceil(seg.end / hopSec);
+    let gap = 0;
+    let lastGood = idx;
+    for (let step = 0; step < maxWalk; step++) {
+      idx += dir;
+      if (idx < 0 || idx >= energy.length) break;
+      if (smooth[idx] >= threshold) {
+        lastGood = idx;
+        gap = 0;
+      } else {
+        gap++;
+        if (gap > gapTolerance) break;
+      }
+    }
+    return lastGood;
+  };
+
+  const loFrame = expand(-1);
+  const hiFrame = expand(1);
+  const result: Segment = {
+    start: Math.max(0, Math.min(duration, loFrame * hopSec)),
+    end: Math.max(0, Math.min(duration, (hiFrame + 1) * hopSec))
+  };
+  return result.end - result.start >= seg.end - seg.start ? result : seg;
 }
 
 /** 平滑能量曲线上最长的持续高能量区间（能量兜底） */

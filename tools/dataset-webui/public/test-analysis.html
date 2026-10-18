@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8" /><title>structure analysis real-song test</title></head>
+<body>
+<pre id="out">running…</pre>
+<script type="module">
+import {
+  computeFrameFeatures,
+  selectChorusSegments
+} from './structureAnalysis.js';
+
+const out = [];
+const log = (line) => { out.push(line); document.getElementById('out').textContent = out.join('\n'); };
+
+const params = new URLSearchParams(location.search);
+const songId = params.get('id') || '2023931078';
+const t0 = performance.now();
+const bytes = await (await fetch(`/dataset/${songId}.mp3`)).arrayBuffer();
+log(`song: ${songId}`);
+log(`fetch: ${(bytes.byteLength / 1048576).toFixed(1)}MB in ${Math.round(performance.now() - t0)}ms`);
+
+const t1 = performance.now();
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+const buffer = await ctx.decodeAudioData(bytes.slice(0));
+const duration = buffer.duration;
+log(`decode: ${duration.toFixed(1)}s @${buffer.sampleRate}Hz in ${Math.round(performance.now() - t1)}ms`);
+
+// 与 worker 相同的 8kHz 单声道重采样路径
+const off = new OfflineAudioContext(1, Math.ceil(duration * 8000), 8000);
+const src = off.createBufferSource();
+src.buffer = buffer;
+src.connect(off.destination);
+src.start();
+const rendered = await off.startRendering();
+const pcm = rendered.getChannelData(0);
+
+const t2 = performance.now();
+const features = computeFrameFeatures(pcm, 8000, 1.0, 0.5);
+const { segments, confidence } = selectChorusSegments(features, duration);
+const elapsed = Math.round(performance.now() - t2);
+log(`analyze: ${Math.round(elapsed)}ms (frames=${features.energy.length})`);
+log(`chorus segments: ${JSON.stringify(segments.map((s) => ({ start: +s.start.toFixed(1), end: +s.end.toFixed(1), len: +(s.end - s.start).toFixed(1) })))}`);
+log(`confidence: ${confidence.toFixed(3)}`);
+
+// 能量轮廓（每 10s 桶）供人工核对段落结构
+const hop = features.hopSec;
+const buckets = [];
+for (let t = 0; t < duration; t += 10) {
+  const lo = Math.floor(t / hop);
+  const hi = Math.min(features.energy.length, Math.floor((t + 10) / hop));
+  let e = 0;
+  for (let i = lo; i < hi; i++) e += features.energy[i];
+  buckets.push((e / Math.max(1, hi - lo)).toFixed(3));
+}
+log(`energy/10s: [${buckets.join(', ')}]`);
+window.__done = true;
+</script>
+</body>
+</html>

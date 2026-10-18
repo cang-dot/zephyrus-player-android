@@ -32,3 +32,5 @@ node server.js --port 8787
 
 - 网易云解析/下载走服务端直连（带 UA/Referer/Cookie），VIP/无版权歌曲会返回占位或空链接，队列里标记失败即可；也可手动粘贴任意音频直链到下载地址。
 - 爬取的音频仅用于本地研究/训练，请遵守版权边界，勿再分发。
+- `public/test-analysis.html?id=<歌曲id>` 是算法实测页（需先经 `/api/download` 把该 id 音频落盘）；它加载的 `public/structureAnalysis.js` 是播放器算法的打包产物，算法源码（`src/renderer/utils/audio/structureAnalysis.ts`）变更后需重新生成：
+  `npx esbuild src/renderer/utils/audio/structureAnalysis.ts --bundle --format=esm --outfile=public/structureAnalysis.js`

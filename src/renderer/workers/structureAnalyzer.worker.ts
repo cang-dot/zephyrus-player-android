@@ -13,8 +13,6 @@
  */
 import {
   computeFrameFeatures,
-  computeNovelty,
-  pickBoundaries,
   selectChorusSegments,
   type Segment
 } from '../utils/audio/structureAnalysis';
@@ -41,9 +39,7 @@ self.onmessage = async (e: MessageEvent<AnalyzeMessage>) => {
     const songDuration = duration && duration > 1 ? duration : audioBuffer.duration;
 
     const features = computeFrameFeatures(pcm, DOWNSAMPLE_RATE, 1.0, 0.5);
-    const novelty = computeNovelty(features, 4);
-    const boundaries = pickBoundaries(novelty, features.hopSec, songDuration, 12);
-    const { segments, confidence } = selectChorusSegments(features, boundaries, songDuration);
+    const { segments, confidence } = selectChorusSegments(features, songDuration);
 
     const result: { type: 'result'; segments: Segment[]; confidence: number; __id?: number } = {
       type: 'result',
