@@ -148,6 +148,13 @@
   background: transparent;
 }
 
+/* 页面根容器的实色底同样让位墙纸（首页 .home-container、列表 .list-page 等
+   都是 pager-page/二级页宿主的直接子元素，通用规则覆盖现有与未来的页面） */
+.mobile.home-custom-bg .pager-page > *,
+.mobile.home-custom-bg .secondary-page-host > * {
+  background: transparent;
+}
+
 /* ==================== 沉浸歌词页 ==================== */
 /* 顶部栏包装层：让位于样式组件的顶部关闭条（.top-controls，safe+16 起 40px 高），
    显隐与底部控件栏联动（.header-hidden 由组件按 controlsVisible 绑定） */
