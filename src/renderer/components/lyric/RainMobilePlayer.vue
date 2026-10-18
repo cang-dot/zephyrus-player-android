@@ -286,6 +286,7 @@ import RainCanvas from '@/components/lyric/RainCanvas.vue';
 import SplitLyrics from '@/components/lyric/SplitLyrics.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
+import ImmersivePlaylistPanel from '@/components/player/ImmersivePlaylistPanel.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import {

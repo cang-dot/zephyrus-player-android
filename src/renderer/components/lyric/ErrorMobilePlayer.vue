@@ -281,6 +281,7 @@ import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue'
 import PhotosensitivityWarning from '@/components/lyric/PhotosensitivityWarning.vue';
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
+import ImmersivePlaylistPanel from '@/components/player/ImmersivePlaylistPanel.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import {

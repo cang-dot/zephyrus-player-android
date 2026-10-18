@@ -183,6 +183,7 @@ import LyricImmersiveHeader from '@/components/lyric/LyricImmersiveHeader.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
+import ImmersivePlaylistPanel from '@/components/player/ImmersivePlaylistPanel.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import {
