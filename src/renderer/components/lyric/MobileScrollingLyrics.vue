@@ -191,7 +191,13 @@ watch(
 const scrollPlayerStyle = computed(() => ({
   fontFamily: scrollFontFamily.value || undefined,
   fontWeight: config.value.scrollFontWeight || undefined,
-  ...(config.value.scrollFontSize > 0 ? { fontSize: `${config.value.scrollFontSize}px` } : {})
+  ...(config.value.scrollFontSize > 0
+    ? {
+        fontSize: `${config.value.scrollFontSize}px`,
+        // AMLL 内部行字号走 --amll-lp-font-size 变量（容器默认 clamp），必须一并覆盖
+        '--amll-lp-font-size': `${config.value.scrollFontSize}px`
+      }
+    : {})
 }));
 const lyricAlignment = computed(() =>
   normalizeLyricAlignment(config.value.lyricAlignment, config.value.centerLyrics)
