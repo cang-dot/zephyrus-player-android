@@ -122,7 +122,8 @@ function tick(now: number): void {
       mid: e,
       high: hi,
       flash,
-      rough: Math.min(1.2, 0.3 + hi * 0.45 + punch * 0.25 + leadLevel * 0.35),
+      // 主奏的撕裂密度项同样配响度门（安静段收敛到 ~40%），与喷丝的响度守恒一致
+      rough: Math.min(1.2, 0.3 + hi * 0.45 + punch * 0.25 + leadLevel * 0.35 * (0.4 + e * 0.6)),
       leadLevel,
       leadOnset: Math.min(1, Math.max(0, lead.onset)),
       leadBand: lead.band,

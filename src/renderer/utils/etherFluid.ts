@@ -683,7 +683,11 @@ export class EtherFluid {
       const radius = 0.012 + this.rnd() * 0.028 + p * 0.012;
       this.splat(x, y, vx, vy, radius, col, dyeAmt);
     }
-    // 主奏起音喷丝：视觉打击点对齐主奏音符（形态随主导带音区变化）
+    // 主奏起音喷丝：视觉打击点对齐主奏音符（形态随主导带音区变化）。
+    // 喷注量与涡量抬升配响度门：归一化通量对绝对响度不敏感（自适应基线的
+    // 代价），安静段（如前奏 solo）若满力度喷丝会反向「更吵」——视觉能量
+    // 应与听感能量守恒：响度门 0.35+e×0.65，安静段保留约 1/3、正常响度满力
+    const loudnessGate = 0.35 + e * 0.65;
     const profile = LEAD_SPLAT_PROFILES[leadBand] ?? LEAD_SPLAT_PROFILES[2];
     if (leadOnset > 0.35) {
       const strength = Math.min(1, leadOnset);
@@ -695,14 +699,14 @@ export class EtherFluid {
         const vx = Math.cos(ang) * power * profile.speedMul;
         const vy = Math.sin(ang) * power * profile.speedMul - power * 0.3;
         // 主奏丝用亮白染料（区别于低频喷注的暖白/朱红），带小半径=细丝感
-        const dyeAmt = (0.05 + strength * 0.05) * profile.dyeMul * this.splatGain;
+        const dyeAmt = (0.05 + strength * 0.05) * profile.dyeMul * loudnessGate * this.splatGain;
         const radius = profile.radius[0] + this.rnd() * profile.radius[1];
         this.splat(x, y, vx, vy, radius, [0.97, 0.96, 0.9], dyeAmt);
       }
     }
     const sub = 4;
     for (let s = 0; s < sub; s++) {
-      this.step(DT * 0.9, 2.0 + p * 6.0 + leadOnset * profile.curlBonus);
+      this.step(DT * 0.9, 2.0 + p * 6.0 + leadOnset * profile.curlBonus * (0.5 + e * 0.5));
     }
     this.present(
       params.flash,
