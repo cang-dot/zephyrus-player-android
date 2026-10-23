@@ -1229,7 +1229,7 @@ onUnmounted(() => {
 
 /* 出场（旧行） */
 .error-line--dissolve.error-line-prev .burn-char-base {
-  animation: error-lyric-dissolve-out 0.62s ease-in both;
+  animation: error-lyric-dissolve-out 1.1s ease-in both;
   animation-delay: var(--burn-delay, 0s);
 }
 
@@ -1240,7 +1240,7 @@ onUnmounted(() => {
 
 /* 入场（当前行） */
 .error-line--dissolve.error-line-main .burn-char-base {
-  animation: error-lyric-dissolve-in 0.62s ease-out both;
+  animation: error-lyric-dissolve-in 1.1s ease-out both;
   animation-delay: var(--burn-delay, 0s);
 }
 
@@ -1341,8 +1341,10 @@ onUnmounted(() => {
   }
 }
 
-/* 燃烧焦边（拟物层仅燃烧模式）：与 base 同 mask、delay 滞后——
-   base 烧掉后前沿残留发光再熄灭；颜色随主题色亮化 */
+/* 燃烧焦边（拟物层仅燃烧模式）：窄带渐变（透明→黑→透明）与 base 同步扫——
+   ember 任何时刻只在烧线附近的窄带内可见，扫过即灭；颜色随主题色亮化。
+   不能用「同形状 mask 滞后 delay」：扫速相同则滞后带恒宽（0.72 倍字宽），
+   已烧区域会被橙 glow 大面积残留成灰影 */
 .burn-char-ember {
   position: absolute;
   inset: 0;
@@ -1350,7 +1352,8 @@ onUnmounted(() => {
   text-shadow:
     0 0 10px color-mix(in srgb, var(--burn-ember, #ff8a3c) 65%, white),
     0 0 22px var(--burn-ember, #ff8a3c);
-  -webkit-mask-image: linear-gradient(105deg, #000 42%, transparent 58%), var(--burn-noise);
+  -webkit-mask-image:
+    linear-gradient(105deg, transparent 46%, #000 50%, #000 53%, transparent 57%), var(--burn-noise);
   -webkit-mask-size:
     300% 100%,
     150px 150px;
@@ -1359,7 +1362,8 @@ onUnmounted(() => {
     var(--burn-noise-pos, 0 0);
   -webkit-mask-repeat: no-repeat, repeat;
   -webkit-mask-composite: source-in;
-  mask-image: linear-gradient(105deg, #000 42%, transparent 58%), var(--burn-noise);
+  mask-image:
+    linear-gradient(105deg, transparent 46%, #000 50%, #000 53%, transparent 57%), var(--burn-noise);
   mask-size:
     300% 100%,
     150px 150px;
@@ -1373,14 +1377,14 @@ onUnmounted(() => {
 
 .error-line--burn.error-line-prev .burn-char-ember {
   animation: error-lyric-burn-out 0.5s ease-in both;
-  animation-delay: calc(var(--burn-delay, 0s) + 0.12s);
+  animation-delay: var(--burn-delay, 0s);
 }
 
-/* 入场：ember 领先 base（负滞后）——先显形的是前沿火线，白字随后跟上；
-   终态 opacity 归零熄灭火光，否则 ember 会永久叠在字上染色 */
+/* 入场：火线与 base 同步显形（窄带扫到哪里哪里亮），扫完自然熄灭于容器外；
+   终态 opacity 归零兜底，防 ember 残留在字上染色 */
 .error-line--burn.error-line-main .burn-char-ember {
   animation: error-lyric-burn-in-ember 0.5s ease-out both;
-  animation-delay: calc(var(--burn-delay, 0s) - 0.12s);
+  animation-delay: var(--burn-delay, 0s);
 }
 
 @keyframes error-lyric-burn-in-ember {

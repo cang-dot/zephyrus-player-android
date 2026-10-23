@@ -12,7 +12,7 @@ export type ErrorLyricTransition = 'default' | 'dissolve' | 'burn';
 const BURN_STEP_SEC = 0.045;
 const BURN_JITTER_SEC = 0.03;
 /** 烧尽动画本体时长（与组件 CSS keyframes 保持一致） */
-const DISSOLVE_BODY_SEC = 0.62;
+const DISSOLVE_BODY_SEC = 1.1;
 const BURN_BODY_SEC = 0.5;
 /** ember 焦边层相对 base 的滞后 */
 const EMBER_LAG_SEC = 0.12;

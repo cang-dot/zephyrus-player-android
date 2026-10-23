@@ -39,7 +39,7 @@ describe('errorBurnLyric（溶解/燃烧逐字切换）', () => {
 
   it('总时长：dissolve 覆盖动画本体；burn 覆盖末字 delay + ember 滞后', () => {
     const dissolveTotal = burnTotalDurationSec('dissolve', 10);
-    expect(dissolveTotal).toBeGreaterThanOrEqual(0.62);
+    expect(dissolveTotal).toBeGreaterThanOrEqual(1.1);
 
     const burnTotal = burnTotalDurationSec('burn', 12);
     const lastDelay = lyricCharDelaySec('burn', 11);
