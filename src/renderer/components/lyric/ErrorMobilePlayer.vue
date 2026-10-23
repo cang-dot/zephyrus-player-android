@@ -127,16 +127,11 @@
 
         <climax-interlude-overlay :state="wordPlayback.interludeState.value" />
 
-        <!-- 大字歌词（行级溶解 + 抽帧抖动；段落头尾整体溶解进出）
-             溶解/燃烧模式：逐字 span + 噪声 mask 动画（key 重建触发），ember 焦边仅燃烧模式 -->
+        <!-- 大字歌词（行级溶解 + 抽帧抖动；段落头尾（间奏/滚动歌词开关）整体溶解进出） -->
         <transition name="error-stage-dissolve">
           <div
             v-show="lyricsUnderlayVisible && !wordPlayback.interludeState.value.active"
             class="error-lyric-stage"
-            :style="{
-              '--burn-noise': `url(${burnNoiseUrl})`,
-              '--burn-ember': saturatedThemeColor || '#ff8a3c'
-            }"
           >
             <div class="error-lyric-underlay" :style="lyricsUnderlayStyle">
               <div class="error-lyric-jitter" :style="jitterStyle">
@@ -144,58 +139,20 @@
                   v-if="prevLineText"
                   ref="prevLineRef"
                   class="error-line error-line-prev"
-                  :class="lyricTransitionClass"
                   :style="{ fontFamily: errorFontFamily }"
                 >
-                  <span v-if="!lyricCharsEnabled" class="burn-line-inner">{{
-                    decoratedText(prevLineText)
-                  }}</span>
-                  <span v-else class="burn-line-inner">
-                    <span
-                      v-for="(ch, ci) in prevLineChars"
-                      :key="`p${lyricCycleId}-${ci}`"
-                      class="burn-char"
-                      :style="burnCharStyle(ci)"
-                    >
-                      <span class="burn-char-base">{{ ch === ' ' ? '\u00A0' : ch }}</span>
-                      <span
-                        v-if="lyricTransitionMode === 'burn'"
-                        class="burn-char-ember"
-                        aria-hidden="true"
-                        >{{ ch === ' ' ? '\u00A0' : ch }}</span
-                      >
-                    </span>
-                  </span>
+                  {{ decoratedText(prevLineText) }}
                 </div>
                 <div
                   ref="currLineRef"
                   class="error-line error-line-main"
                   :class="{
                     'force-nowrap': isCustom && styleCfg.forceNoWrap === true,
-                    negative: negativeLine,
-                    ...lyricTransitionClassObject
+                    negative: negativeLine
                   }"
                   :style="{ color: mainLyricColor, fontFamily: errorFontFamily }"
                 >
-                  <span v-if="!lyricCharsEnabled" class="burn-line-inner">{{
-                    decoratedText(currentLyricText)
-                  }}</span>
-                  <span v-else class="burn-line-inner">
-                    <span
-                      v-for="(ch, ci) in currentLineChars"
-                      :key="`c${lyricCycleId}-${ci}`"
-                      class="burn-char"
-                      :style="burnCharStyle(ci)"
-                    >
-                      <span class="burn-char-base">{{ ch === ' ' ? '\u00A0' : ch }}</span>
-                      <span
-                        v-if="lyricTransitionMode === 'burn'"
-                        class="burn-char-ember"
-                        aria-hidden="true"
-                        >{{ ch === ' ' ? '\u00A0' : ch }}</span
-                      >
-                    </span>
-                  </span>
+                  {{ decoratedText(currentLyricText) }}
                 </div>
               </div>
             </div>
@@ -352,13 +309,6 @@ import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import { playMusic } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
-import {
-  burnNoiseShiftPx,
-  burnTotalDurationSec,
-  type ErrorLyricTransition,
-  lyricCharDelaySec,
-  makeBurnNoiseDataUrl
-} from '@/utils/errorBurnLyric';
 import { probeEtherSupport } from '@/utils/etherFluid';
 import { ensureFontLoaded } from '@/utils/fontLoader';
 import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
@@ -833,36 +783,6 @@ const mainLyricColor = computed(() => {
 
 const errorFontFamily = computed(() => selectedFontFamily.value || ERROR_DEFAULT_FONT_FAMILY);
 
-// ==================== 溶解 / 燃烧（逐字切换模式） ====================
-
-const burnNoiseUrl = makeBurnNoiseDataUrl();
-let burnClearTimer: ReturnType<typeof setTimeout> | null = null;
-
-const lyricTransitionMode = computed<ErrorLyricTransition>(() => {
-  const mode = styleCfg.value.errorLyricTransition;
-  return mode === 'dissolve' || mode === 'burn' ? mode : 'default';
-});
-/** 减弱动画回默认路径：字级 mask 动画不参与 */
-const lyricTransitionClass = computed(() => {
-  if (reduceMotion.value || lyricTransitionMode.value === 'default') return '';
-  return `error-line--${lyricTransitionMode.value}`;
-});
-const lyricCharsEnabled = computed(() => lyricTransitionClass.value !== '');
-const lyricTransitionClassObject = computed(() =>
-  lyricTransitionClass.value ? { [lyricTransitionClass.value]: true } : {}
-);
-
-const currentLineChars = computed(() => Array.from(decoratedText(currentLyricText.value)));
-const prevLineChars = computed(() => Array.from(decoratedText(prevLineText.value)));
-
-/** 每字注入：delay（dissolve 同步 / burn 错落）与噪声相位（每字碎裂图案不同；keyframes 内 calc 需单值） */
-const burnCharStyle = (index: number) => ({
-  '--burn-index': String(index),
-  '--burn-delay': `${lyricCharDelaySec(lyricTransitionMode.value, index).toFixed(3)}s`,
-  '--burn-nx': `${burnNoiseShiftPx(index)}px`,
-  '--burn-ny': `${burnNoiseShiftPx(index * 3 + 1)}px`
-});
-
 watch(
   () => wordPlayback.displayLineKey.value,
   () => {
@@ -874,21 +794,6 @@ watch(
     const cycle = lyricCycleId;
     enterTimeline?.kill();
     exitTimeline?.kill();
-    // 溶解/燃烧：字级动画由 CSS keyframes 自驱动（span key 重建触发），
-    // 旧行保留到总烧尽时长后清理
-    if (lyricCharsEnabled.value) {
-      prevLineText.value = oldText;
-      if (burnClearTimer) clearTimeout(burnClearTimer);
-      const total =
-        burnTotalDurationSec(
-          lyricTransitionMode.value,
-          Math.max(1, Array.from(decoratedText(oldText)).length)
-        ) + 0.06;
-      burnClearTimer = setTimeout(() => {
-        if (cycle === lyricCycleId) prevLineText.value = '';
-      }, total * 1000);
-      return;
-    }
     if (reduceMotion.value || !nextText) {
       prevLineText.value = '';
       if (currLineRef.value) {
@@ -978,7 +883,6 @@ onUnmounted(() => {
   releaseTimerResource = null;
   enterTimeline?.kill();
   exitTimeline?.kill();
-  if (burnClearTimer) clearTimeout(burnClearTimer);
 });
 </script>
 
@@ -1167,198 +1071,6 @@ onUnmounted(() => {
   /* 负片帧：白字转青（#3EC8B8 方向），对应《一家之主》glitch 帧的反色观感 */
   &.negative {
     filter: invert(1) hue-rotate(140deg);
-  }
-}
-
-/* ==================== 溶解 / 燃烧（逐字切换） ====================
-   双层 mask（渐变 + 噪声）做不规则烧边；span key 重建触发 CSS 动画。
-   已知取舍：inline-block 序列下 text-wrap: balance 失效（按字断行）；
-   老内核 mask-composite 降级为单层渐变（烧边变规则，不失效）。 */
-.burn-line-inner {
-  display: block;
-  width: 100%;
-}
-
-.burn-char {
-  position: relative;
-  display: inline-block;
-}
-
-.burn-char-base {
-  display: inline-block;
-}
-
-.error-line--dissolve .burn-char-base {
-  /* 溶解：云状密度梯度噪声 mask 沿对角滚动一个 tile 周期 = 阈值推进，
-     等值线是噪声云形而非几何圆（修复旧 radial 圈裁剪观感）；全字 delay=0 同步 */
-  mask-image: var(--burn-noise);
-  mask-size: 135% 135%;
-  mask-position: var(--burn-nx, 0px) var(--burn-ny, 0px);
-  mask-repeat: repeat;
-  /* 噪声灰度画在 RGB（alpha 全不透明），必须按亮度做遮罩——
-     默认 match-source 用 alpha 会让 mask 完全失效 */
-  mask-mode: luminance;
-}
-
-.error-line--burn .burn-char-base {
-  /* 燃烧：linear 烧线从字一侧扫向另一侧，逐字 delay 错落（var(--burn-delay)） */
-  mask-image: linear-gradient(105deg, #fff 42%, #000 58%), var(--burn-noise);
-  mask-size:
-    300% 100%,
-    150px 150px;
-  mask-position:
-    0 0,
-    var(--burn-nx, 0px) var(--burn-ny, 0px);
-  mask-repeat: no-repeat, repeat;
-  mask-composite: intersect;
-  mask-mode: luminance;
-}
-
-/* 出场（旧行） */
-.error-line--dissolve.error-line-prev .burn-char-base {
-  animation: error-lyric-dissolve-out 1.1s ease-in both;
-  animation-delay: var(--burn-delay, 0s);
-}
-
-.error-line--burn.error-line-prev .burn-char-base {
-  animation: error-lyric-burn-out 0.5s ease-in both;
-  animation-delay: var(--burn-delay, 0s);
-}
-
-/* 入场（当前行） */
-.error-line--dissolve.error-line-main .burn-char-base {
-  animation: error-lyric-dissolve-in 1.1s ease-out both;
-  animation-delay: var(--burn-delay, 0s);
-}
-
-.error-line--burn.error-line-main .burn-char-base {
-  animation: error-lyric-burn-in 0.5s ease-out both;
-  animation-delay: var(--burn-delay, 0s);
-}
-
-@keyframes error-lyric-dissolve-out {
-  /* 云状阈值推进：mask 图沿对角滚动 >1 个 tile 周期（tile=135% 字框），
-     密度从「黑区覆盖」（完整）走到「白区覆盖」（消失）；每字相位 --burn-nx/ny 不同 */
-  from {
-    mask-position: calc(var(--burn-nx, 0px) + 0.45em) calc(var(--burn-ny, 0px) + 0.45em);
-    opacity: 1;
-  }
-
-  82% {
-    opacity: 1;
-  }
-
-  to {
-    mask-position: calc(var(--burn-nx, 0px) - 1.7em) calc(var(--burn-ny, 0px) - 1.7em);
-    opacity: 0;
-  }
-}
-
-@keyframes error-lyric-dissolve-in {
-  from {
-    mask-position: calc(var(--burn-nx, 0px) - 1.7em) calc(var(--burn-ny, 0px) - 1.7em);
-    opacity: 0;
-  }
-
-  18% {
-    opacity: 1;
-  }
-
-  to {
-    mask-position: calc(var(--burn-nx, 0px) + 0.45em) calc(var(--burn-ny, 0px) + 0.45em);
-    opacity: 1;
-  }
-}
-
-@keyframes error-lyric-burn-out {
-  from {
-    mask-position:
-      0 0,
-      var(--burn-nx, 0px) var(--burn-ny, 0px);
-  }
-
-  to {
-    mask-position:
-      -100% 0,
-      var(--burn-nx, 0px) var(--burn-ny, 0px);
-  }
-}
-
-@keyframes error-lyric-burn-in {
-  from {
-    mask-position:
-      -100% 0,
-      var(--burn-nx, 0px) var(--burn-ny, 0px);
-  }
-
-  to {
-    mask-position:
-      0 0,
-      var(--burn-nx, 0px) var(--burn-ny, 0px);
-  }
-}
-
-/* 燃烧焦边（拟物层仅燃烧模式）：窄带渐变（透明→黑→透明）与 base 同步扫——
-   ember 任何时刻只在烧线附近的窄带内可见，扫过即灭；颜色随主题色亮化。
-   不能用「同形状 mask 滞后 delay」：扫速相同则滞后带恒宽（0.72 倍字宽），
-   已烧区域会被橙 glow 大面积残留成灰影 */
-.burn-char-ember {
-  position: absolute;
-  inset: 0;
-  color: var(--burn-ember, #ff8a3c);
-  text-shadow:
-    0 0 10px color-mix(in srgb, var(--burn-ember, #ff8a3c) 65%, white),
-    0 0 22px var(--burn-ember, #ff8a3c);
-  mask-image: linear-gradient(105deg, #000 46%, #fff 50%, #fff 53%, #000 57%), var(--burn-noise);
-  mask-size:
-    300% 100%,
-    150px 150px;
-  mask-position:
-    0 0,
-    var(--burn-nx, 0px) var(--burn-ny, 0px);
-  mask-repeat: no-repeat, repeat;
-  mask-composite: intersect;
-  mask-mode: luminance;
-  pointer-events: none;
-}
-
-.error-line--burn.error-line-prev .burn-char-ember {
-  animation: error-lyric-burn-out 0.5s ease-in both;
-  animation-delay: var(--burn-delay, 0s);
-}
-
-/* 入场：火线与 base 同步显形（窄带扫到哪里哪里亮），扫完自然熄灭于容器外；
-   终态 opacity 归零兜底，防 ember 残留在字上染色 */
-.error-line--burn.error-line-main .burn-char-ember {
-  animation: error-lyric-burn-in-ember 0.5s ease-out both;
-  animation-delay: var(--burn-delay, 0s);
-}
-
-@keyframes error-lyric-burn-in-ember {
-  from {
-    mask-position:
-      -100% 0,
-      var(--burn-nx, 0px) var(--burn-ny, 0px);
-    opacity: 1;
-  }
-
-  70% {
-    opacity: 1;
-  }
-
-  to {
-    mask-position:
-      0 0,
-      var(--burn-nx, 0px) var(--burn-ny, 0px);
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .error-line--dissolve .burn-char-base,
-  .error-line--burn .burn-char-base,
-  .error-line--burn .burn-char-ember {
-    animation: none;
   }
 }
 

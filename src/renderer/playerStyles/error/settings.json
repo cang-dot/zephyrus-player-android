@@ -75,16 +75,6 @@
     "label": "歌词"
   },
   {
-    "key": "errorLyricTransition",
-    "type": "radio",
-    "label": "歌词切换效果",
-    "options": [
-      { "value": "default", "label": "默认" },
-      { "value": "dissolve", "label": "溶解" },
-      { "value": "burn", "label": "燃烧" }
-    ]
-  },
-  {
     "key": "errorDecorMarks",
     "type": "boolean",
     "label": "装饰符号（!…!）",

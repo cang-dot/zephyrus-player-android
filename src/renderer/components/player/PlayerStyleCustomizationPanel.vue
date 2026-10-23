@@ -620,22 +620,6 @@
                 step="0.1"
               />
             </label>
-            <div class="setting-row">
-              <span>{{
-                tr('player.styleCustomization.errorLyricTransition', '歌词切换效果')
-              }}</span>
-              <div class="segmented-control">
-                <button
-                  v-for="option in errorLyricTransitionOptions"
-                  :key="option.value"
-                  type="button"
-                  :class="{ active: (local.errorLyricTransition || 'default') === option.value }"
-                  @click="local.errorLyricTransition = option.value"
-                >
-                  {{ option.label }}
-                </button>
-              </div>
-            </div>
             <label class="setting-row">
               <span>{{ tr('player.styleCustomization.errorDecorMarks', '歌词装饰符号') }}</span>
               <input v-model="local.errorDecorMarks" type="checkbox" />
@@ -863,11 +847,6 @@ const modeOptions = computed<Array<{ value: PlayerStyleMode; label: string }>>((
 const errorBackgroundOptions = [
   { value: 'liquid' as const, label: tr('player.styleCustomization.errorBgLiquid', '高速流体') },
   { value: 'ether' as const, label: tr('player.styleCustomization.errorBgSolar', '太阳耀斑') }
-];
-const errorLyricTransitionOptions = [
-  { value: 'default' as const, label: tr('player.styleCustomization.transitionDefault', '默认') },
-  { value: 'dissolve' as const, label: tr('player.styleCustomization.transitionDissolve', '溶解') },
-  { value: 'burn' as const, label: tr('player.styleCustomization.transitionBurn', '燃烧') }
 ];
 const backgroundOptions = computed(() => [
   { value: 'solid' as const, label: tr('player.styleCustomization.solid', '纯色') },
