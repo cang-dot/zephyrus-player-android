@@ -85,9 +85,23 @@ export interface EtherFrameParams {
   /** 0~1 拍点频闪 */
   flash: number;
   rough?: number;
+  /** 主奏带活跃度 0~1（leadDetector） */
+  leadLevel?: number;
+  /** 主奏起音脉冲 0~1（触发后衰减） */
+  leadOnset?: number;
+  /** 主导带 0=低频 1=中低 2=中高 3=高：决定起音喷丝的形态 */
+  leadBand?: number;
   /** 求解时间（秒）——只在推进帧前进，冻结期噪声同步凝固 */
   time: number;
 }
+
+/** 主导带 → 起音喷丝形态：低频大墨团慢卷，中高频细丝撕裂 */
+const LEAD_SPLAT_PROFILES: Record<number, { radius: [number, number]; curlBonus: number; dyeMul: number; speedMul: number }> = {
+  0: { radius: [0.045, 0.03], curlBonus: 0, dyeMul: 1.7, speedMul: 0.7 },
+  1: { radius: [0.028, 0.018], curlBonus: 1.5, dyeMul: 1.2, speedMul: 1.0 },
+  2: { radius: [0.012, 0.012], curlBonus: 3, dyeMul: 1.0, speedMul: 1.4 },
+  3: { radius: [0.009, 0.01], curlBonus: 3.6, dyeMul: 0.9, speedMul: 1.7 }
+};
 
 /* ==================== 着色器 ==================== */
 
@@ -646,13 +660,15 @@ export class EtherFluid {
     }
   }
 
-  /** 推进一帧：按能量/冲击喷注 → 4 个子步 → 呈现（原 __frame） */
+  /** 推进一帧：按能量/冲击喷注 → 主奏起音喷丝 → 4 个子步 → 呈现（原 __frame 扩展） */
   frame(params: EtherFrameParams): void {
     if (this.disposed) return;
     const e = params.energy;
     const p = params.punch;
     const lo = params.low;
     const hi = params.high;
+    const leadOnset = params.leadOnset ?? 0;
+    const leadBand = params.leadBand ?? 2;
     const nSplats = Math.round(1 + p * 3);
     for (let i = 0; i < nSplats; i++) {
       const x = 0.04 + this.rnd() * 0.92;
@@ -667,8 +683,27 @@ export class EtherFluid {
       const radius = 0.012 + this.rnd() * 0.028 + p * 0.012;
       this.splat(x, y, vx, vy, radius, col, dyeAmt);
     }
+    // 主奏起音喷丝：视觉打击点对齐主奏音符（形态随主导带音区变化）
+    const profile = LEAD_SPLAT_PROFILES[leadBand] ?? LEAD_SPLAT_PROFILES[2];
+    if (leadOnset > 0.35) {
+      const strength = Math.min(1, leadOnset);
+      for (let i = 0; i < 2; i++) {
+        const x = 0.08 + this.rnd() * 0.84;
+        const y = 0.1 + this.rnd() * 0.8;
+        const ang = this.rnd() * Math.PI * 2;
+        const power = 0.03 + e * 0.04 + strength * 0.06;
+        const vx = Math.cos(ang) * power * profile.speedMul;
+        const vy = Math.sin(ang) * power * profile.speedMul - power * 0.3;
+        // 主奏丝用亮白染料（区别于低频喷注的暖白/朱红），带小半径=细丝感
+        const dyeAmt = (0.05 + strength * 0.05) * profile.dyeMul * this.splatGain;
+        const radius = profile.radius[0] + this.rnd() * profile.radius[1];
+        this.splat(x, y, vx, vy, radius, [0.97, 0.96, 0.9], dyeAmt);
+      }
+    }
     const sub = 4;
-    for (let s = 0; s < sub; s++) this.step(DT * 0.9, 2.0 + p * 6.0);
+    for (let s = 0; s < sub; s++) {
+      this.step(DT * 0.9, 2.0 + p * 6.0 + leadOnset * profile.curlBonus);
+    }
     this.present(
       params.flash,
       1.0 + e * 0.45,

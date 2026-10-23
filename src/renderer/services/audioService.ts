@@ -20,6 +20,7 @@ import {
 } from './audioAnalysisGate';
 import { climaxDetector } from './climaxDetector';
 import { drumDetector } from './drumDetector';
+import { connectAnalysisNodes, disconnectAnalysisNodes } from './leadDetector';
 import { LocalAudioPlayer } from './localAudioPlayer';
 import { NativeAudioPlayer } from './nativeAudioPlayer';
 
@@ -682,7 +683,7 @@ class AudioService {
     try {
       // 断开高潮检测器和鼓点检测器
       climaxDetector.disconnect();
-      drumDetector.disconnect();
+      disconnectAnalysisNodes();
 
       // 清理音频节点连接（不切断 LocalAudioPlayer 的 inputNode，它由播放器自己管理）
       if (this.source && !(this.currentSound instanceof LocalAudioPlayer)) {
@@ -836,7 +837,7 @@ class AudioService {
 
       // 连接高潮检测器和鼓点检测器（连接到 gainNode，不受 applyBypassState 断连影响）
       climaxDetector.connect(this.context, this.gainNode);
-      drumDetector.connect(this.context, this.gainNode);
+      connectAnalysisNodes(this.context, this.gainNode);
 
       // 启动检测器（idempotent，styleEngine 也会调用）
       drumDetector.start();
@@ -886,7 +887,7 @@ class AudioService {
     this.applyEffectiveGainsToFilters();
 
     climaxDetector.connect(this.context, this.gainNode);
-    drumDetector.connect(this.context, this.gainNode);
+    connectAnalysisNodes(this.context, this.gainNode);
 
     drumDetector.start();
     climaxDetector.start();
@@ -972,7 +973,7 @@ class AudioService {
 
       // 挂高潮/鼓点检测器（styleEngine 与各皮肤只认 gainNode，无需感知音源变化）
       climaxDetector.connect(this.context, this.gainNode);
-      drumDetector.connect(this.context, this.gainNode);
+      connectAnalysisNodes(this.context, this.gainNode);
       drumDetector.start();
       climaxDetector.start();
 
@@ -1067,7 +1068,7 @@ class AudioService {
 
       // 连接高潮检测器和鼓点检测器（旁路连接到 gainNode）
       climaxDetector.connect(context, gainNode);
-      drumDetector.connect(context, gainNode);
+      connectAnalysisNodes(context, gainNode);
 
       // 启动检测器
       drumDetector.start();
@@ -1131,12 +1132,12 @@ class AudioService {
         // Detector may already be disconnected.
       }
       try {
-        drumDetector.disconnect();
+        disconnectAnalysisNodes();
       } catch {
         // Detector may already be disconnected.
       }
       climaxDetector.connect(this.context, this.gainNode);
-      drumDetector.connect(this.context, this.gainNode);
+      connectAnalysisNodes(this.context, this.gainNode);
       drumDetector.start();
       climaxDetector.start();
     } catch (error) {

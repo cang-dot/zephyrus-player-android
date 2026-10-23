@@ -14,6 +14,7 @@ import { useCoverColor } from '@/hooks/useCoverColor';
 import { isAndroidNative } from '@/services/androidNative';
 import { climaxDetector } from '@/services/climaxDetector';
 import { type BeatInfo, drumDetector } from '@/services/drumDetector';
+import { leadDetector } from '@/services/leadDetector';
 import { NativeAudioPlayer } from '@/services/nativeAudioPlayer';
 
 import { useCommunityDataStore } from './communityData';
@@ -65,6 +66,7 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
     if (isAndroidNative()) {
       drumDetector.startExternal();
       climaxDetector.startExternal();
+      leadDetector.startExternal();
       // 外部注入会经 ingestBands → beatCallbacks 触发同一回调:
       // 不注册的话 bpm/beatFlux/kickEnergy/isBeat/isStrongBeat 永远是初值
       beatUnsubscribe = drumDetector.onBeat((info: BeatInfo) => {
@@ -90,12 +92,14 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
           analysis.beat
         );
         climaxDetector.ingestLoudness(analysis.loudness);
+        leadDetector.ingestLead(analysis.mid, analysis.high);
       }, 50);
       return;
     }
 
     // 启动鼓点检测
     drumDetector.start();
+    leadDetector.start();
     beatUnsubscribe = drumDetector.onBeat((info: BeatInfo) => {
       bpm.value = info.bpm;
       beatFlux.value = info.flux;
@@ -135,6 +139,7 @@ export const useStyleEngineStore = defineStore('styleEngine', () => {
     }
     drumDetector.stop();
     climaxDetector.stop();
+    leadDetector.stop();
     for (const timer of beatResetTimers) clearTimeout(timer);
     beatResetTimers.clear();
   }

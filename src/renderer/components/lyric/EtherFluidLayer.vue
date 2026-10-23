@@ -18,6 +18,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import grainUrl from '@/assets/textures/ether/grain.png';
 import turbUrl from '@/assets/textures/ether/turb.png';
 import { climaxDetector } from '@/services/climaxDetector';
+import { leadDetector } from '@/services/leadDetector';
 import {
   createHoldWalker,
   EtherFluid,
@@ -99,7 +100,11 @@ function tick(now: number): void {
   const e = Math.min(1, Math.max(0, climaxDetector.energyLevel));
   slowEnv += (e - slowEnv) * (1 - Math.exp(-dt / 0.8));
   const punch = Math.min(1, Math.max(0, (e - slowEnv) * PUNCH_SCALE));
-  const hi = Math.min(1, e * 0.8 + beatSpike * 0.6);
+
+  // 主奏信号（leadDetector：四带通量+熵+主导带竞争），替代旧的 hi≈响度近似
+  const lead = leadDetector.snapshot();
+  const leadLevel = Math.min(1, Math.max(0, lead.level));
+  const hi = Math.min(1, leadLevel * 0.9 + beatSpike * 0.3);
 
   const beatAge = (now - beatAt) / 1000;
   const flash =
@@ -117,7 +122,10 @@ function tick(now: number): void {
       mid: e,
       high: hi,
       flash,
-      rough: 0.3 + hi * 0.45 + punch * 0.25,
+      rough: Math.min(1.2, 0.3 + hi * 0.45 + punch * 0.25 + leadLevel * 0.35),
+      leadLevel,
+      leadOnset: Math.min(1, Math.max(0, lead.onset)),
+      leadBand: lead.band,
       time: simTime
     });
   }
