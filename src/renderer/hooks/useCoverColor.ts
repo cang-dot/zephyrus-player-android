@@ -9,6 +9,7 @@ import { ref, watch } from 'vue';
 
 import { playMusic } from '@/hooks/MusicHook';
 import { getImgUrl } from '@/utils';
+import { adjustForAccent } from '@/utils/neutralColor';
 
 // 当前提取的颜色
 const primaryColor = ref('#888888');
@@ -63,48 +64,8 @@ async function extractColorFromImage(picUrl: string): Promise<{ r: number; g: nu
 }
 /**
  * 将 RGB 颜色调整为适合 UI 的强调色
- * 偏暖、提高饱和度和亮度
+ * 偏暖、提高饱和度和亮度（实现见 utils/neutralColor.ts：灰度封面不暖化）
  */
-function adjustForAccent(r: number, g: number, b: number): { r: number; g: number; b: number } {
-  // 计算亮度
-  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-
-  // 如果太暗，提亮
-  let ar = r;
-  let ag = g;
-  let ab = b;
-
-  if (brightness < 100) {
-    const factor = 150 / Math.max(brightness, 1);
-    ar = Math.min(255, Math.round(r * factor));
-    ag = Math.min(255, Math.round(g * factor));
-    ab = Math.min(255, Math.round(b * factor));
-  }
-
-  // 如果太亮（接近白色），降低亮度
-  if (brightness > 220) {
-    ar = Math.round(ar * 0.7);
-    ag = Math.round(ag * 0.7);
-    ab = Math.round(ab * 0.7);
-  }
-
-  // 偏暖：增加红色和绿色，减少蓝色
-  ar = Math.min(255, ar + 15);
-  ag = Math.min(255, ag + 10);
-  ab = Math.max(0, ab - 20);
-
-  // 确保最低亮度（避免太暗）
-  const minBrightness = 80;
-  const newBrightness = (ar * 299 + ag * 587 + ab * 114) / 1000;
-  if (newBrightness < minBrightness) {
-    const factor = minBrightness / Math.max(newBrightness, 1);
-    ar = Math.min(255, Math.round(ar * factor));
-    ag = Math.min(255, Math.round(ag * factor));
-    ab = Math.min(255, Math.round(ab * factor));
-  }
-
-  return { r: ar, g: ag, b: ab };
-}
 
 /**
  * 更新 CSS 变量：生成完整的设计令牌体系
@@ -206,7 +167,7 @@ export function refreshCoverTokens() {
 }
 
 /**
- * 重置为默认绿色
+ * 重置为中性灰（无封面/取色失败时的默认强调色）
  */
 function resetToDefault() {
   primaryColor.value = '#888888';

@@ -8,6 +8,7 @@
  */
 import { getImgUrl } from '@/utils';
 import { getImageLinearBackground } from '@/utils/linearColor';
+import { pickEdgeDominantColor } from '@/utils/neutralColor';
 import {
   choosePlayerInkTone,
   mixRgb,
@@ -80,7 +81,8 @@ export function fallbackPageChrome(strategy: PageChromeStrategy = 'muted'): Page
 /**
  * 提取封面外围环带（外缘 1/4）里面积最大的颜色桶：vivid 策略的取色源。
  * 「外围最大面积颜色」比全图平均更贴专辑装帧的底色（全图平均会被中心主体拉偏）。
- * 4bit/通道量化分桶抑制噪点；跨域取像素失败返回 null。
+ * 分桶统计（含近灰像素去色度，防 JPEG 噪声把灰染偏）在 neutralColor.pickEdgeDominantColor。
+ * 跨域取像素失败返回 null。
  */
 function extractEdgeDominantColor(imageSrc: string): Promise<RgbColor | null> {
   return new Promise((resolve) => {
@@ -99,32 +101,7 @@ function extractEdgeDominantColor(imageSrc: string): Promise<RgbColor | null> {
         }
         ctx.drawImage(img, 0, 0, size, size);
         const { data } = ctx.getImageData(0, 0, size, size);
-        const band = Math.floor(size / 4);
-        const buckets = new Map<string, { r: number; g: number; b: number; n: number }>();
-        for (let y = 0; y < size; y++) {
-          for (let x = 0; x < size; x++) {
-            const inEdge = x < band || x >= size - band || y < band || y >= size - band;
-            if (!inEdge) continue;
-            const i = (y * size + x) * 4;
-            if (data[i + 3] < 125) continue;
-            const key = `${data[i] >> 4}-${data[i + 1] >> 4}-${data[i + 2] >> 4}`;
-            const bucket = buckets.get(key) || { r: 0, g: 0, b: 0, n: 0 };
-            bucket.r += data[i];
-            bucket.g += data[i + 1];
-            bucket.b += data[i + 2];
-            bucket.n += 1;
-            buckets.set(key, bucket);
-          }
-        }
-        let best: { r: number; g: number; b: number; n: number } | null = null;
-        for (const bucket of buckets.values()) {
-          if (!best || bucket.n > best.n) best = bucket;
-        }
-        if (!best || best.n === 0) {
-          resolve(null);
-          return;
-        }
-        resolve({ r: best.r / best.n, g: best.g / best.n, b: best.b / best.n });
+        resolve(pickEdgeDominantColor(data, size));
       } catch {
         resolve(null);
       }

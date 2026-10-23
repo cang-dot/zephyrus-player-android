@@ -8,6 +8,7 @@ import { useCoverColor } from '@/hooks/useCoverColor';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
 import type { MobilePlayerStyleKey, PlayerStyleColorChoice } from '@/types/playerStyle';
 import { getFontFamily } from '@/utils/fontLoader';
+import { resolveSaturatedHsl } from '@/utils/neutralColor';
 
 type PlayerAppearanceVars = Record<string, string>;
 
@@ -37,19 +38,13 @@ function saturateHex(color: string): string {
   const tiny = tinycolor(color);
   if (!tiny.isValid()) return color;
   const hsl = tiny.toHsl();
-  let hue = hsl.h;
-  // 封面近灰白时饱和度无从拉伸，借用全局强调色的色相，保证烟雾/流体仍有明确色调
-  if (hsl.s < 0.08) {
-    const accent = tinycolor(
-      getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim()
-    );
-    hue = accent.isValid() ? accent.toHsl().h : 355;
-  }
-  return tinycolor({
-    h: hue,
-    s: Math.max(hsl.s, 0.72),
-    l: Math.min(0.65, Math.max(0.42, hsl.l))
-  }).toHexString();
+  // 封面近灰白且全局强调色有色时借其色相（决策逻辑见 neutralColor.resolveSaturatedHsl）；
+  // 两者都无色时保持中性——不能强行上色，否则纯灰的 hue=0 会被放大成高饱和红色
+  const accent = tinycolor(
+    getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim()
+  );
+  const accentHsl = accent.isValid() ? accent.toHsl() : null;
+  return tinycolor(resolveSaturatedHsl(hsl, accentHsl)).toHexString();
 }
 
 export function usePlayerStyleAppearance(styleKey: MobilePlayerStyleKey) {

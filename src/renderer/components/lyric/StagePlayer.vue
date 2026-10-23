@@ -134,6 +134,7 @@ import { usePlayerStore } from '@/store/modules/player';
 import type { ILyricText } from '@/types/music';
 import { getImgUrl, isMobile } from '@/utils';
 import { AnimationSelector } from '@/utils/animationSelector';
+import { isNearGray } from '@/utils/neutralColor';
 // 舞台动画预设库
 import { normalAnimations, powerAnimations, softAnimations } from '@/utils/stageAnimations';
 
@@ -400,13 +401,20 @@ watch(
       g = Math.round(g / pixelCount);
       b = Math.round(b / pixelCount);
 
-      // 强调色：偏暖金色调，高亮度
-      // 提高红绿比例，降低蓝色，生成温暖的金色
-      const warmR = Math.min(255, Math.round(r * 1.5 + 30));
-      const warmG = Math.min(255, Math.round(g * 1.3 + 20));
-      const warmB = Math.min(255, Math.round(b * 0.8 + 40));
-      accentColor.value = `rgb(${warmR}, ${warmG}, ${warmB})`;
-      accentColorRgb.value = `${warmR}, ${warmG}, ${warmB}`;
+      // 强调色：偏暖金色调，高亮度（仅对彩色封面）
+      // 提高红绿比例，降低蓝色，生成温暖的金色；灰度封面保持中性，避免被染成脏金
+      let accent: { r: number; g: number; b: number };
+      if (isNearGray(r, g, b)) {
+        accent = { r, g, b };
+      } else {
+        accent = {
+          r: Math.min(255, Math.round(r * 1.5 + 30)),
+          g: Math.min(255, Math.round(g * 1.3 + 20)),
+          b: Math.min(255, Math.round(b * 0.8 + 40))
+        };
+      }
+      accentColor.value = `rgb(${accent.r}, ${accent.g}, ${accent.b})`;
+      accentColorRgb.value = `${accent.r}, ${accent.g}, ${accent.b}`;
     } catch {
       /* 忽略：该清理/解析失败不影响主流程 */
     }
