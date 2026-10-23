@@ -9,7 +9,7 @@
     "label": "背景流体",
     "options": [
       { "value": "liquid", "label": "高速流体（默认）" },
-      { "value": "ether", "label": "墨烟·孔乙己间奏" }
+      { "value": "ether", "label": "太阳耀斑" }
     ]
   },
   {

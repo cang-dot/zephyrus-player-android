@@ -372,6 +372,22 @@
         </div>
       </div>
 
+      <!-- 「错误」样式：背景流体引擎（同默认样式背景预设的分段控件形式） -->
+      <div v-if="styleKey === 'error'" class="setting-row">
+        <span>{{ tr('player.styleCustomization.errorBackground', '背景流体') }}</span>
+        <div class="segmented-control">
+          <button
+            v-for="option in errorBackgroundOptions"
+            :key="option.value"
+            type="button"
+            :class="{ active: (local.errorBackground || 'liquid') === option.value }"
+            @click="local.errorBackground = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+      </div>
+
       <div class="section-label">{{ tr('player.styleCustomization.climaxColor', '高潮配色') }}</div>
       <label class="setting-row">
         <span>{{ tr('player.styleCustomization.useThemeColor', '高潮使用歌曲主题色') }}</span>
@@ -570,12 +586,6 @@
             <input v-model.number="local.giantSize" type="range" min="40" max="120" step="5" />
           </label>
           <template v-if="styleKey === 'error'">
-            <label class="setting-row">
-              <span>{{
-                tr('player.styleCustomization.errorEtherInk', '墨烟背景（孔乙己间奏流体）')
-              }}</span>
-              <input v-model="etherBackground" type="checkbox" />
-            </label>
             <label class="range-row">
               <span
                 >{{ tr('player.styleCustomization.errorNoise', '噪点强度') }}
@@ -834,13 +844,10 @@ const modeOptions = computed<Array<{ value: PlayerStyleMode; label: string }>>((
   { value: 'original', label: tr('player.styleCustomization.original', '原始设置') },
   { value: 'custom', label: tr('player.styleCustomization.custom', '自定义设置') }
 ]);
-/** 「错误」样式：墨烟背景开关（true=孔乙己间奏流体，false=默认高速流体） */
-const etherBackground = computed({
-  get: () => local.value.errorBackground === 'ether',
-  set: (value: boolean) => {
-    local.value.errorBackground = value ? 'ether' : 'liquid';
-  }
-});
+const errorBackgroundOptions = [
+  { value: 'liquid' as const, label: tr('player.styleCustomization.errorBgLiquid', '高速流体') },
+  { value: 'ether' as const, label: tr('player.styleCustomization.errorBgSolar', '太阳耀斑') }
+];
 const backgroundOptions = computed(() => [
   { value: 'solid' as const, label: tr('player.styleCustomization.solid', '纯色') },
   { value: 'gradient' as const, label: tr('player.styleCustomization.gradient', '渐变') },
