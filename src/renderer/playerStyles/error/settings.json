@@ -4,6 +4,15 @@
     "label": "错误效果"
   },
   {
+    "key": "errorBackground",
+    "type": "radio",
+    "label": "背景流体",
+    "options": [
+      { "value": "liquid", "label": "高速流体（默认）" },
+      { "value": "ether", "label": "墨烟·孔乙己间奏" }
+    ]
+  },
+  {
     "key": "effectCrt",
     "type": "boolean",
     "label": "CRT 扫描线",

@@ -263,6 +263,8 @@ export function resolvePlayerStyleConfig(
   config.smokeGlowFollowThemeColor = config.smokeGlowFollowThemeColor !== false;
   config.smokeGlowCustomColor = normalizeColor(config.smokeGlowCustomColor, '#ff765f');
   config.errorEdgeGlow = config.errorEdgeGlow !== false;
+  // 背景流体引擎：仅 'ether'（孔乙己墨烟）会改判，其余一律回默认高速流体
+  config.errorBackground = config.errorBackground === 'ether' ? 'ether' : 'liquid';
   config.errorNoise = Math.min(
     1,
     Math.max(0, Number.isFinite(Number(config.errorNoise)) ? Number(config.errorNoise) : 0.5)

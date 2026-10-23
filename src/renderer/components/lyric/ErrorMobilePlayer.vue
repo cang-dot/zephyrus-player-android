@@ -39,9 +39,18 @@
         @touchstart="onSwipeCloseTouchStart"
         @touchend="onSwipeCloseTouchEnd"
       >
-        <!-- 高速流体背景（黑底 + 高饱和主题色纹理）；减弱动画时静止 -->
+        <!-- 高速流体背景（黑底 + 高饱和主题色纹理）；减弱动画时静止。
+             errorBackground=ether 时切换为孔乙己间奏墨烟求解器（二者互斥挂载，
+             保证同时只有一个 WebGL 上下文；设备不支持浮点 FBO 时回高速流体） -->
         <div class="error-fluid-layer">
+          <ether-fluid-layer
+            v-if="etherBackgroundActive"
+            :theme-color="saturatedThemeColor"
+            :power="fluidPower"
+            :paused="reduceMotion"
+          />
           <liquid-ether
+            v-else
             :colors="fluidColors"
             :mouse-force="fluidMouseForce"
             :cursor-size="110"
@@ -212,8 +221,7 @@
           <div
             class="immersive-header-wrap"
             :class="{
-              'header-hidden':
-                showFullLyrics && immersiveSurfaceMode === 'settings'
+              'header-hidden': showFullLyrics && immersiveSurfaceMode === 'settings'
             }"
             :style="immersiveHeaderDragStyle"
             @pointerdown="immersiveHeaderCollapse.onHeaderPointerDown"
@@ -274,14 +282,15 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import MobileCommentsOverlay from '@/components/comment/MobileCommentsOverlay.vue';
 import ClimaxInterludeOverlay from '@/components/lyric/ClimaxInterludeOverlay.vue';
+import EtherFluidLayer from '@/components/lyric/EtherFluidLayer.vue';
 import LiquidEther from '@/components/lyric/LiquidEther.vue';
 import LyricImmersiveHeader from '@/components/lyric/LyricImmersiveHeader.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import PhotosensitivityWarning from '@/components/lyric/PhotosensitivityWarning.vue';
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
-import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import ImmersivePlaylistPanel from '@/components/player/ImmersivePlaylistPanel.vue';
+import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import {
@@ -300,6 +309,7 @@ import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import { playMusic } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
+import { probeEtherSupport } from '@/utils/etherFluid';
 import { ensureFontLoaded } from '@/utils/fontLoader';
 import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
 
@@ -509,6 +519,12 @@ function handleWarningDecline() {
 // ==================== 流体背景 ====================
 
 const fluidPulse = ref(0);
+
+/** 墨烟（孔乙己间奏）模式：设置选择 ether 且设备支持 WebGL2 浮点 FBO（模块级缓存探测） */
+const etherSupported = probeEtherSupport();
+const etherBackgroundActive = computed(
+  () => etherSupported && styleCfg.value.errorBackground === 'ether'
+);
 
 const fluidColors = computed(() => ['#000000', saturatedThemeColor.value || '#ff2a2a', '#ffffff']);
 
