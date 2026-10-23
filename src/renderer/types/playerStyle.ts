@@ -93,6 +93,8 @@ export interface PlayerStyleCustomConfig {
   errorFlash?: number;
   /** 「错误」样式：流体力度倍率 0.5-2 */
   errorFluidPower?: number;
+  /** 「错误」样式：背景流体引擎（liquid=高速流体，ether=孔乙己墨烟） */
+  errorBackground?: 'liquid' | 'ether';
   /** 「错误」样式：歌词装饰符号（!…!）开关 */
   errorDecorMarks?: boolean;
   /** 默认样式：显示大封面 */

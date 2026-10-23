@@ -570,6 +570,12 @@
             <input v-model.number="local.giantSize" type="range" min="40" max="120" step="5" />
           </label>
           <template v-if="styleKey === 'error'">
+            <label class="setting-row">
+              <span>{{
+                tr('player.styleCustomization.errorEtherInk', '墨烟背景（孔乙己间奏流体）')
+              }}</span>
+              <input v-model="etherBackground" type="checkbox" />
+            </label>
             <label class="range-row">
               <span
                 >{{ tr('player.styleCustomization.errorNoise', '噪点强度') }}
@@ -828,6 +834,13 @@ const modeOptions = computed<Array<{ value: PlayerStyleMode; label: string }>>((
   { value: 'original', label: tr('player.styleCustomization.original', '原始设置') },
   { value: 'custom', label: tr('player.styleCustomization.custom', '自定义设置') }
 ]);
+/** 「错误」样式：墨烟背景开关（true=孔乙己间奏流体，false=默认高速流体） */
+const etherBackground = computed({
+  get: () => local.value.errorBackground === 'ether',
+  set: (value: boolean) => {
+    local.value.errorBackground = value ? 'ether' : 'liquid';
+  }
+});
 const backgroundOptions = computed(() => [
   { value: 'solid' as const, label: tr('player.styleCustomization.solid', '纯色') },
   { value: 'gradient' as const, label: tr('player.styleCustomization.gradient', '渐变') },
