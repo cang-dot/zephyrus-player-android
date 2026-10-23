@@ -855,11 +855,12 @@ const lyricTransitionClassObject = computed(() =>
 const currentLineChars = computed(() => Array.from(decoratedText(currentLyricText.value)));
 const prevLineChars = computed(() => Array.from(decoratedText(prevLineText.value)));
 
-/** 每字注入：delay（dissolve 同步 / burn 错落）与噪声相位（每字边缘不同） */
+/** 每字注入：delay（dissolve 同步 / burn 错落）与噪声相位（每字碎裂图案不同；keyframes 内 calc 需单值） */
 const burnCharStyle = (index: number) => ({
   '--burn-index': String(index),
   '--burn-delay': `${lyricCharDelaySec(lyricTransitionMode.value, index).toFixed(3)}s`,
-  '--burn-noise-pos': `${burnNoiseShiftPx(index)}px ${burnNoiseShiftPx(index * 3 + 1)}px`
+  '--burn-nx': `${burnNoiseShiftPx(index)}px`,
+  '--burn-ny': `${burnNoiseShiftPx(index * 3 + 1)}px`
 });
 
 watch(
@@ -1188,43 +1189,29 @@ onUnmounted(() => {
 }
 
 .error-line--dissolve .burn-char-base {
-  /* 溶解：radial 中心可见 → mask-size 缩小 = 边缘向中心云状侵入；全字 delay=0 同步 */
-  -webkit-mask-image: radial-gradient(circle, #000 48%, transparent 72%), var(--burn-noise);
-  -webkit-mask-size:
-    340% 340%,
-    150px 150px;
-  -webkit-mask-position: center, var(--burn-noise-pos, 0 0);
-  -webkit-mask-repeat: no-repeat, repeat;
-  -webkit-mask-composite: source-in;
-  mask-image: radial-gradient(circle, #000 48%, transparent 72%), var(--burn-noise);
-  mask-size:
-    340% 340%,
-    150px 150px;
-  mask-position: center, var(--burn-noise-pos, 0 0);
-  mask-repeat: no-repeat, repeat;
-  mask-composite: intersect;
+  /* 溶解：云状密度梯度噪声 mask 沿对角滚动一个 tile 周期 = 阈值推进，
+     等值线是噪声云形而非几何圆（修复旧 radial 圈裁剪观感）；全字 delay=0 同步 */
+  mask-image: var(--burn-noise);
+  mask-size: 135% 135%;
+  mask-position: var(--burn-nx, 0px) var(--burn-ny, 0px);
+  mask-repeat: repeat;
+  /* 噪声灰度画在 RGB（alpha 全不透明），必须按亮度做遮罩——
+     默认 match-source 用 alpha 会让 mask 完全失效 */
+  mask-mode: luminance;
 }
 
 .error-line--burn .burn-char-base {
   /* 燃烧：linear 烧线从字一侧扫向另一侧，逐字 delay 错落（var(--burn-delay)） */
-  -webkit-mask-image: linear-gradient(105deg, #000 42%, transparent 58%), var(--burn-noise);
-  -webkit-mask-size:
-    300% 100%,
-    150px 150px;
-  -webkit-mask-position:
-    0 0,
-    var(--burn-noise-pos, 0 0);
-  -webkit-mask-repeat: no-repeat, repeat;
-  -webkit-mask-composite: source-in;
-  mask-image: linear-gradient(105deg, #000 42%, transparent 58%), var(--burn-noise);
+  mask-image: linear-gradient(105deg, #fff 42%, #000 58%), var(--burn-noise);
   mask-size:
     300% 100%,
     150px 150px;
   mask-position:
     0 0,
-    var(--burn-noise-pos, 0 0);
+    var(--burn-nx, 0px) var(--burn-ny, 0px);
   mask-repeat: no-repeat, repeat;
   mask-composite: intersect;
+  mask-mode: luminance;
 }
 
 /* 出场（旧行） */
@@ -1250,94 +1237,64 @@ onUnmounted(() => {
 }
 
 @keyframes error-lyric-dissolve-out {
+  /* 云状阈值推进：mask 图沿对角滚动 >1 个 tile 周期（tile=135% 字框），
+     密度从「黑区覆盖」（完整）走到「白区覆盖」（消失）；每字相位 --burn-nx/ny 不同 */
   from {
-    -webkit-mask-size:
-      340% 340%,
-      150px 150px;
-    mask-size:
-      340% 340%,
-      150px 150px;
+    mask-position: calc(var(--burn-nx, 0px) + 0.45em) calc(var(--burn-ny, 0px) + 0.45em);
     opacity: 1;
   }
 
-  80% {
+  82% {
     opacity: 1;
   }
 
   to {
-    -webkit-mask-size:
-      4% 4%,
-      150px 150px;
-    mask-size:
-      4% 4%,
-      150px 150px;
+    mask-position: calc(var(--burn-nx, 0px) - 1.7em) calc(var(--burn-ny, 0px) - 1.7em);
     opacity: 0;
   }
 }
 
 @keyframes error-lyric-dissolve-in {
   from {
-    -webkit-mask-size:
-      4% 4%,
-      150px 150px;
-    mask-size:
-      4% 4%,
-      150px 150px;
+    mask-position: calc(var(--burn-nx, 0px) - 1.7em) calc(var(--burn-ny, 0px) - 1.7em);
     opacity: 0;
   }
 
-  20% {
+  18% {
     opacity: 1;
   }
 
   to {
-    -webkit-mask-size:
-      340% 340%,
-      150px 150px;
-    mask-size:
-      340% 340%,
-      150px 150px;
+    mask-position: calc(var(--burn-nx, 0px) + 0.45em) calc(var(--burn-ny, 0px) + 0.45em);
     opacity: 1;
   }
 }
 
 @keyframes error-lyric-burn-out {
   from {
-    -webkit-mask-position:
-      0 0,
-      var(--burn-noise-pos, 0 0);
     mask-position:
       0 0,
-      var(--burn-noise-pos, 0 0);
+      var(--burn-nx, 0px) var(--burn-ny, 0px);
   }
 
   to {
-    -webkit-mask-position:
-      -100% 0,
-      var(--burn-noise-pos, 0 0);
     mask-position:
       -100% 0,
-      var(--burn-noise-pos, 0 0);
+      var(--burn-nx, 0px) var(--burn-ny, 0px);
   }
 }
 
 @keyframes error-lyric-burn-in {
   from {
-    -webkit-mask-position:
-      -100% 0,
-      var(--burn-noise-pos, 0 0);
     mask-position:
       -100% 0,
-      var(--burn-noise-pos, 0 0);
+      var(--burn-nx, 0px) var(--burn-ny, 0px);
   }
 
   to {
-    -webkit-mask-position:
-      0 0,
-      var(--burn-noise-pos, 0 0);
     mask-position:
       0 0,
-      var(--burn-noise-pos, 0 0);
+      var(--burn-nx, 0px) var(--burn-ny, 0px);
   }
 }
 
@@ -1352,26 +1309,16 @@ onUnmounted(() => {
   text-shadow:
     0 0 10px color-mix(in srgb, var(--burn-ember, #ff8a3c) 65%, white),
     0 0 22px var(--burn-ember, #ff8a3c);
-  -webkit-mask-image:
-    linear-gradient(105deg, transparent 46%, #000 50%, #000 53%, transparent 57%), var(--burn-noise);
-  -webkit-mask-size:
-    300% 100%,
-    150px 150px;
-  -webkit-mask-position:
-    0 0,
-    var(--burn-noise-pos, 0 0);
-  -webkit-mask-repeat: no-repeat, repeat;
-  -webkit-mask-composite: source-in;
-  mask-image:
-    linear-gradient(105deg, transparent 46%, #000 50%, #000 53%, transparent 57%), var(--burn-noise);
+  mask-image: linear-gradient(105deg, #000 46%, #fff 50%, #fff 53%, #000 57%), var(--burn-noise);
   mask-size:
     300% 100%,
     150px 150px;
   mask-position:
     0 0,
-    var(--burn-noise-pos, 0 0);
+    var(--burn-nx, 0px) var(--burn-ny, 0px);
   mask-repeat: no-repeat, repeat;
   mask-composite: intersect;
+  mask-mode: luminance;
   pointer-events: none;
 }
 
@@ -1389,12 +1336,9 @@ onUnmounted(() => {
 
 @keyframes error-lyric-burn-in-ember {
   from {
-    -webkit-mask-position:
-      -100% 0,
-      var(--burn-noise-pos, 0 0);
     mask-position:
       -100% 0,
-      var(--burn-noise-pos, 0 0);
+      var(--burn-nx, 0px) var(--burn-ny, 0px);
     opacity: 1;
   }
 
@@ -1403,12 +1347,9 @@ onUnmounted(() => {
   }
 
   to {
-    -webkit-mask-position:
-      0 0,
-      var(--burn-noise-pos, 0 0);
     mask-position:
       0 0,
-      var(--burn-noise-pos, 0 0);
+      var(--burn-nx, 0px) var(--burn-ny, 0px);
     opacity: 0;
   }
 }
