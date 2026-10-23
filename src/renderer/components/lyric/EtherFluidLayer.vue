@@ -55,6 +55,7 @@ let beatAt = -Infinity;
 let beatStrength = 0;
 let beatSpike = 0;
 let spikeTimer: ReturnType<typeof setTimeout> | null = null;
+let leadOnsetArmed = true;
 
 /** 主题色 → 墨色五件套；缺失/近灰回 null（求解器回原版暖墨） */
 function computeTheme(color: string | undefined): EtherTheme | null {
@@ -106,6 +107,17 @@ function tick(now: number): void {
   const leadLevel = Math.min(1, Math.max(0, lead.level));
   const hi = Math.min(1, leadLevel * 0.9 + beatSpike * 0.3);
 
+  // 起音边沿武装：onset 脉冲衰减 ~0.12s 期间每帧都过阈值会连发喷丝
+  // （一次起音实际喷 6-8 股）——上升沿只放行一帧，回落过 0.35 重新武装
+  const leadOnsetRaw = Math.min(1, Math.max(0, lead.onset));
+  let leadOnsetForFrame = 0;
+  if (leadOnsetArmed && leadOnsetRaw > 0.7) {
+    leadOnsetForFrame = leadOnsetRaw;
+    leadOnsetArmed = false;
+  } else if (leadOnsetRaw < 0.35) {
+    leadOnsetArmed = true;
+  }
+
   const beatAge = (now - beatAt) / 1000;
   const flash =
     beatAge >= 0 && beatAge < 0.2
@@ -125,7 +137,7 @@ function tick(now: number): void {
       // 主奏的撕裂密度项同样配响度门（安静段收敛到 ~40%），与喷丝的响度守恒一致
       rough: Math.min(1.2, 0.3 + hi * 0.45 + punch * 0.25 + leadLevel * 0.35 * (0.4 + e * 0.6)),
       leadLevel,
-      leadOnset: Math.min(1, Math.max(0, lead.onset)),
+      leadOnset: leadOnsetForFrame,
       leadBand: lead.band,
       time: simTime
     });

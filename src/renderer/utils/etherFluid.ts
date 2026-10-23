@@ -689,20 +689,19 @@ export class EtherFluid {
     // 应与听感能量守恒：响度门 0.35+e×0.65，安静段保留约 1/3、正常响度满力
     const loudnessGate = 0.35 + e * 0.65;
     const profile = LEAD_SPLAT_PROFILES[leadBand] ?? LEAD_SPLAT_PROFILES[2];
-    if (leadOnset > 0.35) {
+    if (leadOnset > 0.6) {
       const strength = Math.min(1, leadOnset);
-      for (let i = 0; i < 2; i++) {
-        const x = 0.08 + this.rnd() * 0.84;
-        const y = 0.1 + this.rnd() * 0.8;
-        const ang = this.rnd() * Math.PI * 2;
-        const power = 0.03 + e * 0.04 + strength * 0.06;
-        const vx = Math.cos(ang) * power * profile.speedMul;
-        const vy = Math.sin(ang) * power * profile.speedMul - power * 0.3;
-        // 主奏丝用亮白染料（区别于低频喷注的暖白/朱红），带小半径=细丝感
-        const dyeAmt = (0.05 + strength * 0.05) * profile.dyeMul * loudnessGate * this.splatGain;
-        const radius = profile.radius[0] + this.rnd() * profile.radius[1];
-        this.splat(x, y, vx, vy, radius, [0.97, 0.96, 0.9], dyeAmt);
-      }
+      // 单股：起音已由组件边沿武装保证一次起音只到这一帧，量级宁少勿吵
+      const x = 0.08 + this.rnd() * 0.84;
+      const y = 0.1 + this.rnd() * 0.8;
+      const ang = this.rnd() * Math.PI * 2;
+      const power = 0.03 + e * 0.04 + strength * 0.05;
+      const vx = Math.cos(ang) * power * profile.speedMul;
+      const vy = Math.sin(ang) * power * profile.speedMul - power * 0.3;
+      // 主奏丝用亮白染料（区别于低频喷注的暖白/朱红），带小半径=细丝感
+      const dyeAmt = (0.035 + strength * 0.025) * profile.dyeMul * loudnessGate * this.splatGain;
+      const radius = profile.radius[0] + this.rnd() * profile.radius[1];
+      this.splat(x, y, vx, vy, radius, [0.97, 0.96, 0.9], dyeAmt);
     }
     const sub = 4;
     for (let s = 0; s < sub; s++) {
