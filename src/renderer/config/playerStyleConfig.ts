@@ -285,6 +285,11 @@ export function resolvePlayerStyleConfig(
     )
   );
   config.errorDecorMarks = config.errorDecorMarks === true;
+  // 大字歌词切换效果：仅 'dissolve'（溶解）/ 'burn'（燃烧）会改判，其余回默认行级溶解
+  config.errorLyricTransition =
+    config.errorLyricTransition === 'dissolve' || config.errorLyricTransition === 'burn'
+      ? config.errorLyricTransition
+      : 'default';
   // 默认样式:封面/歌名作者/背景预设
   config.showArtwork = config.showArtwork !== false;
   config.showTrackInfo = config.showTrackInfo !== false;

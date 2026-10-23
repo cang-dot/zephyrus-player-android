@@ -97,6 +97,8 @@ export interface PlayerStyleCustomConfig {
   errorBackground?: 'liquid' | 'ether';
   /** 「错误」样式：歌词装饰符号（!…!）开关 */
   errorDecorMarks?: boolean;
+  /** 「错误」样式：大字歌词切换效果（default=行级溶解，dissolve=逐字同步边缘溶解，burn=逐字错落燃烧） */
+  errorLyricTransition?: 'default' | 'dissolve' | 'burn';
   /** 默认样式：显示大封面 */
   showArtwork?: boolean;
   /** 默认样式：封面下方显示歌名与作者（不影响底部控制栏） */
