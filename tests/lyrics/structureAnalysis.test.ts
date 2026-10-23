@@ -2,45 +2,64 @@ import { describe, expect, it } from 'vitest';
 
 import {
   computeFrameFeatures,
-  computeNovelty,
   findHighEnergyStretch,
+  findHighEnergyStretches,
   normalizeSegments,
-  pickBoundaries,
   selectChorusSegments
 } from '@/utils/audio/structureAnalysis';
 
-/** 合成 PCM：不同音高类占优的正弦段（副歌段用固定和弦，主歌段换音），加能量包络 */
-function makeSyntheticPcm(sampleRate = 8000): {
-  pcm: Float32Array;
-  chorus: { start: number; end: number };
-} {
-  const sections: { sec: number; freqs: number[]; gain: number }[] = [
-    { sec: 10, freqs: [220, 277], gain: 0.15 }, // 前奏 Am
-    { sec: 20, freqs: [262, 330], gain: 0.2 }, // 主歌 C
-    { sec: 30, freqs: [349, 440, 523], gain: 0.5 }, // 副歌 F（高能量）
-    { sec: 20, freqs: [262, 330], gain: 0.2 }, // 主歌 C（重复）
-    { sec: 30, freqs: [349, 440, 523], gain: 0.5 }, // 副歌 F（重复）
-    { sec: 10, freqs: [220, 277], gain: 0.12 } // 尾奏
-  ];
+interface Section {
+  /** 段落总时长（秒），按 5s 一个和弦展开 */
+  sec: number;
+  /** 和声进行：每 5s 一个二音和弦；段内和弦必须互不相同（否则段内自相似会污染滞后轮廓） */
+  prog: number[][];
+  gain: number;
+}
+
+/** 常用二音和弦（根音+纯五度），音高类互不重叠，保证跨和弦色度余弦接近 0 */
+const CH = {
+  Am: [220, 330],
+  Bb: [233, 349],
+  B: [247, 370],
+  C: [262, 392],
+  Dm: [294, 440],
+  E: [330, 494],
+  F: [349, 523],
+  G: [392, 587]
+} as const;
+
+/** 按段落表合成 PCM：5s 一个和弦的和声进行 + 能量包络 */
+function makeSectionsPcm(sections: Section[], sampleRate = 8000): Float32Array {
   const total = sections.reduce((s, x) => s + x.sec, 0);
   const pcm = new Float32Array(Math.round(total * sampleRate));
+  const subLen = Math.round(5 * sampleRate);
   let offset = 0;
-  let chorusStart = 0;
-  let chorusEnd = 0;
   for (const sec of sections) {
-    if (sec.gain > 0.4 && !chorusStart) chorusStart = offset / sampleRate;
-    if (chorusStart && !chorusEnd && sec.gain <= 0.4 && chorusStart) chorusEnd = offset / sampleRate;
-    const len = Math.round(sec.sec * sampleRate);
-    for (let i = 0; i < len; i++) {
-      const t = i / sampleRate;
-      let v = 0;
-      for (const f of sec.freqs) v += Math.sin(2 * Math.PI * f * t);
-      pcm[offset + i] = (v / sec.freqs.length) * sec.gain;
+    const chordCount = Math.round(sec.sec / 5);
+    for (let c = 0; c < chordCount; c++) {
+      const freqs = sec.prog[c % sec.prog.length];
+      for (let i = 0; i < subLen && offset + i < pcm.length; i++) {
+        const t = i / sampleRate;
+        let v = 0;
+        for (const f of freqs) v += Math.sin(2 * Math.PI * f * t);
+        pcm[offset + i] = (v / freqs.length) * sec.gain;
+      }
+      offset += subLen;
     }
-    offset += len;
   }
-  if (!chorusEnd) chorusEnd = total;
-  return { pcm, chorus: { start: chorusStart, end: chorusEnd } };
+  return pcm;
+}
+
+/** 双遍副歌合成：两遍主歌进行不同、副歌完全相同 → 周期 50s */
+function makeDoubleChorusSections(): Section[] {
+  return [
+    { sec: 10, prog: [CH.Am, CH.Bb], gain: 0.15 }, // 前奏 0-10
+    { sec: 20, prog: [CH.C, CH.Dm, CH.Am, CH.Bb], gain: 0.2 }, // 主歌1 10-30
+    { sec: 30, prog: [CH.F, CH.G, CH.E, CH.Bb, CH.C, CH.Dm], gain: 0.5 }, // 副歌 30-60
+    { sec: 20, prog: [CH.Dm, CH.C, CH.G, CH.Am], gain: 0.2 }, // 主歌2 60-80（进行与主歌1不同）
+    { sec: 30, prog: [CH.F, CH.G, CH.E, CH.Bb, CH.C, CH.Dm], gain: 0.5 }, // 副歌 80-110
+    { sec: 10, prog: [CH.B, CH.E], gain: 0.12 } // 尾奏 110-120
+  ];
 }
 
 describe('structureAnalysis (DSP auto climax)', () => {
@@ -58,19 +77,68 @@ describe('structureAnalysis (DSP auto climax)', () => {
     }
   });
 
-  it('副歌定位：重复周期法命中重复的高能量段', () => {
+  it('副歌定位：两遍副歌各输出一段（每对重复两侧都保留）', () => {
     const sampleRate = 8000;
-    const { pcm, chorus } = makeSyntheticPcm(sampleRate);
+    const pcm = makeSectionsPcm(makeDoubleChorusSections());
     const features = computeFrameFeatures(pcm, sampleRate, 1.0, 0.5);
     const duration = pcm.length / sampleRate; // 120s，副歌 30-60 与 80-110（周期 50s）
 
     const { segments, confidence } = selectChorusSegments(features, duration);
-    expect(segments.length).toBeGreaterThanOrEqual(1);
+    expect(segments.length).toBe(2);
     expect(confidence).toBeGreaterThan(0);
-    // 至少一个结果段与真实副歌重叠超过一半
-    const chorusMid = (chorus.start + chorus.end) / 2;
-    const hit = segments.some((s) => s.start <= chorusMid && s.end >= chorusMid);
-    expect(hit).toBe(true);
+    // 两个真实副歌的中点都要被命中
+    for (const mid of [45, 95]) {
+      expect(segments.some((s) => s.start <= mid && s.end >= mid)).toBe(true);
+    }
+  }, 20000);
+
+  it('副歌定位：三遍副歌输出三段', () => {
+    const sampleRate = 8000;
+    const chorus: Section = {
+      sec: 20,
+      prog: [CH.F, CH.G, CH.E, CH.Bb],
+      gain: 0.5
+    };
+    const sections: Section[] = [
+      { sec: 10, prog: [CH.Am, CH.Bb], gain: 0.15 }, // 前奏 0-10
+      { sec: 15, prog: [CH.C, CH.Dm, CH.Am], gain: 0.2 }, // 主歌1 10-25
+      chorus, // 25-45
+      { sec: 15, prog: [CH.Dm, CH.C, CH.G], gain: 0.2 }, // 主歌2 45-60
+      chorus, // 60-80
+      { sec: 15, prog: [CH.G, CH.Am, CH.Bb], gain: 0.2 }, // 主歌3 80-95
+      chorus, // 95-115
+      { sec: 10, prog: [CH.B, CH.E], gain: 0.12 } // 尾奏 115-125
+    ];
+    const pcm = makeSectionsPcm(sections);
+    const features = computeFrameFeatures(pcm, sampleRate, 1.0, 0.5);
+    const { segments } = selectChorusSegments(features, pcm.length / sampleRate);
+    expect(segments.length).toBe(3);
+    for (const mid of [35, 70, 105]) {
+      expect(segments.some((s) => s.start <= mid && s.end >= mid)).toBe(true);
+    }
+  }, 20000);
+
+  it('副歌定位：两组不同周期的重复结构都被检出', () => {
+    const sampleRate = 8000;
+    const sections: Section[] = [
+      { sec: 10, prog: [CH.Am, CH.Bb], gain: 0.15 }, // 前奏 0-10
+      { sec: 20, prog: [CH.F, CH.G, CH.E, CH.Bb], gain: 0.5 }, // A1 10-30
+      { sec: 15, prog: [CH.C, CH.Dm, CH.Am], gain: 0.15 }, // 补白 30-45
+      { sec: 20, prog: [CH.F, CH.G, CH.E, CH.Bb], gain: 0.5 }, // A2 45-65（周期 35s）
+      { sec: 15, prog: [CH.Dm, CH.G, CH.C], gain: 0.15 }, // 补白 65-80
+      { sec: 20, prog: [CH.C, CH.Dm, CH.Am, CH.Bb], gain: 0.45 }, // B1 80-100
+      { sec: 30, prog: [CH.E, CH.B, CH.Am, CH.G, CH.Bb, CH.C], gain: 0.15 }, // 补白 100-130
+      { sec: 20, prog: [CH.C, CH.Dm, CH.Am, CH.Bb], gain: 0.45 }, // B2 130-150（周期 50s）
+      { sec: 15, prog: [CH.B, CH.E, CH.Am], gain: 0.12 } // 尾奏 150-165
+    ];
+    const pcm = makeSectionsPcm(sections);
+    const features = computeFrameFeatures(pcm, sampleRate, 1.0, 0.5);
+    const { segments } = selectChorusSegments(features, pcm.length / sampleRate);
+    // A 组两段 + B 组两段
+    expect(segments.length).toBe(4);
+    for (const mid of [20, 55, 90, 140]) {
+      expect(segments.some((s) => s.start <= mid && s.end >= mid)).toBe(true);
+    }
   }, 20000);
 
   it('能量兜底：无重复特征时找到最长高能量区间', () => {
@@ -83,6 +151,20 @@ describe('structureAnalysis (DSP auto climax)', () => {
     expect(stretch!.start).toBeGreaterThanOrEqual(39);
     expect(stretch!.end).toBeLessThanOrEqual(76);
     expect(stretch!.end - stretch!.start).toBeGreaterThanOrEqual(15);
+  });
+
+  it('能量兜底：输出至多两个最长高能量区间', () => {
+    const hopSec = 0.5;
+    const frames = 400; // 200s
+    const energy = new Float32Array(frames).fill(0.1);
+    for (let i = 40; i < 120; i++) energy[i] = 0.6; // 20s~60s（40s 平台）
+    for (let i = 240; i < 300; i++) energy[i] = 0.5; // 120s~150s（30s 平台）
+    const stretches = findHighEnergyStretches(energy, hopSec, frames * hopSec, 15, 2);
+    expect(stretches.length).toBe(2);
+    expect(stretches[0].start).toBeLessThanOrEqual(21);
+    expect(stretches[0].end).toBeGreaterThanOrEqual(59);
+    expect(stretches[1].start).toBeGreaterThanOrEqual(119);
+    expect(stretches[1].end).toBeGreaterThanOrEqual(149);
   });
 
   it('normalizeSegments: 截断/合并/最小段长', () => {

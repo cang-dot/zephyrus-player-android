@@ -2,11 +2,13 @@
  * 歌曲结构分析纯函数（自动高潮定位的 DSP 核心，供 structureAnalyzer.worker 调用）。
  * 无 DOM/AudioContext 依赖，可在 Worker 与单测中运行。
  *
- * 算法（经典 MSA 简化版）：
+ * 算法（滞后自相似重复周期法）：
  *   1. 帧特征：RMS 能量 + 12 维色度（FFT 后按音高类折叠）
- *   2. 新颖度曲线：棋盘核沿时间轴比较相邻两窗的色度相似度 → 段落边界
- *   3. 边界切段后做段描述子（均值色度 + 均值能量）聚类，
- *      副歌 = 重复次数多且能量高的重复段；无可靠重复时退化为持续高能量区间
+ *   2. 滞后相似度轮廓挑周期峰（最多 2 个周期）→ 局部平移相似度高的
+ *      时段即「互为重复」的区间对
+ *   3. 每对重复的两侧都收为副歌候选（副歌每遍出现都标注），
+ *      经能量抑制、重叠去重、合并后输出
+ *   4. 无可靠重复时退化为至多 2 个持续高能量区间
  */
 
 export interface Segment {
@@ -92,7 +94,8 @@ export function computeFrameFeatures(
   const fftIm = new Float32Array(fftSize);
   // Hann 窗
   const hann = new Float32Array(windowSize);
-  for (let i = 0; i < windowSize; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (windowSize - 1));
+  for (let i = 0; i < windowSize; i++)
+    hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (windowSize - 1));
 
   for (let f = 0; f < numFrames; f++) {
     const start = f * hopSize;
@@ -246,10 +249,12 @@ function cosineSim(a: Float32Array, b: Float32Array): number {
  * 1. 对候选滞后量 L（12s..min(100s, 半曲)）计算整曲色度帧的平移相似度
  *    sim(L) = mean_i cos(chroma[i], chroma[i+L])——副歌每轮周期重复会在
  *    其周期长度处形成相似度峰；
- * 2. 取峰值周期 L*，再沿时间轴计算局部平移相似度 localSim(t)（±2s 窗），
- *    localSim 高的时段即「互为重复」的区间对 (t, t+L*)；
- * 3. 每对取能量更高的一侧为副歌候选，合并相邻、钳制曲长；
- * 4. 无可靠重复 → 能量兜底（平滑能量最长的持续高能量区间）。
+ * 2. 挑选最多 2 个显著周期峰（支持双副歌结构），对每个周期沿时间轴计算
+ *    局部平移相似度 localSim(t)（±2s 窗），localSim 高的时段即
+ *    「互为重复」的区间对 (t, t+L)；
+ * 3. 每对重复的两侧都作为副歌候选（副歌每遍出现都该被标注），
+ *    经弱段抑制、跨周期重叠去重后合并相邻、钳制曲长；
+ * 4. 无可靠重复 → 能量兜底（平滑能量最长的至多 2 个持续高能量区间）。
  */
 export function selectChorusSegments(
   features: FrameFeatures,
@@ -262,10 +267,7 @@ export function selectChorusSegments(
   if (n < 8) return { segments: [], confidence: 0 };
 
   const minLag = Math.max(2, Math.round((options?.minLagSec ?? 12) / hopSec));
-  const maxLag = Math.min(
-    Math.round((options?.maxLagSec ?? 100) / hopSec),
-    Math.floor(n / 2)
-  );
+  const maxLag = Math.min(Math.round((options?.maxLagSec ?? 100) / hopSec), Math.floor(n / 2));
   if (maxLag <= minLag) return { segments: [], confidence: 0 };
 
   // 1) 滞后相似度轮廓（步长 2 帧省一半计算）
@@ -279,65 +281,13 @@ export function selectChorusSegments(
     }
     lagScores[lag] = count ? sum / count : 0;
   }
-  // 峰值周期（±1s 邻域内取最大，抑制相邻 lag 抖动）
-  let bestLag = -1;
-  let bestScore = -Infinity;
+  // 平滑后挑周期峰：主峰之外保留次峰（支持一组以上重复结构）
+  const smoothed = new Float32Array(maxLag + 1);
   for (let lag = minLag + 1; lag < maxLag; lag++) {
-    const smoothed =
-      (lagScores[lag - 1] + lagScores[lag] * 2 + lagScores[lag + 1]) / 4;
-    if (smoothed > bestScore) {
-      bestScore = smoothed;
-      bestLag = lag;
-    }
+    smoothed[lag] = (lagScores[lag - 1] + lagScores[lag] * 2 + lagScores[lag + 1]) / 4;
   }
-  if (bestLag < 0) return { segments: [], confidence: 0 };
-
-  // 2) 局部平移相似度
-  const localSim = new Float32Array(n);
-  const halfWin = Math.max(2, Math.round(2 / hopSec));
-  for (let i = 0; i < n; i++) {
-    if (i + bestLag >= n) break;
-    let sum = 0;
-    let count = 0;
-    for (let k = -halfWin; k <= halfWin; k++) {
-      const j = i + k;
-      if (j < 0 || j + bestLag >= n) continue;
-      sum += cosineSim(chroma[j], chroma[j + bestLag]);
-      count++;
-    }
-    localSim[i] = count ? sum / count : 0;
-  }
-  // 阈值：均值 + 0.6σ，且不低于绝对下限
-  let mean = 0;
-  for (let i = 0; i < n; i++) mean += localSim[i];
-  mean /= n;
-  let variance = 0;
-  for (let i = 0; i < n; i++) variance += (localSim[i] - mean) ** 2;
-  const std = Math.sqrt(variance / n);
-  const threshold = Math.max(0.78, mean + 0.6 * std);
-
-  // 3) 高相似时段成对出现 → 每对取能量更高的一侧
-  const pairs: { a: Segment; b: Segment }[] = [];
-  let runStart = -1;
-  for (let i = 0; i <= n; i++) {
-    const high = i < n && localSim[i] >= threshold;
-    if (high && runStart < 0) runStart = i;
-    if (!high && runStart >= 0) {
-      const len = i - runStart;
-      if (len >= Math.round(6 / hopSec)) {
-        const a: Segment = { start: runStart * hopSec, end: i * hopSec };
-        const b: Segment = { start: a.start + bestLag * hopSec, end: a.end + bestLag * hopSec };
-        pairs.push({ a, b });
-      }
-      runStart = -1;
-    }
-  }
-  // 尾段未闭合
-  if (runStart >= 0 && n - runStart >= Math.round(6 / hopSec)) {
-    const a: Segment = { start: runStart * hopSec, end: n * hopSec };
-    const b: Segment = { start: a.start + bestLag * hopSec, end: a.end + bestLag * hopSec };
-    pairs.push({ a, b });
-  }
+  const lags = pickLagPeaks(smoothed, minLag, maxLag, hopSec);
+  if (!lags.length) return { segments: [], confidence: 0 };
 
   const meanEnergyAt = (s: Segment): number => {
     const lo = Math.max(0, Math.floor(s.start / hopSec));
@@ -347,20 +297,54 @@ export function selectChorusSegments(
     return sum / Math.max(1, hi - lo);
   };
 
+  // 2) 每个周期独立计算局部平移相似度 → 高相似 run 成对
   let candidates: Segment[] = [];
   let peakSim = 0;
-  for (const { a, b } of pairs) {
-    const aOk = a.start >= 0 && a.end <= duration && a.end - a.start >= minSegmentSec;
-    const bOk = b.start >= 0 && b.end <= duration && b.end - b.start >= minSegmentSec;
-    if (!aOk && !bOk) continue;
-    const chosen = !aOk ? b : !bOk ? a : meanEnergyAt(a) >= meanEnergyAt(b) ? a : b;
-    candidates.push(expandByEnergy({ start: chosen.start, end: chosen.end }, energy, hopSec, duration));
-    // 置信度采样：该段内局部相似度峰值
-    const lo = Math.max(0, Math.floor(chosen.start / hopSec));
-    const hi = Math.min(n - 1, Math.ceil(chosen.end / hopSec));
-    for (let i = lo; i <= hi; i++) peakSim = Math.max(peakSim, localSim[i]);
+  for (const [index, lag] of lags.entries()) {
+    const { pairs, runPeakSim } = collectRepeatPairs(chroma, n, lag, hopSec);
+    // 次周期要求更高的 run 峰值：低分副周期是误检段的主要来源
+    if (index > 0 && runPeakSim < 0.85) continue;
+    peakSim = Math.max(peakSim, runPeakSim);
+    // 3) 每对重复的两侧都收为候选（低能一侧稍后按能量抑制）
+    for (const { a, b } of pairs) {
+      const aOk = a.start >= 0 && a.end <= duration && a.end - a.start >= minSegmentSec;
+      const bOk = b.start >= 0 && b.end <= duration && b.end - b.start >= minSegmentSec;
+      if (aOk) candidates.push(expandByEnergy({ ...a }, energy, hopSec, duration));
+      if (bOk) candidates.push(expandByEnergy({ ...b }, energy, hopSec, duration));
+    }
   }
-  candidates = normalizeSegments(candidates, duration, minSegmentSec);
+
+  // 弱段抑制：明显低于最强段的候选（如被误检的低能前奏重复）不标高潮
+  if (candidates.length) {
+    let bestEnergy = 0;
+    for (const seg of candidates) bestEnergy = Math.max(bestEnergy, meanEnergyAt(seg));
+    candidates = candidates.filter((seg) => meanEnergyAt(seg) >= bestEnergy * 0.6);
+  }
+
+  // 跨周期去重：起点不同但实质重叠的段只留能量高者
+  candidates.sort((x, y) => x.start - y.start);
+  const deduped: Segment[] = [];
+  for (const seg of candidates) {
+    const prev = deduped[deduped.length - 1];
+    if (prev) {
+      const overlap = Math.min(prev.end, seg.end) - Math.max(prev.start, seg.start);
+      if (overlap > 0.5 * Math.min(prev.end - prev.start, seg.end - seg.start)) {
+        if (meanEnergyAt(seg) > meanEnergyAt(prev)) deduped[deduped.length - 1] = seg;
+        continue;
+      }
+    }
+    deduped.push(seg);
+  }
+  candidates = normalizeSegments(deduped, duration, minSegmentSec);
+
+  // 保险上限：病态输入下防止段数刷屏
+  const MAX_SEGMENTS = 6;
+  if (candidates.length > MAX_SEGMENTS) {
+    candidates = candidates
+      .sort((x, y) => meanEnergyAt(y) - meanEnergyAt(x))
+      .slice(0, MAX_SEGMENTS)
+      .sort((x, y) => x.start - y.start);
+  }
 
   if (candidates.length) {
     const globalEnergy = energy.reduce((s, v) => s + v, 0) / energy.length;
@@ -374,11 +358,94 @@ export function selectChorusSegments(
     return { segments: candidates, confidence };
   }
 
-  // 4) 能量兜底
-  const fallback = findHighEnergyStretch(energy, hopSec, duration, minSegmentSec);
-  return fallback
-    ? { segments: [fallback], confidence: 0.3 }
+  // 4) 能量兜底：无重复特征时取至多 2 个最长持续高能量区间
+  const fallbacks = findHighEnergyStretches(energy, hopSec, duration, minSegmentSec, 2);
+  return fallbacks.length
+    ? { segments: fallbacks, confidence: 0.3 }
     : { segments: [], confidence: 0 };
+}
+
+/**
+ * 从平滑滞后相似度轮廓挑周期峰：得分降序贪心，主峰之外仅收
+ * 得分 ≥ 0.5×主峰的次峰（轮廓按全曲平均，副结构覆盖率低时得分被稀释，
+ * 误检由每个周期独立的 0.78 局部相似度阈值兜住），峰间距 ≥ 10s，
+ * 最多 2 个周期。
+ */
+function pickLagPeaks(
+  smoothed: Float32Array,
+  minLag: number,
+  maxLag: number,
+  hopSec: number
+): number[] {
+  const peaks: { lag: number; score: number }[] = [];
+  for (let lag = minLag + 1; lag < maxLag; lag++) {
+    if (smoothed[lag] >= smoothed[lag - 1] && smoothed[lag] >= smoothed[lag + 1]) {
+      peaks.push({ lag, score: smoothed[lag] });
+    }
+  }
+  if (!peaks.length) return [];
+  peaks.sort((x, y) => y.score - x.score);
+  const topScore = peaks[0].score;
+  const minSeparation = Math.max(1, Math.round(10 / hopSec));
+  const selected: number[] = [];
+  for (const peak of peaks) {
+    if (selected.length >= 2) break;
+    if (peak.score < topScore * 0.5) break;
+    const farEnough = selected.every((s) => Math.abs(s - peak.lag) >= minSeparation);
+    if (farEnough) selected.push(peak.lag);
+  }
+  return selected;
+}
+
+/** 单个周期的局部平移相似度 → 高相似 run 对应的重复区间对，及其峰值相似度 */
+function collectRepeatPairs(
+  chroma: Float32Array[],
+  n: number,
+  lag: number,
+  hopSec: number
+): { pairs: { a: Segment; b: Segment }[]; runPeakSim: number } {
+  const localSim = new Float32Array(n);
+  const halfWin = Math.max(2, Math.round(2 / hopSec));
+  for (let i = 0; i < n; i++) {
+    if (i + lag >= n) break;
+    let sum = 0;
+    let count = 0;
+    for (let k = -halfWin; k <= halfWin; k++) {
+      const j = i + k;
+      if (j < 0 || j + lag >= n) continue;
+      sum += cosineSim(chroma[j], chroma[j + lag]);
+      count++;
+    }
+    localSim[i] = count ? sum / count : 0;
+  }
+  // 阈值：均值 + 0.6σ，且不低于绝对下限
+  let mean = 0;
+  for (let i = 0; i < n; i++) mean += localSim[i];
+  mean /= n;
+  let variance = 0;
+  for (let i = 0; i < n; i++) variance += (localSim[i] - mean) ** 2;
+  const std = Math.sqrt(variance / n);
+  const threshold = Math.max(0.78, mean + 0.6 * std);
+
+  const pairs: { a: Segment; b: Segment }[] = [];
+  let runPeakSim = 0;
+  let runStart = -1;
+  const closeRun = (endExclusive: number) => {
+    const len = endExclusive - runStart;
+    if (len >= Math.round(6 / hopSec)) {
+      const a: Segment = { start: runStart * hopSec, end: endExclusive * hopSec };
+      const b: Segment = { start: a.start + lag * hopSec, end: a.end + lag * hopSec };
+      pairs.push({ a, b });
+      for (let i = runStart; i < endExclusive; i++) runPeakSim = Math.max(runPeakSim, localSim[i]);
+    }
+    runStart = -1;
+  };
+  for (let i = 0; i <= n; i++) {
+    const high = i < n && localSim[i] >= threshold;
+    if (high && runStart < 0) runStart = i;
+    if (!high && runStart >= 0) closeRun(i);
+  }
+  return { pairs, runPeakSim };
 }
 
 /**
@@ -445,14 +512,29 @@ function expandByEnergy(
   return result.end - result.start >= seg.end - seg.start ? result : seg;
 }
 
-/** 平滑能量曲线上最长的持续高能量区间（能量兜底） */
+/** 平滑能量曲线上最长的持续高能量区间（能量兜底，单段便捷封装） */
 export function findHighEnergyStretch(
   energy: Float32Array,
   hopSec: number,
   duration: number,
   minSegmentSec: number
 ): Segment | null {
-  if (!energy.length) return null;
+  const stretches = findHighEnergyStretches(energy, hopSec, duration, minSegmentSec, 1);
+  return stretches.length ? stretches[0] : null;
+}
+
+/**
+ * 平滑能量曲线上最长的至多 maxCount 个持续高能量区间（能量兜底）。
+ * 按长度降序收录；与已收录段间隔不足 minSegmentSec 的近邻段丢弃（宁少勿碎）。
+ */
+export function findHighEnergyStretches(
+  energy: Float32Array,
+  hopSec: number,
+  duration: number,
+  minSegmentSec: number,
+  maxCount = 2
+): Segment[] {
+  if (!energy.length) return [];
   const smoothSpan = Math.max(1, Math.round(3 / hopSec));
   const smooth = new Float32Array(energy.length);
   let running = 0;
@@ -469,8 +551,8 @@ export function findHighEnergyStretch(
   const std = Math.sqrt(variance / smooth.length);
   const threshold = mean + 0.4 * std;
 
-  // 最长连续超阈区间（允许 <2s 的毛刺缝合）
-  let best: Segment | null = null;
+  // 连续超阈区间（允许 <2s 的毛刺缝合）
+  const raw: Segment[] = [];
   let start = -1;
   let gap = 0;
   const maxGap = Math.max(1, Math.round(2 / hopSec));
@@ -481,27 +563,34 @@ export function findHighEnergyStretch(
     } else if (start >= 0) {
       gap++;
       if (gap > maxGap) {
-        const end = i - gap;
-        if (!best || end - start > best.end - best.start) {
-          best = { start: start * hopSec, end: end * hopSec };
-        }
+        raw.push({ start: start * hopSec, end: (i - gap) * hopSec });
         start = -1;
         gap = 0;
       }
     }
   }
   if (start >= 0) {
-    const end = Math.min(smooth.length - 1, Math.round(duration / hopSec));
-    if (!best || end - start > best.end - best.start) {
-      best = { start: start * hopSec, end: end * hopSec };
-    }
+    raw.push({
+      start: start * hopSec,
+      end: Math.min(smooth.length - 1, Math.round(duration / hopSec)) * hopSec
+    });
   }
-  if (!best) return null;
-  // 钳制到曲长并保证最小段长
-  best.end = Math.min(best.end, duration);
-  best.start = Math.max(0, best.start);
-  if (best.end - best.start < minSegmentSec) return null;
-  return best;
+
+  const valid = raw
+    .map((s) => ({ start: Math.max(0, s.start), end: Math.min(duration, s.end) }))
+    .filter((s) => s.end - s.start >= minSegmentSec)
+    .sort((a, b) => b.end - b.start - (a.end - a.start));
+
+  const kept: Segment[] = [];
+  for (const seg of valid) {
+    if (kept.length >= maxCount) break;
+    // 与已收录段同为互斥区间，只算间隙；间隙不足 minSegmentSec 的近邻丢弃
+    const tooClose = kept.some((k) =>
+      seg.start >= k.end ? seg.start - k.end < minSegmentSec : k.start - seg.end < minSegmentSec
+    );
+    if (!tooClose) kept.push({ ...seg });
+  }
+  return kept.sort((a, b) => a.start - b.start);
 }
 
 /* ==================== 归一化 ==================== */

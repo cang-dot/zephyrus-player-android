@@ -32,11 +32,14 @@ function isCacheValid<T>(entry: CacheEntry<T> | undefined): entry is CacheEntry<
 async function saveCache<T>(storeName: string, key: string, data: T): Promise<void> {
   try {
     const db = await getMusicDB();
-    await db.saveData(storeName as any, {
-      id: key,
-      data,
-      cachedAt: Date.now()
-    } as any);
+    await db.saveData(
+      storeName as any,
+      {
+        id: key,
+        data,
+        cachedAt: Date.now()
+      } as any
+    );
   } catch (err) {
     console.error(`[CacheService] 保存缓存失败 (${storeName}):`, err);
   }
@@ -49,7 +52,7 @@ async function saveCache<T>(storeName: string, key: string, data: T): Promise<vo
 async function getCache<T>(storeName: string, key: string): Promise<T | null | undefined> {
   try {
     const db = await getMusicDB();
-    const entry = await db.getData(storeName as any, key) as CacheEntry<T> | undefined;
+    const entry = (await db.getData(storeName as any, key)) as CacheEntry<T> | undefined;
     if (!entry) return undefined; // 缓存未命中
     if (!isCacheValid(entry)) return undefined; // 缓存过期
     return entry.data; // 返回 data（可能为 null）
@@ -75,6 +78,8 @@ async function deleteCache(storeName: string, key: string): Promise<void> {
 export interface ClimaxCacheData {
   segments: ClimaxSegment[];
   contributor: string | null;
+  /** 产出该数据的算法版本（auto-dsp 专用）；缺省视为旧版，读取方据此作废旧结果 */
+  algoVersion?: number;
 }
 
 export async function getClimaxCache(songId: string): Promise<ClimaxCacheData | null | undefined> {
@@ -97,7 +102,9 @@ export async function deleteClimaxCache(songId: string): Promise<void> {
 export async function getLocalClimax(songId: string): Promise<ClimaxCacheData | null | undefined> {
   try {
     const db = await getMusicDB();
-    const entry = await db.getData('local_climax_data' as any, songId) as { data: ClimaxCacheData } | undefined;
+    const entry = (await db.getData('local_climax_data' as any, songId)) as
+      | { data: ClimaxCacheData }
+      | undefined;
     if (!entry) return undefined;
     return entry.data;
   } catch {
@@ -172,11 +179,16 @@ export async function deleteKeywordsCache(songId: string): Promise<void> {
 
 // ==================== Community Lyric Cache ====================
 
-export async function getCommunityLyricCache(songId: string): Promise<CommunityLyric | null | undefined> {
+export async function getCommunityLyricCache(
+  songId: string
+): Promise<CommunityLyric | null | undefined> {
   return getCache<CommunityLyric>('community_lyric_cache', songId);
 }
 
-export async function saveCommunityLyricCache(songId: string, data: CommunityLyric | null): Promise<void> {
+export async function saveCommunityLyricCache(
+  songId: string,
+  data: CommunityLyric | null
+): Promise<void> {
   await saveCache('community_lyric_cache', songId, data);
 }
 

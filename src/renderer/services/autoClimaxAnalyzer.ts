@@ -8,9 +8,9 @@
  */
 import type { ClimaxSegment } from '@/api/climax';
 import { probeAnalysisCapability, upgradeToHttps } from '@/services/audioAnalysisGate';
-import { decodeToMono8k } from '@/utils/audio/decodeToMono8k';
 import { getAutoClimax, saveAutoClimax } from '@/services/cacheService';
 import { isElectron } from '@/utils';
+import { decodeToMono8k } from '@/utils/audio/decodeToMono8k';
 import { deviceTier } from '@/utils/deviceTier';
 
 export interface AutoClimaxResult {
@@ -21,6 +21,9 @@ export interface AutoClimaxResult {
 /** 内存级失败冷却：同一 URL 5 分钟内不重试（网络抖动/解析失败），不持久化 */
 const failureCooldown = new Map<string, number>();
 const FAILURE_COOLDOWN_MS = 5 * 60 * 1000;
+
+/** 自动高潮算法版本：算法行为变更时递增，旧缓存（含负缓存）据此作废重分析 */
+const AUTO_CLIMAX_ALGO_VERSION = 2;
 
 const inFlight = new Map<string, Promise<AutoClimaxResult | null>>();
 
@@ -79,8 +82,11 @@ async function fetchAudioBytes(url: string): Promise<ArrayBuffer | null> {
   if (url.startsWith('local://')) {
     if (!isElectron) return null;
     const filePath = url.replace(/^local:\/{2,3}/, '').replace(/%2F/g, '/');
-    const result: unknown = await (window as unknown as { electron: { ipcRenderer: { invoke: (ch: string, ...args: unknown[]) => Promise<unknown> } } })
-      .electron.ipcRenderer.invoke('read-file-binary', decodeURIComponent(filePath));
+    const result: unknown = await (
+      window as unknown as {
+        electron: { ipcRenderer: { invoke: (ch: string, ...args: unknown[]) => Promise<unknown> } };
+      }
+    ).electron.ipcRenderer.invoke('read-file-binary', decodeURIComponent(filePath));
     if (!result) return null;
     const uint8 = result as Uint8Array;
     const copy = new Uint8Array(uint8.byteLength);
@@ -97,7 +103,10 @@ async function fetchAudioBytes(url: string): Promise<ArrayBuffer | null> {
  * 主线程解码 + 重采样到 8kHz 单声道 PCM（decodeToMono8k 见 utils/audio）。
  * Worker 只承担纯计算。
  */
-async function analyzeBytes(arrayBuffer: ArrayBuffer, duration?: number): Promise<AutoClimaxResult | null> {
+async function analyzeBytes(
+  arrayBuffer: ArrayBuffer,
+  duration?: number
+): Promise<AutoClimaxResult | null> {
   const w = ensureWorker();
   if (!w) return Promise.resolve(null);
   let pcm: Float32Array;
@@ -137,7 +146,10 @@ export async function ensureAutoClimax(
     duration && duration > 1000 ? duration / 1000 : duration && duration > 0 ? duration : undefined;
   const cached = await getAutoClimax(songId);
   if (cached != null) {
-    return { segments: cached.segments, confidence: 0 };
+    // 旧版本算法的缓存（含负缓存）视为无效，走重分析覆盖
+    if (cached.algoVersion === AUTO_CLIMAX_ALGO_VERSION) {
+      return { segments: cached.segments, confidence: 0 };
+    }
   }
   const existing = inFlight.get(songId);
   if (existing) return existing;
@@ -173,7 +185,11 @@ export async function ensureAutoClimax(
         }))
         .filter((s) => s.end > s.start)
         .sort((a, b) => a.start - b.start);
-      await saveAutoClimax(songId, { segments, contributor: 'auto-dsp' });
+      await saveAutoClimax(songId, {
+        segments,
+        contributor: 'auto-dsp',
+        algoVersion: AUTO_CLIMAX_ALGO_VERSION
+      });
       return { segments, confidence: result.confidence };
     } catch {
       failureCooldown.set(url, Date.now() + FAILURE_COOLDOWN_MS);

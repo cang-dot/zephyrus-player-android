@@ -1,8 +1,8 @@
-// src/renderer/utils/audio/structureAnalysis.ts
+// ../../src/renderer/utils/audio/structureAnalysis.ts
 var PITCH_CLASSES = 12;
 function fftInPlace(re, im) {
   const n = re.length;
-  if (n <= 1 || (n & n - 1) !== 0) return;
+  if (n <= 1 || (n & (n - 1)) !== 0) return;
   for (let i = 1, j = 0; i < n; i++) {
     let bit = n >> 1;
     for (; j & bit; bit >>= 1) j ^= bit;
@@ -17,7 +17,7 @@ function fftInPlace(re, im) {
     }
   }
   for (let len = 2; len <= n; len <<= 1) {
-    const ang = -2 * Math.PI / len;
+    const ang = (-2 * Math.PI) / len;
     const wr = Math.cos(ang);
     const wi = Math.sin(ang);
     for (let i = 0; i < n; i += len) {
@@ -50,7 +50,8 @@ function computeFrameFeatures(pcm, sampleRate, windowSec = 1, hopSec = 0.5) {
   const fftRe = new Float32Array(fftSize);
   const fftIm = new Float32Array(fftSize);
   const hann = new Float32Array(windowSize);
-  for (let i = 0; i < windowSize; i++) hann[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (windowSize - 1));
+  for (let i = 0; i < windowSize; i++)
+    hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (windowSize - 1));
   for (let f = 0; f < numFrames; f++) {
     const start = f * hopSize;
     let sumSq = 0;
@@ -76,7 +77,7 @@ function computeFrameFeatures(pcm, sampleRate, windowSec = 1, hopSec = 0.5) {
       const mag = Math.sqrt(fftRe[bin] * fftRe[bin] + fftIm[bin] * fftIm[bin]);
       const hz = bin * binHz;
       const midi = 69 + 12 * Math.log2(hz / 440);
-      const pc = (Math.round(midi) % PITCH_CLASSES + PITCH_CLASSES) % PITCH_CLASSES;
+      const pc = ((Math.round(midi) % PITCH_CLASSES) + PITCH_CLASSES) % PITCH_CLASSES;
       c[pc] += mag;
     }
     let norm = 0;
@@ -167,10 +168,7 @@ function selectChorusSegments(features, duration, options) {
   const n = chroma.length;
   if (n < 8) return { segments: [], confidence: 0 };
   const minLag = Math.max(2, Math.round((options?.minLagSec ?? 12) / hopSec));
-  const maxLag = Math.min(
-    Math.round((options?.maxLagSec ?? 100) / hopSec),
-    Math.floor(n / 2)
-  );
+  const maxLag = Math.min(Math.round((options?.maxLagSec ?? 100) / hopSec), Math.floor(n / 2));
   if (maxLag <= minLag) return { segments: [], confidence: 0 };
   const lagScores = new Float32Array(maxLag + 1);
   for (let lag = minLag; lag <= maxLag; lag++) {
@@ -182,26 +180,105 @@ function selectChorusSegments(features, duration, options) {
     }
     lagScores[lag] = count ? sum / count : 0;
   }
-  let bestLag = -1;
-  let bestScore = -Infinity;
+  const smoothed = new Float32Array(maxLag + 1);
   for (let lag = minLag + 1; lag < maxLag; lag++) {
-    const smoothed = (lagScores[lag - 1] + lagScores[lag] * 2 + lagScores[lag + 1]) / 4;
-    if (smoothed > bestScore) {
-      bestScore = smoothed;
-      bestLag = lag;
+    smoothed[lag] = (lagScores[lag - 1] + lagScores[lag] * 2 + lagScores[lag + 1]) / 4;
+  }
+  const lags = pickLagPeaks(smoothed, minLag, maxLag, hopSec);
+  if (!lags.length) return { segments: [], confidence: 0 };
+  const meanEnergyAt = (s) => {
+    const lo = Math.max(0, Math.floor(s.start / hopSec));
+    const hi = Math.min(energy.length, Math.ceil(s.end / hopSec));
+    let sum = 0;
+    for (let i = lo; i < hi; i++) sum += energy[i];
+    return sum / Math.max(1, hi - lo);
+  };
+  let candidates = [];
+  let peakSim = 0;
+  for (const [index, lag] of lags.entries()) {
+    const { pairs, runPeakSim } = collectRepeatPairs(chroma, n, lag, hopSec);
+    if (index > 0 && runPeakSim < 0.85) continue;
+    peakSim = Math.max(peakSim, runPeakSim);
+    for (const { a, b } of pairs) {
+      const aOk = a.start >= 0 && a.end <= duration && a.end - a.start >= minSegmentSec;
+      const bOk = b.start >= 0 && b.end <= duration && b.end - b.start >= minSegmentSec;
+      if (aOk) candidates.push(expandByEnergy({ ...a }, energy, hopSec, duration));
+      if (bOk) candidates.push(expandByEnergy({ ...b }, energy, hopSec, duration));
     }
   }
-  if (bestLag < 0) return { segments: [], confidence: 0 };
+  if (candidates.length) {
+    let bestEnergy = 0;
+    for (const seg of candidates) bestEnergy = Math.max(bestEnergy, meanEnergyAt(seg));
+    candidates = candidates.filter((seg) => meanEnergyAt(seg) >= bestEnergy * 0.6);
+  }
+  candidates.sort((x, y) => x.start - y.start);
+  const deduped = [];
+  for (const seg of candidates) {
+    const prev = deduped[deduped.length - 1];
+    if (prev) {
+      const overlap = Math.min(prev.end, seg.end) - Math.max(prev.start, seg.start);
+      if (overlap > 0.5 * Math.min(prev.end - prev.start, seg.end - seg.start)) {
+        if (meanEnergyAt(seg) > meanEnergyAt(prev)) deduped[deduped.length - 1] = seg;
+        continue;
+      }
+    }
+    deduped.push(seg);
+  }
+  candidates = normalizeSegments(deduped, duration, minSegmentSec);
+  const MAX_SEGMENTS = 6;
+  if (candidates.length > MAX_SEGMENTS) {
+    candidates = candidates
+      .sort((x, y) => meanEnergyAt(y) - meanEnergyAt(x))
+      .slice(0, MAX_SEGMENTS)
+      .sort((x, y) => x.start - y.start);
+  }
+  if (candidates.length) {
+    const globalEnergy = energy.reduce((s, v) => s + v, 0) / energy.length;
+    const chorusEnergy =
+      candidates.reduce((s, seg) => s + meanEnergyAt(seg), 0) / candidates.length;
+    const energyMargin = Math.max(
+      0,
+      Math.min(1, (chorusEnergy - globalEnergy) / (globalEnergy + 1e-9))
+    );
+    const confidence = Math.max(0.2, Math.min(0.95, peakSim * 0.6 + energyMargin * 0.4));
+    return { segments: candidates, confidence };
+  }
+  const fallbacks = findHighEnergyStretches(energy, hopSec, duration, minSegmentSec, 2);
+  return fallbacks.length
+    ? { segments: fallbacks, confidence: 0.3 }
+    : { segments: [], confidence: 0 };
+}
+function pickLagPeaks(smoothed, minLag, maxLag, hopSec) {
+  const peaks = [];
+  for (let lag = minLag + 1; lag < maxLag; lag++) {
+    if (smoothed[lag] >= smoothed[lag - 1] && smoothed[lag] >= smoothed[lag + 1]) {
+      peaks.push({ lag, score: smoothed[lag] });
+    }
+  }
+  if (!peaks.length) return [];
+  peaks.sort((x, y) => y.score - x.score);
+  const topScore = peaks[0].score;
+  const minSeparation = Math.max(1, Math.round(10 / hopSec));
+  const selected = [];
+  for (const peak of peaks) {
+    if (selected.length >= 2) break;
+    if (peak.score < topScore * 0.5) break;
+    const farEnough = selected.every((s) => Math.abs(s - peak.lag) >= minSeparation);
+    if (farEnough) selected.push(peak.lag);
+  }
+  return selected;
+}
+function collectRepeatPairs(chroma, n, lag, hopSec) {
   const localSim = new Float32Array(n);
   const halfWin = Math.max(2, Math.round(2 / hopSec));
   for (let i = 0; i < n; i++) {
-    if (i + bestLag >= n) break;
+    if (i + lag >= n) break;
     let sum = 0;
     let count = 0;
     for (let k = -halfWin; k <= halfWin; k++) {
       const j = i + k;
-      if (j < 0 || j + bestLag >= n) continue;
-      sum += cosineSim(chroma[j], chroma[j + bestLag]);
+      if (j < 0 || j + lag >= n) continue;
+      sum += cosineSim(chroma[j], chroma[j + lag]);
       count++;
     }
     localSim[i] = count ? sum / count : 0;
@@ -214,57 +291,24 @@ function selectChorusSegments(features, duration, options) {
   const std = Math.sqrt(variance / n);
   const threshold = Math.max(0.78, mean + 0.6 * std);
   const pairs = [];
+  let runPeakSim = 0;
   let runStart = -1;
+  const closeRun = (endExclusive) => {
+    const len = endExclusive - runStart;
+    if (len >= Math.round(6 / hopSec)) {
+      const a = { start: runStart * hopSec, end: endExclusive * hopSec };
+      const b = { start: a.start + lag * hopSec, end: a.end + lag * hopSec };
+      pairs.push({ a, b });
+      for (let i = runStart; i < endExclusive; i++) runPeakSim = Math.max(runPeakSim, localSim[i]);
+    }
+    runStart = -1;
+  };
   for (let i = 0; i <= n; i++) {
     const high = i < n && localSim[i] >= threshold;
     if (high && runStart < 0) runStart = i;
-    if (!high && runStart >= 0) {
-      const len = i - runStart;
-      if (len >= Math.round(6 / hopSec)) {
-        const a = { start: runStart * hopSec, end: i * hopSec };
-        const b = { start: a.start + bestLag * hopSec, end: a.end + bestLag * hopSec };
-        pairs.push({ a, b });
-      }
-      runStart = -1;
-    }
+    if (!high && runStart >= 0) closeRun(i);
   }
-  if (runStart >= 0 && n - runStart >= Math.round(6 / hopSec)) {
-    const a = { start: runStart * hopSec, end: n * hopSec };
-    const b = { start: a.start + bestLag * hopSec, end: a.end + bestLag * hopSec };
-    pairs.push({ a, b });
-  }
-  const meanEnergyAt = (s) => {
-    const lo = Math.max(0, Math.floor(s.start / hopSec));
-    const hi = Math.min(energy.length, Math.ceil(s.end / hopSec));
-    let sum = 0;
-    for (let i = lo; i < hi; i++) sum += energy[i];
-    return sum / Math.max(1, hi - lo);
-  };
-  let candidates = [];
-  let peakSim = 0;
-  for (const { a, b } of pairs) {
-    const aOk = a.start >= 0 && a.end <= duration && a.end - a.start >= minSegmentSec;
-    const bOk = b.start >= 0 && b.end <= duration && b.end - b.start >= minSegmentSec;
-    if (!aOk && !bOk) continue;
-    const chosen = !aOk ? b : !bOk ? a : meanEnergyAt(a) >= meanEnergyAt(b) ? a : b;
-    candidates.push(expandByEnergy({ start: chosen.start, end: chosen.end }, energy, hopSec, duration));
-    const lo = Math.max(0, Math.floor(chosen.start / hopSec));
-    const hi = Math.min(n - 1, Math.ceil(chosen.end / hopSec));
-    for (let i = lo; i <= hi; i++) peakSim = Math.max(peakSim, localSim[i]);
-  }
-  candidates = normalizeSegments(candidates, duration, minSegmentSec);
-  if (candidates.length) {
-    const globalEnergy = energy.reduce((s, v) => s + v, 0) / energy.length;
-    const chorusEnergy = candidates.reduce((s, seg) => s + meanEnergyAt(seg), 0) / candidates.length;
-    const energyMargin = Math.max(
-      0,
-      Math.min(1, (chorusEnergy - globalEnergy) / (globalEnergy + 1e-9))
-    );
-    const confidence = Math.max(0.2, Math.min(0.95, peakSim * 0.6 + energyMargin * 0.4));
-    return { segments: candidates, confidence };
-  }
-  const fallback = findHighEnergyStretch(energy, hopSec, duration, minSegmentSec);
-  return fallback ? { segments: [fallback], confidence: 0.3 } : { segments: [], confidence: 0 };
+  return { pairs, runPeakSim };
 }
 function expandByEnergy(seg, energy, hopSec, duration) {
   const smoothSpan = Math.max(1, Math.round(3 / hopSec));
@@ -317,7 +361,11 @@ function expandByEnergy(seg, energy, hopSec, duration) {
   return result.end - result.start >= seg.end - seg.start ? result : seg;
 }
 function findHighEnergyStretch(energy, hopSec, duration, minSegmentSec) {
-  if (!energy.length) return null;
+  const stretches = findHighEnergyStretches(energy, hopSec, duration, minSegmentSec, 1);
+  return stretches.length ? stretches[0] : null;
+}
+function findHighEnergyStretches(energy, hopSec, duration, minSegmentSec, maxCount = 2) {
+  if (!energy.length) return [];
   const smoothSpan = Math.max(1, Math.round(3 / hopSec));
   const smooth = new Float32Array(energy.length);
   let running = 0;
@@ -333,7 +381,7 @@ function findHighEnergyStretch(energy, hopSec, duration, minSegmentSec) {
   for (let i = 0; i < smooth.length; i++) variance += (smooth[i] - mean) ** 2;
   const std = Math.sqrt(variance / smooth.length);
   const threshold = mean + 0.4 * std;
-  let best = null;
+  const raw = [];
   let start = -1;
   let gap = 0;
   const maxGap = Math.max(1, Math.round(2 / hopSec));
@@ -344,32 +392,40 @@ function findHighEnergyStretch(energy, hopSec, duration, minSegmentSec) {
     } else if (start >= 0) {
       gap++;
       if (gap > maxGap) {
-        const end = i - gap;
-        if (!best || end - start > best.end - best.start) {
-          best = { start: start * hopSec, end: end * hopSec };
-        }
+        raw.push({ start: start * hopSec, end: (i - gap) * hopSec });
         start = -1;
         gap = 0;
       }
     }
   }
   if (start >= 0) {
-    const end = Math.min(smooth.length - 1, Math.round(duration / hopSec));
-    if (!best || end - start > best.end - best.start) {
-      best = { start: start * hopSec, end: end * hopSec };
-    }
+    raw.push({
+      start: start * hopSec,
+      end: Math.min(smooth.length - 1, Math.round(duration / hopSec)) * hopSec
+    });
   }
-  if (!best) return null;
-  best.end = Math.min(best.end, duration);
-  best.start = Math.max(0, best.start);
-  if (best.end - best.start < minSegmentSec) return null;
-  return best;
+  const valid = raw
+    .map((s) => ({ start: Math.max(0, s.start), end: Math.min(duration, s.end) }))
+    .filter((s) => s.end - s.start >= minSegmentSec)
+    .sort((a, b) => b.end - b.start - (a.end - a.start));
+  const kept = [];
+  for (const seg of valid) {
+    if (kept.length >= maxCount) break;
+    const tooClose = kept.some((k) =>
+      seg.start >= k.end ? seg.start - k.end < minSegmentSec : k.start - seg.end < minSegmentSec
+    );
+    if (!tooClose) kept.push({ ...seg });
+  }
+  return kept.sort((a, b) => a.start - b.start);
 }
 function normalizeSegments(input, duration, minSegmentSec = 15) {
-  const sorted = [...input].map((s) => ({
-    start: Math.max(0, Math.min(duration, s.start)),
-    end: Math.max(0, Math.min(duration, s.end))
-  })).filter((s) => s.end > s.start).sort((a, b) => a.start - b.start);
+  const sorted = [...input]
+    .map((s) => ({
+      start: Math.max(0, Math.min(duration, s.start)),
+      end: Math.max(0, Math.min(duration, s.end))
+    }))
+    .filter((s) => s.end > s.start)
+    .sort((a, b) => a.start - b.start);
   const merged = [];
   for (const seg of sorted) {
     const prev = merged[merged.length - 1];
@@ -387,6 +443,7 @@ export {
   computeNovelty,
   fftInPlace,
   findHighEnergyStretch,
+  findHighEnergyStretches,
   normalizeSegments,
   pickBoundaries,
   selectChorusSegments
