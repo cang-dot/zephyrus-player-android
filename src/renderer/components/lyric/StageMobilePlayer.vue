@@ -643,11 +643,12 @@ function openPlaylist() {
       top: 0;
       bottom: 0;
       height: 100%;
-      background: rgba(255, 200, 50, 0.35);
+      /* 高潮段主色加深（替代旧固定黄色） */
+      background: color-mix(in srgb, var(--accent-color, #ffc832) 100%, black 45%);
       border-radius: 1px;
       transition: background 0.2s ease;
       &.climax-active {
-        background: rgba(255, 200, 50, 0.7);
+        background: color-mix(in srgb, var(--accent-color, #ffc832) 100%, black 25%);
       }
     }
   }

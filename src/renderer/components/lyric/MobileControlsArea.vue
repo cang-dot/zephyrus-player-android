@@ -624,9 +624,7 @@ function onInfoRiseMove(event: PointerEvent) {
   riseLastY = event.clientY;
   if (step === 0) return;
   // 双向 1:1 跟手，两端 rubber-band（§9）——负值不再累积成死行程
-  immersive.progress.value = rubberbandClamp01(
-    immersive.progress.value + step / riseDistance()
-  );
+  immersive.progress.value = rubberbandClamp01(immersive.progress.value + step / riseDistance());
 }
 
 /** 松手：按动量投影决定提交方向，速度交接给弹簧（§5/§6/§7 打开与关闭镜像对称） */
@@ -1396,11 +1394,13 @@ const handleScrubPointerCancel = (e: PointerEvent) => {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(255, 200, 50, 0.35);
+  /* 主色加深：accent 色在 sRGB 上直接乘 0.55（暗化提饱和），不与背景混合——
+     底色暗场景下 mix 会吃掉对比，纯乘更稳 */
+  background: color-mix(in srgb, var(--accent-color, #ffc832) 100%, black 45%);
   border-radius: 3px;
 
   &.climax-active {
-    background: rgba(255, 200, 50, 0.7);
+    background: color-mix(in srgb, var(--accent-color, #ffc832) 100%, black 25%);
   }
 }
 

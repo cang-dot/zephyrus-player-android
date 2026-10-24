@@ -1035,9 +1035,7 @@
                     <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
                       <div class="min-w-0 pr-3">
                         <div class="text-sm text-white/80">
-                          {{
-                            tr('settings.lyricSettings.autoClimaxAnalysis', '自动高潮分析')
-                          }}
+                          {{ tr('settings.lyricSettings.autoClimaxAnalysis', '自动高潮分析') }}
                         </div>
                         <div class="text-xs text-white/40 mt-1">
                           {{
@@ -1052,7 +1050,9 @@
                         class="share-toggle-switch"
                         :class="{ on: lyricConfig.autoClimaxAnalysis !== false }"
                         @click="
-                          lyricConfig.autoClimaxAnalysis = !(lyricConfig.autoClimaxAnalysis !== false)
+                          lyricConfig.autoClimaxAnalysis = !(
+                            lyricConfig.autoClimaxAnalysis !== false
+                          )
                         "
                       >
                         <span class="share-toggle-knob"></span>
@@ -3605,7 +3605,8 @@ onUnmounted(() => {
   top: 50%;
   transform: translateY(-50%);
   height: 32px;
-  background: rgba(255, 200, 50, 0.35);
+  /* 高潮段主色加深（与播放页一致） */
+  background: color-mix(in srgb, var(--accent-color, #ffc832) 100%, black 45%);
   border-radius: 16px;
   display: flex;
   align-items: center;
@@ -3614,7 +3615,7 @@ onUnmounted(() => {
 }
 
 .climax-region-active {
-  background: rgba(255, 200, 50, 0.6);
+  background: color-mix(in srgb, var(--accent-color, #ffc832) 100%, black 25%);
 }
 
 .climax-handle {
@@ -3681,7 +3682,7 @@ onUnmounted(() => {
   top: 50%;
   transform: translateY(-50%);
   height: 32px;
-  background: rgba(255, 200, 50, 0.25);
+  background: color-mix(in srgb, var(--accent-color, #ffc832) 100%, black 60%);
   border-radius: 16px;
   pointer-events: none;
   z-index: 1;
