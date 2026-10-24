@@ -117,9 +117,6 @@ export default {
     stage: 'ステージ',
     starChart: '星図',
     frenzy: 'フレンジー',
-    eerie: '不気味',
-    neon: '雨上がり',
-    rain: '雨夜',
     smoke: '煙',
     error: 'エラー'
   },

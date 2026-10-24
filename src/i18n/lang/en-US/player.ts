@@ -116,9 +116,6 @@ export default {
     stage: 'Stage',
     starChart: 'Star Chart',
     frenzy: 'Frenzy',
-    eerie: 'Eerie',
-    neon: 'Aged',
-    rain: 'Rainy Night',
     smoke: 'Smoke',
     error: 'Error'
   },

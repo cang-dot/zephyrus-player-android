@@ -967,12 +967,6 @@ defineExpose({
   opacity: 0.9;
 }
 
-/* 诡谲样式预览：黑色背景 + 书法字 + 裂纹质感 */
-
-/* 陈旧样式预览：老旧墙面背景 + 泛黄褪色文字 */
-
-/* 雨夜样式预览：深色背景 + 雨滴效果 */
-
 .style-card-name {
   padding: 8px 10px;
   font-size: 12px;

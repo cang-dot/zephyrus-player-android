@@ -116,9 +116,6 @@ export default {
     stage: '스테이지',
     starChart: '별자리',
     frenzy: '프렌지',
-    eerie: '기이',
-    neon: '노후화',
-    rain: '비 오는 밤',
     smoke: '연무',
     error: '에러'
   },

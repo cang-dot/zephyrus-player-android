@@ -115,9 +115,6 @@ export default {
     stage: '舞臺',
     starChart: '星盤',
     frenzy: '狂熱',
-    eerie: '詭譎',
-    neon: '陳舊',
-    rain: '雨夜',
     smoke: '煙霧',
     error: '錯誤'
   },

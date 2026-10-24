@@ -234,17 +234,6 @@ export interface LyricConfig {
   frenzyUseCoverBackground: boolean; // 跟随封面背景（级联第二级）
   frenzyBackgroundCustomColor: string; // 背景自定义颜色
   frenzyShowBackgroundColor: boolean; // 自定义背景（总开关）
-  // 雨夜样式配置
-  rainLyricMode: 'split' | 'group';
-  rainShowCover: boolean;
-  rainBackgroundDarkness: number;
-  rainIntensity: number;
-  rainSpeed: number;
-  rainAudioReactive: boolean;
-  rainColor: string;
-  rainOpacity: number;
-  rainAngle: number;
-  rainLength: number;
   // 分享功能配置
   shareScreenshotQRCode: boolean; // 截图自动添加二维码（默认关闭）
   shareDefaultPosterLayout: 'torn-paper' | 'immersive'; // 默认海报布局
@@ -318,17 +307,6 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   frenzyUseCoverBackground: true,
   frenzyBackgroundCustomColor: '#ffffff',
   frenzyShowBackgroundColor: false,
-  // 雨夜样式默认值
-  rainLyricMode: 'split',
-  rainShowCover: true,
-  rainBackgroundDarkness: 70,
-  rainIntensity: 50,
-  rainSpeed: 1,
-  rainAudioReactive: true,
-  rainColor: '#ffffff',
-  rainOpacity: 0.6,
-  rainAngle: 15,
-  rainLength: 40,
   // 分享功能默认值
   shareScreenshotQRCode: false,
   shareDefaultPosterLayout: 'torn-paper',
