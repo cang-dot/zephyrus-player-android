@@ -8,27 +8,17 @@
       'nav-default': true,
       'player-transitioning': playerMorphing,
       'player-full': playerTransition.state.value === 'open',
-      'home-custom-bg': homeCustomBgActive,
-      'wide-viewport': isWide,
-      'wide-sidebar-pinned': isWide && sidebarPinned
+      'home-custom-bg': homeCustomBgActive
     }"
     :style="{
-      '--mobile-dock-content-inset': `${mobileDockContentInset}px`,
-      '--wide-sidebar-inset': wideSidebarInset
+      '--mobile-dock-content-inset': `${mobileDockContentInset}px`
     }"
   >
     <!-- 全局自定义背景墙纸（solid/cover/image）：一切页面内容之下，播放页被盖住 -->
     <div v-if="homeBgActive" class="global-home-bg" :style="homeBgStyle" aria-hidden="true"></div>
 
-    <!-- 宽屏悬浮岛式侧栏（顶栏+底栏合并；宽屏生效，窄屏不渲染） -->
-    <wide-sidebar v-if="isWide" />
-
-    <!-- 宽屏全屏播放器宿主：旧 dock（含 MobilePlayBar）宽屏不渲染，
-         播放器改挂布局层；无 morph 转场（直接挂载/卸载），关闭经播放器内关闭钮 -->
-    <music-full-wrapper v-if="isWide && playerSurfaceRendered" v-model="widePlayerSurfaceVisible" />
-
-    <!-- 浮动顶栏（窄屏所有页面统一显示；宽屏由侧栏承担，含二级页返回钮） -->
-    <mobile-header v-if="!isWide" />
+    <!-- 浮动顶栏（所有页面统一显示） -->
+    <mobile-header />
 
     <!-- 主内容区域（铺满全屏，顶栏透明叠加） -->
     <div
@@ -116,7 +106,6 @@
     </Transition>
 
     <div
-      v-if="!isWide"
       class="mobile-bottom-dock"
       :class="{
         visible:
@@ -253,20 +242,17 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import MobileSongActionSheet from '@/components/common/MobileSongActionSheet.vue';
-import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import { useDockMergeGesture } from '@/composables/useDockMergeGesture';
 import { useHomeBackground } from '@/composables/useHomeBackground';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
 import { usePlaylistOpenTransition } from '@/composables/usePlaylistOpenTransition';
-import { useWideSidebarState } from '@/composables/useWideSidebarState';
 import homeRouter from '@/router/home';
 import otherRouter from '@/router/other';
 import { installMobileBackBridge, registerMobileBackLayer } from '@/services/mobileBackStack';
 import { useMenuStore } from '@/store/modules/menu';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
-import { useWideViewport } from '@/utils/isWideViewport';
 import { shouldCommitMobilePageSwipe } from '@/utils/mobileGestureThresholds';
 import {
   MORPH_SCREEN_MARGIN,
@@ -275,7 +261,6 @@ import {
 } from '@/utils/mobileGestureThresholds';
 
 import MobileHeader from './components/MobileHeader.vue';
-import WideSidebar from './components/WideSidebar.vue';
 const MobilePlayBar = defineAsyncComponent(() => import('@/components/player/MobilePlayBar.vue'));
 const MobilePlayerBottomSurface = defineAsyncComponent(
   () => import('@/components/player/MobilePlayerBottomSurface.vue')
@@ -1489,38 +1474,15 @@ const isBottomMenuRoute = computed(() => {
 });
 const shouldShowBottomMenu = computed(
   () =>
-    !isWide.value && // 宽屏走悬浮岛侧栏，底栏不渲染
     isBottomMenuRoute.value &&
     !playerStore.musicFull &&
     // 播放列表打开时隐藏底栏：播放栏切回无底栏形态，自行形变为播放列表表面
     !playerStore.playListDrawerVisible
 );
 const mobileDockContentInset = computed(() => {
-  if (isWide.value) return 0; // 宽屏：底栏不渲染，底部避让归零（侧栏让位走 --wide-sidebar-inset）
   if (!shouldShowBottomMenu.value) return isPlay.value ? 78 : 16;
   if (!isPlay.value || miniPlayerIdleCollapsed.value) return 86;
   return 144;
-});
-
-// 宽屏侧栏让位宽度：内容区 padding-left（钉住/展开状态与 WideSidebar 共享同一 store）
-const { isWide } = useWideViewport();
-const { expanded: sidebarExpanded, pinned: sidebarPinned } = useWideSidebarState();
-
-// 宽屏播放器宿主可见性（与 MobilePlayBar 的 playerSurfaceRendered 同语义）：
-// musicFull 或转场未归位期间保持挂载
-const playerSurfaceRendered = computed(
-  () => playerStore.musicFull || playerTransition.state.value !== 'idle'
-);
-// 宽屏无 morph 转场：关闭即直接卸载（播放器内部 emit false → 这里落 store）
-const widePlayerSurfaceVisible = computed({
-  get: () => playerStore.musicFull,
-  set: (visible: boolean) => {
-    if (!visible) playerStore.setMusicFull(false);
-  }
-});
-const wideSidebarInset = computed(() => {
-  if (!isWide.value) return '0px';
-  return sidebarExpanded.value || sidebarPinned.value ? '240px' : '88px';
 });
 
 const isActive = (itemPath: string) => route.path === itemPath;
@@ -1776,24 +1738,6 @@ onBeforeUnmount(() => {
 
   /* 内容铺满全屏 — 顶栏透明叠加在上面 */
   padding-top: 0;
-}
-
-/* ==================== 宽屏悬浮岛侧栏让位（≥900px / landscape） ==================== */
-/* 让位必须加在滚动容器上：.tab-pager/.secondary-page-host 是 absolute inset:0，
-   padding 加在 .mobile-content 上会被其 absolute 子元素忽略 */
-.wide-viewport .tab-pager,
-.wide-viewport .secondary-page-host {
-  padding-left: var(--wide-sidebar-inset, 88px);
-  transition: padding-left 260ms cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-/* 限宽兜底：pager 页与二级页内容居中限宽，避免宽屏拉丝。
-   自带宽屏分栏的页面（如歌单详情）在页内以 data-wide-full 标记豁免 */
-.wide-viewport .pager-page > *:not([data-wide-full]),
-.wide-viewport .secondary-page-host > *:not([data-wide-full]) {
-  max-width: 720px;
-  margin-inline: auto;
-  width: 100%;
 }
 
 /* Tab pager：四页 absolute 并排，各自独立滚动，轨道平移决定可见性 */
