@@ -422,20 +422,32 @@ export async function fetchPlatformPlayUrlViaApi(
 ): Promise<string | null> {
   try {
     if (platform === 'qq') {
-      // qq-music-api 音质档位（Folia fallback 表）：flac→320→128 按偏好降档
+      // qq-music-api 音质档位（Folia fallback 表）：flac→320→128 按偏好降档。
+      // songmid 是路径参数（/getMusicPlay/:songmid），quality 走 query；
+      // 响应形态 data.playUrl[songmid].url（匿名=试听/受限，带会话=完整链接）
       const qualityChain: Record<typeof quality, string[]> = {
         standard: ['128'],
         high: ['320', '128'],
         lossless: ['flac', '320', '128']
       };
       for (const q of qualityChain[quality]) {
-        const response = await gatewayRequest.get('/platform/qq/api/getMusicPlay', {
-          params: { songMid: songId, q },
-          headers: cookie ? { 'X-Platform-Cookie': cookie } : undefined,
-          timeout: 20000
-        });
-        const url = response.data?.data?.url || response.data?.url;
-        if (response.data?.code === 200 && url && typeof url === 'string' && url.startsWith('http')) {
+        const response = await gatewayRequest.get(
+          `/platform/qq/api/getMusicPlay/${encodeURIComponent(songId)}`,
+          {
+            params: { q },
+            headers: cookie ? { 'X-Platform-Cookie': cookie } : undefined,
+            timeout: 20000
+          }
+        );
+        const playUrlMap =
+          response.data?.data?.playUrl ||
+          response.data?.data?.url ||
+          response.data?.url;
+        const url =
+          typeof playUrlMap === 'string'
+            ? playUrlMap
+            : playUrlMap?.[songId]?.url;
+        if (url && typeof url === 'string' && url.startsWith('http')) {
           return url;
         }
       }
