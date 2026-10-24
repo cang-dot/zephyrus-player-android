@@ -1237,6 +1237,8 @@ const handleScrubPointerCancel = (e: PointerEvent) => {
   font-size: 12px;
   opacity: 0.6;
   margin-top: 8px;
+  /* 时间文字不可交互：让进度条热区（伪元素向下扩 14px）穿透本行命中 */
+  pointer-events: none;
 }
 
 .total-time {
@@ -1291,6 +1293,17 @@ const handleScrubPointerCancel = (e: PointerEvent) => {
   transition:
     transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
     background-color 200ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* 命中区上下各扩 14px（视觉 6px 太窄常点不到）：伪元素不占布局，
+     getSeekTime 仍按条本体 rect 计算，拖拽指针捕获也绑在本体上——只扩命中不改几何 */
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -14px;
+    bottom: -14px;
+  }
 }
 
 .apple-style-progress.scrubbing {
