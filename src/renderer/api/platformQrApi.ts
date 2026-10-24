@@ -224,38 +224,32 @@ export async function probeQqLoginChannels(): Promise<QqLoginChannels | null> {
   }
 }
 
-/** 新链 QQ 扫码创建：login/qr/key（qqmusic 通用码）或 login/qr/create（qq/wechat 通道） */
+/** 新链 QQ 扫码创建：login/qr/key → login/qr/create（响应形态 data.unikey / data.qrimg） */
 async function createQqApiQr(provider: QqLoginProvider | 'qqmusic'): Promise<QrCreateResult> {
   try {
     const keyRes = await gatewayRequest.get('/platform/qq/api/login/qr/key', {
       timeout: 10000
     });
     const keyData = keyRes.data?.data;
-    if (keyRes.data?.code !== 200 || !keyData) {
+    // qq-music-api 的 key 字段是 unikey；channel 参数决定登录通道（默认 qqmusic 通用码）
+    const unikey = keyData?.unikey || keyData?.key;
+    if (keyRes.data?.code !== 200 || !unikey) {
       throw new Error(keyRes.data?.message || 'qq-music-api 二维码 key 获取失败');
     }
     const qrRes = await gatewayRequest.get('/platform/qq/api/login/qr/create', {
-      params: { key: keyData.key, qrimg: true },
-      timeout: 10000,
-      responseType: 'arraybuffer'
+      params: { key: unikey },
+      timeout: 10000
     });
-    let qrUrl = '';
-    const contentType = String(qrRes.headers?.['content-type'] || '');
-    if (contentType.includes('image/')) {
-      const base64 = btoa(
-        new Uint8Array(qrRes.data).reduce((s, b) => s + String.fromCharCode(b), '')
-      );
-      qrUrl = `data:${contentType.split(';')[0]};base64,${base64}`;
-    } else {
-      const json = typeof qrRes.data === 'string' ? JSON.parse(qrRes.data) : qrRes.data;
-      qrUrl = json?.data?.qrimg || json?.data?.url || '';
+    // 响应是 JSON：{code:200, data:{qrimg: dataURL}}（qrCreate.js 恒返回 base64 图）
+    const qrUrl = qrRes.data?.data?.qrimg || '';
+    if (!qrUrl) {
+      throw new Error(qrRes.data?.message || 'qq-music-api 二维码生成失败');
     }
-    if (!qrUrl) throw new Error('qq-music-api 二维码生成失败');
     return {
       platform: 'qq',
       provider: provider === 'qqmusic' ? 'qqmusic' : provider,
       qrUrl,
-      key: keyData.key,
+      key: unikey,
       expiredAt: Date.now() + 180000
     };
   } catch (error) {
@@ -263,7 +257,7 @@ async function createQqApiQr(provider: QqLoginProvider | 'qqmusic'): Promise<QrC
   }
 }
 
-/** 新链 QQ 轮询：803=确认（携带 sealed/stored 会话），800=过期，661/662 等待/已扫 */
+/** 新链 QQ 轮询：801=等待扫码 802=已扫待确认 803=确认成功（cookie 在 body 顶层）800=过期 */
 async function pollQqApiQr(
   key: string,
   provider: QqLoginProvider | 'qqmusic'
@@ -275,38 +269,39 @@ async function pollQqApiQr(
     });
     const json = response.data;
     const code = Number(json?.code);
-    const data = json?.data || {};
+    // qrService.js 语义：801/802/803/800；成功时 cookie 挂在 body 顶层（非 data 内）
+    const providerOut = provider === 'qqmusic' ? 'qqmusic' : provider;
     if (code === 803) {
       return {
         platform: 'qq',
-        provider: provider === 'qqmusic' ? 'qqmusic' : provider,
+        provider: providerOut,
         code: 'success',
         message: '登录成功',
-        // stored 模式下网关持有会话，客户端只拿 cookie 引用（与旧链 cookie 字段同位）
-        cookie: data.cookie || data.session || undefined,
-        userInfo: data.userInfo || undefined
+        // stored 模式下网关持有会话；qrCheck 成功时 body.cookie 为会话引用
+        cookie: json?.cookie || json?.data?.cookie || undefined,
+        userInfo: json?.data?.userInfo || undefined
       };
     }
     if (code === 800) {
       return {
         platform: 'qq',
-        provider: provider === 'qqmusic' ? 'qqmusic' : provider,
+        provider: providerOut,
         code: 'expired',
         message: '二维码已过期'
       };
     }
-    if (code === 662) {
+    if (code === 802) {
       return {
         platform: 'qq',
-        provider: provider === 'qqmusic' ? 'qqmusic' : provider,
+        provider: providerOut,
         code: 'scanned',
         message: '请在手机上确认'
       };
     }
-    if (code === 661 || code === 0) {
+    if (code === 801) {
       return {
         platform: 'qq',
-        provider: provider === 'qqmusic' ? 'qqmusic' : provider,
+        provider: providerOut,
         code: 'waiting',
         message: ''
       };
@@ -314,13 +309,13 @@ async function pollQqApiQr(
     // 结构化失败（20279 设备超限等）交给 classifyPlatformLoginFailure
     return {
       platform: 'qq',
-      provider: provider === 'qqmusic' ? 'qqmusic' : provider,
+      provider: providerOut,
       code: 'error',
       message: classifyPlatformLoginFailure({
-        upstreamCode: data.upstreamCode ?? code,
-        failureReason: data.failureReason,
-        failureHint: data.failureHint,
-        retryAfterMs: data.retryAfterMs,
+        upstreamCode: json?.data?.upstreamCode ?? code,
+        failureReason: json?.data?.failureReason,
+        failureHint: json?.data?.failureHint,
+        retryAfterMs: json?.data?.retryAfterMs,
         message: json?.message || json?.msg
       }).userMessage
     };
