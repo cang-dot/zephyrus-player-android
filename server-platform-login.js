@@ -2954,6 +2954,12 @@ router.get('/qr-display', (req, res) => {
   res.type('text/html').send(html);
 });
 
+// Folia 移植的新链路由同时挂进 router（服务器经 server.js 的
+// app.use('/platform', router) 消费本文件的 router 导出）与独立运行入口，
+// 两条部署形态路径一致：/platform/qq/api/*、/platform/kugou/api/*
+router.use('/qq/api', createQqApiRouter());
+router.use('/kugou/api', createKugouApiRouter());
+
 module.exports = router;
 
 function createPlatformGatewayApp() {
