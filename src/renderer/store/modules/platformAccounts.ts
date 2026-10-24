@@ -1,7 +1,12 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
+import {
+  refreshKugouApiSession,
+  refreshQqApiSession
+} from '@/api/platformQrApi';
 import { resolveReplacementAccount } from '@/utils/platformAccountSelection';
+import { shouldRefreshSession } from '@/utils/platformLoginDiagnostics';
 
 export const MUSIC_PLATFORMS = ['netease', 'qq', 'kugou', 'spotify', 'bilibili'] as const;
 const DEPRECATED_LOGIN_PLATFORMS = ['kuwo', 'migu'] as const;
@@ -339,6 +344,46 @@ export const usePlatformAccountsStore = defineStore(
     };
 
     migrateLegacyAccounts();
+
+    // ==================== 登录态续期（Folia 移植） ====================
+    // qq-music-api /login/refresh 语义：到期 <6h 网关才换新令牌；本端每小时问一次。
+    // 新链不可用（旧网关）时 refresh 接口静默失败，不影响旧链账号。
+    let sessionRefreshTimer: ReturnType<typeof setInterval> | null = null;
+    const lastRefreshAtByAccount = new Map<string, number>();
+
+    async function refreshActiveSessions(): Promise<void> {
+      const now = Date.now();
+      for (const account of accounts.value) {
+        if (account.platform !== 'qq' && account.platform !== 'kugou') continue;
+        if (!account.cookie) continue;
+        const last = lastRefreshAtByAccount.get(account.accountId) ?? null;
+        if (!shouldRefreshSession(last, now)) continue;
+        lastRefreshAtByAccount.set(account.accountId, now);
+        try {
+          const result =
+            account.platform === 'qq'
+              ? await refreshQqApiSession(account.cookie)
+              : await refreshKugouApiSession(account.cookie);
+          if (result.refreshed && result.cookie && result.cookie !== account.cookie) {
+            account.cookie = result.cookie;
+            account.updatedAt = Date.now();
+            // 双写 localStorage/主进程 cookie，与扫码登录成功路径一致
+            syncLegacyPlatformState(account);
+          }
+        } catch {
+          // 续期失败不打扰用户：令牌到期后由 401 兜底提示重新扫码
+        }
+      }
+    }
+
+    function startSessionRefreshLoop(): void {
+      if (sessionRefreshTimer !== null) return;
+      // 启动后先问一次，之后每小时一次
+      void refreshActiveSessions();
+      sessionRefreshTimer = setInterval(() => void refreshActiveSessions(), 60 * 60 * 1000);
+    }
+
+    if (typeof window !== 'undefined') startSessionRefreshLoop();
 
     return {
       accounts,

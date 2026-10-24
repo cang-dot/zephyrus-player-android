@@ -119,9 +119,60 @@ export const getSongUrl = async (
       }
     }
 
+    // ==================== 哔哩哔哩（音频方式）====================
+    // B 站没有音乐平台的曲库接口，直链需现场解析（含时效）。
+    // 桌面端由主进程直接请求；Web/Android 的播放地址已由 api 层换成网关中转地址。
+    if (songData.platform === 'bilibili' && songData.platformId) {
+      const { getBilibiliAudioUrl } = await import('@/api/bilibili');
+      const { url, expireAt } = await getBilibiliAudioUrl(songData);
+      if (!url) throw new Error('B 站音频解析失败');
+      // 记下时效，过期后由上层重新解析（队列里存的是 bvid，不是直链）
+      songData.expiredAt = expireAt;
+      if (requestId && !playbackRequestManager.isRequestValid(requestId)) {
+        throw new Error('Request cancelled');
+      }
+      return url;
+    }
+
     // ==================== 跨平台歌曲专用路径 ====================
-    // 跨平台歌曲（非网易云）直接通过 MusicParser 解析，跳过网易云 API
+    // 跨平台歌曲（非网易云）：先走网关新链（qq-music-api getMusicPlay /
+    // KuGouMusicApi song_url，带登录态、VIP 歌曲可达），失败回退 MusicParser
+    // （unblock 匿名链）。网易云本命源不经过这里。
     if (songData.platform && songData.platform !== 'netease' && songData.platformId) {
+      if (songData.platform === 'qq' || songData.platform === 'kugou') {
+        try {
+          const { fetchPlatformPlayUrlViaApi } = await import('@/api/platformQrApi');
+          const { usePlatformAccountsStore } = await import(
+            '@/store/modules/platformAccounts'
+          );
+          const accountStore = usePlatformAccountsStore();
+          const cookie = accountStore.accountsForPlatform(songData.platform)[0]?.cookie || '';
+          const quality = settingsStore.setData.musicQuality || 'higher';
+          const apiQuality =
+            quality === 'lossless' || quality === 'hires'
+              ? 'lossless'
+              : quality === 'higher' || quality === 'exhigh'
+                ? 'high'
+                : 'standard';
+          const url = await fetchPlatformPlayUrlViaApi(
+            songData.platform,
+            String(songData.platformId),
+            cookie,
+            apiQuality
+          );
+          if (url) {
+            if (requestId && !playbackRequestManager.isRequestValid(requestId)) {
+              throw new Error('Request cancelled');
+            }
+            if (isDownloaded) return url;
+            return await resolveCachedPlaybackUrl(url, songData);
+          }
+        } catch (error) {
+          if ((error as Error).message === 'Request cancelled') throw error;
+          console.warn('[getSongUrl] 新链解析失败，回退 MusicParser:', error);
+        }
+      }
+
       const res = await getParsingMusicUrl(numericId || 0, cloneDeep(songData));
 
       // 验证请求
@@ -347,6 +398,42 @@ async function loadKugouProviderLyric(song: SongResult): Promise<ILyric | null> 
   return lyric;
 }
 
+/** 手动匹配：用户显式选择的歌词，优先级高于任何自动匹配 */
+async function loadManualLyric(song: SongResult): Promise<ILyric | null> {
+  try {
+    const { manualLyricCacheKey } = await import('@/utils/subtitleParser');
+    const cached = await readProviderLyricCache(manualLyricCacheKey(song));
+    return cached && isUsableLyric(cached.lyric) ? cached.lyric : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 哔哩哔哩字幕 → 歌词（需要登录 B 站；未登录时接口返回空，静默降级） */
+async function loadBilibiliSubtitleLyric(song: SongResult): Promise<ILyric | null> {
+  if (song.platform !== 'bilibili' || !song.platformId) return null;
+  const bvid = String(song.platformId);
+  try {
+    const { getBilibiliSubtitleForSong } = await import('@/api/bilibili');
+    const { subtitleLinesToLyric, bilibiliSubtitleCacheKey } = await import('@/utils/subtitleParser');
+
+    const cacheKey = bilibiliSubtitleCacheKey(bvid);
+    const cached = await readProviderLyricCache(cacheKey);
+    if (cached?.fresh && isUsableLyric(cached.lyric)) return cached.lyric;
+
+    const payload = await getBilibiliSubtitleForSong(song);
+    if (!payload.lines.length) return cached?.lyric || null;
+
+    const lyric = subtitleLinesToLyric(payload.lines);
+    if (!isUsableLyric(lyric)) return cached?.lyric || null;
+    await writeProviderLyricCache(cacheKey, lyric);
+    return lyric;
+  } catch (error) {
+    console.warn('[bilibili] 字幕歌词获取失败:', error);
+    return null;
+  }
+}
+
 async function loadNeteaseProviderLyric(id: string | number): Promise<ILyric> {
   try {
     const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
@@ -537,6 +624,16 @@ export const loadBestLyric = async (song: SongResult): Promise<ILyric> => {
     return useLocalMusic().loadLocalLyrics(song);
   }
 
+  // 1) 手动匹配的歌词：用户显式选择，优先级最高
+  const manualLyric = await loadManualLyric(song);
+  if (isUsableLyric(manualLyric)) return manualLyric;
+
+  // 2) 哔哩哔哩：视频自带字幕（含 AI 字幕）优先于按标题匹配的第三方歌词
+  if (song.platform === 'bilibili') {
+    const subtitleLyric = await loadBilibiliSubtitleLyric(song);
+    if (isUsableLyric(subtitleLyric)) return subtitleLyric;
+  }
+
   let primary = emptyLyric();
   if (isCrossPlatformSong(song)) {
     primary = await loadCrossPlatformLyric(song);
@@ -620,10 +717,16 @@ export const useSongDetail = () => {
       playMusic.createdAt = Date.now();
       // 半小时后过期
       playMusic.expiredAt = playMusic.createdAt + 1800000;
+      // 哔哩哔哩封面：hdslb 图床拒绝带外域 Referer（403）且直连会污染画布，
+      // 取色改走网关中转（网关注入 Referer 并回 CORS 头）
+      const coverForExtraction =
+        playMusic.platform === 'bilibili' && playMusic.picUrl
+          ? (await import('@/api/bilibili')).toGatewayProxyUrl(playMusic.picUrl)
+          : getImgUrl(playMusic?.picUrl, '30y30');
       const { backgroundColor, primaryColor } =
         playMusic.backgroundColor && playMusic.primaryColor
           ? playMusic
-          : await getImageLinearBackground(getImgUrl(playMusic?.picUrl, '30y30'));
+          : await getImageLinearBackground(coverForExtraction);
 
       // 验证请求
       if (requestId && !playbackRequestManager.isRequestValid(requestId)) {

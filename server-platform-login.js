@@ -26,6 +26,10 @@ const {
   createListenTogetherRouter,
   createListenTogetherMcpRouter
 } = require('./server-listen-together');
+const { createBilibiliRouter } = require('./server-bilibili');
+// Folia 移植：qq-music-api（子进程+反代）/ KuGouMusicApi（进程内直调）
+const { createQqApiRouter } = require('./server-qq-api');
+const { createKugouApiRouter } = require('./server-kugou-api');
 
 const router = express.Router();
 
@@ -2961,6 +2965,13 @@ function createPlatformGatewayApp() {
   app.set('trust proxy', process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : 1);
   app.use('/platform', router);
   app.use('/platform/listen', createListenTogetherRouter());
+  // Folia 移植的新登录/解析链：QQ_SESSION_SECRET 未配置时 QQ 新链 501，
+  // 前端 channels 探测自动回退旧自建登录链（上面 router 里的旧路由全部保留）
+  app.use('/platform/qq/api', createQqApiRouter());
+  app.use('/platform/kugou/api', createKugouApiRouter());
+  // 哔哩哔哩：搜索 / 取流 / 字幕 / 短链解析，以及音视频流中转
+  // （浏览器无法自定义 Referer，B 站 CDN 会 403；桌面端由 Electron 直接注入请求头，不走这里）
+  app.use('/bilibili', createBilibiliRouter());
   // MCP endpoint is exposed twice: /platform/mcp works behind the existing
   // `VITE_MUSIC_GATEWAY` reverse-proxy prefix; /mcp works for direct access.
   app.use('/platform/mcp', createListenTogetherMcpRouter());

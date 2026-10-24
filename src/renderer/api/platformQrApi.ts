@@ -14,16 +14,23 @@ import axios, { type AxiosError } from 'axios';
 
 import type { SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
+import {
+  classifyPlatformLoginFailure,
+  parseQqChannels,
+  type QqLoginChannels
+} from '@/utils/platformLoginDiagnostics';
 import { normalizePlatformQrProvider, normalizePlatformQrStatus } from '@/utils/platformQr';
 
 // ==================== 类型定义 ====================
 
-export type LoginPlatform = 'qq' | 'kugou';
+export type LoginPlatform = 'qq' | 'kugou' | 'bilibili';
 export type QqLoginProvider = 'qq' | 'wechat';
+/** 新链三通道（qq-music-api channels），qqmusic=QQ 音乐 App 通用码（三 App 都能扫） */
+export type QqApiChannel = QqLoginProvider | 'qqmusic';
 
 export interface QrCreateResult {
   platform: LoginPlatform;
-  provider: QqLoginProvider | 'kugou';
+  provider: QqLoginProvider | 'qqmusic' | 'kugou' | 'bilibili';
   qrUrl: string;
   key: string;
   expiredAt: number;
@@ -32,7 +39,7 @@ export interface QrCreateResult {
 
 export interface QrPollResult {
   platform: LoginPlatform;
-  provider: QqLoginProvider | 'kugou';
+  provider: QqLoginProvider | 'qqmusic' | 'kugou' | 'bilibili';
   code: 'waiting' | 'scanned' | 'success' | 'expired' | 'error';
   message: string;
   cookie?: string;
@@ -102,12 +109,18 @@ async function createQrViaServer(
   provider: QqLoginProvider = 'qq'
 ): Promise<QrCreateResult> {
   try {
-    const response = await gatewayRequest.get(`/platform/${platform}/qr/create`, {
+    // 哔哩哔哩的路由挂在独立的 /bilibili 前缀下
+    const path =
+      platform === 'bilibili' ? '/bilibili/qr/create' : `/platform/${platform}/qr/create`;
+    const response = await gatewayRequest.get(path, {
       params: { provider: platform === 'qq' ? provider : undefined, noCache: Date.now() }
     });
     const json = response.data;
-    if (json.code !== 200 || !json.data) {
+    if (json.code !== 0 && json.code !== 200) {
       throw new Error(json.msg || `${platform} 二维码创建失败`);
+    }
+    if (!json.data) {
+      throw new Error(`${platform} 二维码创建失败`);
     }
     if (platform === 'qq' && provider === 'wechat' && json.data.provider !== 'wechat') {
       throw new Error('QQ 音乐登录网关版本过旧，未返回微信登录二维码');
@@ -115,9 +128,9 @@ async function createQrViaServer(
     return {
       platform,
       provider: normalizePlatformQrProvider(platform, json.data.provider, provider),
-      qrUrl: json.data.qrUrl,
-      key: json.data.key,
-      expiredAt: json.data.expiredAt
+      qrUrl: json.data.qrUrl || json.data.url,
+      key: json.data.qrcodeKey || json.data.key,
+      expiredAt: json.data.expiredAt || Date.now() + 180000
     };
   } catch (error) {
     throw gatewayError(error, `${platform} 二维码创建`);
@@ -134,19 +147,44 @@ async function pollQrViaServer(
   provider: QqLoginProvider = 'qq'
 ): Promise<QrPollResult> {
   try {
-    const response = await gatewayRequest.get(`/platform/${platform}/qr/poll`, {
-      params: { key, provider: platform === 'qq' ? provider : undefined, noCache: Date.now() }
+    const path =
+      platform === 'bilibili' ? '/bilibili/qr/poll' : `/platform/${platform}/qr/poll`;
+    const response = await gatewayRequest.get(path, {
+      params: {
+        key,
+        ...(platform === 'bilibili' ? { qrcodeKey: key } : {}),
+        provider: platform === 'qq' ? provider : undefined,
+        noCache: Date.now()
+      }
     });
     const json = response.data;
-    if (json.code !== 200 || !json.data) {
+    if (json.code !== 0 && json.code !== 200) {
       return {
         platform,
         provider: normalizePlatformQrProvider(platform, json.data?.provider, provider),
-        code: json.data?.status === 'expired' ? 'expired' : 'error',
-        message: json.data?.message || json.msg || '轮询状态失败'
+        code: 'error',
+        message: json.msg || '轮询状态失败'
       };
     }
     const data = json.data;
+    if (platform === 'bilibili') {
+      return {
+        platform,
+        provider: 'bilibili' as QqLoginProvider,
+        code: normalizePlatformQrStatus(data.status),
+        message: '',
+        cookie: data.cookie || undefined,
+        userInfo: data.userInfo || undefined
+      };
+    }
+    if (json.code !== 200 || !data) {
+      return {
+        platform,
+        provider: normalizePlatformQrProvider(platform, data?.provider, provider),
+        code: data?.status === 'expired' ? 'expired' : 'error',
+        message: data?.message || json.msg || '轮询状态失败'
+      };
+    }
     if (platform === 'qq' && provider === 'wechat' && data.provider !== 'wechat') {
       return {
         platform,
@@ -168,18 +206,310 @@ async function pollQrViaServer(
   }
 }
 
-// ==================== 统一入口 ====================
+// ==================== 新链（Folia 移植：qq-music-api / KuGouMusicApi） ====================
 
 /**
- * 创建平台扫码二维码
- * - Electron: 走 IPC
- * - 移动端: 走服务器中转
+ * 探测网关新链能力：GET /platform/qq/api/login/channels。
+ * 旧网关（404/HTML）或未配密钥（501）→ null，调用方回退旧自建登录链。
+ */
+export async function probeQqLoginChannels(): Promise<QqLoginChannels | null> {
+  try {
+    const response = await gatewayRequest.get('/platform/qq/api/login/channels', {
+      timeout: 8000,
+      params: { noCache: Date.now() }
+    });
+    return parseQqChannels(response.data);
+  } catch {
+    return null;
+  }
+}
+
+/** 新链 QQ 扫码创建：login/qr/key（qqmusic 通用码）或 login/qr/create（qq/wechat 通道） */
+async function createQqApiQr(provider: QqLoginProvider | 'qqmusic'): Promise<QrCreateResult> {
+  try {
+    const keyRes = await gatewayRequest.get('/platform/qq/api/login/qr/key', {
+      timeout: 10000
+    });
+    const keyData = keyRes.data?.data;
+    if (keyRes.data?.code !== 200 || !keyData) {
+      throw new Error(keyRes.data?.message || 'qq-music-api 二维码 key 获取失败');
+    }
+    const qrRes = await gatewayRequest.get('/platform/qq/api/login/qr/create', {
+      params: { key: keyData.key, qrimg: true },
+      timeout: 10000,
+      responseType: 'arraybuffer'
+    });
+    let qrUrl = '';
+    const contentType = String(qrRes.headers?.['content-type'] || '');
+    if (contentType.includes('image/')) {
+      const base64 = btoa(
+        new Uint8Array(qrRes.data).reduce((s, b) => s + String.fromCharCode(b), '')
+      );
+      qrUrl = `data:${contentType.split(';')[0]};base64,${base64}`;
+    } else {
+      const json = typeof qrRes.data === 'string' ? JSON.parse(qrRes.data) : qrRes.data;
+      qrUrl = json?.data?.qrimg || json?.data?.url || '';
+    }
+    if (!qrUrl) throw new Error('qq-music-api 二维码生成失败');
+    return {
+      platform: 'qq',
+      provider: provider === 'qqmusic' ? 'qqmusic' : provider,
+      qrUrl,
+      key: keyData.key,
+      expiredAt: Date.now() + 180000
+    };
+  } catch (error) {
+    throw gatewayError(error, 'QQ 新链二维码创建');
+  }
+}
+
+/** 新链 QQ 轮询：803=确认（携带 sealed/stored 会话），800=过期，661/662 等待/已扫 */
+async function pollQqApiQr(
+  key: string,
+  provider: QqLoginProvider | 'qqmusic'
+): Promise<QrPollResult> {
+  try {
+    const response = await gatewayRequest.get('/platform/qq/api/login/qr/check', {
+      params: { key, noCache: Date.now() },
+      timeout: 12000
+    });
+    const json = response.data;
+    const code = Number(json?.code);
+    const data = json?.data || {};
+    if (code === 803) {
+      return {
+        platform: 'qq',
+        provider: provider === 'qqmusic' ? 'qqmusic' : provider,
+        code: 'success',
+        message: '登录成功',
+        // stored 模式下网关持有会话，客户端只拿 cookie 引用（与旧链 cookie 字段同位）
+        cookie: data.cookie || data.session || undefined,
+        userInfo: data.userInfo || undefined
+      };
+    }
+    if (code === 800) {
+      return {
+        platform: 'qq',
+        provider: provider === 'qqmusic' ? 'qqmusic' : provider,
+        code: 'expired',
+        message: '二维码已过期'
+      };
+    }
+    if (code === 662) {
+      return {
+        platform: 'qq',
+        provider: provider === 'qqmusic' ? 'qqmusic' : provider,
+        code: 'scanned',
+        message: '请在手机上确认'
+      };
+    }
+    if (code === 661 || code === 0) {
+      return {
+        platform: 'qq',
+        provider: provider === 'qqmusic' ? 'qqmusic' : provider,
+        code: 'waiting',
+        message: ''
+      };
+    }
+    // 结构化失败（20279 设备超限等）交给 classifyPlatformLoginFailure
+    return {
+      platform: 'qq',
+      provider: provider === 'qqmusic' ? 'qqmusic' : provider,
+      code: 'error',
+      message: classifyPlatformLoginFailure({
+        upstreamCode: data.upstreamCode ?? code,
+        failureReason: data.failureReason,
+        failureHint: data.failureHint,
+        retryAfterMs: data.retryAfterMs,
+        message: json?.message || json?.msg
+      }).userMessage
+    };
+  } catch (error) {
+    throw gatewayError(error, 'QQ 新链登录轮询');
+  }
+}
+
+/** 新链酷狗扫码创建（KuGouMusicApi login/qr/key，返回内嵌二维码图） */
+async function createKugouApiQr(): Promise<QrCreateResult> {
+  try {
+    const response = await gatewayRequest.get('/platform/kugou/api/login/qr/key', {
+      timeout: 10000
+    });
+    const json = response.data;
+    if (json?.code !== 200 || !json?.data?.qrcode) {
+      throw new Error(json?.msg || '酷狗二维码创建失败');
+    }
+    return {
+      platform: 'kugou',
+      provider: 'kugou',
+      qrUrl: json.data.qrcode_img || '',
+      key: json.data.qrcode,
+      expiredAt: Date.now() + 300000
+    };
+  } catch (error) {
+    throw gatewayError(error, '酷狗二维码创建');
+  }
+}
+
+/** 新链酷狗轮询：qrcodeStatus 1/2/4/0 → waiting/scanned/success/expired */
+async function pollKugouApiQr(key: string): Promise<QrPollResult> {
+  try {
+    const response = await gatewayRequest.get('/platform/kugou/api/login/qr/check', {
+      params: { key, noCache: Date.now() },
+      timeout: 10000
+    });
+    const json = response.data;
+    if (json?.code !== 200 || !json?.data) {
+      throw new Error(json?.msg || '酷狗扫码状态查询失败');
+    }
+    return {
+      platform: 'kugou',
+      provider: 'kugou',
+      code: normalizePlatformQrStatus(json.data.status),
+      message: json.data.status === 'scanned' ? '请在手机上确认' : '',
+      cookie: json.data.cookie,
+      userInfo: json.data.userInfo
+    };
+  } catch (error) {
+    throw gatewayError(error, '酷狗扫码轮询');
+  }
+}
+
+/** QQ 登录态续期：POST /platform/qq/api/login/refresh（到期 <6h 时网关换新令牌） */
+export async function refreshQqApiSession(
+  cookie: string
+): Promise<{ refreshed: boolean; cookie?: string }> {
+  try {
+    const response = await gatewayRequest.post(
+      '/platform/qq/api/login/refresh',
+      {},
+      { headers: { 'X-Platform-Cookie': cookie }, timeout: 15000 }
+    );
+    const json = response.data;
+    if (json?.code !== 200) return { refreshed: false };
+    return { refreshed: true, cookie: json.data?.cookie || undefined };
+  } catch {
+    return { refreshed: false };
+  }
+}
+
+/** 酷狗登录态续期：GET /platform/kugou/api/login/token/refresh */
+export async function refreshKugouApiSession(
+  cookie: string
+): Promise<{ refreshed: boolean; cookie?: string }> {
+  try {
+    const response = await gatewayRequest.get('/platform/kugou/api/login/token/refresh', {
+      headers: { 'X-Platform-Cookie': cookie },
+      timeout: 15000
+    });
+    const json = response.data;
+    if (json?.code !== 200 || !json?.data?.cookie) return { refreshed: false };
+    return { refreshed: true, cookie: json.data.cookie };
+  } catch {
+    return { refreshed: false };
+  }
+}
+
+/**
+ * 新链歌曲播放 URL（qq → getMusicPlay 音质档位回退；kugou → song_url 带 hash）。
+ * 返回 null = 新链不可用/失败，调用方回退 unblock 解析链。
+ */
+export async function fetchPlatformPlayUrlViaApi(
+  platform: 'qq' | 'kugou',
+  songId: string,
+  cookie?: string,
+  quality: 'standard' | 'high' | 'lossless' = 'standard'
+): Promise<string | null> {
+  try {
+    if (platform === 'qq') {
+      // qq-music-api 音质档位（Folia fallback 表）：flac→320→128 按偏好降档
+      const qualityChain: Record<typeof quality, string[]> = {
+        standard: ['128'],
+        high: ['320', '128'],
+        lossless: ['flac', '320', '128']
+      };
+      for (const q of qualityChain[quality]) {
+        const response = await gatewayRequest.get('/platform/qq/api/getMusicPlay', {
+          params: { songMid: songId, q },
+          headers: cookie ? { 'X-Platform-Cookie': cookie } : undefined,
+          timeout: 20000
+        });
+        const url = response.data?.data?.url || response.data?.url;
+        if (response.data?.code === 200 && url && typeof url === 'string' && url.startsWith('http')) {
+          return url;
+        }
+      }
+      return null;
+    }
+    // 酷狗：song_url（hash 即 songId）
+    const response = await gatewayRequest.get('/platform/kugou/api/song/url', {
+      params: { hash: songId },
+      headers: cookie ? { 'X-Platform-Cookie': cookie } : undefined,
+      timeout: 20000
+    });
+    const url = response.data?.data?.url;
+    if (response.data?.code === 200 && url && typeof url === 'string' && url.startsWith('http')) {
+      return url;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ==================== 统一入口 ====================
+
+/** 新链可用性缓存：一次会话探测一次（qq channels / kugou key 探活） */
+let qqApiChannels: QqLoginChannels | null | undefined;
+let kugouApiAvailable: boolean | undefined;
+
+/** qq 新链能力（含三通道列表）；探测失败缓存 null 走旧链 */
+export async function getQqApiChannels(force = false): Promise<QqLoginChannels | null> {
+  if (qqApiChannels === undefined || force) {
+    qqApiChannels = await probeQqLoginChannels();
+  }
+  return qqApiChannels;
+}
+
+/** 酷狗新链可用性（网关未升级时 false 走旧链） */
+export async function isKugouApiAvailable(force = false): Promise<boolean> {
+  if (kugouApiAvailable === undefined || force) {
+    try {
+      const response = await gatewayRequest.get('/platform/kugou/api/login/qr/key', {
+        timeout: 8000
+      });
+      kugouApiAvailable = response.data?.code === 200;
+    } catch {
+      kugouApiAvailable = false;
+    }
+  }
+  return kugouApiAvailable;
+}
+
+/**
+ * 创建平台扫码二维码。
+ * 新链优先（qq-music-api / KuGouMusicApi，Folia 移植），探测失败回退旧链：
+ * - 旧链 Electron: 走 IPC；移动端: 走服务器中转
  */
 export async function createPlatformQr(
   platform: LoginPlatform,
   provider: QqLoginProvider = 'qq'
 ): Promise<QrCreateResult> {
-  // Electron 环境：走 IPC
+  if (platform === 'qq') {
+    const channels = await getQqApiChannels();
+    if (channels && channels.configured) {
+      // qqmusic 通用码在后端支持时优先（三 App 都能扫），否则按所选通道
+      const useChannel: QqApiChannel = channels.channels.includes('qqmusic')
+        ? 'qqmusic'
+        : provider;
+      return createQqApiQr(useChannel);
+    }
+  }
+  if (platform === 'kugou' && (await isKugouApiAvailable())) {
+    return createKugouApiQr();
+  }
+
+  // 旧链：Electron 环境：走 IPC
   if (provider !== 'wechat' && isElectron && (window as any).api?.platformQrCreate) {
     return (window as any).api.platformQrCreate(platform, provider);
   }
@@ -188,16 +518,25 @@ export async function createPlatformQr(
 }
 
 /**
- * 轮询平台扫码状态
- * - Electron: 走 IPC
- * - 移动端: 走服务器中转
+ * 轮询平台扫码状态。新链优先，失败回退旧链
+ * （provider 值 'qqmusic' 只会出现在新链 key 上——新链创建的 key 走新链轮询）。
  */
 export async function pollPlatformQr(
   platform: LoginPlatform,
   key: string,
   provider: QqLoginProvider = 'qq'
 ): Promise<QrPollResult> {
-  // Electron 环境：走 IPC
+  if (platform === 'qq') {
+    const channels = await getQqApiChannels();
+    if (channels && channels.configured) {
+      return pollQqApiQr(key, 'qqmusic' as QqApiChannel);
+    }
+  }
+  if (platform === 'kugou' && (await isKugouApiAvailable())) {
+    return pollKugouApiQr(key);
+  }
+
+  // 旧链：Electron 环境：走 IPC
   if (provider !== 'wechat' && isElectron && (window as any).api?.platformQrPoll) {
     return (window as any).api.platformQrPoll(platform, key, provider);
   }
