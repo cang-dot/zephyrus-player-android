@@ -31,6 +31,14 @@ export const useFavoriteStore = defineStore('favorite', () => {
       favoriteList.value.push(id);
       setLocalStorageItem('favoriteList', favoriteList.value);
 
+      // 哔哩哔哩条目：同步到 B 站收藏夹（需登录；尽力而为，不影响本地状态）
+      if (typeof id === 'string' && id.startsWith('bilibili:')) {
+        void import('@/api/bilibili')
+          .then((module) => module.syncBilibiliFavorite(id.slice('bilibili:'.length), true))
+          .catch((error) => console.warn('[bilibili] 收藏同步失败:', error));
+        return;
+      }
+
       // 只有在有真实登录权限时才调用API
       if (typeof id === 'number') {
         const { useUserStore } = await import('./user');
@@ -58,6 +66,13 @@ export const useFavoriteStore = defineStore('favorite', () => {
       );
     } else {
       favoriteList.value = favoriteList.value.filter((existingId) => existingId !== id);
+
+      // 哔哩哔哩条目：同步移出 B 站收藏夹（尽力而为）
+      if (typeof id === 'string' && id.startsWith('bilibili:')) {
+        void import('@/api/bilibili')
+          .then((module) => module.syncBilibiliFavorite(id.slice('bilibili:'.length), false))
+          .catch((error) => console.warn('[bilibili] 取消收藏同步失败:', error));
+      }
 
       // 只有在有真实登录权限时才调用API
       if (typeof id === 'number') {

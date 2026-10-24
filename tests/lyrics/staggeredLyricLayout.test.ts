@@ -68,15 +68,15 @@ describe('arrangeStaggeredWords', () => {
   });
 
   it('normalizes full-screen climax effects so staggered remains selectable', () => {
-    const eerie = resolvePlayerStyleConfig('eerie', {
+    const smoke = resolvePlayerStyleConfig('smoke', {
       mode: 'custom',
       effectKeyword: true,
       effectWordDrop: true,
       effectStaggered: true
     });
-    expect(eerie.effectKeyword).toBe(false);
-    expect(eerie.effectWordDrop).toBe(false);
-    expect(resolvePlayerStyleEffects('eerie', eerie).staggered).toBe(true);
+    expect(smoke.effectKeyword).toBe(false);
+    expect(smoke.effectWordDrop).toBe(false);
+    expect(resolvePlayerStyleEffects('smoke', smoke).staggered).toBe(true);
   });
 
   it('keeps the word-drop giant type weight independent and bounded', () => {

@@ -3,9 +3,6 @@ import './default';
 import './stage';
 import './starChart';
 import './frenzy';
-import './eerie';
-import './neon';
-import './rain';
 import './smoke';
 import './error';
 

@@ -105,6 +105,22 @@ class PreloadService {
   }
 
   private async _createSound(url: string): Promise<Howl> {
+    // Howler 会从 URL 后缀推断格式；网关中转地址（/xxx/stream?url=<编码>）没有可识别的
+    // 扩展名，Howler 判定「无编解码器支持」并直接抛错（任何请求都不发出）。
+    // 这里从被中转的真实地址里解出扩展名，作为 format 提示传给 Howler。
+    let formatHint: string[] | undefined;
+    try {
+      const parsed = new URL(url, window.location.origin);
+      if (/\/stream$/.test(parsed.pathname)) {
+        const target = parsed.searchParams.get('url') || '';
+        const ext = /\.([a-z0-9]{2,5})(?:\?|$)/i.exec(target)?.[1]?.toLowerCase();
+        // m4s（dash 分片）按 m4a 处理；其余（mp4/m4a/mp3/flac）原样
+        if (ext) formatHint = [ext === 'm4s' ? 'm4a' : ext];
+      }
+    } catch {
+      /* URL 解析失败则不提供提示 */
+    }
+
     // 网页端先探测再构造：预载实例会被 consume() 直接交给播放主链路，
     // 必须与 audioService 用同一武装网关，否则复用时无法安全建图
     let armed = false;
@@ -114,6 +130,7 @@ class PreloadService {
     return new Promise((resolve, reject) => {
       const sound = new Howl({
         src: [url],
+        ...(formatHint ? { format: formatHint } : {}),
         html5: true,
         preload: true,
         autoplay: false,

@@ -25,6 +25,7 @@ import ListSongItem from './songItemCom/ListSongItem.vue';
 import MiniSongItem from './songItemCom/MiniSongItem.vue';
 import PlainSongItem from './songItemCom/PlainSongItem.vue';
 import StandardSongItem from './songItemCom/StandardSongItem.vue';
+import VideoSongItem from './songItemCom/VideoSongItem.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -34,6 +35,8 @@ const props = withDefaults(
     compact?: boolean;
     home?: boolean;
     plain?: boolean;
+    /** 视频型条目（哔哩哔哩）：16:9 长矩形封面 */
+    video?: boolean;
     favorite?: boolean;
     selectable?: boolean;
     selected?: boolean;
@@ -47,6 +50,7 @@ const props = withDefaults(
     compact: false,
     home: false,
     plain: false,
+    video: false,
     favorite: true,
     selectable: false,
     selected: false,
@@ -64,6 +68,7 @@ const renderComponent = computed(() => {
   if (props.list) return ListSongItem;
   if (props.compact) return CompactSongItem;
   if (props.home) return HomeSongItem;
+  if (props.video) return VideoSongItem;
   if (props.plain) return PlainSongItem;
   return StandardSongItem;
 });

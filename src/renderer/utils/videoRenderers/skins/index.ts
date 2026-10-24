@@ -1,7 +1,7 @@
 /**
  * 视频皮肤注册表
  *
- * 9 种播放器样式全部登记在案，引擎按样式 key 取皮肤。
+ * 6 种播放器样式全部登记在案，引擎按样式 key 取皮肤。
  * 新增样式只需实现一份 VideoSkin 并登记到此。
  */
 
@@ -9,11 +9,8 @@ import type { MobilePlayerStyleKey } from '@/types/playerStyle';
 
 import type { VideoSkin } from '../types';
 import { defaultSkin } from './default';
-import { eerieSkin } from './eerie';
 import { errorSkin } from './error';
 import { frenzySkin } from './frenzy';
-import { neonSkin } from './neon';
-import { rainSkin } from './rain';
 import { smokeSkin } from './smoke';
 import { stageSkin } from './stage';
 import { starChartSkin } from './starChart';
@@ -23,9 +20,6 @@ const SKINS: Record<MobilePlayerStyleKey, VideoSkin> = {
   stage: stageSkin,
   starChart: starChartSkin,
   frenzy: frenzySkin,
-  eerie: eerieSkin,
-  neon: neonSkin,
-  rain: rainSkin,
   smoke: smokeSkin,
   error: errorSkin
 };

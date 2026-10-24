@@ -14,6 +14,7 @@
 import { computed } from 'vue';
 
 import allLogo from '@/assets/platforms/all.svg?url';
+import bilibiliLogo from '@/assets/platforms/bilibili.svg?url';
 import jooxLogo from '@/assets/platforms/joox.svg?url';
 import kugouLogo from '@/assets/platforms/kugou.svg?url';
 import localLogo from '@/assets/platforms/local.svg?url';
@@ -44,6 +45,7 @@ const assets: Record<string, string> = {
   qq: qqMusicLogo,
   kugou: kugouLogo,
   spotify: spotifyLogo,
+  bilibili: bilibiliLogo,
   server: zephyrusCloudLogo
 };
 const assetUrl = computed(() => assets[props.platform]);

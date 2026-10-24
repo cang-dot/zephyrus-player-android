@@ -23,12 +23,9 @@ import { useWindowSize } from '@vueuse/core';
 import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import DefaultMobilePlayerV2 from '@/components/lyric/DefaultMobilePlayerV2.vue';
-import EerieMobilePlayer from '@/components/lyric/EerieMobilePlayer.vue';
 import ErrorMobilePlayer from '@/components/lyric/ErrorMobilePlayer.vue';
 import FrenzyMobilePlayer from '@/components/lyric/FrenzyMobilePlayer.vue';
 import MusicFull from '@/components/lyric/MusicFull.vue';
-import NeonMobilePlayer from '@/components/lyric/NeonMobilePlayer.vue';
-import RainMobilePlayer from '@/components/lyric/RainMobilePlayer.vue';
 import SmokeMobilePlayer from '@/components/lyric/SmokeMobilePlayer.vue';
 import StageMobilePlayer from '@/components/lyric/StageMobilePlayer.vue';
 import StarChartPlayer from '@/components/lyric/StarChartPlayer.vue';
@@ -106,9 +103,6 @@ const mobileStyleComponents: Record<string, any> = {
   stage: markRaw(StageMobilePlayer),
   starChart: markRaw(StarChartPlayer),
   frenzy: markRaw(FrenzyMobilePlayer),
-  eerie: markRaw(EerieMobilePlayer),
-  neon: markRaw(NeonMobilePlayer),
-  rain: markRaw(RainMobilePlayer),
   smoke: markRaw(SmokeMobilePlayer),
   error: markRaw(ErrorMobilePlayer)
 };

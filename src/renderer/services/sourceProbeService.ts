@@ -35,6 +35,7 @@ export type SourceLabel =
   | 'cross-kuwo' // 跨平台：酷我音乐
   | 'cross-joox' // 跨平台：JOOX（QQ 音乐国际版）
   | 'cross-spotify' // 跨平台：Spotify
+  | 'cross-bilibili' // 跨平台：哔哩哔哩（视频型）
   | 'server' // Zephyrus 云端托管歌曲
   | 'local' // 本地音乐文件
   | 'none' // 无可用源
@@ -59,6 +60,7 @@ export const SOURCE_LABEL_CONFIG: Record<
   'cross-joox': { text: 'JOOX', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
   'cross-kuwo': { text: '酷我', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
   'cross-spotify': { text: 'Spotify', color: '#1db954', bg: 'rgba(29,185,84,0.12)' },
+  'cross-bilibili': { text: 'B站', color: '#fb7299', bg: 'rgba(251,114,153,0.12)' },
   server: { text: 'Zephyrus云端', color: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
   local: { text: '本地', color: '#14b8a6', bg: 'rgba(20,184,166,0.12)' },
   none: { text: '无可用源', color: '#9ca3af', bg: 'rgba(156,163,175,0.12)' },
@@ -106,6 +108,8 @@ export function quickClassify(song: any): SourceLabel {
         return 'cross-kuwo';
       case 'spotify':
         return 'cross-spotify';
+      case 'bilibili':
+        return 'cross-bilibili';
       default:
         return 'none';
     }

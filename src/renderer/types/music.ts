@@ -8,6 +8,7 @@ export type Platform =
   | 'joox'
   | 'gdmusic'
   | 'lxMusic'
+  | 'bilibili'
   | 'custom';
 
 // 默认平台列表
@@ -89,9 +90,10 @@ export interface SongResult {
    * - 'kugou'：酷狗音乐
    * - 'kuwo'：酷我音乐
    * - 'joox'：JOOX（QQ 音乐国际版）
+   * - 'bilibili'：哔哩哔哩（视频型条目，播放方式可选视频/音频）
    * 用于标识非网易云的跨平台搜索结果
    */
-  platform?: 'netease' | 'qq' | 'migu' | 'kugou' | 'kuwo' | 'joox' | 'spotify' | 'server' | string;
+  platform?: 'netease' | 'qq' | 'migu' | 'kugou' | 'kuwo' | 'joox' | 'spotify' | 'bilibili' | 'server' | string;
   /**
    * 跨平台歌曲在对应平台的原始 ID
    * 与 platform 配合使用，用于直接获取播放 URL
@@ -107,6 +109,12 @@ export interface SongResult {
   climaxSegments?: Array<{ start: number; end: number }>;
   isFirstPlay?: boolean;
   isPodcast?: boolean;
+  /** 视频型条目（哔哩哔哩）：列表里用长矩形视频封面样式渲染 */
+  isVideo?: boolean;
+  /** 哔哩哔哩：视频分P的 cid（播放/字幕需要） */
+  bilibiliCid?: number;
+  /** 哔哩哔哩：用户选择的播放方式 */
+  bilibiliPlayMode?: 'video' | 'audio';
 }
 
 export interface Song {

@@ -12,6 +12,8 @@ export interface MobileSongActionCallbacks {
   gotoArtist?: (id: number | string) => void;
   gotoAlbum?: (id: number | string) => void;
   matchNetease?: () => boolean | void | Promise<boolean | void>;
+  /** 打开「匹配歌词」面板 */
+  matchLyric?: () => void;
 }
 
 export interface MobileSongActionRequest {

@@ -16,6 +16,10 @@
 
 import type { Artist, SongResult } from '@/types/music';
 
+import {
+  searchBilibiliViaGateway,
+  toGatewayProxyUrl as proxyBilibiliResource
+} from './bilibili';
 import { type GDCrossPlatformSearchItem,searchFromGDMusic } from './gdmusic';
 import { searchSpotifyViaGateway } from './spotify';
 
@@ -40,7 +44,7 @@ const DEFAULT_CONFIG: Required<CrossPlatformSearchConfig> = {
   perSourceLimit: 20,
   enableKuwo: false, // kuwo URL 解析不稳定，默认关闭
   useNativeSearch: true,
-  nativePlatforms: ['qq', 'migu', 'kugou', 'kuwo', 'joox', 'spotify']
+  nativePlatforms: ['qq', 'migu', 'kugou', 'kuwo', 'joox', 'spotify', 'bilibili']
 };
 
 /**
@@ -206,7 +210,8 @@ function convertNativeItemToSongResult(item: NativePlatformSong): SongResult {
   return {
     id: crossId,
     name: item.name || '未知歌曲',
-    picUrl: item.picUrl || '',
+    // 哔哩哔哩封面走网关中转（hdslb 拒绝带外域 Referer，403）
+    picUrl: item.platform === 'bilibili' ? proxyBilibiliResource(item.picUrl || '') : item.picUrl || '',
     ar: artists,
     artists,
     al: album,
@@ -215,6 +220,8 @@ function convertNativeItemToSongResult(item: NativePlatformSong): SongResult {
     platform: item.platform,
     platformId: item.platformId,
     externalUrl: item.externalUrl,
+    // 哔哩哔哩返回的是视频，列表里用长矩形视频封面渲染
+    isVideo: item.platform === 'bilibili',
     source: 'netease' as any
   };
 }
@@ -345,7 +352,16 @@ export async function crossPlatformSearch(
     }
     rawSongs = await nativeMultiPlatformSearch(keyword, platforms, cfg.perSourceLimit);
   } else {
-    rawSongs = await searchSpotifyViaGateway(keyword, cfg.perSourceLimit);
+    // 非 Electron（Web / Android）：网关通道。Spotify 与哔哩哔哩都经网关，
+    // 其余平台由网关侧的 platform 路由覆盖或由 GD 音乐台兜底。
+    const gatewayTasks: Promise<SongResult[]>[] = [
+      searchSpotifyViaGateway(keyword, cfg.perSourceLimit)
+    ];
+    if (cfg.nativePlatforms.includes('bilibili')) {
+      gatewayTasks.push(searchBilibiliViaGateway(keyword, cfg.perSourceLimit));
+    }
+    const settled = await Promise.allSettled(gatewayTasks);
+    rawSongs = settled.flatMap((item) => (item.status === 'fulfilled' ? item.value : []));
   }
 
   // 如果原生搜索无结果，回退到 GD 音乐台
@@ -401,6 +417,8 @@ export function getCrossPlatformDisplayName(platform: string): string {
       return '酷狗';
     case 'spotify':
       return 'Spotify';
+    case 'bilibili':
+      return '哔哩哔哩';
     case 'netease':
       return '网易云';
     default:

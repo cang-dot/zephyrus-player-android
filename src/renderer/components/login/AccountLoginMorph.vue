@@ -112,8 +112,12 @@ const methodTabs = computed(() =>
   availableMethods.value.map((method) => ({ key: method, label: t(`login.title.${method}`) }))
 );
 
-const qrPlatform = computed<'qq' | 'kugou' | null>(() =>
-  activePlatform.value === 'qq' || activePlatform.value === 'kugou' ? activePlatform.value : null
+const qrPlatform = computed<'qq' | 'kugou' | 'bilibili' | null>(() =>
+  activePlatform.value === 'qq' ||
+  activePlatform.value === 'kugou' ||
+  activePlatform.value === 'bilibili'
+    ? activePlatform.value
+    : null
 );
 
 const switchPlatform = (platform: MusicPlatform) => {

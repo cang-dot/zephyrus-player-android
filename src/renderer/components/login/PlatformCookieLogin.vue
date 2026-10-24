@@ -141,6 +141,10 @@ const handleLogin = async () => {
       if (props.platform === 'kugou' && (!cookieEntries.userid || !cookieEntries.token)) {
         throw new Error('酷狗音乐 Cookie 缺少 userid 或 token');
       }
+      // 哔哩哔哩：字幕接口与高码率音频需要登录态，SESSDATA 是必需项
+      if (props.platform === 'bilibili' && !cookieEntries.SESSDATA) {
+        throw new Error('哔哩哔哩 Cookie 缺少 SESSDATA');
+      }
       if (window.api?.setPlatformCookie) {
         await window.api.setPlatformCookie(props.platform, cookie);
       }

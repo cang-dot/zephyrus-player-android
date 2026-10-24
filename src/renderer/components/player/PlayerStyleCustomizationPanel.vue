@@ -467,7 +467,7 @@
           <span>{{ tr('player.styleCustomization.lyricRecolor', '歌词变色') }}</span>
           <input v-model="local.effectLyricColor" type="checkbox" />
         </label>
-        <div v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)" class="setting-row">
+        <div v-if="['frenzy', 'stage', 'smoke'].includes(styleKey)" class="setting-row">
           <span>{{ tr('player.styleCustomization.effectMode', '歌词字效') }}</span>
           <div class="segmented-control three-options">
             <button
@@ -483,7 +483,7 @@
         </div>
       </template>
 
-      <label v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)" class="setting-row">
+      <label v-if="['frenzy', 'stage', 'smoke'].includes(styleKey)" class="setting-row">
         <span>{{
           tr('player.styleCustomization.auxiliaryCenterDisplay', '背景 / 对唱词中央巨字')
         }}</span>
@@ -499,10 +499,7 @@
         </button>
       </label>
 
-      <label
-        v-if="['frenzy', 'stage', 'smoke', 'eerie', 'neon', 'error'].includes(styleKey)"
-        class="setting-row"
-      >
+      <label v-if="['frenzy', 'stage', 'smoke', 'error'].includes(styleKey)" class="setting-row">
         <span>{{ tr('player.styleCustomization.forceNoWrap', '强制不换行') }}</span>
         <button
           type="button"
@@ -543,40 +540,6 @@
               max="1"
               step="0.05"
             />
-          </label>
-          <label v-if="styleKey === 'eerie'" class="range-row">
-            <span
-              >{{ tr('player.styleCustomization.newspaperFrequency', '报纸闪现频率') }}
-              {{ local.newspaperFreq }}ms</span
-            >
-            <input
-              v-model.number="local.newspaperFreq"
-              type="range"
-              min="200"
-              max="1000"
-              step="100"
-            />
-          </label>
-          <label v-if="styleKey === 'eerie'" class="range-row">
-            <span
-              >{{ tr('player.styleCustomization.keywordSize', '重点字字号') }}
-              {{ local.keywordSize }}</span
-            >
-            <input v-model.number="local.keywordSize" type="range" min="16" max="48" step="2" />
-          </label>
-          <label v-if="styleKey === 'neon'" class="range-row">
-            <span
-              >{{ tr('player.styleCustomization.glowRadius', '光晕半径') }}
-              {{ local.glowRadius }}</span
-            >
-            <input v-model.number="local.glowRadius" type="range" min="4" max="30" step="2" />
-          </label>
-          <label v-if="styleKey === 'neon'" class="range-row">
-            <span
-              >{{ tr('player.styleCustomization.pulseSpeed', '脉冲速度') }}
-              {{ local.pulseSpeed }}</span
-            >
-            <input v-model.number="local.pulseSpeed" type="range" min="0.5" max="3" step="0.1" />
           </label>
           <label v-if="styleKey === 'frenzy'" class="range-row">
             <span
@@ -625,7 +588,7 @@
               <input v-model="local.errorDecorMarks" type="checkbox" />
             </label>
           </template>
-          <label v-if="['frenzy', 'eerie', 'stage', 'smoke'].includes(styleKey)" class="range-row">
+          <label v-if="['frenzy', 'stage', 'smoke'].includes(styleKey)" class="range-row">
             <span
               >{{ tr('player.styleCustomization.wordDropFontWeight', '砸下巨字粗细') }}
               {{ local.wordDropFontWeight }}</span
@@ -638,7 +601,7 @@
               step="50"
             />
           </label>
-          <template v-if="['frenzy', 'eerie', 'stage'].includes(styleKey)">
+          <template v-if="['frenzy', 'stage'].includes(styleKey)">
             <label class="range-row">
               <span
                 >{{ tr('player.styleCustomization.staggeredSize', '错落字号') }}
@@ -892,10 +855,10 @@ const colorLayers = computed(() => [
   { key: 'translation' as const, label: tr('player.styleCustomization.translation', '翻译') }
 ]);
 const hasClimaxEffects = computed(() =>
-  ['stage', 'eerie', 'frenzy', 'smoke', 'error'].includes(props.styleKey)
+  ['stage', 'frenzy', 'smoke', 'error'].includes(props.styleKey)
 );
 const hasStyleSpecificSettings = computed(() =>
-  ['stage', 'eerie', 'neon', 'frenzy', 'smoke', 'error'].includes(props.styleKey)
+  ['stage', 'frenzy', 'smoke', 'error'].includes(props.styleKey)
 );
 const customFontSelected = computed(() =>
   Boolean(local.value.builtinFontId || local.value.customFontData)
@@ -927,11 +890,11 @@ const effectModeOptions = computed(() => {
   const options: Array<{ value: string; label: string }> = [
     { value: 'none', label: tr('player.styleCustomization.effectNone', '无') }
   ];
-  if (['frenzy', 'eerie', 'stage', 'smoke'].includes(props.styleKey)) {
+  if (['frenzy', 'stage', 'smoke'].includes(props.styleKey)) {
     options.push({ value: 'drop', label: tr('player.styleCustomization.wordDrop', '逐字砸下') });
     options.push({ value: 'staggered', label: tr('player.styleCustomization.staggered', '错落') });
   }
-  if (['eerie', 'smoke'].includes(props.styleKey)) {
+  if (props.styleKey === 'smoke') {
     options.push({ value: 'keyword', label: tr('player.styleCustomization.keyword', '重点字') });
   }
   return options;

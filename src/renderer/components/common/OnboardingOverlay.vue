@@ -510,11 +510,8 @@ import { getSearch } from '@/api/search';
 import SongItem from '@/components/common/SongItem.vue';
 import AccountLoginMorph from '@/components/login/AccountLoginMorph.vue';
 import DefaultMobilePlayerV2 from '@/components/lyric/DefaultMobilePlayerV2.vue';
-import EerieMobilePlayer from '@/components/lyric/EerieMobilePlayer.vue';
 import ErrorMobilePlayer from '@/components/lyric/ErrorMobilePlayer.vue';
 import FrenzyMobilePlayer from '@/components/lyric/FrenzyMobilePlayer.vue';
-import NeonMobilePlayer from '@/components/lyric/NeonMobilePlayer.vue';
-import RainMobilePlayer from '@/components/lyric/RainMobilePlayer.vue';
 import SmokeMobilePlayer from '@/components/lyric/SmokeMobilePlayer.vue';
 import StageMobilePlayer from '@/components/lyric/StageMobilePlayer.vue';
 import StarChartPlayer from '@/components/lyric/StarChartPlayer.vue';
@@ -950,9 +947,6 @@ const mobileStyleComponents: Record<MobilePlayerStyleKey, any> = {
   stage: markRaw(StageMobilePlayer),
   starChart: markRaw(StarChartPlayer),
   frenzy: markRaw(FrenzyMobilePlayer),
-  eerie: markRaw(EerieMobilePlayer),
-  neon: markRaw(NeonMobilePlayer),
-  rain: markRaw(RainMobilePlayer),
   smoke: markRaw(SmokeMobilePlayer),
   error: markRaw(ErrorMobilePlayer)
 };
@@ -1007,19 +1001,6 @@ const playerStyleOptions = computed<
     icon: 'ri-fire-line',
     color: '#ef4444'
   },
-  {
-    key: 'eerie',
-    label: tr('player.styles.eerie', '诡谲'),
-    icon: 'ri-ghost-line',
-    color: '#8b5cf6'
-  },
-  {
-    key: 'neon',
-    label: tr('player.styles.neon', '陈旧'),
-    icon: 'ri-lightbulb-flash-line',
-    color: '#c9a96e'
-  },
-  { key: 'rain', label: tr('player.styles.rain', '雨夜'), icon: 'ri-rainy-line', color: '#3b82f6' },
   {
     key: 'smoke',
     label: tr('player.styles.smoke', '烟雾'),

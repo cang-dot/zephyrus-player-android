@@ -20,9 +20,6 @@ const STYLE_LYRIC_COLORS: Record<MobilePlayerStyleKey, string> = {
   stage: '#f0ece4',
   starChart: '#ffffff',
   frenzy: '#171717',
-  eerie: '#f3eee4',
-  neon: '#f2dfb0',
-  rain: '#ffffff',
   smoke: '#e9f7f2',
   error: '#ffffff'
 };
@@ -71,15 +68,6 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     effectWordDrop: false,
     effectStaggered: false
   },
-  eerie: {
-    newspaperFreq: 500,
-    keywordSize: 32,
-    effectKeyword: true,
-    effectWordDrop: false,
-    effectStaggered: false
-  },
-  neon: { glowRadius: 12, pulseSpeed: 1.5 },
-  rain: {},
   smoke: {
     effectKeyword: true,
     effectWordDrop: false,
@@ -378,12 +366,8 @@ export function resolvePlayerStyleConfig(
   }
   if (config.effectStaggered) {
     config.effectWordDrop = false;
-    if (styleKey === 'eerie' || styleKey === 'smoke') config.effectKeyword = false;
-  } else if (
-    (styleKey === 'eerie' || styleKey === 'smoke') &&
-    config.effectKeyword &&
-    config.effectWordDrop
-  ) {
+    if (styleKey === 'smoke') config.effectKeyword = false;
+  } else if (styleKey === 'smoke' && config.effectKeyword && config.effectWordDrop) {
     config.effectWordDrop = false;
   }
   return config;
@@ -404,17 +388,11 @@ export function resolvePlayerStyleEffects(
       (styleKey === 'frenzy' || styleKey === 'stage' || styleKey === 'error') &&
       source.effectLyricColor === true,
     wordDrop:
-      (styleKey === 'frenzy' ||
-        styleKey === 'eerie' ||
-        styleKey === 'stage' ||
-        styleKey === 'smoke') &&
+      (styleKey === 'frenzy' || styleKey === 'stage' || styleKey === 'smoke') &&
       source.effectWordDrop === true,
-    keyword: (styleKey === 'eerie' || styleKey === 'smoke') && source.effectKeyword === true,
+    keyword: styleKey === 'smoke' && source.effectKeyword === true,
     staggered:
-      (styleKey === 'frenzy' ||
-        styleKey === 'eerie' ||
-        styleKey === 'stage' ||
-        styleKey === 'smoke') &&
+      (styleKey === 'frenzy' || styleKey === 'stage' || styleKey === 'smoke') &&
       source.effectStaggered === true
   };
 }

@@ -45,6 +45,7 @@
 <script lang="ts" setup>
 import { inject, ref } from 'vue';
 
+import { openLyricMatch } from '@/composables/useLyricMatch';
 import {
   type MobileSongActionOrigin,
   useMobileSongActionSurface
@@ -168,7 +169,8 @@ const openMobileActionSheet = () => {
       remove: () => emits('remove-song', props.item.id),
       gotoArtist: handleArtistClick,
       gotoAlbum: handleAlbumClick,
-      matchNetease: () => playAsNetease(props.item)
+      matchNetease: () => playAsNetease(props.item),
+      matchLyric: () => openLyricMatch(props.item)
     }
   });
 };

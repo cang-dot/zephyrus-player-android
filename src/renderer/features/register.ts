@@ -43,30 +43,6 @@ export function registerBuiltinFeatures() {
   });
 
   registerFeature({
-    id: 'eerie-style',
-    name: '诡谲样式',
-    description: '书法字体+裂纹噪点背景+报纸滤镜的艺术风格歌词展示',
-    icon: 'ri-ghost-line',
-    type: 'playerStyle'
-  });
-
-  registerFeature({
-    id: 'neon-style',
-    name: '陈旧样式',
-    description: '歌词拆笔画陈旧褪色效果+老旧墙面背景',
-    icon: 'ri-time-line',
-    type: 'playerStyle'
-  });
-
-  registerFeature({
-    id: 'rain-style',
-    name: '雨夜样式',
-    description: '雨夜氛围的歌词展示，带有雨水效果和左右分词歌词',
-    icon: 'ri-rainy-line',
-    type: 'playerStyle'
-  });
-
-  registerFeature({
     id: 'error-style',
     name: '错误样式',
     description: '黑底高速流体+CRT扫描线+噪点闪烁的故障风格播放器，含高频闪光效果',

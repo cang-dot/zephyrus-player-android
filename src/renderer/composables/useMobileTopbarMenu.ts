@@ -26,6 +26,10 @@ export interface MobileTopbarAction {
   value?: string | number;
   select?: (value: string | number) => void;
   keepOpen?: boolean;
+  /** capsule = 直接画进顶栏胶囊按钮位；menu（默认）= 进胶囊变形后的菜单列表 */
+  kind?: 'capsule' | 'menu';
+  /** 点击时不执行 run，而是把胶囊容器变形为菜单（「更多」触发钮） */
+  opensMenu?: boolean;
 }
 
 export interface MobileTopbarPresentation {

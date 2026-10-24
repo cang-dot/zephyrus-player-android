@@ -18,6 +18,7 @@ export const useSearchStore = defineStore('search', () => {
     { key: 'cross-kugou', label: '酷狗' },
     { key: 'cross-joox', label: 'JOOX' },
     { key: 'cross-spotify', label: 'Spotify' },
+    { key: 'cross-bilibili', label: 'B站' },
     { key: 'netease', label: '网易云' },
     { key: 'server', label: 'Zephyrus云端' },
     { key: 'local', label: '本地' }

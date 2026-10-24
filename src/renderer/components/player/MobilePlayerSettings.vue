@@ -2353,24 +2353,6 @@ const playerStyles = computed<
     color: '#ef4444'
   },
   {
-    key: 'eerie' as const,
-    label: tr('player.styles.eerie', '诡谲'),
-    icon: 'ri-ghost-line',
-    color: '#8b5cf6'
-  },
-  {
-    key: 'neon' as const,
-    label: tr('player.styles.neon', '陈旧'),
-    icon: 'ri-lightbulb-flash-line',
-    color: '#c9a96e'
-  },
-  {
-    key: 'rain' as const,
-    label: tr('player.styles.rain', '雨夜'),
-    icon: 'ri-rainy-line',
-    color: '#3b82f6'
-  },
-  {
     key: 'smoke' as const,
     label: tr('player.styles.smoke', '烟雾'),
     icon: 'ri-cloudy-line',

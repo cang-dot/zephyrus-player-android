@@ -136,6 +136,8 @@ const activeMethod = ref<LoginMethod>('qr');
 const availableMethods = computed<LoginMethod[]>(() => {
   if (activePlatform.value === 'netease') return ['qr', 'cookie', 'uid'];
   if (activePlatform.value === 'spotify') return ['oauth'];
+  // 哔哩哔哩：支持扫码 + Cookie（扫码走主进程/网关）
+  if (activePlatform.value === 'bilibili') return ['qr', 'cookie'];
   return ['qr', 'cookie'];
 });
 
@@ -146,8 +148,12 @@ const methodTabs = computed(() =>
   }))
 );
 
-const qrPlatform = computed<'qq' | 'kugou' | null>(() =>
-  activePlatform.value === 'qq' || activePlatform.value === 'kugou' ? activePlatform.value : null
+const qrPlatform = computed<'qq' | 'kugou' | 'bilibili' | null>(() =>
+  activePlatform.value === 'qq' ||
+  activePlatform.value === 'kugou' ||
+  activePlatform.value === 'bilibili'
+    ? activePlatform.value
+    : null
 );
 
 const switchPlatform = (platform: Platform) => {

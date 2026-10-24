@@ -3,9 +3,6 @@ export const MOBILE_PLAYER_STYLE_KEYS = [
   'stage',
   'starChart',
   'frenzy',
-  'eerie',
-  'neon',
-  'rain',
   'smoke',
   'error'
 ] as const;
