@@ -563,6 +563,12 @@ export async function fetchPlatformAccountData(
     throw new Error(`${platform} 登录凭据为空`);
   }
 
+  // QQ 新链会话（qqmusic_session token，网关托管）走 qq-music-api 接口族：
+  // 旧链 account/data 读的是明文 qm_keyst/uin Cookie，对新链 token 恒 401
+  if (platform === 'qq' && cookie.includes('qqmusic_session=')) {
+    return fetchQqApiAccountData(cookie);
+  }
+
   try {
     const response = await gatewayRequest.get(`/platform/${platform}/account/data`, {
       headers: {
@@ -588,6 +594,55 @@ export async function fetchPlatformAccountData(
   }
 }
 
+/**
+ * QQ 新链账号数据：qq-music-api 的 /user/detail + /user/playlist
+ * （token 经 X-Platform-Cookie 头透传，网关反代原样带到子进程——
+ * 子进程从 cookie 串里认 qqmusic_session，sessionToken.js 语义）。
+ */
+async function fetchQqApiAccountData(cookie: string): Promise<PlatformAccountData> {
+  const headers = { 'X-Platform-Cookie': cookie };
+  try {
+    const [detailRes, playlistRes] = await Promise.all([
+      gatewayRequest.get('/platform/qq/api/user/detail', { headers, timeout: 15000 }),
+      gatewayRequest.get('/platform/qq/api/user/playlist', { headers, timeout: 20000 })
+    ]);
+    const detail = detailRes.data?.data || detailRes.data || {};
+    const creator = detail.creator || detail.profile || detail;
+    const userInfo = {
+      userId: String(creator.uin ?? creator.creator_uin ?? detail.uin ?? ''),
+      nickname: creator.nick || creator.nickname || detail.nick || '',
+      avatarUrl: creator.headpic || creator.avatarUrl || '',
+      vip: Boolean(creator.is_vip ?? detail.is_vip)
+    };
+    const playlistsRaw =
+      playlistRes.data?.data?.list ||
+      playlistRes.data?.data?.playlists ||
+      playlistRes.data?.list ||
+      [];
+    const playlists = (Array.isArray(playlistsRaw) ? playlistsRaw : []).map(
+      (item: Record<string, any>, index: number) => ({
+        id: String(item.dissid ?? item.tid ?? item.id ?? index),
+        name: String(item.dissname ?? item.diss_name ?? item.title ?? item.name ?? ''),
+        coverImgUrl: item.logo ?? item.imgurl ?? item.picUrl ?? '',
+        trackCount: Number(item.song_cnt ?? item.songnum ?? item.total_song_num ?? 0),
+        playCount: Number(item.listennum ?? item.accessnum ?? 0),
+        dirShow: Number(item.dirShow ?? 1)
+      })
+    );
+    return {
+      userInfo,
+      playlists,
+      favorites: playlists.filter(
+        (p: { dirShow: number }) => p.dirShow === 2 || p.dirShow === 3
+      ),
+      albums: [],
+      history: []
+    };
+  } catch (error) {
+    throw gatewayError(error, 'QQ 账号数据加载');
+  }
+}
+
 export async function fetchPlatformPlaylistTracks(
   platform: LoginPlatform,
   cookie: string,
@@ -598,6 +653,12 @@ export async function fetchPlatformPlaylistTracks(
   }
   if (!id.trim()) {
     throw new Error(`${platform} 歌单 ID 为空`);
+  }
+
+  // QQ 新链会话走 /user/playlist-detail（带凭据可读自建不公开歌单，
+  // Folia 文档语义；旧链匿名 song_list_detail 读不了）
+  if (platform === 'qq' && cookie.includes('qqmusic_session=')) {
+    return fetchQqApiPlaylistTracks(cookie, id);
   }
 
   try {
@@ -621,6 +682,44 @@ export async function fetchPlatformPlaylistTracks(
     };
   } catch (error) {
     throw gatewayError(error, `${platform} 歌单加载`);
+  }
+}
+
+/** QQ 新链歌单曲目：/user/playlist-detail（qq-music-api，响应 songs[] 与旧链字段近似） */
+async function fetchQqApiPlaylistTracks(
+  cookie: string,
+  id: string
+): Promise<PlatformPlaylistTracks> {
+  try {
+    const response = await gatewayRequest.get('/platform/qq/api/user/playlist-detail', {
+      headers: { 'X-Platform-Cookie': cookie },
+      params: { disstid: id },
+      timeout: 20000
+    });
+    const json = response.data;
+    const cdlist = json?.response?.cdlist || json?.data?.cdlist || [];
+    const detail = Array.isArray(cdlist) ? cdlist[0] : undefined;
+    if (!detail || !detail.dissname) {
+      throw new Error(json?.message || 'QQ 歌单加载失败');
+    }
+    const songs = (Array.isArray(detail.songlist) ? detail.songlist : []).map(
+      (item: Record<string, any>, index: number) => ({
+        id: String(item.songmid ?? item.mid ?? item.id ?? index),
+        name: String(item.songname ?? item.name ?? ''),
+        singer: Array.isArray(item.singer)
+          ? item.singer.map((s: Record<string, any>) => s.name).join('/')
+          : '',
+        albumName: String(item.albumname ?? ''),
+        albumMid: String(item.albummid ?? ''),
+        duration: Number((item.interval ?? 0) * 1000),
+        picUrl: item.albummid
+          ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albummid}.jpg`
+          : ''
+      })
+    );
+    return { playlist: { id, name: detail.dissname }, songs, page: 1, pageSize: songs.length };
+  } catch (error) {
+    throw gatewayError(error, 'QQ 歌单加载');
   }
 }
 
