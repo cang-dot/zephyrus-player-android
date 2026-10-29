@@ -9,6 +9,11 @@
  * 渲染器：@applemusic-like-lyrics/core 的 BackgroundRender + MeshGradientRenderer
  * （amll-dev/applemusic-like-lyrics, AGPL-3.0-only，与本项目协议一致）
  *
+ * ⚠ 渲染器经 npm 别名 amll-mesh-core 锁定在 core@0.5.2：本组件的音频驱动
+ * 量纲（setLowFreqVolume 的 ÷10 换算）按该版本标定，且「网格」背景属
+ * amll-player 分支音频响应版，不随 @applemusic-like-lyrics/core 升级。
+ * 升级 AMLL 歌词组件时勿改动这里的导入源。
+ *
  * 驱动的骨架（冲击/稳态双分支 + 包络缓动）移植自 amll-player
  * （github.com/JoyElliot/amll-player, AGPL-3.0，作者 JoyElliot 授权使用第一方代码），
  * 但输入与量纲已重做：上游曲线的 0.35 绝对阈值按字节频谱标定，在其浮点 FFT
@@ -20,7 +25,7 @@
  * 输出量纲对齐 core 的 ÷10 换算（setLowFreqVolume(1) ≈ 20% 缩放），
  * 不再是上游那条恒输出 ≈0.001、视觉上等于零的曲线。
  */
-import { BackgroundRender, MeshGradientRenderer } from '@applemusic-like-lyrics/core';
+import { BackgroundRender, MeshGradientRenderer } from 'amll-mesh-core';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { MESH_DEFAULT_MAX_FPS, MESH_DEFAULT_RENDER_SCALE } from '@/config/playerStyleConfig';

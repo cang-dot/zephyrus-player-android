@@ -21,6 +21,7 @@
     "dev:gateway": "node server-platform-login.js",
     "test:gateway": "node scripts/test-platform-gateway.mjs",
     "test:lyrics": "vitest run --config vitest.config.ts tests/lyrics",
+    "fetch:song": "node scripts/fetch-song.mjs",
     "build:plugins": "node scripts/build-plugins.mjs --in-place",
     "build": "electron-vite build",
     "postinstall": "electron-builder install-app-deps",
@@ -40,7 +41,9 @@
     ]
   },
   "dependencies": {
-    "@applemusic-like-lyrics/vue": "^0.5.2",
+    "@applemusic-like-lyrics/core": "^0.6.0",
+    "@applemusic-like-lyrics/vue": "^0.6.0",
+    "amll-mesh-core": "npm:@applemusic-like-lyrics/core@0.5.2",
     "@capacitor/android": "^8.4.2",
     "@capacitor/core": "^8.4.2",
     "@capacitor/filesystem": "^8.1.2",
