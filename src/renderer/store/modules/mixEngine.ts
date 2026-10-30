@@ -85,6 +85,12 @@ export const useMixEngineStore = defineStore('mixEngine', () => {
   const bpmPreAnalysis = ref<boolean>(
     localStorage.getItem('mixBpmPreAnalysis') === 'true'
   );
+  /** 智能接法（folia automix 移植）：按歌曲首尾特征选接法，关闭则走原三级策略 */
+  const adaptiveTransitions = ref<boolean>(
+    localStorage.getItem('adaptiveTransitions') !== 'false'
+  );
+  /** 最近一次过渡的接法判定依据（设置页展示） */
+  const lastTransitionReason = ref<string>('');
   const isTransitioning = ref(false);
   const bpmCache = ref<Map<string, BpmCacheEntry>>(new Map());
   const hardwareScore = ref<HardwareScore | null>(null);
@@ -130,6 +136,15 @@ export const useMixEngineStore = defineStore('mixEngine', () => {
     localStorage.setItem('mixCrossfadeDuration', String(crossfadeDuration.value));
   };
 
+  const setAdaptiveTransitions = (enabled: boolean) => {
+    adaptiveTransitions.value = enabled;
+    localStorage.setItem('adaptiveTransitions', String(enabled));
+  };
+
+  const setLastTransitionReason = (reason: string) => {
+    lastTransitionReason.value = reason;
+  };
+
   const setBpmPreAnalysis = (enabled: boolean) => {
     bpmPreAnalysis.value = enabled;
     localStorage.setItem('mixBpmPreAnalysis', String(enabled));
@@ -149,6 +164,19 @@ export const useMixEngineStore = defineStore('mixEngine', () => {
     return bpmCache.value.get(trackId) ?? null;
   };
 
+  // ==================== 首部静音缓存 ====================
+  // BPM 预分析解码 PCM 时顺手量出「第一个非零样本」的位置，切歌时
+  // 让下一首从这里起播，避免淡入淡出淡的全是前导静音。不持久化。
+  const introSilenceCache = ref<Map<string, number>>(new Map());
+
+  const setIntroSilence = (trackId: string, seconds: number) => {
+    introSilenceCache.value.set(trackId, seconds);
+  };
+
+  const getIntroSilence = (trackId: string): number => {
+    return introSilenceCache.value.get(trackId) ?? 0;
+  };
+
   /** 评估硬件并设置推荐等级（首次进入时自动选择推荐等级） */
   const evaluateAndRecommend = () => {
     hardwareScore.value = evaluateHardware();
@@ -166,6 +194,8 @@ export const useMixEngineStore = defineStore('mixEngine', () => {
     transitionLevel,
     crossfadeDuration,
     bpmPreAnalysis,
+    adaptiveTransitions,
+    lastTransitionReason,
     isTransitioning,
     bpmCache,
     hardwareScore,
@@ -178,9 +208,13 @@ export const useMixEngineStore = defineStore('mixEngine', () => {
     setTransitionLevel,
     setCrossfadeDuration,
     setBpmPreAnalysis,
+    setAdaptiveTransitions,
+    setLastTransitionReason,
     setTransitioning,
     cacheBpm,
     getCachedBpm,
+    setIntroSilence,
+    getIntroSilence,
     evaluateAndRecommend,
   };
 });

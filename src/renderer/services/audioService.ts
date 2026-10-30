@@ -3,6 +3,8 @@ import { Howl, Howler } from 'howler';
 import type { AudioOutputDevice } from '@/types/audio';
 import type { SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
+import { buildTogetherCurves, sampleCurve } from '@/utils/audio/crossfade';
+import type { TransitionChoice } from '@/utils/audio/transitionChooser';
 import { isIosSafari } from '@/utils/platform';
 import {
   type SeekPlaybackSnapshot,
@@ -29,6 +31,12 @@ export type AudioHandle = Howl | LocalAudioPlayer | NativeAudioPlayer;
 export type CrossfadeOptions = {
   /** 使用首尾直接衔接，不展示智能过渡 UI。 */
   seamless?: boolean;
+  /** 尾响修正后的剩余秒数：文件时长含尾部静音时传入，用于 Level 2 对齐计算 */
+  remainingOverrideSec?: number;
+  /** 下一首首部静音秒数（BPM 预分析顺手量出）：起播前 seek 到第一个非零样本 */
+  introSeekSec?: number;
+  /** 智能接法（folia automix 移植）：chooser 输出；Web 与 mobile 路径均消费 */
+  transition?: TransitionChoice;
 };
 
 type ActiveSeekSnapshot = SeekPlaybackSnapshot & { sound: AudioHandle };
@@ -124,11 +132,23 @@ class AudioService {
   private crossfadingSound: AudioHandle | null = null;
   private crossfadeGain: GainNode | null = null;
   private crossfadeCleanupTimeout: number | null = null;
+  /** Level 2 乐句对齐：进场曲延后起播的定时器（期间暂停/切歌要撤销） */
+  private crossfadeStartTimeout: number | null = null;
   // Invalidates asynchronous loads from older play requests.
   private playbackGeneration = 0;
   /** 移动端 crossfade 的 setInterval timer IDs */
   private mobileFadeTimers: number[] = [];
   private crossfadeGeneration = 0;
+
+  // ==================== 尾响跟踪（sounding end） ====================
+  // 文件的 duration 含尾部静音/隐藏曲目，按它倒推过渡窗口会把淡化排进无声段。
+  // 用分析链上的 RMS 记录「最后一次可闻声」的位置，smartMix 据此收紧有效结束点。
+  private soundingAnalyser: AnalyserNode | null = null;
+  private soundingAnalyserGain: GainNode | null = null;
+  private soundingBuffer: Float32Array<ArrayBuffer> | null = null;
+  private soundingLastAudiblePos = -1;
+  private soundingPeakRms = 0;
+  private soundingTrackedSound: AudioHandle | null = null;
 
   constructor() {
     if ('mediaSession' in navigator) {
@@ -1273,6 +1293,10 @@ class AudioService {
       clearTimeout(this.crossfadeCleanupTimeout);
       this.crossfadeCleanupTimeout = null;
     }
+    if (this.crossfadeStartTimeout) {
+      clearTimeout(this.crossfadeStartTimeout);
+      this.crossfadeStartTimeout = null;
+    }
     // 恢复 gainNode 的音量（取消 crossfade 的淡出曲线）
     if (this.gainNode && this.context) {
       try {
@@ -1305,6 +1329,84 @@ class AudioService {
   /** 是否正在 crossfade */
   public isCrossfading(): boolean {
     return this.crossfadingSound !== null;
+  }
+
+  /** 懒建/跟随 EQ 重建输出分析器，读取当前输出 RMS（线性）；不可用时返回 null */
+  private readOutputRmsInternal(): number | null {
+    if (!this.context || !this.gainNode) return null;
+    if (!this.soundingAnalyser || this.soundingAnalyserGain !== this.gainNode) {
+      // gainNode 会在 EQ 重建时更换，分析器跟着重建
+      this.soundingAnalyser?.disconnect();
+      this.soundingAnalyser = this.context.createAnalyser();
+      this.soundingAnalyser.fftSize = 512;
+      this.gainNode.connect(this.soundingAnalyser);
+      this.soundingAnalyserGain = this.gainNode;
+      this.soundingBuffer = new Float32Array(this.soundingAnalyser.fftSize);
+    }
+    const analyser = this.soundingAnalyser;
+    const buffer = (this.soundingBuffer ??= new Float32Array(analyser.fftSize));
+    analyser.getFloatTimeDomainData(buffer);
+    let sum = 0;
+    for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
+    return Math.sqrt(sum / buffer.length);
+  }
+
+  /** 当前输出 RMS（线性 0~1）；无 Web Audio 分析图（iOS 直通等）返回 null。智能接法 outro 监测用 */
+  public getOutputRms(): number | null {
+    try {
+      return this.readOutputRmsInternal();
+    } catch {
+      return null;
+    }
+  }
+
+  /** 每 50ms 由 smartMix 调用：记录当前是否可闻，维持「最后一次可闻声」的位置 */
+  public updateSoundingTracking(): void {
+    try {
+      if (!this.context || !this.gainNode || !this.currentSound) return;
+      // 换歌后重新跟踪（旧曲的静音历史对新曲无意义）
+      if (this.soundingTrackedSound !== this.currentSound) {
+        this.soundingTrackedSound = this.currentSound;
+        this.soundingLastAudiblePos = -1;
+        this.soundingPeakRms = 0;
+      }
+      const rms = this.readOutputRmsInternal();
+      if (rms === null) return;
+      // 峰值缓慢衰减：整首歌渐弱时阈值跟着下移，但短暂停顿不会被当成结尾
+      this.soundingPeakRms = Math.max(rms, this.soundingPeakRms * 0.9995);
+      if (rms > Math.max(0.003, this.soundingPeakRms * 0.02)) {
+        let pos = -1;
+        try {
+          pos = Number(this.currentSound?.seek()) || 0;
+        } catch {
+          /* 位置读取失败，跳过本次 */
+        }
+        if (pos > 0) this.soundingLastAudiblePos = pos;
+      }
+    } catch {
+      /* 分析链不可用（Android 原生路径等）：保持无估计 */
+    }
+  }
+
+  /**
+   * 估计「真正有声音」的结束位置；无法判断时返回 null（沿用文件时长）。
+   * 尾部静音超过 10s 视为隐藏曲目，不再收紧。
+   */
+  public getSoundingEndEstimate(currentTime: number, duration: number): number | null {
+    if (this.soundingLastAudiblePos < 0) return null;
+    if (this.soundingTrackedSound !== this.currentSound || !this.currentSound) return null;
+    const gap = currentTime - this.soundingLastAudiblePos;
+    const remaining = duration - currentTime;
+    if (remaining > 45) return null;
+    if (gap > 1.2 && gap <= 10) {
+      return Math.min(duration, this.soundingLastAudiblePos + 0.4);
+    }
+    return null;
+  }
+
+  public resetSoundingTracking(): void {
+    this.soundingLastAudiblePos = -1;
+    this.soundingPeakRms = 0;
   }
 
   /**
@@ -1367,7 +1469,7 @@ class AudioService {
     // isIosSafari 为平台级双保险：即使 analysisOnlyGraph 出现时序窗口漏判
     // （disposeEQ 置 false 后、setupEQ 未完成前），iOS 上也绝不走 Web Audio crossfade。
     if (!this.gainNode || this.analysisOnlyGraph || isIosSafari()) {
-      return this.crossfadeToNextMobile(nextSound, nextTrack, duration, seamless);
+      return this.crossfadeToNextMobile(nextSound, nextTrack, duration, seamless, options.transition);
     }
 
     const ctx = this.context;
@@ -1441,10 +1543,19 @@ class AudioService {
     this.crossfadingSound = nextSound;
     this.setupSoundEvents(nextSound);
 
-    // 6. 开始播放新歌曲
-    nextSound.play();
+    // 5.5 首部静音：下一首从第一个非零样本起播（BPM 预分析顺手量出），
+    // 否则淡入的前几秒淡的全是数字静音
+    const introSeekSec = options.introSeekSec ?? 0;
+    if (introSeekSec > 0.3) {
+      try {
+        nextSound.seek(introSeekSec);
+      } catch {
+        /* seek 失败就从 0 开始 */
+      }
+    }
 
-    // 7. 委托智能引擎应用 crossfade 曲线（三级策略）
+    // 6/7. 先排曲线再起播：Level 2 的乐句对齐会给出未来的 startTime，
+    // 进场曲必须等到那一刻才出声——提前静默播放会让它的音乐位置整体前移。
     const savedVolume = parseFloat(localStorage.getItem('volume') || '1');
 
     // 当前歌曲的播放位置 / 剩余时间（Level 2 节拍对齐需要）
@@ -1457,10 +1568,17 @@ class AudioService {
       /* 位置/时长读取失败，使用默认 0 */
     }
 
-    const remainingTime = songDuration > 0 ? Math.max(0, songDuration - currentTime) : duration;
+    const remainingOverride = options.remainingOverrideSec;
+    const remainingTime =
+      remainingOverride !== undefined
+        ? Math.max(0, remainingOverride)
+        : songDuration > 0
+          ? Math.max(0, songDuration - currentTime)
+          : duration;
 
     let actualDuration = duration;
     let usedLevel: 1 | 2 | 3 = level;
+    let startAtCtx = ctx.currentTime;
 
     // 延迟导入避免循环依赖
     try {
@@ -1476,14 +1594,17 @@ class AudioService {
           currentTime,
           remainingTime,
           nextTrackId: String(nextTrack.id),
-          volume: savedVolume
+          volume: savedVolume,
+          remainingOverrideSec: remainingOverride,
+          transition: options.transition
         });
         actualDuration = result.duration;
         usedLevel = result.level;
+        startAtCtx = result.startAtCtx;
 
         // Level 1/2 没有调度清理，需在过渡结束复位 isTransitioning
         if (usedLevel !== 3) {
-          smartAudio.scheduleTransitionEnd(actualDuration);
+          smartAudio.scheduleTransitionEnd(Math.max(0, startAtCtx - ctx.currentTime) + actualDuration);
         }
       } else {
         // 引擎未挂载：回退到内置等功率曲线
@@ -1494,21 +1615,50 @@ class AudioService {
       this.applyEqualPowerFallback(savedVolume, duration);
     }
 
-    // 8. 调度清理（过渡结束后）
+    const delayMs = Math.max(0, Math.round((startAtCtx - ctx.currentTime) * 1000));
+    const emitCrossfadeStart = () => {
+      // UI 的 cue：淡入淡出的真实起止（AudioContext 时间）。封面/背景的交接
+      // 以此为准，而不是事件发出的时刻——Level 2 对齐时两者相差可达数秒。
+      this.emit('crossfade-start', {
+        track: nextTrack,
+        duration: actualDuration,
+        level: usedLevel,
+        seamless,
+        startAtCtx,
+        endAtCtx: startAtCtx + actualDuration,
+        delayed: delayMs > 40
+      });
+    };
+
+    if (delayMs > 40) {
+      // 静默等待期内暂停/切歌 → 撤销整个过渡：恢复原曲音量、卸下未起播的进场曲
+      const generation = this.crossfadeGeneration;
+      this.crossfadeStartTimeout = window.setTimeout(() => {
+        this.crossfadeStartTimeout = null;
+        if (generation !== this.crossfadeGeneration) return;
+        if (this.crossfadingSound !== nextSound) return;
+        const sound = this.currentSound as { playing?: () => boolean } | null;
+        if (sound && typeof sound.playing === 'function' && !sound.playing()) {
+          this.cancelCrossfade();
+          return;
+        }
+        nextSound.play();
+        emitCrossfadeStart();
+      }, delayMs);
+    } else {
+      nextSound.play();
+      emitCrossfadeStart();
+    }
+
+    // 8. 调度清理（从实际起播算起）
     this.crossfadeCleanupTimeout = window.setTimeout(
       () => {
-        this.completeCrossfadeCleanup(nextSound, nextTrack);
+        if (this.crossfadingSound === nextSound) {
+          this.completeCrossfadeCleanup(nextSound, nextTrack);
+        }
       },
-      actualDuration * 1000 + 200
+      delayMs + actualDuration * 1000 + 200
     );
-
-    // 9. 发出事件
-    this.emit('crossfade-start', {
-      track: nextTrack,
-      duration: actualDuration,
-      level: usedLevel,
-      seamless
-    });
 
     return true;
   }
@@ -1533,10 +1683,25 @@ class AudioService {
     nextSound: Howl | LocalAudioPlayer,
     nextTrack: SongResult,
     duration: number,
-    seamless = false
+    seamless = false,
+    transition?: TransitionChoice
   ): Promise<boolean> {
     const generation = ++this.crossfadeGeneration;
     if (!this.currentSound || this.currentSound instanceof NativeAudioPlayer) return false;
+
+    // 智能接法（folia 移植）：beatCut 等价直切（seamless 分支 180ms 清理）；
+    // bassSwap/tailRide 走 together 曲线化的手动渐变。曲线仅表达形状（0→1），
+    // 音量幅值由 from/to 线性插值天然携带用户音量。
+    let fadeCurveOut: Float32Array | undefined;
+    let fadeCurveIn: Float32Array | undefined;
+    if (transition && transition.kind === 'beatCut') {
+      seamless = true;
+    } else if (transition && transition.kind !== 'plainBlend') {
+      duration = transition.overlapSec;
+      const curves = buildTogetherCurves(0.5, transition.together, 64);
+      fadeCurveOut = curves.out;
+      fadeCurveIn = curves.in;
+    }
 
     // 页面不可见时（iOS 后台/锁屏）setInterval 渐变会被系统冻结，
     // 下一首会卡在 volume=0 静音播放；退化为直切：满音量起下一首并快速清理
@@ -1600,12 +1765,16 @@ class AudioService {
     }
 
     // 4. 使用 setInterval 手动渐变（不依赖 Howler.fade / RAF）
-    // 淡入下一首 + 淡出当前首
-    this.mobileFadeTimers.push(this.manualFadeVolume(nextSound, 0, savedVolume, duration));
+    // 淡入下一首 + 淡出当前首（智能接法时为 together 平台形状曲线）
+    this.mobileFadeTimers.push(
+      this.manualFadeVolume(nextSound, 0, savedVolume, duration, fadeCurveIn)
+    );
 
     try {
       const currentVol = currentSound.volume() as number;
-      this.mobileFadeTimers.push(this.manualFadeVolume(currentSound, currentVol, 0, duration));
+      this.mobileFadeTimers.push(
+        this.manualFadeVolume(currentSound, currentVol, 0, duration, fadeCurveOut)
+      );
     } catch (e) {
       console.warn('[Mobile Crossfade] 淡出当前首失败:', e);
     }
@@ -1628,13 +1797,16 @@ class AudioService {
 
   /**
    * 手动音量渐变（setInterval 驱动，不依赖 requestAnimationFrame）
+   * @param curve 可选形状曲线（0→1 或 1→0，together 平台形状）；
+   *              缺省时线性插值。曲线只表达形状，幅值由 from/to 携带。
    * 返回 timer ID 以便清理时清除
    */
   private manualFadeVolume(
     sound: Howl | LocalAudioPlayer,
     from: number,
     to: number,
-    duration: number
+    duration: number,
+    curve?: Float32Array
   ): number {
     const steps = 40;
     const stepMs = (duration * 1000) / steps;
@@ -1653,7 +1825,10 @@ class AudioService {
         this.mobileFadeTimers = this.mobileFadeTimers.filter((id) => id !== timer);
       } else {
         try {
-          sound.volume(from + volStep * i);
+          const shaped = curve
+            ? from + (to - from) * sampleCurve(curve, i / steps)
+            : from + volStep * i;
+          sound.volume(shaped);
         } catch {
           // Sound may have been unloaded while the timer was running.
         }
@@ -1699,6 +1874,10 @@ class AudioService {
     this.currentTrack = nextTrack;
     this.crossfadingSound = null;
     this.crossfadeCleanupTimeout = null;
+    if (this.crossfadeStartTimeout) {
+      clearTimeout(this.crossfadeStartTimeout);
+      this.crossfadeStartTimeout = null;
+    }
 
     // 停止旧歌曲
     if (oldSound && oldSound !== nextSound) {

@@ -19,21 +19,29 @@
 import { Howler } from 'howler';
 import { computed, ref, shallowRef } from 'vue';
 
-import { audioService } from '@/services/audioService';
 import { upgradeToHttps } from '@/services/audioAnalysisGate';
+import { audioService } from '@/services/audioService';
 import { type BpmCacheEntry,useMixEngineStore } from '@/store/modules/mixEngine';
 import { isElectron } from '@/utils';
 import { applyBandSplitCrossfade, type BandSplitChain,createBandSplitChain } from '@/utils/audio/bandSplitter';
 import { calculateBeatAlignedTransition } from '@/utils/audio/beatAlign';
-import { applyEqualPowerCrossfade } from '@/utils/audio/crossfade';
+import {
+  applyEqualPowerCrossfade,
+  applyTogetherCrossfade,
+  buildTogetherCurves,
+  type TogetherCurves
+} from '@/utils/audio/crossfade';
 import { decodeToMono8k } from '@/utils/audio/decodeToMono8k';
 import { AudioScheduler, type AudioSchedulerScope } from '@/utils/audio/scheduler';
+import type { TransitionChoice } from '@/utils/audio/transitionChooser';
 
 export interface CrossfadeResult {
   level: 1 | 2 | 3;
   startTime: number;
   duration: number;
   reason: string;
+  /** 曲线（及进场曲起播）的绝对 AudioContext 时间：未来值表示进场曲延后起播 */
+  startAtCtx: number;
 }
 
 export interface CrossfadeOptions {
@@ -46,6 +54,10 @@ export interface CrossfadeOptions {
   remainingTime: number;  // 当前歌曲剩余时间（秒）
   nextTrackId: string;    // 下一首 ID（用于 BPM 缓存）
   volume: number;         // 用户音量（0~1），曲线终值会缩放至此
+  /** 尾响修正后的剩余时间（秒）：文件时长含尾部静音时由调用方传入，优先于 remainingTime */
+  remainingOverrideSec?: number;
+  /** 智能接法（folia automix 移植）：chooser 的选择，kind=plainBlend 或缺省时走原三级策略 */
+  transition?: TransitionChoice;
 }
 
 // ==================== 单例桥接 ====================
@@ -184,6 +196,18 @@ export function useSmartAudio() {
       // Chromium 的 Worker 作用域没有 OfflineAudioContext：解码在主线程完成后
       // 把 8kHz 单声道 PCM transfer 给 Worker 做纯计算
       const pcm = await decodeToMono8k(arrayBuffer);
+      // 顺手量一下首部静音：8k PCM 上扫一遍第一个非零样本，供切歌时跳过
+      // （在线歌曲的解码缓冲只有这里有，错过就要整曲解码才能知道）
+      let introEnd = 0;
+      for (let i = 0; i < pcm.length; i++) {
+        if (Math.abs(pcm[i]) > 0.004) {
+          introEnd = i / 8000;
+          break;
+        }
+      }
+      if (introEnd > 0.25 && introEnd <= 6) {
+        mixEngine.setIntroSilence(trackId, introEnd);
+      }
       const pcmCopy = new Float32Array(pcm);
       bpmWorker.value.postMessage({ type: 'analyze', pcm: pcmCopy }, [pcmCopy.buffer]);
     } catch (e) {
@@ -207,7 +231,13 @@ export function useSmartAudio() {
       if (fallbackCtx) {
         applyEqualPowerCrossfade(fallbackCtx, opts.gainOut, opts.gainIn, fallbackCtx.currentTime, opts.duration, opts.volume);
       }
-      return { level: 1, startTime: fallbackCtx?.currentTime ?? 0, duration: opts.duration, reason: '智能引擎未就绪，等功率回退' };
+      return {
+        level: 1,
+        startTime: fallbackCtx?.currentTime ?? 0,
+        duration: opts.duration,
+        reason: '智能引擎未就绪，等功率回退',
+        startAtCtx: fallbackCtx?.currentTime ?? 0
+      };
     }
 
     mixEngine.setTransitioning(true);
@@ -215,11 +245,55 @@ export function useSmartAudio() {
 
     const now = audioCtx.currentTime;
     const level = opts.level;
+    // 尾响修正：文件时长含尾部静音/隐藏曲目时，用「最后一次可闻声」算剩余
+    const remainingTime = opts.remainingOverrideSec ?? opts.remainingTime;
+
+    // ---------- 智能接法（folia automix 移植）：按歌曲特征选接法，优先于硬件分级 ----------
+    // plainBlend / 缺省时走原三级策略；beatCut 直切；bassSwap/tailRide 走 together 平台曲线。
+    // 接法模式不与 Level 3 三频段叠加（三频段是全频段曲线的替代执行路径，语义冲突）。
+    const transition = opts.transition;
+    if (transition && transition.kind !== 'plainBlend') {
+      if (transition.kind === 'beatCut') {
+        // 40ms 硬切：极短线性坡防波形阶跃咔声（folia 同款时长）
+        const cutSec = transition.overlapSec;
+        opts.gainOut.gain.cancelScheduledValues(now);
+        opts.gainIn.gain.cancelScheduledValues(now);
+        opts.gainOut.gain.setValueAtTime(opts.volume, now);
+        opts.gainIn.gain.setValueAtTime(0, now);
+        opts.gainOut.gain.linearRampToValueAtTime(0, now + cutSec);
+        opts.gainIn.gain.linearRampToValueAtTime(opts.volume, now + cutSec);
+        return {
+          level: 1,
+          startTime: now,
+          duration: cutSec,
+          reason: transition.reason,
+          startAtCtx: now
+        };
+      }
+      const curves: TogetherCurves = buildTogetherCurves(
+        0.5,
+        transition.together,
+        128,
+        opts.volume
+      );
+      const overlapSec = transition.overlapSec;
+      if (!applyTogetherCrossfade(audioCtx, opts.gainOut, opts.gainIn, now, overlapSec, curves)) {
+        // 曲线调度被引擎拒绝（重叠调度等）：回退等功率
+        applyEqualPowerCrossfade(audioCtx, opts.gainOut, opts.gainIn, now, overlapSec, opts.volume);
+      }
+      return {
+        level: 1,
+        startTime: now,
+        duration: overlapSec,
+        reason: transition.reason,
+        startAtCtx: now
+      };
+    }
 
     // ---------- Level 1: 等功率淡入淡出 ----------
     if (level === 1) {
       applyEqualPowerCrossfade(audioCtx, opts.gainOut, opts.gainIn, now, opts.duration, opts.volume);
-      return { level: 1, startTime: now, duration: opts.duration, reason: `等功率 crossfade ${opts.duration}s` };
+      return { level: 1, startTime: now, duration: opts.duration, reason: `等功率 crossfade ${opts.duration}s`, startAtCtx: now };
     }
 
     // ---------- Level 2/3: 取 BPM ----------
@@ -239,7 +313,7 @@ export function useSmartAudio() {
         bpm,
         beatOffset,
         currentTime: opts.currentTime,
-        remainingTime: opts.remainingTime,
+        remainingTime,
         ctx: audioCtx,
         gainOut: opts.gainOut,
         gainIn: opts.gainIn,
@@ -247,19 +321,15 @@ export function useSmartAudio() {
         volumeScale: opts.volume
       });
 
-      // 若策略给出的是「未来」开始时间（乐句边界对齐），由于下一首的 audio 实例
-      // 已在外层立即 play()，无法延迟其起始位置，这里降级为立即开始以避免新歌
-      // 静音推进造成的错位。
-      if (result.startTime > now + 0.05) {
-        applyEqualPowerCrossfade(audioCtx, opts.gainOut, opts.gainIn, now, result.duration, opts.volume);
-        return {
-          level: 1,
-          startTime: now,
-          duration: result.duration,
-          reason: `BPM=${bpm}，乐句对齐需延迟但已立即启动，等功率 ${result.duration.toFixed(1)}s`
-        };
-      }
-      return { level: result.level as 1 | 2, startTime: result.startTime, duration: result.duration, reason: result.reason };
+      // result.startTime 可能在未来：进场曲由 audioService 在该时刻才 play()，
+      // 静默等待期内出场曲继续放，直到乐句边界才交叉——这就是「真对齐」。
+      return {
+        level: result.level as 1 | 2,
+        startTime: result.startTime,
+        duration: result.duration,
+        reason: result.reason,
+        startAtCtx: result.startTime
+      };
     }
 
     // ---------- Level 3: 时频域智能拼接 ----------
@@ -269,7 +339,7 @@ export function useSmartAudio() {
 
     // ---------- 降级 Level 1 ----------
     applyEqualPowerCrossfade(audioCtx, opts.gainOut, opts.gainIn, now, opts.duration, opts.volume);
-    return { level: 1, startTime: now, duration: opts.duration, reason: '降级为等功率' };
+    return { level: 1, startTime: now, duration: opts.duration, reason: '降级为等功率', startAtCtx: now };
   }
 
   /** Level 3 实现：在 gainOut / gainIn 与 masterGain 之间插入频段分裂链 */
@@ -320,7 +390,8 @@ export function useSmartAudio() {
       level: 3,
       startTime: now,
       duration,
-      reason: `频域拼接 ${duration}s（低频晚淡出/中频早淡出/高频中等）`
+      reason: `频域拼接 ${duration}s（低频晚淡出/中频早淡出/高频中等）`,
+      startAtCtx: now
     };
   }
 

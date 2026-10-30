@@ -75,6 +75,20 @@
       </div>
       <n-switch v-model:value="bpmPreAnalysis" aria-label="启用 BPM 预分析" />
     </div>
+
+    <div v-if="smartTransitionEnabled" class="st-secondary-row">
+      <div class="st-copy">
+        <span class="st-detail-label">智能接法</span>
+        <span class="st-description">按歌曲首尾特征自动选择硬切/换手/骑尾衔接</span>
+      </div>
+      <n-switch v-model:value="adaptiveTransitions" aria-label="启用智能接法" />
+    </div>
+    <div
+      v-if="smartTransitionEnabled && adaptiveTransitions && lastTransitionReason"
+      class="st-secondary-row"
+    >
+      <span class="st-description">上次接法：{{ lastTransitionReason }}</span>
+    </div>
   </div>
 </template>
 
@@ -116,6 +130,13 @@ const bpmPreAnalysis = computed({
   get: () => mixEngine.bpmPreAnalysis,
   set: (value: boolean) => mixEngine.setBpmPreAnalysis(value)
 });
+
+const adaptiveTransitions = computed({
+  get: () => mixEngine.adaptiveTransitions,
+  set: (value: boolean) => mixEngine.setAdaptiveTransitions(value)
+});
+
+const lastTransitionReason = computed(() => mixEngine.lastTransitionReason);
 
 const availableMaxLevel = computed<TransitionLevel>(() => {
   if (isLevelAvailable(3)) return 3;

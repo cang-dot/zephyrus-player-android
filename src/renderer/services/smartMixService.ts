@@ -13,6 +13,7 @@
 import { isLocalSong } from '@/hooks/useLocalMusic';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
+import { chooseTransition, type TransitionChoice } from '@/utils/audio/transitionChooser';
 import { getImageLinearBackground } from '@/utils/linearColor';
 
 import { isAndroidNative } from './androidNative';
@@ -21,6 +22,7 @@ import { drumDetector } from './drumDetector';
 import { LocalAudioPlayer } from './localAudioPlayer';
 import { NativeAudioPlayer } from './nativeAudioPlayer';
 import { preloadService } from './preloadService';
+import { trackFeatureService } from './trackFeatureService';
 
 class SmartMixService {
   private isCrossfading = false;
@@ -189,11 +191,34 @@ class SmartMixService {
     // 需要有效时长
     if (!duration || duration <= 0) return;
 
-    const remaining = duration - currentTime;
-    const crossfadeDuration = gaplessEnabled ? 0.08 : mixEngine.crossfadeDuration;
+    // 尾响跟踪：文件 duration 含尾部静音/隐藏曲目，有效结束点用「最后一次可闻声」
+    audioService.updateSoundingTracking();
+    const soundingEnd = audioService.getSoundingEndEstimate(currentTime, duration);
+    const effectiveEnd = soundingEnd ?? duration;
+
+    const remaining = effectiveEnd - currentTime;
+
+    // Level 2 的过渡窗口是音乐量（4 拍），不是用户滑杆的秒数：
+    // 门控与等待都必须按它来，否则 8s 的窗口配 2s 的曲线会提前 6 秒把歌淡没
+    let plannedWindow = gaplessEnabled ? 0.08 : mixEngine.crossfadeDuration;
+    if (!gaplessEnabled && mixEngine.transitionLevel === 2) {
+      const cached = mixEngine.getCachedBpm(String(audioService.getCurrentTrack()?.id ?? ''));
+      if (cached && cached.bpm >= 50 && cached.bpm <= 250) {
+        plannedWindow = Math.min(plannedWindow, Math.max(2, (60 / cached.bpm) * 4));
+      }
+    }
+
+    // 智能接法（folia automix 移植）：决策窗口提前到 1.7×base——tailRide 的
+    // 重叠可达 1.4×base，到点才有完整重叠可执行；outro 电平历史也从这里开始积累
+    if (!gaplessEnabled && mixEngine.smartMixEnabled && mixEngine.adaptiveTransitions) {
+      plannedWindow = Math.max(plannedWindow, mixEngine.crossfadeDuration * 1.7);
+      const currentTrack = audioService.getCurrentTrack();
+      if (currentTrack) trackFeatureService.startOutroMonitor(String(currentTrack.id));
+    }
+
     const preparationWindow = gaplessEnabled
       ? this.PRELOAD_LEAD_SECONDS
-      : crossfadeDuration + Math.max(this.PRELOAD_LEAD_SECONDS, crossfadeDuration);
+      : plannedWindow + Math.max(this.PRELOAD_LEAD_SECONDS, plannedWindow);
 
     // 在准备窗口外不做任何工作；低于 0.3 秒则交给正常 end 流程，避免迟到的渐变。
     if (remaining > preparationWindow || remaining < 0.3) {
@@ -205,8 +230,8 @@ class SmartMixService {
     const generation = this.crossfadePreparationGeneration;
     const preparation = this.prepareAndStartCrossfade(
       currentTime,
-      duration,
-      crossfadeDuration,
+      effectiveEnd,
+      plannedWindow,
       mixEngine.transitionLevel,
       sourceTrackId,
       generation,
@@ -223,7 +248,7 @@ class SmartMixService {
   /** 执行一次受 generation 保护的预加载和定时启动流程。 */
   private async prepareAndStartCrossfade(
     initialTime: number,
-    initialDuration: number,
+    effectiveEnd: number,
     crossfadeDuration: number,
     transitionLevel: 1 | 2 | 3,
     sourceTrackId: string,
@@ -351,9 +376,24 @@ class SmartMixService {
       }
     }
 
-    // 下一首准备完成后，等待到设置的精确过渡窗口；准备速度快时不会提前淡入。
-    if (initialDuration - initialTime > crossfadeDuration) {
-      const ready = await this.waitForCrossfadeWindow(crossfadeDuration, sourceTrackId, generation);
+    // ===== 智能接法特征预取（folia 移植，fire-and-forget）=====
+    // URL 已就绪，Range 头部拉取解码 intro 特征；失败静默缓存 null（chooser 兜底）。
+    // 触发窗口前有充足时间完成，不阻塞等待。
+    if (!seamless && localStorage.getItem('adaptiveTransitions') !== 'false') {
+      void trackFeatureService
+        .prefetchIntroFeatures(String(nextSong.id), nextSong.playMusicUrl)
+        .catch(() => {});
+    }
+
+    // 下一首准备完成后，等待到过渡窗口（按有效结束点算，不含尾部静音）；
+    // 准备速度快时不会提前淡入。
+    if (effectiveEnd - initialTime > crossfadeDuration) {
+      const ready = await this.waitForCrossfadeWindow(
+        effectiveEnd,
+        crossfadeDuration,
+        sourceTrackId,
+        generation
+      );
       if (!ready) return;
     }
 
@@ -361,7 +401,7 @@ class SmartMixService {
     if (!currentProgress || !this.isPreparationCurrent(sourceTrackId, generation)) return;
 
     const currentTime = currentProgress.currentTime;
-    const duration = currentProgress.duration;
+    const remainingNow = Math.max(0.5, effectiveEnd - currentTime);
 
     // ===== 署名类歌词检测：命中则绕过门控直接开始渐变 =====
     let bypassGate = false;
@@ -379,7 +419,7 @@ class SmartMixService {
     // ===== 段落门控：只允许在目标窗口之前延迟，不能把过渡推到歌曲结束后 =====
     if (!bypassGate) {
       const blocking = await this.isSegmentBlocking(currentTime);
-      if (blocking && duration - currentTime > crossfadeDuration) {
+      if (blocking && remainingNow > crossfadeDuration) {
         if (!this.pendingCrossfade) {
           this.pendingCrossfade = true;
           this.pendingSince = Date.now();
@@ -396,13 +436,57 @@ class SmartMixService {
     // 触发 crossfade
     if (!this.isPreparationCurrent(sourceTrackId, generation)) return;
 
+    // ===== 智能接法决策（folia automix 移植）=====
+    // 决策窗口已提前到 1.7×base，此处用积累的 outro 历史与预取的 intro
+    // 特征选接法。beatCut 贴着歌尾执行，在此二次等窗后走 seamless 直切；
+    // 其余接法重叠放不下时回退原三级策略。
+    let transition: TransitionChoice | undefined;
+    let effectiveDuration = crossfadeDuration;
+    let effectiveSeamless = seamless;
+    if (!seamless && localStorage.getItem('adaptiveTransitions') !== 'false') {
+      try {
+        const choice = chooseTransition({
+          next: trackFeatureService.getIntroFeatures(String(nextSong.id)),
+          current: trackFeatureService.getOutroFeatures(),
+          baseOverlapSec: crossfadeDuration
+        });
+        const { useMixEngineStore } = await import('@/store/modules/mixEngine');
+        const mixEngine = useMixEngineStore();
+        if (choice.kind === 'beatCut') {
+          const stillCurrent = await this.waitForCrossfadeWindow(
+            effectiveEnd,
+            0.35,
+            sourceTrackId,
+            generation
+          );
+          if (stillCurrent && this.isPreparationCurrent(sourceTrackId, generation)) {
+            effectiveSeamless = true;
+            effectiveDuration = 0.05;
+            mixEngine.setLastTransitionReason(choice.reason);
+          }
+        } else if (choice.overlapSec <= remainingNow * 0.95) {
+          transition = choice;
+          effectiveDuration = choice.overlapSec;
+          mixEngine.setLastTransitionReason(choice.reason);
+        } else {
+          mixEngine.setLastTransitionReason(
+            `重叠放不下（需 ${choice.overlapSec.toFixed(1)}s），回退等功率`
+          );
+        }
+      } catch {
+        /* 特征旁路失败不影响过渡 */
+      }
+    }
+
     const crossfadeStarted = await this.doCrossfade(
       nextSound,
       nextSong,
       nextIndex,
-      crossfadeDuration,
+      effectiveDuration,
       transitionLevel,
-      seamless
+      effectiveSeamless,
+      remainingNow,
+      transition
     );
 
     // crossfade 成功启动后才从预加载缓存中移除
@@ -413,6 +497,7 @@ class SmartMixService {
 
   /** 等待当前歌曲进入“剩余 crossfadeDuration 秒”的精确启动窗口。 */
   private async waitForCrossfadeWindow(
+    effectiveEnd: number,
     crossfadeDuration: number,
     sourceTrackId: string,
     generation: number
@@ -425,7 +510,8 @@ class SmartMixService {
       const progress = this.getCurrentProgress();
       if (!progress) return false;
 
-      const remaining = progress.duration - progress.currentTime;
+      // 剩余按「响声结束」算：文件 duration 的尾部静音不参与倒计时
+      const remaining = effectiveEnd - progress.currentTime;
       const terminalThreshold = Math.max(0.02, Math.min(0.3, crossfadeDuration));
       if (remaining < terminalThreshold) return false;
       if (remaining <= crossfadeDuration) return true;
@@ -482,7 +568,9 @@ class SmartMixService {
     nextIndex: number,
     duration: number,
     level: 1 | 2 | 3,
-    seamless = false
+    seamless = false,
+    remainingSec?: number,
+    transition?: TransitionChoice
   ): Promise<boolean> {
     this.isCrossfading = true;
 
@@ -492,8 +580,20 @@ class SmartMixService {
         drumDetector.start();
       }
 
+      // 首部静音（BPM 预分析顺手量出）：下一首从第一个非零样本起播
+      let introSeekSec = 0;
+      try {
+        const { useMixEngineStore } = await import('@/store/modules/mixEngine');
+        introSeekSec = useMixEngineStore().getIntroSilence(String(nextSong.id));
+      } catch {
+        /* 缓存不可用就从 0 开始 */
+      }
+
       const success = await audioService.crossfadeToNext(nextSound, nextSong, duration, level, {
-        seamless
+        seamless,
+        remainingOverrideSec: remainingSec,
+        introSeekSec,
+        transition
       });
       if (!success) {
         this.isCrossfading = false;
@@ -513,6 +613,8 @@ class SmartMixService {
         audioService.off('crossfade-complete', onComplete);
         audioService.off('crossfade-cancelled', onCancel);
         this.isCrossfading = false;
+        trackFeatureService.stopOutroMonitor();
+        trackFeatureService.resetOutro();
         this.clearPending();
       };
       audioService.on('crossfade-cancelled', onCancel);
@@ -530,6 +632,9 @@ class SmartMixService {
 
   /** crossfade 完成后更新播放状态（不重新播放音频） */
   private async completeTransition(nextSong: SongResult, nextIndex: number): Promise<void> {
+    // 智能接法：本轮 outro 监测使命完成，切歌后由 checkCrossfade 重新启动
+    trackFeatureService.stopOutroMonitor();
+    trackFeatureService.resetOutro();
     try {
       // 更新播放列表索引
       const { usePlaylistStore } = await import('@/store/modules/playlist');
