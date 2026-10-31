@@ -41,8 +41,9 @@
       >
         <!-- 高速流体背景（黑底 + 高饱和主题色纹理）；减弱动画时静止。
              errorBackground=ether 时切换为孔乙己间奏墨烟求解器（二者互斥挂载，
-             保证同时只有一个 WebGL 上下文；设备不支持浮点 FBO 时回高速流体） -->
-        <div class="error-fluid-layer">
+             保证同时只有一个 WebGL 上下文；设备不支持浮点 FBO 时回高速流体）。
+             崩溃保险丝降级时整层隐藏，回退根节点实色 -->
+        <div v-if="!backgroundEffectsDisabled" class="error-fluid-layer">
           <ether-fluid-layer
             v-if="etherBackgroundActive"
             :theme-color="saturatedThemeColor"
@@ -297,6 +298,7 @@ import ImmersivePlaylistPanel from '@/components/player/ImmersivePlaylistPanel.v
 import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
+import { useBackgroundHealthStore } from '@/store/modules/backgroundHealth';
 import {
   immersiveSurfaceMode,
   toggleImmersiveSurface,
@@ -533,6 +535,10 @@ const etherSupported = probeEtherSupport();
 const etherBackgroundActive = computed(
   () => etherSupported && styleCfg.value.errorBackground === 'ether'
 );
+
+// 背景引擎崩溃保险丝：降级期间隐藏整个流体层，回退根节点实色背景
+const backgroundHealth = useBackgroundHealthStore();
+const backgroundEffectsDisabled = computed(() => backgroundHealth.degraded);
 
 const fluidColors = computed(() => ['#000000', saturatedThemeColor.value || '#ff2a2a', '#ffffff']);
 

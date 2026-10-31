@@ -37,6 +37,7 @@ import TrafficWarningDrawer from '@/components/TrafficWarningDrawer.vue';
 import { setSmartAudioInstance, useSmartAudio } from '@/composables/useSmartAudio';
 import { registerBuiltinFeatures } from '@/features/register';
 import { registerExternalAudioHandler } from '@/services/externalAudio';
+import { useBackgroundHealthStore } from '@/store/modules/backgroundHealth';
 import { usePlatformAccountsStore } from '@/store/modules/platformAccounts';
 import { usePlayerStore } from '@/store/modules/player';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
@@ -56,13 +57,15 @@ import { useStyleEngineStore } from './store/modules/styleEngine';
 import { isMobile } from './utils';
 import { useAppShortcuts } from './utils/appShortcuts';
 import { setListenTogetherInviteRef, setSharedSongCardRef } from './utils/deepLink';
+import { showBottomToast } from './utils/shortcutToast';
 
-const { locale } = useI18n();
+const { locale, t } = useI18n();
 const settingsStore = useSettingsStore();
 const playerStore = usePlayerStore();
 const playerCoreStore = usePlayerCoreStore();
 const userStore = useUserStore();
 const accountStore = usePlatformAccountsStore();
+const backgroundHealthStore = useBackgroundHealthStore();
 const router = useRouter();
 const { primaryColor } = useCoverColor();
 const styleEngine = useStyleEngineStore();
@@ -280,6 +283,11 @@ if (isAndroidNative()) {
 let focusTrapObserver: MutationObserver | null = null;
 
 onMounted(async () => {
+  // 启动保险丝降档提示（上次会话背景引擎崩溃）
+  if (backgroundHealthStore.startupDegraded) {
+    showBottomToast(t('player.backgroundDegradedStartup'));
+  }
+
   registerExternalAudioHandler();
   playerStore.setIsPlay(false);
 

@@ -16,6 +16,9 @@ export default {
   playFailed: '目前歌曲播放失敗，播放下一首',
   parseFailedPlayNext: '歌曲解析失敗，播放下一首',
   consecutiveFailsError: '播放遇到錯誤，可能是網路波動或解析源失效，請切換播放清單或稍後重試',
+  audioSoftRecoverFailed: '自動恢復播放失敗，請手動點擊播放',
+  backgroundDegraded: '檢測到視覺引擎異常，已暫時切換實色背景',
+  backgroundDegradedStartup: '上次工作階段視覺引擎異常，本次已暫時關閉特效',
   playMode: {
     sequence: '順序播放',
     loop: '單曲循環',

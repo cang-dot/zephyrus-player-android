@@ -264,9 +264,6 @@ void main(){
   ink = mix(ink, uInkHot, hot * 0.72);
   ink *= 0.5 + 0.7 * clamp(dens, 0.0, 1.0);
 
-  float crest = smoothstep(0.80, 1.25, dens) * smoothstep(0.30, 0.75, vein);
-  ink += crest * vec3(0.16, 0.13, 0.09);
-
   vec3 col = ink + uFlash * uFlashColor;
   a = clamp(a + uFlash * 0.35, 0.0, 1.0);
   o = vec4(clamp(mix(uBg, col, a), 0.0, 1.0), 1.0);
@@ -714,6 +711,15 @@ export class EtherFluid {
       (params.time * 37.0) % 97.0,
       params.time
     );
+  }
+
+  /** WebGL 上下文是否已被系统回收（iOS PWA 前台局部回收侦测用） */
+  isContextLost(): boolean {
+    try {
+      return this.gl.isContextLost();
+    } catch {
+      return true;
+    }
   }
 
   dispose(): void {

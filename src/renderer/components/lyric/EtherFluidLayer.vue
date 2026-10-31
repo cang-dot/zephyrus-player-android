@@ -18,6 +18,7 @@ import grainUrl from '@/assets/textures/ether/grain.png';
 import turbUrl from '@/assets/textures/ether/turb.png';
 import { climaxDetector } from '@/services/climaxDetector';
 import { leadDetector } from '@/services/leadDetector';
+import { useBackgroundHealthStore } from '@/store/modules/backgroundHealth';
 import { createHoldWalker, EtherFluid, probeEtherSupport } from '@/utils/etherFluid';
 import { computeEtherTheme } from '@/utils/etherTheme';
 import { acquirePlayerResource } from '@/utils/playerResourceDiagnostics';
@@ -45,6 +46,13 @@ const props = defineProps({
 });
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
+
+const backgroundHealth = useBackgroundHealthStore();
+/** iOS PWA 前台局部回收：上下文丢失即上报（宿主降级 + 音频软恢复联动） */
+const handleContextLost = () => {
+  stopLoop();
+  backgroundHealth.reportContextLost('ether-fluid');
+};
 
 let fluid: EtherFluid | null = null;
 let rafId: number | null = null;
@@ -78,6 +86,11 @@ function ensureLoop(): void {
 function tick(now: number): void {
   rafId = requestAnimationFrame(tick);
   if (!fluid) return;
+  // 每帧巡检兜底：contextlost 事件在个别 WebView 上不派发
+  if (fluid.isContextLost()) {
+    handleContextLost();
+    return;
+  }
   const minInterval = 1000 / SOURCE_FPS;
   if (now - lastTick < minInterval - 1) return;
   const dt = lastTick > 0 ? Math.min(0.25, (now - lastTick) / 1000) : minInterval / 1000;
@@ -180,6 +193,7 @@ onMounted(async () => {
   resizeCanvas();
   resizeObserver = new ResizeObserver(resizeCanvas);
   resizeObserver.observe(canvas);
+  canvas.addEventListener('webglcontextlost', handleContextLost);
   fluid.setSplatGain(props.power);
   fluid.setTheme(
     computeEtherTheme({
@@ -220,6 +234,7 @@ onBeforeUnmount(() => {
   if (spikeTimer) clearTimeout(spikeTimer);
   drumUnsubscribe?.();
   resizeObserver?.disconnect();
+  canvasRef.value?.removeEventListener('webglcontextlost', handleContextLost);
   fluid?.dispose();
   fluid = null;
   releaseResource?.();

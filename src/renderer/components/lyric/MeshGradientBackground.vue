@@ -31,6 +31,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { MESH_DEFAULT_MAX_FPS, MESH_DEFAULT_RENDER_SCALE } from '@/config/playerStyleConfig';
 import { audioService } from '@/services/audioService';
 import { drumDetector } from '@/services/drumDetector';
+import { useBackgroundHealthStore } from '@/store/modules/backgroundHealth';
 import { AdaptiveBaseline, AttackReleaseEnvelope } from '@/utils/audio/beatResponse';
 import { shouldSkipMobilePlayerFrame } from '@/utils/mobilePlayerPerformance';
 
@@ -76,6 +77,14 @@ const props = withDefaults(defineProps<Props>(), {
 const mountRef = ref<HTMLElement | null>(null);
 let background: BackgroundRender<MeshGradientRenderer> | null = null;
 let canvasEl: HTMLCanvasElement | null = null;
+
+const backgroundHealth = useBackgroundHealthStore();
+/** iOS PWA 前台局部回收会连 GPU 上下文一起杀：上报崩溃（恢复链先音频后背景） */
+const handleContextLost = () => {
+  background?.pause();
+  stopDriver();
+  backgroundHealth.reportContextLost('mesh');
+};
 let intersectionObserver: IntersectionObserver | null = null;
 let driverFrame = 0;
 let driverLastAt = 0;
@@ -312,6 +321,8 @@ onMounted(() => {
     return;
   }
 
+  canvasEl.addEventListener('webglcontextlost', handleContextLost);
+
   applyOptions();
   void syncCover(props.coverUrl);
 
@@ -331,6 +342,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  canvasEl?.removeEventListener('webglcontextlost', handleContextLost);
   stopDriver();
   unsubscribeFromBeats();
   intersectionObserver?.disconnect();

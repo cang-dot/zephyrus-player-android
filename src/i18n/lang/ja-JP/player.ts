@@ -17,6 +17,9 @@ export default {
   parseFailedPlayNext: '楽曲の解析に失敗しました。次の曲を再生します',
   consecutiveFailsError:
     '再生エラーが発生しました。ネットワークの問題または無効な音源の可能性があります。プレイリストを切り替えるか、後でもう一度お試しください',
+  audioSoftRecoverFailed: '自動復旧に失敗しました。手動で再生してください',
+  backgroundDegraded: 'ビジュアルエンジン異常を検出、単色背景へ一時切替',
+  backgroundDegradedStartup: '前回セッションでビジュアルエンジン異常のため、エフェクトを一時無効化しました',
   playMode: {
     sequence: '順次再生',
     loop: 'リピート再生',

@@ -17,6 +17,9 @@ export default {
   parseFailedPlayNext: 'Song parsing failed, playing next',
   consecutiveFailsError:
     'Playback error, possibly due to network issues or invalid source. Please switch playlist or try again later',
+  audioSoftRecoverFailed: 'Auto-recovery failed, please tap play manually',
+  backgroundDegraded: 'Visual engine issue detected; switched to a solid background',
+  backgroundDegradedStartup: 'Visual engine crashed last session; effects are temporarily off',
   playMode: {
     sequence: 'Sequence',
     loop: 'Loop',

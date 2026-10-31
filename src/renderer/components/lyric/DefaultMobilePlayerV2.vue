@@ -293,6 +293,7 @@ import { artistList, lrcArray, playMusic, textColors } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
 import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
 import { usePlayerStore } from '@/store/modules/player';
+import { useBackgroundHealthStore } from '@/store/modules/backgroundHealth';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import type { AuroraPosition } from '@/types/playerStyle';
 import { getImgUrl } from '@/utils';
@@ -319,6 +320,7 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>();
 const { t } = useI18n();
 const playerStore = usePlayerStore();
+const backgroundHealth = useBackgroundHealthStore();
 const playerTransition = useMobilePlayerTransition();
 const { handleTapToggle } = useTapToggle();
 const coverGesture = useCoverPreviewGesture(computed(() => coverUrl.value));
@@ -354,6 +356,8 @@ const artworkRadius = computed(() => {
 });
 const vinylDisc = computed(() => styleCustom.value.vinylDisc === true);
 const backgroundPreset = computed(() => {
+  // 背景引擎崩溃保险丝：降级期间强制实色（none），安全点重试由 backgroundHealth 控制
+  if (backgroundHealth.degraded) return 'none';
   const value = String(styleCustom.value.backgroundPreset);
   return (['none', 'aurora', 'fluid', 'mesh'].includes(value) ? value : 'none') as
     | 'none'

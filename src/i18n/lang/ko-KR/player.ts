@@ -17,6 +17,9 @@ export default {
   parseFailedPlayNext: '곡 분석 실패, 다음 곡 재생',
   consecutiveFailsError:
     '재생 오류가 발생했습니다. 네트워크 문제 또는 유효하지 않은 음원일 수 있습니다. 재생 목록을 변경하거나 나중에 다시 시도하세요',
+  audioSoftRecoverFailed: '자동 복구에 실패했습니다. 직접 재생을 눌러 주세요',
+  backgroundDegraded: '비주얼 엔진 이상 감지, 단색 배경으로 일시 전환',
+  backgroundDegradedStartup: '이전 세션 비주얼 엔진 이상으로 효과를 일시 비활성화했습니다',
   playMode: {
     sequence: '순차 재생',
     loop: '한 곡 반복',

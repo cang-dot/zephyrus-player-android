@@ -31,6 +31,10 @@ const spotifyStore = useSpotifyStore();
   spotifyStore.handleCallback(url).catch(console.error);
 };
 
+// 背景引擎崩溃保险丝：上次会话崩溃或累计达阈值 → 本次启动关特效（须在 pinia 就绪后）
+import { useBackgroundHealthStore } from '@/store/modules/backgroundHealth';
+useBackgroundHealthStore().applyStartupFuse();
+
 app.mount('#app');
 
 // 宣传片截图用的开发模式 mock（仅 dev:web，/?__promo=1 激活）

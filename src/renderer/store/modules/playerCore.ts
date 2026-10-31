@@ -1,7 +1,7 @@
 import { cloneDeep } from 'lodash';
 import { createDiscreteApi } from 'naive-ui';
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, onScopeDispose, ref } from 'vue';
 
 import i18n from '@/../i18n/renderer';
 import { getParsingMusicUrl } from '@/api/music';
@@ -19,6 +19,7 @@ import { getImageLinearBackground } from '@/utils/linearColor';
 import { mergeBilingualAlternation } from '@/utils/lyricTranslationMerge';
 import { isChunxiaoAlbumSongId } from '@/utils/songTitle';
 
+import { BACKGROUND_HEALTH_DEGRADED_EVENT, useBackgroundHealthStore } from './backgroundHealth';
 import { usePlayHistoryStore } from './playHistory';
 
 const { message } = createDiscreteApi(['message']);
@@ -271,10 +272,66 @@ export const usePlayerCoreStore = defineStore(
       }, timeout);
     };
 
+    // ==================== 音频管线自救（iOS PWA 崩溃侦测联动） ====================
+    const backgroundHealthStore = useBackgroundHealthStore();
+
+    // 停滞看门狗：前台 + 用户想播 + 非过渡/加载期，位置连续 2 个周期（≈8s）无增量 → 软恢复。
+    // 「时钟走但无声」（元素假死但 currentTime 仍推进）抓不到，由背景 contextlost 先验联动兜底。
+    let watchdogLastPosition: number | null = null;
+    let watchdogStallTicks = 0;
+    const resetWatchdogBaseline = () => {
+      watchdogLastPosition = null;
+      watchdogStallTicks = 0;
+    };
+    const watchdogTimer = window.setInterval(() => {
+      if (document.hidden || !play.value || !userPlayIntent.value) {
+        resetWatchdogBaseline();
+        return;
+      }
+      if (audioService.getCrossfadingSound() || audioService.isLoading()) {
+        resetWatchdogBaseline();
+        return;
+      }
+      const position = audioService.getCurrentPosition();
+      if (position === null) {
+        resetWatchdogBaseline();
+        return;
+      }
+      if (watchdogLastPosition !== null && Math.abs(position - watchdogLastPosition) < 0.4) {
+        watchdogStallTicks += 1;
+      } else {
+        watchdogStallTicks = 0;
+      }
+      watchdogLastPosition = position;
+      if (watchdogStallTicks >= 2) {
+        watchdogStallTicks = 0;
+        watchdogLastPosition = null;
+        void audioService.softRecoverSound('stall').then((ok) => {
+          if (!ok) message.warning(i18n.global.t('player.audioSoftRecoverFailed'));
+        });
+      }
+    }, 4000);
+
+    // 背景 WebGL 上下文丢失（强先验：音频管线常被一起回收）→ 先音频：立即软恢复 + 提示；
+    // 背景降级由宿主组件响应自身状态处理，此处不管背景。
+    const onBackgroundDegraded = () => {
+      message.warning(i18n.global.t('player.backgroundDegraded'));
+      void audioService.softRecoverSound('contextlost').then((ok) => {
+        if (!ok) message.warning(i18n.global.t('player.audioSoftRecoverFailed'));
+      });
+    };
+    window.addEventListener(BACKGROUND_HEALTH_DEGRADED_EVENT, onBackgroundDegraded);
+    onScopeDispose(() => {
+      window.clearInterval(watchdogTimer);
+      window.removeEventListener(BACKGROUND_HEALTH_DEGRADED_EVENT, onBackgroundDegraded);
+    });
+
     /**
      * 核心播放处理函数
      */
     const handlePlayMusic = async (music: SongResult, shouldPlay: boolean = true) => {
+      // 换歌是安全的重试点：背景引擎崩溃后放过一次特效恢复（会话内仅一次）
+      backgroundHealthStore.tryRestoreAtSafePoint();
       // 如果是新歌曲，重置已尝试的音源和重试计数
       if (music.id !== playMusic.value.id) {
         SongSourceConfigManager.clearTriedSources(music.id);

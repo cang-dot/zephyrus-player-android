@@ -46,6 +46,11 @@ class AudioService {
   private pendingSound: AudioHandle | null = null;
 
   private currentTrack: SongResult | null = null;
+  /** 最近一次成功发起播放的 URL（软恢复重载同源用） */
+  private currentUrl: string | null = null;
+  /** 软恢复计数（按 track 记账，换歌重置；上限 2 次） */
+  private softRecoverTrackKey: string | null = null;
+  private softRecoverCount = 0;
 
   private context: AudioContext | null = null;
 
@@ -269,6 +274,67 @@ class AudioService {
         // 元素已销毁时忽略
       }
     });
+  }
+
+  /** 当前播放位置（秒）；无实例/位置不可读返回 null（停滞看门狗与软恢复共用） */
+  getCurrentPosition(): number | null {
+    const sound = this.currentSound;
+    if (!sound) return null;
+    try {
+      const position = sound.seek();
+      return typeof position === 'number' && Number.isFinite(position) ? position : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 软恢复：记位置 → 硬停旧实例 → 复用 play() 全链（重置锁→新建→错误钩子→EQ→seek→play）。
+   * 用于 iOS PWA 音频管线被系统局部回收（元素假死）与背景 contextlost 先验的联动自救；
+   * 同一 track 最多自动恢复 2 次，超过则上抛失败（UI 提示），换歌后计数重置。
+   */
+  async softRecoverSound(reason: string): Promise<boolean> {
+    if (isAndroidNative()) return false;
+    if (this.crossfadingSound) return false; // 过渡期双实例淡变音量为 0，属误报
+    if (this.isLoading()) return false; // 加载/缓冲期勿动
+    if (!(this.currentSound instanceof Howl) || !this.currentTrack || !this.currentUrl) {
+      return false;
+    }
+
+    const trackKey = String(this.currentTrack.id ?? '');
+    if (this.softRecoverTrackKey !== trackKey) {
+      this.softRecoverTrackKey = trackKey;
+      this.softRecoverCount = 0;
+    }
+    if (this.softRecoverCount >= 2) {
+      this.emit('soft-recover-failed', { reason });
+      return false;
+    }
+    this.softRecoverCount += 1;
+
+    const position = this.getCurrentPosition() ?? 0;
+    const url = this.currentUrl;
+    const track = this.currentTrack;
+    console.warn(
+      `audioService: 软恢复播放（${reason}）@${position.toFixed(1)}s，第 ${this.softRecoverCount}/2 次`
+    );
+    this.playbackGeneration += 1; // 作废在途加载
+    try {
+      this.currentSound.stop();
+      this.currentSound.unload();
+    } catch {
+      // 实例可能已死，忽略
+    }
+    this.hardStopSound(this.currentSound);
+    this.currentSound = null;
+    try {
+      await this.play(url, track, true, position);
+      this.emit('soft-recover-complete', { reason, positionSec: position });
+      return true;
+    } catch (error) {
+      this.emit('soft-recover-failed', { reason, error });
+      return false;
+    }
   }
 
   private initMediaSession() {
@@ -2030,6 +2096,7 @@ class AudioService {
     // Every new track gets a generation. Native playback must use the same
     // cancellation guard as the Howler path because load() is asynchronous.
     const playbackGeneration = ++this.playbackGeneration;
+    this.currentUrl = url;
 
     if (isAndroidNative()) {
       return this.playNative(url, track, isPlay, seekTime, existingSound, playbackGeneration);

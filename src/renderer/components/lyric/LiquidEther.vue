@@ -15,6 +15,7 @@
 import * as THREE from 'three';
 import { type CSSProperties, onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { useBackgroundHealthStore } from '@/store/modules/backgroundHealth';
 import { shouldSkipMobilePlayerFrame } from '@/utils/mobilePlayerPerformance';
 
 interface LiquidEtherProps {
@@ -106,6 +107,8 @@ interface PressureSimProps extends CommonSimProps {
   src_v: THREE.WebGLRenderTarget;
   dst: THREE.WebGLRenderTarget;
 }
+
+const backgroundHealthStore = useBackgroundHealthStore();
 
 const props = withDefaults(defineProps<LiquidEtherProps>(), {
   mouseForce: 20,
@@ -1053,6 +1056,9 @@ const initWebGLUnsafe = () => {
     private _onContextLost = (event: Event) => {
       event.preventDefault();
       this.pause();
+      // 旧实现只 preventDefault+pause 且从不恢复（永久僵死）；现在上报崩溃，
+      // 由 backgroundHealth 降级宿主卸载本层释放，音频软恢复由 playerCore 联动
+      backgroundHealthStore.reportContextLost('liquid-ether');
     };
     private _onVisibility?: () => void;
 
