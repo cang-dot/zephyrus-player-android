@@ -301,6 +301,13 @@ function resolvedAmllPlayer(): AmllPlayerRuntime | null {
   return player && typeof player === 'object' ? (player as AmllPlayerRuntime) : null;
 }
 
+/** 供宿主在手势/页面切换后显式恢复 AMLL 自动跟随（挂起态的兜底出口） */
+defineExpose({
+  resetFollow: () => {
+    resolvedAmllPlayer()?.resetScroll?.();
+  }
+});
+
 function sourceIndexForEvent(event: LyricLineMouseEvent): number | null {
   const line = event.line as unknown as AmllLineHandle;
   const sourceIndex = sourceIndexForHandle(line);

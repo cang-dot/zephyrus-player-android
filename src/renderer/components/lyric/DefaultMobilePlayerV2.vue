@@ -28,6 +28,8 @@
         onLyricsSwipePointerCancel($event);
         commentsSwipe.onPointerCancel($event);
       "
+      @touchstart.capture="onRootTouchCapture"
+      @touchmove.capture="onRootTouchCapture"
       @touchstart="onTouchStart"
       @touchend="onTouchEnd"
     >
@@ -153,6 +155,7 @@
           <template v-if="immersiveSurfaceMode === 'lyrics' || !lyricsExpanded">
             <mobile-scrolling-lyrics
               v-if="lrcArray.length"
+              ref="scrollingLyricsRef"
               class="default-scrolling-lyrics"
               :active="true"
               :back-closes="lyricsExpanded"
@@ -474,7 +477,13 @@ registerImmersiveOpener(immersiveOpener);
 // ── 沉浸歌词过渡：变体 / 顶栏 / 封面克隆飞行 ──
 const lyricsZoneRef = ref<HTMLElement | null>(null);
 const artworkTriggerRef = ref<HTMLElement | null>(null);
-const zoneGeometry = ref<{ originY: number; scaleX: number; scaleY: number } | null>(null);
+const scrollingLyricsRef = ref<{ resetFollow: () => void } | null>(null);
+const zoneGeometry = ref<{
+  originX: number;
+  originY: number;
+  scaleX: number;
+  scaleY: number;
+} | null>(null);
 
 // 歌词区域开启 → 由小歌词区容器变换放大（scale）；关闭 → 保持横滑（slide）。
 // 评论三页开启时同样走 scale：横滑语义只属于歌词↔播放页导航，与放大入场不冲突。
@@ -489,6 +498,7 @@ function captureZoneGeometry() {
   const rect = lyricsZoneRef.value.getBoundingClientRect();
   if (rect.height < 40 || rect.width < 40) return;
   zoneGeometry.value = {
+    originX: rect.left + rect.width / 2,
     originY: rect.top + rect.height / 2,
     scaleX: Math.min(1, rect.width / Math.max(1, window.innerWidth)),
     scaleY: Math.min(1, rect.height / Math.max(1, window.innerHeight))
@@ -580,13 +590,32 @@ function captureMorphRects() {
   };
 }
 
+// 封面页稳定态缓存：返回手势的克隆落点必须来自「真实封面页布局」的矩形。
+// 此前在 closing 起始时 nextTick 重测，但此刻根节点仍挂 lyrics-expanded 单行网格，
+// 测得的是内容区垂直居中的固定位置——控件显隐/歌词区开关/图钉状态全部失真。
+const stableMorphRectsSources = computed(() => [
+  controlsShown.value,
+  surfacePinned.value,
+  showLyricsZone.value,
+  showArtwork.value,
+  showTrackInfo.value,
+  vinylDisc.value,
+  artworkRadius.value,
+  width.value,
+  height.value
+]);
+watch(stableMorphRectsSources, () => {
+  if (lyricsExpanded.value || lyricsSwipePreview.value) return;
+  nextTick(captureMorphRects);
+});
+
 watch(
   () => [lyricsSwipePreview.value, lyricsSwipePhase.value] as const,
   ([previewing, phase]) => {
     if (previewing && phase === 'opening') captureMorphRects();
     if (previewing && phase === 'closing') {
-      // 关闭起始时 zone 刚重挂：按当前布局重测源矩形（控件栏显隐会改变封面尺寸/位置）
-      nextTick(captureMorphRects);
+      // 关闭起始直接使用封面页稳定态缓存（stableMorphRectsSources watcher 持续刷新）；
+      // 此刻根节点仍是 lyrics-expanded 单行网格，重测只会得到「固定中央」的错位落点
     }
     if (!previewing && !lyricsExpanded.value) morphRects.value = null;
   }
@@ -776,6 +805,20 @@ function commitLyricsExpanded(value: boolean) {
   lyricsExpanded.value = value;
   playerStore.setFullLyricsVisible(value);
   playerTransition.showControls();
+  // 页面切换后显式恢复 AMLL 自动跟随：页面横滑的 touch 若起手在歌词行上，
+  // 会被 AMLL 的 ScrollInteractionEngine 判为用户滚动而挂起自动对齐（概率性失联的根因），
+  // 预览期已在根节点 capture 拦截 touch，这里再兜底清一次挂起态
+  nextTick(() => scrollingLyricsRef.value?.resetFollow());
+}
+
+/**
+ * 页面横滑预览期间拦截 touch 冒泡：AMLL core 在自身容器监听 touchstart/touchmove，
+ * 竖直分量会真实滚动画布并把焦点行推出渲染范围，横滑分量会挂起自动对齐。
+ * capture 阶段拦截（早于 core 的冒泡监听）才能拦住落在歌词行上的起手。
+ */
+function onRootTouchCapture(event: TouchEvent) {
+  if (!lyricsSwipePreview.value) return;
+  event.stopPropagation();
 }
 
 function setLyricsExpanded(value: boolean) {
@@ -823,6 +866,7 @@ onMounted(() => {
   document.body.classList.add('default-player-active');
   window.dispatchEvent(new Event('default-player-style-changed'));
   window.addEventListener('music-full-config-updated', handleConfigUpdate);
+  nextTick(captureMorphRects);
 });
 onBeforeUnmount(() => {
   playerStore.setFullLyricsVisible(false);

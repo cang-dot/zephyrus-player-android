@@ -18,7 +18,7 @@ type LyricSwipeGestureOptions = {
   /** 入场变体：slide=整层横滑（现状）；scale=以小歌词区为锚的容器变换放大 */
   variant?: () => 'slide' | 'scale';
   /** scale 变体的折叠态几何（区中心与区/全屏宽高比），由消费方在手势外测量 */
-  scaleGeometry?: () => { originY: number; scaleX: number; scaleY: number } | null;
+  scaleGeometry?: () => { originX: number; originY: number; scaleX: number; scaleY: number } | null;
 };
 
 export type LyricSwipePhase = 'opening' | 'closing' | null;
@@ -40,6 +40,9 @@ const INTERACTIVE_TARGETS = [
   '.no-toggle',
   '[data-no-lyrics-swipe]'
 ].join(',');
+
+/** 需要同时接收横滑手势的交互元素（星盘全屏歌词块）：从其表面起手仍交给歌词手势 */
+const SWIPE_ALLOWED_TARGETS = '[data-allow-lyrics-swipe]';
 
 const AXIS_LOCK_DISTANCE = 10;
 
@@ -175,16 +178,25 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
     const scaleX = geometry.scaleX + (1 - geometry.scaleX) * p;
     return {
       ...animatedStyle(`scale(${scaleX.toFixed(4)}, ${scaleY.toFixed(4)})`, 0.55 + 0.45 * p),
-      transformOrigin: `50% ${geometry.originY.toFixed(1)}px`
+      // origin 取折叠歌词区实际中心：横屏歌词区在侧列时从原位放大归位，
+      // 而不是跳到屏幕中央形成「居中窄列」
+      transformOrigin: `${geometry.originX.toFixed(1)}px ${geometry.originY.toFixed(1)}px`
     };
   }
 
   const underlayStyle = computed<CSSProperties>(() => {
     if (!previewing.value || !phase.value) return {};
     if (options.variant?.() === 'scale') {
-      // scale/morph 变体：原封面/信息区在预览全程隐藏——克隆层负责飞行呈现，
-      // 落定后由顶栏与重挂的 zone 同帧交接，原封面与克隆同屏会叠出重影
-      return animatedStyle(undefined, 0);
+      // scale/morph 变体：原封面/信息区留在原地随手势渐隐/渐显（克隆层负责封面
+      // 的飞行呈现，起点与原封面重合故无重影）；此前硬性 opacity 0 + transition:none
+      // 会让歌名/作者瞬间消失，观感像假死
+      const p = phase.value === 'opening' ? progress.value : 1 - progress.value;
+      return animatedStyle(
+        phase.value === 'opening'
+          ? `translate3d(0, ${(-18 * p).toFixed(2)}px, 0)`
+          : 'none',
+        1 - p
+      );
     }
     // 只在唤起(歌词滑入)时给封面层视差;收起时保持原位,
     // 否则歌词滑出后封面会先移开再弹回,看起来像瞬移
@@ -286,7 +298,9 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
   }
 
   function isInteractiveTarget(target: EventTarget | null): boolean {
-    return target instanceof Element && Boolean(target.closest(INTERACTIVE_TARGETS));
+    if (!(target instanceof Element)) return false;
+    if (target.closest(SWIPE_ALLOWED_TARGETS)) return false;
+    return Boolean(target.closest(INTERACTIVE_TARGETS));
   }
 
   function onPointerDown(event: PointerEvent) {
