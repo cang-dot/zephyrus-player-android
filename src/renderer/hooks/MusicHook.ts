@@ -5,6 +5,7 @@ import { computed, type ComputedRef, nextTick, ref, watch } from 'vue';
 import { resolveAmllSource } from '@/api/amllLyrics';
 import useIndexedDB from '@/hooks/IndexDBHook';
 import { type AudioHandle, audioService } from '@/services/audioService';
+import { writePlayerSessionSnapshot } from '@/services/playbackSnapshot';
 import { smartMixService } from '@/services/smartMixService';
 import type { usePlayerStore } from '@/store';
 import { useAmllStore } from '@/store/modules/amll';
@@ -366,13 +367,8 @@ const setupAudioListeners = () => {
         ) {
           lastSavedProgress = currentTime;
           if (getPlayerStore().playMusic?.id) {
-            localStorage.setItem(
-              'playProgress',
-              JSON.stringify({
-                songId: getPlayerStore().playMusic.id,
-                progress: currentTime
-              })
-            );
+            // 快照原子键：≤2s 粒度把「正在播的歌+进度」落盘（划掉后台恢复用）
+            writePlayerSessionSnapshot(getPlayerStore().playMusic, currentTime);
           }
         }
       } catch (error) {
@@ -689,16 +685,10 @@ export const pause = () => {
   const currentSound = audioService.getCurrentSound();
   if (currentSound) {
     try {
-      // 保存当前播放进度
+      // 保存当前播放进度（快照原子写，同拍更新 playProgress）
       const currentTime = currentSound.seek() as number;
       if (getPlayerStore().playMusic && getPlayerStore().playMusic.id) {
-        localStorage.setItem(
-          'playProgress',
-          JSON.stringify({
-            songId: getPlayerStore().playMusic.id,
-            progress: currentTime
-          })
-        );
+        writePlayerSessionSnapshot(getPlayerStore().playMusic, currentTime);
       }
 
       audioService.pause();
@@ -707,6 +697,30 @@ export const pause = () => {
     }
   }
 };
+
+// 划掉后台（上滑杀进程）是 SIGKILL，不执行任何卸载 JS，且 WKWebView 的
+// localStorage 惰性提交会把最近写入整批丢掉——hidden/pagehide 是唯一可靠窗口，
+// 立即把「当前歌+进度」落盘，消除恢复出上一首的丢失窗口。
+const flushPlaybackSnapshot = () => {
+  try {
+    const song = getPlayerStore().playMusic;
+    if (!song?.id) return;
+    let position = 0;
+    try {
+      const p = audioService.getCurrentSound()?.seek?.();
+      if (typeof p === 'number' && Number.isFinite(p)) position = p;
+    } catch {
+      // 元素已死时从 0 起跳
+    }
+    writePlayerSessionSnapshot(song, position);
+  } catch {
+    // 忽略
+  }
+};
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) flushPlaybackSnapshot();
+});
+window.addEventListener('pagehide', flushPlaybackSnapshot);
 
 // 歌词矫正时间映射（每首歌独立）
 const CORRECTION_KEY = 'lyric-correction-map';

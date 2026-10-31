@@ -66,9 +66,14 @@ const debouncedLocalStorage = {
   }
 };
 
-// 正常关闭时刷新未写入的数据
+// 关闭/后台化时刷新未写入的数据：iOS 上滑杀进程不触发 beforeunload，
+// hidden/pagehide 是最后可靠窗口（防 playListIndex 滞后导致恢复出上一首）
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', flushPendingWrites);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) flushPendingWrites();
+  });
+  window.addEventListener('pagehide', flushPendingWrites);
 }
 
 /**

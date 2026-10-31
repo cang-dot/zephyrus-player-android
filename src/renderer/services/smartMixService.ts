@@ -19,6 +19,7 @@ import { getImageLinearBackground } from '@/utils/linearColor';
 import { isAndroidNative } from './androidNative';
 import { type AudioHandle, audioService } from './audioService';
 import { drumDetector } from './drumDetector';
+import { writePlayerSessionSnapshot } from './playbackSnapshot';
 import { LocalAudioPlayer } from './localAudioPlayer';
 import { NativeAudioPlayer } from './nativeAudioPlayer';
 import { preloadService } from './preloadService';
@@ -587,6 +588,14 @@ class SmartMixService {
         introSeekSec = useMixEngineStore().getIntroSilence(String(nextSong.id));
       } catch {
         /* 缓存不可用就从 0 开始 */
+      }
+
+      // 过渡窗口预写快照：fade 一起 nextSong 已在响，但 playMusic/playProgress
+      // 要到 completeTransition 才写——8~12s 窗口内划掉后台会把持久化留在上一首
+      try {
+        writePlayerSessionSnapshot(nextSong, introSeekSec || 0);
+      } catch {
+        // 忽略
       }
 
       const success = await audioService.crossfadeToNext(nextSound, nextSong, duration, level, {

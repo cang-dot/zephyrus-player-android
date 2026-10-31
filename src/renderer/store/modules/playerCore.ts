@@ -9,6 +9,7 @@ import { isLocalSong, useLocalMusic } from '@/hooks/useLocalMusic';
 import { useLyrics, useSongDetail } from '@/hooks/usePlayerHooks';
 import { isAndroidNative } from '@/services/androidNative';
 import { audioService } from '@/services/audioService';
+import { readPlayerSessionSnapshot, writePlayerSessionSnapshot } from '@/services/playbackSnapshot';
 import { playbackRequestManager } from '@/services/playbackRequestManager';
 import { preloadService } from '@/services/preloadService';
 import { SongSourceConfigManager } from '@/services/SongSourceConfigManager';
@@ -423,6 +424,8 @@ export const usePlayerCoreStore = defineStore(
 
       // 更新 playMusic 和播放状态
       playMusic.value = music;
+      // 切歌即预写快照：新歌首拍心跳在 ~2s 后，期间划掉后台会把快照留在上一首
+      writePlayerSessionSnapshot(music, 0);
       play.value = shouldPlay;
       isPlay.value = shouldPlay;
       userPlayIntent.value = shouldPlay;
@@ -654,6 +657,15 @@ export const usePlayerCoreStore = defineStore(
         if (currentSound) {
           currentSound.pause();
         }
+        // 暂停统一落盘进度（对齐 MusicHook.pause；此前仅移动播放页暂停键会写）
+        try {
+          const pos = audioService.getCurrentPosition();
+          if (pos !== null && playMusic.value?.id) {
+            writePlayerSessionSnapshot(playMusic.value, pos);
+          }
+        } catch {
+          // 忽略
+        }
         setPlayMusic(false);
         userPlayIntent.value = false;
       } catch (error) {
@@ -741,6 +753,18 @@ export const usePlayerCoreStore = defineStore(
 
       if (playMusic.value && Object.keys(playMusic.value).length > 0) {
         try {
+          // 划掉后台恢复：快照（播放期 ≤2s 心跳落盘）比 playMusic 的持久化更新——
+          // player-core-store 只在起播后集中写一次、播放期零写入，SIGKILL+惰性提交
+          // 会把切歌批次整批丢掉。songId 不一致即采纳快照曲目。
+          const snapshot = readPlayerSessionSnapshot();
+          if (
+            snapshot?.song?.id !== null &&
+            snapshot?.song?.id !== undefined &&
+            String(snapshot.song.id) !== String(playMusic.value.id ?? '')
+          ) {
+            playMusic.value = snapshot.song;
+          }
+
           const isPlaying = settingStore.setData.autoPlay;
 
           // 本地音乐和云端歌曲不需要重新获取 URL，保留原始路径
@@ -759,8 +783,8 @@ export const usePlayerCoreStore = defineStore(
           console.error('重新获取音乐链接失败:', error);
           play.value = false;
           isPlay.value = false;
-          playMusic.value = {} as SongResult;
-          playMusicUrl.value = '';
+          userPlayIntent.value = false;
+          // 保留 playMusic：恢复失败不应让播放条与「上次在播什么」一起消失
         }
       }
 
