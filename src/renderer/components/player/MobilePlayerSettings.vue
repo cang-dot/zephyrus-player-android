@@ -76,33 +76,46 @@
               :inert="activeTab !== 'control'"
               :style="getSettingsTabPageStyle('control')"
             >
+              <!-- 模块子页导航：顶层入口列表 → 点进子页（内容平铺，无折叠） -->
+              <template v-if="!controlSubPage">
+                <div class="module-menu">
+                  <button
+                    v-for="m in controlModules"
+                    :key="m.key"
+                    type="button"
+                    class="module-menu-item"
+                    @click="openControlModule(m.key)"
+                  >
+                    <i :class="m.icon" class="module-menu-icon"></i>
+                    <span class="module-menu-copy">
+                      <span class="module-menu-label">{{ m.label }}</span>
+                      <span class="module-menu-summary">{{ m.summary }}</span>
+                    </span>
+                    <i class="ri-arrow-right-s-line module-menu-chevron" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </template>
+              <template v-else>
+                <div class="module-subpage-header">
+                  <button
+                    type="button"
+                    class="module-subpage-back"
+                    aria-label="返回模块列表"
+                    @click="closeControlModule"
+                  >
+                    <i class="ri-arrow-left-s-line"></i>
+                  </button>
+                  <span class="module-subpage-title">{{ currentControlModuleLabel }}</span>
+                </div>
+              </template>
+
               <!-- 播放器样式 2×2 网格 -->
               <section
+                v-show="isModuleVisible('playerStyle')"
                 class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('playerStyle') }"
+                :class="{ 'subpage-visible': isModuleVisible('playerStyle') }"
               >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('playerStyle')"
-                  aria-controls="control-section-player-style"
-                  @click="toggleControlSection('playerStyle')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-palette-line"></i>
-                    样式 · 播放器
-                  </span>
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('playerStyle') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('playerStyle') }"
-                  :aria-hidden="!isControlSectionExpanded('playerStyle')"
-                  :inert="!isControlSectionExpanded('playerStyle')"
-                >
+                <div class="control-section-reveal expanded">
                   <div id="control-section-player-style" class="control-section-body">
                     <div class="grid grid-cols-2 gap-3">
                       <button
@@ -138,31 +151,11 @@
 
               <!-- 样式 · AMLL 滚动歌词 -->
               <section
+                v-show="isModuleVisible('amllScrollLyrics')"
                 class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('amllScrollLyrics') }"
+                :class="{ 'subpage-visible': isModuleVisible('amllScrollLyrics') }"
               >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('amllScrollLyrics')"
-                  aria-controls="control-section-amll-scroll"
-                  @click="toggleControlSection('amllScrollLyrics')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-scroll-to-bottom-line"></i>
-                    样式 · AMLL 滚动歌词
-                  </span>
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('amllScrollLyrics') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('amllScrollLyrics') }"
-                  :aria-hidden="!isControlSectionExpanded('amllScrollLyrics')"
-                  :inert="!isControlSectionExpanded('amllScrollLyrics')"
-                >
+                <div class="control-section-reveal expanded">
                   <div id="control-section-amll-scroll" class="control-section-body">
                     <div
                       v-if="!lyricConfig.showCommentSection"
@@ -278,31 +271,11 @@
 
               <!-- 歌词设置 -->
               <section
+                v-show="isModuleVisible('lyrics')"
                 class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('lyrics') }"
+                :class="{ 'subpage-visible': isModuleVisible('lyrics') }"
               >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('lyrics')"
-                  aria-controls="control-section-lyrics"
-                  @click="toggleControlSection('lyrics')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-translate-2 mr-1"></i>
-                    布局 · 歌词与页面
-                  </span>
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('lyrics') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('lyrics') }"
-                  :aria-hidden="!isControlSectionExpanded('lyrics')"
-                  :inert="!isControlSectionExpanded('lyrics')"
-                >
+                <div class="control-section-reveal expanded">
                   <div id="control-section-lyrics" class="control-section-body">
                     <!-- 显示翻译 -->
                     <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
@@ -500,32 +473,11 @@
 
               <!-- 数据 · 歌词来源（优先级拖拽 + 本首临时切换） -->
               <section
+                v-show="isModuleVisible('lyricSource')"
                 class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('lyricSource') }"
+                :class="{ 'subpage-visible': isModuleVisible('lyricSource') }"
               >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('lyricSource')"
-                  aria-controls="control-section-lyric-source"
-                  @click="toggleControlSection('lyricSource')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-database-2-line"></i>
-                    数据 · 歌词来源
-                  </span>
-                  <span class="control-section-summary accent">{{ defaultLyricSourceLabel }}</span>
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('lyricSource') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('lyricSource') }"
-                  :aria-hidden="!isControlSectionExpanded('lyricSource')"
-                  :inert="!isControlSectionExpanded('lyricSource')"
-                >
+                <div class="control-section-reveal expanded">
                   <div id="control-section-lyric-source" class="control-section-body">
                     <p class="lyric-source-hint">横向拖拽调整请求优先级 · 点击卡片设为默认请求源</p>
                     <div
@@ -587,31 +539,11 @@
 
               <!-- 均衡器（固定预设 + 叠加空间效果 + 自定义） -->
               <section
+                v-show="isModuleVisible('eq')"
                 class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('eq') }"
+                :class="{ 'subpage-visible': isModuleVisible('eq') }"
               >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('eq')"
-                  aria-controls="control-section-eq"
-                  @click="toggleControlSection('eq')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-equalizer-line"></i>
-                    音频 · 均衡器
-                  </span>
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('eq') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('eq') }"
-                  :aria-hidden="!isControlSectionExpanded('eq')"
-                  :inert="!isControlSectionExpanded('eq')"
-                >
+                <div class="control-section-reveal expanded">
                   <div id="control-section-eq" class="control-section-body">
                     <eq-control :key="eqPanelKey" />
                   </div>
@@ -620,32 +552,11 @@
 
               <!-- 播放速度 -->
               <section
+                v-show="isModuleVisible('speed')"
                 class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('speed') }"
+                :class="{ 'subpage-visible': isModuleVisible('speed') }"
               >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('speed')"
-                  aria-controls="control-section-speed"
-                  @click="toggleControlSection('speed')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-speed-up-line"></i>
-                    音频 · 倍速
-                  </span>
-                  <span class="control-section-summary accent">{{ playbackRate }}x</span>
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('speed') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('speed') }"
-                  :aria-hidden="!isControlSectionExpanded('speed')"
-                  :inert="!isControlSectionExpanded('speed')"
-                >
+                <div class="control-section-reveal expanded">
                   <div id="control-section-speed" class="control-section-body">
                     <div class="flex flex-wrap gap-2">
                       <button
@@ -668,32 +579,11 @@
 
               <!-- 手动标记高潮段落 -->
               <section
+                v-show="isModuleVisible('climax')"
                 class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('climax') }"
+                :class="{ 'subpage-visible': isModuleVisible('climax') }"
               >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('climax')"
-                  aria-controls="control-section-climax"
-                  @click="toggleControlSection('climax')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-fire-line mr-1"></i>
-                    播放 · 高潮段落标记
-                  </span>
-                  <span class="control-section-summary">{{ manualClimaxSegments.length }} 段</span>
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('climax') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('climax') }"
-                  :aria-hidden="!isControlSectionExpanded('climax')"
-                  :inert="!isControlSectionExpanded('climax')"
-                >
+                <div class="control-section-reveal expanded">
                   <div id="control-section-climax" class="control-section-body">
                     <!-- 自动高潮分析（DSP，第四优先级数据源） -->
                     <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
@@ -894,35 +784,13 @@
 
               <!-- 定时关闭 -->
               <section
+                v-show="isModuleVisible('sleepTimer')"
                 class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('sleepTimer') }"
+                :class="{ 'subpage-visible': isModuleVisible('sleepTimer') }"
               >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('sleepTimer')"
-                  aria-controls="control-section-sleep-timer"
-                  @click="toggleControlSection('sleepTimer')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-timer-line"></i>
-                    播放 · 定时关闭
-                  </span>
-                  <span v-if="hasTimerActive" class="control-section-summary accent">
-                    {{ timerStatusText }}
-                  </span>
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('sleepTimer') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('sleepTimer') }"
-                  :aria-hidden="!isControlSectionExpanded('sleepTimer')"
-                  :inert="!isControlSectionExpanded('sleepTimer')"
-                >
+                <div class="control-section-reveal expanded">
                   <div id="control-section-sleep-timer" class="control-section-body">
+                    <p v-if="timerStatusText" class="module-subpage-hint">{{ timerStatusText }}</p>
                     <!-- 已激活状态 -->
                     <div v-if="hasTimerActive" class="space-y-3">
                       <div
@@ -1030,31 +898,11 @@
 
               <!-- 歌词解析 -->
               <section
+                v-show="isModuleVisible('analysis')"
                 class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('analysis') }"
+                :class="{ 'subpage-visible': isModuleVisible('analysis') }"
               >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('analysis')"
-                  aria-controls="control-section-analysis"
-                  @click="toggleControlSection('analysis')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-quill-pen-line mr-1"></i>
-                    工具 · 歌词解析
-                  </span>
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('analysis') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('analysis') }"
-                  :aria-hidden="!isControlSectionExpanded('analysis')"
-                  :inert="!isControlSectionExpanded('analysis')"
-                >
+                <div class="control-section-reveal expanded">
                   <div id="control-section-analysis" class="control-section-body">
                     <div class="control-section-actions">
                       <div
@@ -1162,36 +1010,11 @@
 
               <!-- 一起听 -->
               <section
+                v-show="isModuleVisible('listenTogether')"
                 class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('listenTogether') }"
+                :class="{ 'subpage-visible': isModuleVisible('listenTogether') }"
               >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('listenTogether')"
-                  aria-controls="control-section-listen-together"
-                  @click="toggleControlSection('listenTogether')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-headphone-line mr-1"></i>
-                    工具 · 一起听
-                  </span>
-                  <span
-                    v-if="listenTogetherStore.status === 'active'"
-                    class="control-section-summary accent"
-                    >{{ listenTogetherStore.roomCode }}</span
-                  >
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('listenTogether') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('listenTogether') }"
-                  :aria-hidden="!isControlSectionExpanded('listenTogether')"
-                  :inert="!isControlSectionExpanded('listenTogether')"
-                >
+                <div class="control-section-reveal expanded">
                   <div id="control-section-listen-together" class="control-section-body">
                     <listen-together-settings />
                   </div>
@@ -1200,31 +1023,11 @@
 
               <!-- 分享功能 -->
               <section
+                v-show="isModuleVisible('sharing')"
                 class="control-settings-section"
-                :class="{ expanded: isControlSectionExpanded('sharing') }"
+                :class="{ 'subpage-visible': isModuleVisible('sharing') }"
               >
-                <button
-                  type="button"
-                  class="control-section-header"
-                  :aria-expanded="isControlSectionExpanded('sharing')"
-                  aria-controls="control-section-sharing"
-                  @click="toggleControlSection('sharing')"
-                >
-                  <span class="control-section-title">
-                    <i class="ri-share-line mr-1"></i>
-                    分享 · 图片与视频
-                  </span>
-                  <i
-                    class="ri-arrow-down-s-line control-section-chevron"
-                    :class="{ expanded: isControlSectionExpanded('sharing') }"
-                  ></i>
-                </button>
-                <div
-                  class="control-section-reveal"
-                  :class="{ expanded: isControlSectionExpanded('sharing') }"
-                  :aria-hidden="!isControlSectionExpanded('sharing')"
-                  :inert="!isControlSectionExpanded('sharing')"
-                >
+                <div class="control-section-reveal expanded">
                   <div id="control-section-sharing" class="control-section-body">
                     <!-- 图片分享 -->
                     <div class="share-group-label">
@@ -1521,10 +1324,10 @@ import {
 } from '@/services/androidNative';
 import { audioService } from '@/services/audioService';
 import { deleteClimaxCache, getLocalClimax, saveLocalClimax } from '@/services/cacheService';
+import { registerMobileBackLayer } from '@/services/mobileBackStack';
 import { activeAudioFormat } from '@/services/nativeAudioPlayer';
 import { useClimaxStore } from '@/store/modules/climax';
 import { useCommunityDataStore } from '@/store/modules/communityData';
-import { useListenTogetherStore } from '@/store/modules/listenTogether';
 import { useLocalMusicStore } from '@/store/modules/localMusic';
 import { LYRIC_SOURCES, useLyricSourceStore } from '@/store/modules/lyricSource';
 import { usePlayerStore } from '@/store/modules/player';
@@ -1557,7 +1360,6 @@ const styleEngine = useStyleEngineStore();
 const climaxStore = useClimaxStore();
 const communityDataStore = useCommunityDataStore();
 const userStore = useUserStore();
-const listenTogetherStore = useListenTogetherStore();
 const { navigateToArtist } = useArtist();
 const message = window.$message;
 const androidNativeAvailable = isAndroidNative();
@@ -1628,26 +1430,82 @@ type ControlSection =
   | 'listenTogether'
   | 'sleepTimer';
 
-const expandedControlSections = ref<Set<ControlSection>>(new Set());
-const isControlSectionExpanded = (section: ControlSection) =>
-  expandedControlSections.value.has(section);
+// ==================== 模块子页导航 ====================
+// control 页顶层是模块入口列表，点进子页后该模块的分区平铺展示（无折叠）。
+// 返回出口：子页头返回钮 / Android 返回手势（back layer priority 630，先于面板关闭）。
+type ControlModule = 'style' | 'layout' | 'data' | 'audio' | 'playback' | 'tools' | 'share';
 
-function toggleControlSection(section: ControlSection) {
-  const next = new Set(expandedControlSections.value);
-  if (next.has(section)) next.delete(section);
-  else next.add(section);
-  expandedControlSections.value = next;
+const SECTION_MODULE: Record<ControlSection, ControlModule> = {
+  playerStyle: 'style',
+  amllScrollLyrics: 'style',
+  lyrics: 'layout',
+  lyricSource: 'data',
+  eq: 'audio',
+  speed: 'audio',
+  climax: 'playback',
+  sleepTimer: 'playback',
+  analysis: 'tools',
+  listenTogether: 'tools',
+  sharing: 'share'
+};
+
+const controlSubPage = ref<ControlModule | null>(null);
+const controlModules = computed(() => [
+  {
+    key: 'style' as ControlModule,
+    icon: 'ri-palette-line',
+    label: '样式',
+    summary: `${currentStyleLabel.value} · AMLL 滚动歌词`
+  },
+  {
+    key: 'layout' as ControlModule,
+    icon: 'ri-layout-masonry-line',
+    label: '布局',
+    summary: '歌词对齐 · 页面布局 · 状态栏歌词'
+  },
+  {
+    key: 'data' as ControlModule,
+    icon: 'ri-database-2-line',
+    label: '数据',
+    summary: `歌词来源：${defaultLyricSourceLabel.value}`
+  },
+  {
+    key: 'audio' as ControlModule,
+    icon: 'ri-equalizer-line',
+    label: '音频',
+    summary: `均衡器 · ${playbackRate.value}x`
+  },
+  {
+    key: 'playback' as ControlModule,
+    icon: 'ri-play-circle-line',
+    label: '播放',
+    summary: '高潮段落 · 定时关闭'
+  },
+  {
+    key: 'tools' as ControlModule,
+    icon: 'ri-tools-line',
+    label: '工具',
+    summary: '歌词解析 · 一起听'
+  },
+  {
+    key: 'share' as ControlModule,
+    icon: 'ri-share-line',
+    label: '分享',
+    summary: '图片海报 · 视频分享'
+  }
+]);
+const currentControlModuleLabel = computed(
+  () => controlModules.value.find((m) => m.key === controlSubPage.value)?.label ?? ''
+);
+
+function isModuleVisible(section: ControlSection): boolean {
+  return controlSubPage.value !== null && SECTION_MODULE[section] === controlSubPage.value;
 }
-
-function collapseControlSections() {
-  expandedControlSections.value = new Set();
+function openControlModule(module: ControlModule): void {
+  controlSubPage.value = module;
 }
-
-function expandControlSection(section: ControlSection) {
-  if (expandedControlSections.value.has(section)) return;
-  const next = new Set(expandedControlSections.value);
-  next.add(section);
-  expandedControlSections.value = next;
+function closeControlModule(): void {
+  controlSubPage.value = null;
 }
 
 const settingsTabViewportRef = ref<HTMLElement | null>(null);
@@ -1693,6 +1551,8 @@ const settingsTabVelocity = () => {
 
 const onTabPointerDown = (event: PointerEvent) => {
   if (!event.isPrimary || !isSettingsTabSwipeTarget(event.target)) return;
+  // 子页打开时禁用 tab 横滑：先退子页再切 tab
+  if (controlSubPage.value) return;
   settingsTabPointerId = event.pointerId;
   settingsTabStartX = event.clientX;
   settingsTabStartY = event.clientY;
@@ -2577,6 +2437,10 @@ const playerStyles = computed<
 const currentPlayerStyle = computed<MobilePlayerStyleKey>(() =>
   isMobilePlayerStyleKey(lyricConfig.value.playerStyle) ? lyricConfig.value.playerStyle : 'default'
 );
+/** 模块菜单「样式」摘要用：当前样式的显示名 */
+const currentStyleLabel = computed(
+  () => playerStyles.value.find((s) => s.key === currentPlayerStyle.value)?.label ?? '默认'
+);
 
 // 「错误」样式含高频闪烁，首次启用前必须通过光敏性癫痫警告
 const PHOTOSENSITIVITY_ACK_KEY = 'photosensitivity-warning-acked';
@@ -2586,8 +2450,6 @@ const photosensitivityVisible = ref(false);
 const applyPlayerStyle = (style: MobilePlayerStyleKey) => {
   const previous = lyricConfig.value.playerStyle;
   lyricConfig.value.playerStyle = style;
-  // 切换样式后保持「播放器样式」分区展开，避免 remount 重开面板后网格收起造成"没反应"观感
-  expandControlSection('playerStyle');
   console.info(
     `[PlayerSettings] playerStyle: ${String(previous)} -> ${style}, stored=${String(
       (() => {
@@ -2836,11 +2698,12 @@ const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void;
 }>();
 
+let unregisterSubpageBack: (() => void) | null = null;
+
 watch(
   () => props.visible,
   (visible) => {
     if (visible) {
-      collapseControlSections();
       void loadMetaphorModels();
     }
   },
@@ -2860,6 +2723,8 @@ let timerInterval: number | null = null;
 const hasTimerActive = computed(() => playerStore.hasSleepTimerActive);
 
 const timerStatusText = computed(() => {
+  // 摘要展示位：子页化后挂在「播放 · 定时关闭」分区顶部
+  
   if (sleepTimer.value.type === 'time') return t('player.sleepTimer.timeMode');
   if (sleepTimer.value.type === 'songs') return t('player.sleepTimer.songsMode');
   if (sleepTimer.value.type === 'end') return t('player.sleepTimer.afterPlaylist');
@@ -2981,11 +2846,20 @@ onMounted(() => {
   if (hasTimerActive.value && sleepTimer.value.type === 'time') {
     startTimerUpdate();
   }
+  // 子页返回层：优先级 630 高于面板关闭层（抽屉 520 / 嵌入底面 620），子页先退
+  unregisterSubpageBack = registerMobileBackLayer({
+    id: 'player-settings-subpage',
+    priority: 630,
+    isActive: () => Boolean(props.visible && controlSubPage.value),
+    onBack: closeControlModule
+  });
 });
 
 onUnmounted(() => {
   stopTimerUpdate();
   stopMetaphorLoadingTimer();
+  unregisterSubpageBack?.();
+  unregisterSubpageBack = null;
 });
 </script>
 
@@ -4008,5 +3882,116 @@ onUnmounted(() => {
 
 .override-status.muted {
   color: rgba(255, 255, 255, 0.5);
+}
+
+/* ==================== 模块子页导航 ==================== */
+@keyframes subpage-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.module-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: subpage-slide-in 300ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.module-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  transition: background-color 0.15s ease;
+  text-align: left;
+}
+
+.module-menu-item:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.module-menu-icon {
+  font-size: 20px;
+  color: var(--accent-color, #ffc832);
+  flex: 0 0 auto;
+}
+
+.module-menu-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.module-menu-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.module-menu-summary {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-menu-chevron {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+
+.module-subpage-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  animation: subpage-slide-in 300ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.module-subpage-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 20px;
+  transition: background-color 0.15s ease;
+}
+
+.module-subpage-back:active {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.module-subpage-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.module-subpage-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* 子页内的分区：从模块列表进入时滑入 */
+.control-settings-section.subpage-visible {
+  animation: subpage-slide-in 300ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 </style>
