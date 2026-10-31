@@ -2,10 +2,12 @@ import { cloneDeep } from 'lodash';
 import { createDiscreteApi } from 'naive-ui';
 import { computed, type ComputedRef, nextTick, ref, watch } from 'vue';
 
+import { resolveAmllSource } from '@/api/amllLyrics';
 import useIndexedDB from '@/hooks/IndexDBHook';
 import { type AudioHandle, audioService } from '@/services/audioService';
 import { smartMixService } from '@/services/smartMixService';
 import type { usePlayerStore } from '@/store';
+import { useAmllStore } from '@/store/modules/amll';
 import { useTransitionStore } from '@/store/modules/transition';
 import type { Artist, ILyricText, SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
@@ -800,6 +802,24 @@ export const getLrcIndex = (time: number): number => {
 
 // 根据时间获取对应歌词文本（用于进度条悬停预览）
 export const getLyricTextAtTime = (timeSec: number): string | null => {
+  // TTML 逐字歌词优先：它异步到达后不回写 lrcArray，悬停预览须直读
+  // amllStore 才能随「更优歌词加载完成」实时更新（桌面进度条与移动进度条共用）。
+  // currentSource 与当前歌不匹配（切歌瞬间残留）时回退 LRC
+  try {
+    const amllStore = useAmllStore();
+    const ttml = amllStore.ttmlLyric;
+    const source = playMusic.value ? resolveAmllSource(playMusic.value) : null;
+    const expectedSource = source ? `${source.platform}:${source.songId}` : null;
+    if (ttml?.lines.length && expectedSource && amllStore.currentSource === expectedSource) {
+      const t = timeSec + correctionTime.value;
+      for (const line of ttml.lines) {
+        if (line.isBackground) continue;
+        if (t >= line.begin && t < line.end && line.text.trim()) return line.text;
+      }
+    }
+  } catch {
+    /* pinia 未激活等极端时序：回退 LRC */
+  }
   const index = getLrcIndex(timeSec);
   if (index >= 0 && index < lrcArray.value.length) {
     return lrcArray.value[index].text || null;
