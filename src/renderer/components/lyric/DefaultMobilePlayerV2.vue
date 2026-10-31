@@ -627,25 +627,6 @@ function captureMorphRects() {
   };
 }
 
-// 封面页稳定态缓存：返回手势的克隆落点必须来自「真实封面页布局」的矩形。
-// 此前在 closing 起始时 nextTick 重测，但此刻根节点仍挂 lyrics-expanded 单行网格，
-// 测得的是内容区垂直居中的固定位置——控件显隐/歌词区开关/图钉状态全部失真。
-const stableMorphRectsSources = computed(() => [
-  controlsShown.value,
-  surfacePinned.value,
-  showLyricsZone.value,
-  showArtwork.value,
-  showTrackInfo.value,
-  vinylDisc.value,
-  artworkRadius.value,
-  width.value,
-  height.value
-]);
-watch(stableMorphRectsSources, () => {
-  if (lyricsExpanded.value || lyricsSwipePreview.value) return;
-  nextTick(captureMorphRects);
-});
-
 watch(
   () => [lyricsSwipePreview.value, lyricsSwipePhase.value] as const,
   ([previewing, phase]) => {
@@ -720,6 +701,27 @@ const playerTransitionBusy = computed(
     playerTransition.state.value === 'opening' ||
     playerTransition.state.value === 'closing'
 );
+
+// 封面页稳定态缓存：返回手势的克隆落点必须来自「真实封面页布局」的矩形。
+// 此前在 closing 起始时 nextTick 重测，但此刻根节点仍挂 lyrics-expanded 单行网格，
+// 测得的是内容区垂直居中的固定位置——控件显隐/歌词区开关/图钉状态全部失真。
+// 注意：watch 创建时即同步求源一次，源内绑定必须先于此处声明（controlsShown 曾因倒置 TDZ 白屏）。
+const stableMorphRectsSources = computed(() => [
+  controlsShown.value,
+  surfacePinned.value,
+  showLyricsZone.value,
+  showArtwork.value,
+  showTrackInfo.value,
+  vinylDisc.value,
+  artworkRadius.value,
+  width.value,
+  height.value
+]);
+watch(stableMorphRectsSources, () => {
+  if (lyricsExpanded.value || lyricsSwipePreview.value) return;
+  nextTick(captureMorphRects);
+});
+
 const coverUrl = computed(() =>
   getImgUrl(normalizeArtworkUrl(resolveArtworkSource(playMusic.value)), '500y500')
 );
