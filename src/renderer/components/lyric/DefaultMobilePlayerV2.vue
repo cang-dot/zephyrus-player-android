@@ -717,9 +717,19 @@ const stableMorphRectsSources = computed(() => [
   width.value,
   height.value
 ]);
+let zoneGeometryRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 watch(stableMorphRectsSources, () => {
   if (lyricsExpanded.value || lyricsSwipePreview.value) return;
   nextTick(captureMorphRects);
+  // 塌缩目标几何延迟到网格过渡(380ms)结束后重测——transition 期间量到的是起点矩形。
+  // 控件自动隐藏/旋转等封面页稳定态变化后，closing 残影必须塌向当前布局的折叠区，
+  // 否则会塌向过期 origin（观感即「居中布局」）
+  if (zoneGeometryRefreshTimer !== null) clearTimeout(zoneGeometryRefreshTimer);
+  zoneGeometryRefreshTimer = setTimeout(() => {
+    zoneGeometryRefreshTimer = null;
+    if (lyricsExpanded.value || lyricsSwipePreview.value) return;
+    captureZoneGeometry();
+  }, 420);
 });
 
 const coverUrl = computed(() =>
@@ -905,11 +915,18 @@ onMounted(() => {
   document.body.classList.add('default-player-active');
   window.dispatchEvent(new Event('default-player-style-changed'));
   window.addEventListener('music-full-config-updated', handleConfigUpdate);
-  nextTick(captureMorphRects);
+  nextTick(() => {
+    captureMorphRects();
+    captureZoneGeometry();
+  });
 });
 onBeforeUnmount(() => {
   playerStore.setFullLyricsVisible(false);
   unregisterImmersiveOpener(immersiveOpener);
+  if (zoneGeometryRefreshTimer !== null) {
+    clearTimeout(zoneGeometryRefreshTimer);
+    zoneGeometryRefreshTimer = null;
+  }
   window.removeEventListener('music-full-config-updated', handleConfigUpdate);
   document.body.classList.remove('default-player-active');
   window.dispatchEvent(new Event('default-player-style-changed'));

@@ -129,6 +129,11 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
   let suppressClickUntil = 0;
   let motionQuery: MediaQueryList | null = null;
   let captureTarget: Element | null = null;
+  // 在途 settle 的目标与完成回调：rAF 正常完成、看门狗兜底、手势打断收尾
+  // 三条路径共用同一份记录，保证 commit/finishPreview 只执行一次
+  let settleWatchdog: ReturnType<typeof setTimeout> | null = null;
+  let pendingSettleTarget: number | null = null;
+  let pendingSettleComplete: (() => void) | null = null;
 
   const viewportWidth = () => Math.max(1, typeof window === 'undefined' ? 1 : window.innerWidth);
   const progress = computed(() => Math.min(1, Math.abs(offset.value) / viewportWidth()));
@@ -226,7 +231,41 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
   function cancelAnimation() {
     if (animationFrame) cancelAnimationFrame(animationFrame);
     animationFrame = 0;
+    if (settleWatchdog !== null) {
+      clearTimeout(settleWatchdog);
+      settleWatchdog = null;
+    }
     settling.value = false;
+    pendingSettleTarget = null;
+    pendingSettleComplete = null;
+  }
+
+  /** settle 完成单一入口（rAF 正常完成/看门狗兜底共用），幂等 */
+  function completeSettle() {
+    if (settleWatchdog !== null) {
+      clearTimeout(settleWatchdog);
+      settleWatchdog = null;
+    }
+    animationFrame = 0;
+    settling.value = false;
+    const complete = pendingSettleComplete;
+    pendingSettleTarget = null;
+    pendingSettleComplete = null;
+    complete?.();
+  }
+
+  /**
+   * 打断在途预览时按弹道收尾：commit 弹道执行其完成回调（动画朝哪去就落到哪），
+   * 回弹弹道/孤儿预览态仅解环——只取消动画会让预览态悬挂，页面冻在过渡中间帧
+   */
+  function finalizePendingPreview() {
+    const complete = pendingSettleComplete;
+    const commitSettle = pendingSettleTarget !== null && pendingSettleTarget !== 0;
+    const hadPreview = previewing.value || phase.value !== null;
+    cancelAnimation();
+    if (!hadPreview) return;
+    if (commitSettle && complete) complete();
+    else finishPreview();
   }
 
   function finishPreview() {
@@ -244,6 +283,8 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
     }
 
     settling.value = true;
+    pendingSettleTarget = target;
+    pendingSettleComplete = onComplete ?? null;
     const startedAt = performance.now();
     const from = offset.value;
     const displacement = from - target;
@@ -257,15 +298,19 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
 
       if (elapsed >= 0.55 || (Math.abs(offset.value - target) < 0.35 && now - startedAt > 120)) {
         offset.value = target;
-        settling.value = false;
-        animationFrame = 0;
-        onComplete?.();
+        completeSettle();
         return;
       }
       animationFrame = requestAnimationFrame(frame);
     };
 
     animationFrame = requestAnimationFrame(frame);
+    // rAF 链可能因回调异常或 WebView 暂停而死亡；看门狗保证弹道必然收束
+    settleWatchdog = setTimeout(() => {
+      if (!settling.value) return;
+      offset.value = target;
+      completeSettle();
+    }, 900);
   }
 
   function resetPointer() {
@@ -308,9 +353,7 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
     if (isInteractiveTarget(event.target)) return;
     if (options.suppressed?.()) return;
 
-    cancelAnimation();
-    previewing.value = false;
-    phase.value = null;
+    finalizePendingPreview();
     pointerId = event.pointerId;
     startX = event.clientX;
     startY = event.clientY;
@@ -389,9 +432,12 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
     // Finish at the viewport edge. This makes the overlay fully present or
     // fully gone before the logical state flips, avoiding a visible jump.
     animateTo(gestureSign * width, velocity, () => {
-      if (startedOpen) options.onClose();
-      else options.onOpen();
-      finishPreview();
+      try {
+        if (startedOpen) options.onClose();
+        else options.onOpen();
+      } finally {
+        finishPreview();
+      }
     });
   }
 
@@ -412,8 +458,11 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
     previewing.value = true;
     offset.value = 0;
     animateTo(gestureSign * viewportWidth(), 0, () => {
-      options.onOpen();
-      finishPreview();
+      try {
+        options.onOpen();
+      } finally {
+        finishPreview();
+      }
     });
   }
 
@@ -426,8 +475,11 @@ export function useLyricSwipeGesture(options: LyricSwipeGestureOptions) {
     previewing.value = true;
     offset.value = 0;
     animateTo(gestureSign * viewportWidth(), 0, () => {
-      options.onClose();
-      finishPreview();
+      try {
+        options.onClose();
+      } finally {
+        finishPreview();
+      }
     });
   }
 
