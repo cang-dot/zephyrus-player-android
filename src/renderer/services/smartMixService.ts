@@ -19,7 +19,7 @@ import { getImageLinearBackground } from '@/utils/linearColor';
 import { isAndroidNative } from './androidNative';
 import { type AudioHandle, audioService } from './audioService';
 import { drumDetector } from './drumDetector';
-import { writePlayerSessionSnapshot } from './playbackSnapshot';
+import { markSessionSnapshotSong } from './playbackSnapshot';
 import { LocalAudioPlayer } from './localAudioPlayer';
 import { NativeAudioPlayer } from './nativeAudioPlayer';
 import { preloadService } from './preloadService';
@@ -590,10 +590,11 @@ class SmartMixService {
         /* 缓存不可用就从 0 开始 */
       }
 
-      // 过渡窗口预写快照：fade 一起 nextSong 已在响，但 playMusic/playProgress
-      // 要到 completeTransition 才写——8~12s 窗口内划掉后台会把持久化留在上一首
+      // 过渡窗口预写快照：fade 一起 nextSong 已在响，但 playMusic 要到
+      // completeTransition 才写——8~12s 窗口内划掉后台会把持久化留在上一首。
+      // 只标记身份不动 playProgress（心跳在 fade 期仍记录当前出声实例的位置）
       try {
-        writePlayerSessionSnapshot(nextSong, introSeekSec || 0);
+        markSessionSnapshotSong(nextSong);
       } catch {
         // 忽略
       }

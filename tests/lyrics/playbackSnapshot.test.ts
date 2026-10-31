@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  markSessionSnapshotSong,
   minifySongForSnapshot,
   readPlayerSessionSnapshot,
   writePlayerSessionSnapshot
@@ -63,5 +64,29 @@ describe('playbackSnapshot', () => {
 
     localStorage.setItem('player-session-snapshot', JSON.stringify({ foo: 1 }));
     expect(readPlayerSessionSnapshot()).toBe(null);
+  });
+
+  it('markSessionSnapshotSong 只标记身份，绝不动 playProgress（进度恢复语义）', () => {
+    // 心跳已写 B 的真实进度
+    writePlayerSessionSnapshot(baseSong, 96.5);
+    const playProgressBefore = localStorage.getItem('playProgress');
+
+    // 切到新歌 C：身份快照换曲，playProgress 必须原样保留（B 的进度不能被抹成 0）
+    const songC = { ...baseSong, id: 77, name: '新歌' } as SongResult;
+    markSessionSnapshotSong(songC);
+    const snap = readPlayerSessionSnapshot();
+    expect(snap?.songId).toBe(77);
+    expect(snap?.progress).toBe(0); // 新歌「听到哪」为 0
+    expect(localStorage.getItem('playProgress')).toBe(playProgressBefore);
+
+    // 重播同曲：progress 透传旧快照值（重播=继续语义）
+    markSessionSnapshotSong(songC);
+    expect(readPlayerSessionSnapshot()?.progress).toBe(0);
+    writePlayerSessionSnapshot(songC, 33);
+    markSessionSnapshotSong(songC);
+    expect(readPlayerSessionSnapshot()?.progress).toBe(33);
+    expect(localStorage.getItem('playProgress')).toBe(
+      JSON.stringify({ songId: 77, progress: 33 })
+    );
   });
 });

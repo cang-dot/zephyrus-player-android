@@ -68,3 +68,29 @@ export function readPlayerSessionSnapshot(): PlayerSessionSnapshot | null {
     return null;
   }
 }
+
+/**
+ * 只标记「会话当前曲」身份，不动 playProgress。
+ * 切歌/过渡预写必须用这个：进度落盘是「每首歌上次听到哪」的既有语义（切歌不写、
+ * 心跳/暂停/hidden 才写），若同拍覆盖为新歌 0，启动恢复链（handlePlayMusic 先于
+ * playAudio 执行）会把真实进度抹成 0——进度恢复必丢。
+ */
+export function markSessionSnapshotSong(song: SongResult | null | undefined) {
+  if (!song || song.id === null || song.id === undefined) return;
+  try {
+    const previous = readPlayerSessionSnapshot();
+    const progress =
+      previous && String(previous.songId) === String(song.id)
+        ? Number(previous.progress) || 0
+        : 0;
+    const payload = JSON.stringify({
+      songId: song.id,
+      progress,
+      updatedAt: Date.now(),
+      song: minifySongForSnapshot(song)
+    });
+    localStorage.setItem(SNAPSHOT_KEY, payload);
+  } catch {
+    // 尽力而为
+  }
+}

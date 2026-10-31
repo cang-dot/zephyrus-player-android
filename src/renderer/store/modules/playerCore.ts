@@ -9,7 +9,11 @@ import { isLocalSong, useLocalMusic } from '@/hooks/useLocalMusic';
 import { useLyrics, useSongDetail } from '@/hooks/usePlayerHooks';
 import { isAndroidNative } from '@/services/androidNative';
 import { audioService } from '@/services/audioService';
-import { readPlayerSessionSnapshot, writePlayerSessionSnapshot } from '@/services/playbackSnapshot';
+import {
+  markSessionSnapshotSong,
+  readPlayerSessionSnapshot,
+  writePlayerSessionSnapshot
+} from '@/services/playbackSnapshot';
 import { playbackRequestManager } from '@/services/playbackRequestManager';
 import { preloadService } from '@/services/preloadService';
 import { SongSourceConfigManager } from '@/services/SongSourceConfigManager';
@@ -424,8 +428,9 @@ export const usePlayerCoreStore = defineStore(
 
       // 更新 playMusic 和播放状态
       playMusic.value = music;
-      // 切歌即预写快照：新歌首拍心跳在 ~2s 后，期间划掉后台会把快照留在上一首
-      writePlayerSessionSnapshot(music, 0);
+      // 切歌即预写快照：新歌首拍心跳在 ~2s 后，期间划掉后台会把快照留在上一首。
+      // 只标记身份、不动 playProgress——预写 0 会把启动恢复链读到的真实进度抹成 0
+      markSessionSnapshotSong(music);
       play.value = shouldPlay;
       isPlay.value = shouldPlay;
       userPlayIntent.value = shouldPlay;
