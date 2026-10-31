@@ -46,7 +46,11 @@
           <ether-fluid-layer
             v-if="etherBackgroundActive"
             :theme-color="saturatedThemeColor"
+            :raw-color="averageThemeColor"
+            :gray-ratio="coverGrayRatio"
             :power="fluidPower"
+            :punch-scale="errorEtherPunchScale"
+            :beat-strong-scale="errorEtherBeatStrong"
             :paused="reduceMotion"
           />
           <liquid-ether
@@ -303,6 +307,7 @@ import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
+import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
@@ -443,8 +448,11 @@ const {
   backgroundColor,
   selectedFontFamily,
   customFontActive,
-  saturatedThemeColor
+  saturatedThemeColor,
+  averageThemeColor,
+  coverGrayRatio
 } = usePlayerStyleAppearance('error');
+const { config: styleCustom } = useStyleCustomConfig('error');
 const wordPlayback = useWordTimedPlayback();
 const lyricsUnderlayVisible = computed(() => !showFullLyrics.value || lyricsSwipePreview.value);
 
@@ -533,14 +541,33 @@ const fluidPower = computed(() => {
   return Number.isFinite(configured) && configured > 0 ? configured : 1;
 });
 
+// ── 统一参数系统（playerStyleParams schema）──
+const errorForceBase = computed(() => Number(styleCustom.value.errorForceBase ?? 18));
+const errorForceClimax = computed(() => Number(styleCustom.value.errorForceClimax ?? 14));
+const errorForcePulse = computed(() => Number(styleCustom.value.errorForcePulse ?? 22));
+const errorAutoBase = computed(() => Number(styleCustom.value.errorAutoBase ?? 3.2));
+const errorTearCount = computed(() => {
+  const v = Number(styleCustom.value.errorTearCount);
+  return Number.isFinite(v) ? Math.round(Math.min(6, Math.max(1, v))) : 3;
+});
+const errorBlockScale = computed(() => Number(styleCustom.value.errorBlockScale ?? 1));
+const errorNoiseDensity = computed(() => Number(styleCustom.value.errorNoiseDensity ?? 1));
+const errorBurstCooldown = computed(() => Number(styleCustom.value.errorBurstCooldown ?? 220));
+const errorFrameAmp = computed(() => Number(styleCustom.value.errorFrameAmp ?? 2.2));
+const errorEtherPunchScale = computed(() => Number(styleCustom.value.etherPunchScale ?? 2.5));
+const errorEtherBeatStrong = computed(() => Number(styleCustom.value.etherBeatStrong ?? 1));
+
 const fluidMouseForce = computed(() => {
-  const climaxBoost = styleEngine.isInClimax ? 14 : 0;
-  return Math.round((18 + climaxBoost + fluidPulse.value * 22) * fluidPower.value);
+  const climaxBoost = styleEngine.isInClimax ? errorForceClimax.value : 0;
+  return Math.round(
+    (errorForceBase.value + climaxBoost + fluidPulse.value * errorForcePulse.value) *
+      fluidPower.value
+  );
 });
 
 const fluidAutoIntensity = computed(() => {
   const climaxBoost = styleEngine.isInClimax ? 1.4 : 0;
-  return (3.2 + climaxBoost) * fluidPower.value;
+  return (errorAutoBase.value + climaxBoost) * fluidPower.value;
 });
 
 // ==================== 鼓点（驱动抖动与流体脉冲） ====================
@@ -577,7 +604,7 @@ function jitterTick() {
     return;
   }
   const climaxMul = styleEngine.isInClimax ? 2.2 : 1;
-  const amp = base * 2.2 * climaxMul + beatSpike.value * 1.2;
+  const amp = base * errorFrameAmp.value * climaxMul + beatSpike.value * 1.2;
   jitterOffset.value = {
     x: (Math.random() * 2 - 1) * amp,
     y: (Math.random() * 2 - 1) * amp
@@ -606,7 +633,9 @@ function paintNoise() {
   if (intensity <= 0.02) return;
   // 老电视雪花：细小（1px 为主）、稀疏、逐次刷新随机闪烁的白色颗粒，
   // 是蒙在整幅画面上的辅助层，而不是铺满的背景
-  const count = Math.round(((width * height) / 9000) * (0.4 + intensity * 1.6));
+  const count = Math.round(
+    ((width * height) / 9000) * (0.4 + intensity * 1.6) * errorNoiseDensity.value
+  );
   for (let i = 0; i < count; i++) {
     const size = Math.random() < 0.82 ? 1 : 2;
     ctx.fillStyle = `rgba(255, 255, 255, ${(0.12 + Math.random() * 0.55).toFixed(2)})`;
@@ -670,7 +699,8 @@ function resetMegaState() {
 
 function showTearAndBlocks(strength: number) {
   const bars: TearBar[] = [];
-  const barCount = 3 + Math.floor(Math.random() * 3);
+  const tearTotal = Math.max(1, errorTearCount.value);
+  const barCount = Math.max(1, Math.round(tearTotal * (0.75 + Math.random() * 0.5)));
   for (let i = 0; i < barCount; i++) {
     bars.push({
       top: `${(8 + Math.random() * 82).toFixed(1)}%`,
@@ -691,8 +721,8 @@ function showTearAndBlocks(strength: number) {
       top: fromTop ? `${(Math.random() * 12).toFixed(1)}%` : 'auto',
       bottom: fromTop ? 'auto' : `${(Math.random() * 12).toFixed(1)}%`,
       left: `${(Math.random() * 70).toFixed(1)}%`,
-      width: `${(12 + Math.random() * 22).toFixed(0)}vw`,
-      height: `${8 + Math.random() * 20}px`,
+      width: `${((12 + Math.random() * 22) * errorBlockScale.value).toFixed(0)}vw`,
+      height: `${(8 + Math.random() * 20) * errorBlockScale.value}px`,
       bg: Math.random() < 0.5 ? '#1d1d1f' : '#f2efe9'
     });
   }
@@ -709,7 +739,7 @@ function triggerMegaGlitch(scale = 1) {
   const strength = Number.isFinite(configured) ? Math.min(1, Math.max(0, configured)) : 0.6;
   if (strength <= 0.02) return;
   const now = performance.now();
-  if (now - lastMegaAt < 220) return;
+  if (now - lastMegaAt < errorBurstCooldown.value) return;
   lastMegaAt = now;
 
   flashColor.value = '#e6e3dc';

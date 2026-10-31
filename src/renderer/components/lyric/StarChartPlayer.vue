@@ -18,6 +18,9 @@
           '--accent-color-rgb': accentColorRgb,
           '--star-disc-scale': String(discScale),
           '--star-text-scale': String(textScale),
+          '--star-lyric-size': `${starLyricSize}px`,
+          '--star-lyric-line-height': String(starLyricLineHeight),
+          '--star-lyric-tracking': `${starLyricTracking}em`,
           ...lyricsSwipeStyle
         }"
         @click="handleTapToggle"
@@ -89,8 +92,9 @@
           v-show="!showFullLyrics || lyricsSwipePreview"
           :key="`portrait-${lyricBlockStart}`"
           type="button"
-          class="lyric-block no-toggle"
+          class="lyric-block"
           aria-label="打开滚动歌词"
+          data-allow-lyrics-swipe
           @dblclick.stop="openLyricsAnimated"
         >
           <span class="lyric-block-canvas">
@@ -109,8 +113,9 @@
         <button
           v-show="!showFullLyrics || lyricsSwipePreview"
           type="button"
-          class="landscape-lyric lyric-block no-toggle"
+          class="landscape-lyric lyric-block"
           aria-label="打开滚动歌词"
+          data-allow-lyrics-swipe
           @dblclick.stop="openLyricsAnimated"
           :style="lyricsUnderlayStyle"
         >
@@ -175,8 +180,7 @@
           <div
             class="immersive-header-wrap"
             :class="{
-              'header-hidden':
-                showFullLyrics && immersiveSurfaceMode === 'settings'
+              'header-hidden': showFullLyrics && immersiveSurfaceMode === 'settings'
             }"
             :style="immersiveHeaderDragStyle"
             @pointerdown="immersiveHeaderCollapse.onHeaderPointerDown"
@@ -228,8 +232,8 @@ import LyricImmersiveHeader from '@/components/lyric/LyricImmersiveHeader.vue';
 import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import CoverPreviewModal from '@/components/player/CoverPreviewModal.vue';
-import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import ImmersivePlaylistPanel from '@/components/player/ImmersivePlaylistPanel.vue';
+import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import {
@@ -350,10 +354,10 @@ let chartSize = 0;
 let starFieldSeed = 1;
 let starSpeed = 1;
 let lastStarFrameAt = 0;
-let starTintMix = 0.08; // 封面色占比:平时 8%,高潮渐强至 32%
+let starTintMix = 0.08; // 封面色占比:平时 starTintCalm,高潮渐强至 starTintClimax
 let vividTints: Array<[number, number, number]> = [];
 let vividTintMix = -1;
-const STAR_BASE_SPEED = 0.055; // × spinSpeed 配置
+const STAR_BASE_SPEED_FALLBACK = 0.055; // × spinSpeed 配置（运行时读 starSpeedBase）
 
 function seededRandom(): number {
   starFieldSeed = (starFieldSeed + 0x6d2b79f5) | 0;
@@ -423,6 +427,27 @@ const textScale = computed(() => {
   const value = Number(starStyleCustom.value.starTextSize);
   return Number.isFinite(value) && value > 0 ? Math.min(2, Math.max(0.6, value / 100)) : 1;
 });
+// ── 统一参数系统（playerStyleParams schema）──
+const starDensity = computed(() => Number(starStyleCustom.value.starDensity) || 1);
+const starSpeedBase = computed(() => Number(starStyleCustom.value.starSpeedBase ?? 0.055));
+const starTintCalm = computed(() => {
+  const v = Number(starStyleCustom.value.starTintCalm);
+  return Number.isFinite(v) ? Math.min(0.3, Math.max(0, v)) : 0.08;
+});
+const starTintClimax = computed(() => {
+  const v = Number(starStyleCustom.value.starTintClimax);
+  return Number.isFinite(v) ? Math.min(1, Math.max(0.6, v)) : 1;
+});
+const starTwinkleFreq = computed(() => Number(starStyleCustom.value.starTwinkleFreq ?? 0.0016));
+const starTrailSegments = computed(() => {
+  const v = Number(starStyleCustom.value.starTrailSegments);
+  return Number.isFinite(v) ? Math.round(Math.min(16, Math.max(4, v))) : 8;
+});
+const starLyricSize = computed(() => Number(starStyleCustom.value.starLyricSize ?? 24));
+const starLyricLineHeight = computed(() =>
+  Number(starStyleCustom.value.starLyricLineHeight ?? 2.05)
+);
+const starLyricTracking = computed(() => Number(starStyleCustom.value.starLyricTracking ?? 0.16));
 const STAR_POSITIONS = [
   'center',
   'top',
@@ -699,7 +724,7 @@ function sampleCoverTints(image: HTMLImageElement) {
 function buildStarField(size: number, seedText: string) {
   trailStars.length = 0;
   starFieldSeed = hashText(seedText) || 1;
-  const count = Math.round(Math.min(560, Math.max(320, size * 1.25)));
+  const count = Math.round(Math.min(560, Math.max(320, size * 1.25)) * starDensity.value);
   for (let i = 0; i < count; i++) {
     trailStars.push({
       orbit: 0.14 + Math.pow(seededRandom(), 0.82) * 0.6,
@@ -723,10 +748,10 @@ function drawStarField(context: CanvasRenderingContext2D, size: number, dt: numb
   const center = size / 2;
   const maxRadius = size * 0.72;
   const now = performance.now();
-  const segments = 8;
+  const segments = starTrailSegments.value;
 
   // 高潮效果:星点直接切为最高饱和度的封面采样色,退出回落 8% 混白
-  const targetMix = styleEngine.isInClimax ? 1 : 0.08;
+  const targetMix = styleEngine.isInClimax ? starTintClimax.value : starTintCalm.value;
   starTintMix += (targetMix - starTintMix) * Math.min(1, dt * 6);
   if (vividTintMix !== starTintMix || vividTints.length !== starTints.length) {
     vividTints = starTints.map((tint) => {
@@ -744,9 +769,9 @@ function drawStarField(context: CanvasRenderingContext2D, size: number, dt: numb
   }
 
   for (const star of trailStars) {
-    star.angle += STAR_BASE_SPEED * star.speed * starSpeed * dt;
+    star.angle += (starSpeedBase.value || STAR_BASE_SPEED_FALLBACK) * star.speed * starSpeed * dt;
     const orbitRadius = star.orbit * maxRadius;
-    const twinkle = 0.78 + 0.22 * Math.sin(now * 0.0016 + star.twinkle);
+    const twinkle = 0.78 + 0.22 * Math.sin(now * starTwinkleFreq.value + star.twinkle);
     const alpha = star.alpha * twinkle;
     const head = star.angle;
     const tint = star.tint >= 0 ? vividTints[star.tint] : null;
@@ -1009,10 +1034,10 @@ onBeforeUnmount(() => {
     'KaiTi',
     serif
   );
-  font-size: calc(clamp(19px, 2.7dvh, 24px) * var(--star-text-scale, 1));
+  font-size: calc(clamp(19px, 2.7dvh, var(--star-lyric-size, 24px)) * var(--star-text-scale, 1));
   font-weight: 500;
-  line-height: 2.05;
-  letter-spacing: 0.16em;
+  line-height: var(--star-lyric-line-height, 2.05);
+  letter-spacing: var(--star-lyric-tracking, 0.16em);
   color: rgba(255, 255, 255, 0.88);
   /* 长句不折列:保持一行完整,允许溢出块区域 */
   white-space: nowrap;

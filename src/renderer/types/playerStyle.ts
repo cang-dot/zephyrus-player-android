@@ -57,7 +57,6 @@ export interface PlayerStyleCustomConfig {
   auroraSpeed?: number;
   /** 极光带出现的位置（8 方向），stage/default 样式可用 */
   auroraPosition?: AuroraPosition;
-  beatFlashIntensity?: number;
   newspaperFreq?: number;
   keywordSize?: number;
   glowRadius?: number;
@@ -70,6 +69,10 @@ export interface PlayerStyleCustomConfig {
   staggeredRowGap?: number;
   staggeredOffset?: number;
   staggeredRotation?: number;
+  /** 「舞台」样式：歌词字号倍率（0.7–3.5，1 为出厂） */
+  stageLyricScale?: number;
+  /** 「舞台」样式：高潮时的横向撕裂（老电视干扰） */
+  stageClimaxTear?: boolean;
   smokeDensity?: number;
   smokeChaos?: number;
   smokeLoudnessResponse?: number;

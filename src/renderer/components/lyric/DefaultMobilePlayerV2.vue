@@ -40,8 +40,8 @@
         <aurora
           v-if="backgroundPreset === 'aurora'"
           :color-stops="auroraColorStops"
-          :amplitude="1"
-          :blend="0.5"
+          :amplitude="auroraAmplitude"
+          :blend="auroraBlend"
           :speed="auroraSpeed"
           :position="auroraPosition"
           :max-fps="auroraMaxFps"
@@ -74,6 +74,11 @@
           :render-scale="meshRenderScale"
           :static-mode="meshStaticMode || reduceMotion"
           :beat-response="meshBeatResponse"
+          :base-weight="meshDriverParams.baseWeight"
+          :strong-pulse="meshDriverParams.strongPulse"
+          :normal-pulse="meshDriverParams.normalPulse"
+          :prominence-db="meshDriverParams.prominenceDb"
+          :volume-ceiling="meshDriverParams.volumeCeiling"
           :paused="playerTransitionBusy"
         />
       </div>
@@ -90,6 +95,10 @@
         :class="{
           'no-artwork-zone': !showArtwork && !showTrackInfo,
           'no-lyrics-zone': !showLyricsZone
+        }"
+        :style="{
+          '--dmv2-row-split': `${(contentRowSplit * 100).toFixed(1)}%`,
+          '--dmv2-title-size': `${titleFontSize}px`
         }"
       >
         <div
@@ -413,7 +422,7 @@ const artworkFrameStyle = computed(() => {
     : controlsShown.value
       ? 'min(76vw, 30dvh, 330px)'
       : 'min(76vw, 38dvh, 370px)';
-  const side = `calc(${base} * ${artworkSize.value / 100})`;
+  const side = `calc(${base} * ${artworkSize.value / 100} * ${coverBasisScale.value})`;
   return { width: side, height: side, aspectRatio: '1' };
 });
 
@@ -427,6 +436,33 @@ function rgbToHex(r: number, g: number, b: number) {
 const themeRgb = computed(
   () => parseRepresentativeCssColor(tweenedBackgroundColor.value) || { r: 23, g: 23, b: 23 }
 );
+// ── 统一参数系统（playerStyleParams schema，resolve 已钳制） ──
+const auroraAmplitude = computed(() => Number(styleCustom.value.auroraAmplitude) || 1);
+const auroraBlend = computed(() => {
+  const v = Number(styleCustom.value.auroraBlend);
+  return Number.isFinite(v) ? Math.min(0.9, Math.max(0.2, v)) : 0.5;
+});
+const auroraPaletteMix = computed(() => {
+  const v = Number(styleCustom.value.auroraPaletteMix);
+  return Number.isFinite(v) ? Math.min(0.8, Math.max(0.3, v)) : 0.55;
+});
+const titleFontSize = computed(() => Number(styleCustom.value.titleFontSize) || 26);
+const coverBasisScale = computed(() => {
+  const v = Number(styleCustom.value.coverBasisScale);
+  return Number.isFinite(v) ? Math.min(1.3, Math.max(0.8, v)) : 1;
+});
+const contentRowSplit = computed(() => {
+  const v = Number(styleCustom.value.contentRowSplit);
+  return Number.isFinite(v) ? Math.min(0.75, Math.max(0.4, v)) : 0.58;
+});
+const meshDriverParams = computed(() => ({
+  baseWeight: Number(styleCustom.value.meshBaseWeight) || 0.35,
+  strongPulse: Number(styleCustom.value.meshPulseStrong ?? 0.9),
+  normalPulse: Number(styleCustom.value.meshPulseNormal ?? 0.5),
+  prominenceDb: Number(styleCustom.value.meshProminenceDb ?? 9),
+  volumeCeiling: Number(styleCustom.value.meshVolumeCeiling ?? 1.6)
+}));
+
 /** 黑胶圈染色:跟随 600ms 渐变后的封面代表色,与播放器底色同源 */
 const vinylTint = computed(() => {
   const { r, g, b } = themeRgb.value;
@@ -436,7 +472,8 @@ const auroraColorStops = computed(() => {
   const { r, g, b } = themeRgb.value;
   const mix = (t: number, tr: number, tg: number, tb: number) =>
     rgbToHex(r + (tr - r) * t, g + (tg - g) * t, b + (tb - b) * t);
-  return [mix(0.55, 0, 0, 0), rgbToHex(r, g, b), mix(0.5, 255, 255, 255)];
+  const darkMix = auroraPaletteMix.value;
+  return [mix(darkMix, 0, 0, 0), rgbToHex(r, g, b), mix(0.5, 255, 255, 255)];
 });
 const fluidColors = computed(() => {
   const { r, g, b } = themeRgb.value;
@@ -912,7 +949,10 @@ onBeforeUnmount(() => {
 
 .player-content {
   display: grid;
-  grid-template-rows: minmax(168px, 58%) minmax(100px, 42%);
+  grid-template-rows: minmax(168px, var(--dmv2-row-split, 58%)) minmax(
+      100px,
+      calc(100% - var(--dmv2-row-split, 58%))
+    );
   min-height: 0;
   overflow: hidden;
   transition: grid-template-rows 380ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -964,7 +1004,7 @@ onBeforeUnmount(() => {
 
 .artwork-info-name {
   overflow: hidden;
-  font-size: clamp(20px, 2.8vh, 26px);
+  font-size: clamp(20px, 2.8vh, var(--dmv2-title-size, 26px));
   font-weight: 700;
   color: var(--player-ink, #fff);
   text-overflow: ellipsis;

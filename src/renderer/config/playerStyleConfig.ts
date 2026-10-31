@@ -5,6 +5,8 @@ import type {
 } from '@/types/playerStyle';
 import { isLowEndDevice } from '@/utils/deviceTier';
 
+import { resolveStyleParams, styleParamDefaults } from './playerStyleParams';
+
 /**
  * mesh 预设出厂帧率/渲染倍率:AMLL 的分辨率公式无 DPR 上限,60fps/1x 在高分屏
  * 低端机上会顶满 GPU。低端机出厂即半档(用户仍可在面板调回),全端统一从这里取。
@@ -46,12 +48,11 @@ const STYLE_SPECIFIC_DEFAULTS: Record<MobilePlayerStyleKey, Record<string, unkno
     meshBeatResponse: 1
   },
   stage: {
-    auroraSpeed: 0.8,
-    auroraPosition: 'top',
-    beatFlashIntensity: 0.5,
     effectLyricColor: true,
     effectWordDrop: false,
-    effectStaggered: false
+    effectStaggered: false,
+    stageLyricScale: 1,
+    stageClimaxTear: true
   },
   starChart: {
     builtinFontId: 'ma-shan-zheng',
@@ -138,7 +139,8 @@ export function createPlayerStyleConfig(styleKey: MobilePlayerStyleKey): PlayerS
       auxiliary: { source: 'theme', customColor: lyricColor },
       translation: { source: 'custom', customColor: lyricColor }
     },
-    ...clone(STYLE_SPECIFIC_DEFAULTS[styleKey])
+    ...clone(STYLE_SPECIFIC_DEFAULTS[styleKey]),
+    ...styleParamDefaults(styleKey)
   };
 }
 
@@ -214,6 +216,11 @@ export function resolvePlayerStyleConfig(
   config.staggeredRowGap = Math.min(48, Math.max(8, Number(config.staggeredRowGap) || 18));
   config.staggeredOffset = Math.min(30, Math.max(0, Number(config.staggeredOffset) || 14));
   config.staggeredRotation = Math.min(12, Math.max(0, Number(config.staggeredRotation) || 5));
+  config.stageLyricScale = Math.min(
+    3.5,
+    Math.max(0.7, Number.isFinite(Number(config.stageLyricScale)) ? Number(config.stageLyricScale) : 1)
+  );
+  config.stageClimaxTear = config.stageClimaxTear !== false;
   config.smokeDensity = Math.min(
     1,
     Math.max(0.05, Number.isFinite(Number(config.smokeDensity)) ? Number(config.smokeDensity) : 1)
@@ -370,6 +377,8 @@ export function resolvePlayerStyleConfig(
   } else if (styleKey === 'smoke' && config.effectKeyword && config.effectWordDrop) {
     config.effectWordDrop = false;
   }
+  // 统一参数系统：按 schema 钳制新暴露参数（缺省补默认）
+  Object.assign(config, resolveStyleParams(styleKey, config as Record<string, unknown>));
   return config;
 }
 

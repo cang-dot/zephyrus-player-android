@@ -15,6 +15,12 @@ const props = withDefaults(
     opacity?: number;
     reducedMotion?: boolean;
     active?: boolean;
+    /** 烟雾流速乘数（fragment 内 t*(.18+chaos*.55) 整体系数） */
+    flowSpeed?: number;
+    /** 流场振幅（原 0.32） */
+    flowAmplitude?: number;
+    /** 漂移量（原 0.12） */
+    drift?: number;
   }>(),
   {
     density: 0.58,
@@ -46,11 +52,12 @@ void main(){gl_Position=vec4(position,0.0,1.0);}`;
 const fragment = `#version 300 es
 precision highp float;
 uniform vec2 uResolution; uniform float uTime; uniform float uDensity; uniform float uChaos;
-uniform float uLoudness; uniform float uOpacity; uniform vec3 uColor; out vec4 fragColor;
+uniform float uLoudness; uniform float uOpacity; uniform vec3 uColor;
+uniform float uFlowSpeed; uniform float uFlowAmplitude; uniform float uDrift; out vec4 fragColor;
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
 float fbm(vec2 p){float v=0.0,a=0.5;for(int i=0;i<5;i++){v+=a*noise(p);p=p*2.02+vec2(11.3,7.1);a*=0.5;}return v;}
-void main(){vec2 uv=gl_FragCoord.xy/uResolution;vec2 p=(uv-.5);p.x*=uResolution.x/uResolution.y;float t=uTime*(.18+uChaos*.55);vec2 flow=vec2(fbm(p*1.7+vec2(t,-t*.7)),fbm(p*1.7+vec2(-t*.6,t*1.2)));p+=((flow-.5)*.32+vec2(sin(t*.7),cos(t*.5))*.12)*(uChaos+.3*uLoudness);float n=fbm(p*(2.1+uDensity*2.0)+vec2(t*.3,-t*.22));float smoke=smoothstep(.38-.18*uDensity,.82-.15*uDensity,n);smoke*=.48+.52*clamp(uLoudness*1.4,0.,1.);float vign=1.-smoothstep(.26,.82,length(p));smoke*=.58+.42*vign;fragColor=vec4(uColor,smoke*uOpacity);}`;
+void main(){vec2 uv=gl_FragCoord.xy/uResolution;vec2 p=(uv-.5);p.x*=uResolution.x/uResolution.y;float t=uTime*(.18+uChaos*.55)*uFlowSpeed;vec2 flow=vec2(fbm(p*1.7+vec2(t,-t*.7)),fbm(p*1.7+vec2(-t*.6,t*1.2)));p+=((flow-.5)*uFlowAmplitude+vec2(sin(t*.7),cos(t*.5))*uDrift)*(uChaos+.3*uLoudness);float n=fbm(p*(2.1+uDensity*2.0)+vec2(t*.3,-t*.22));float smoke=smoothstep(.38-.18*uDensity,.82-.15*uDensity,n);smoke*=.48+.52*clamp(uLoudness*1.4,0.,1.);float vign=1.-smoothstep(.26,.82,length(p));smoke*=.58+.42*vign;fragColor=vec4(uColor,smoke*uOpacity);}`;
 
 function rgb(color: string): [number, number, number] {
   const match = color.match(/^#([0-9a-f]{6})$/i);
@@ -92,6 +99,9 @@ function draw(time: number) {
   program.uniforms.uDensity.value = props.density;
   program.uniforms.uChaos.value = props.chaos;
   program.uniforms.uOpacity.value = props.opacity;
+  program.uniforms.uFlowSpeed.value = props.flowSpeed ?? 1;
+  program.uniforms.uFlowAmplitude.value = props.flowAmplitude ?? 0.32;
+  program.uniforms.uDrift.value = props.drift ?? 0.12;
   renderer.render({ scene: mesh });
 }
 

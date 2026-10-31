@@ -47,6 +47,16 @@ interface Props {
   staticMode?: boolean;
   /** 鼓点响应灵敏度 0–2，默认 1 */
   beatResponse?: number;
+  /** 呼吸（连续层）合成权重；脉冲权重 = 1 - 该值 */
+  baseWeight?: number;
+  /** 强拍脉冲峰值 */
+  strongPulse?: number;
+  /** 弱拍脉冲峰值 */
+  normalPulse?: number;
+  /** 频带突出度满档（dB） */
+  prominenceDb?: number;
+  /** 低频驱动输出上限 */
+  volumeCeiling?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -55,7 +65,12 @@ const props = withDefaults(defineProps<Props>(), {
   maxFps: MESH_DEFAULT_MAX_FPS,
   renderScale: MESH_DEFAULT_RENDER_SCALE,
   staticMode: false,
-  beatResponse: 1
+  beatResponse: 1,
+  baseWeight: undefined,
+  strongPulse: undefined,
+  normalPulse: undefined,
+  prominenceDb: undefined,
+  volumeCeiling: undefined
 });
 
 const mountRef = ref<HTMLElement | null>(null);
@@ -67,18 +82,17 @@ let driverLastAt = 0;
 let visible = true;
 let lastCoverUrl = '';
 
-// ── 音频响应驱动常量 ──
-/** 呼吸/脉冲合成权重：脉冲（可感知的节拍）为主，呼吸垫底避免完全静止 */
-const BASE_WEIGHT = 0.35;
-const PULSE_WEIGHT = 0.65;
-const PULSE_STRONG = 0.9;
-const PULSE_NORMAL = 0.5;
+// ── 音频响应驱动参数 ──
+// 默认值与统一参数系统（playerStyleParams.ts）一致；DMV2 从样式配置传入
+const BASE_WEIGHT = () => props.baseWeight ?? 0.35;
+const PULSE_STRONG = () => props.strongPulse ?? 0.9;
+const PULSE_NORMAL = () => props.normalPulse ?? 0.5;
 /** 脉冲峰值保持时长，之后进入释放段 */
 const PULSE_HOLD_MS = 40;
 /** 频带比基线高出这么多 dB 时呼吸打满 */
-const PROMINENCE_FULL_DB = 9;
+const PROMINENCE_FULL_DB = () => props.prominenceDb ?? 9;
 /** 输出上限：core 内部 ÷10，1.6 ≈ 32% 缩放峰值 */
-const VOLUME_CEILING = 1.6;
+const VOLUME_CEILING = () => props.volumeCeiling ?? 1.6;
 
 // 连续层：40~120Hz 频带的 dB 均值对 1.2s 分位基线的突出度
 let bandBaseline = new AdaptiveBaseline({ windowMs: 1200, percentile: 0.75 });
@@ -173,7 +187,7 @@ function readBaseLevel(now: number): number {
     }
     db = count > 0 ? db / count : -140;
     const baselineDb = bandBaseline.observe(now, db);
-    const prominence = Math.max(0, Math.min(1, (db - baselineDb) / PROMINENCE_FULL_DB));
+    const prominence = Math.max(0, Math.min(1, (db - baselineDb) / PROMINENCE_FULL_DB()));
     return 0.1 + prominence * 0.35;
   }
 
@@ -201,9 +215,10 @@ function driverTick(now: number): void {
   if (now >= pulseHoldUntil) pulseTarget = 0;
   const pulse = pulseEnvelope.step(now, pulseTarget);
   const base = bandEnvelope.step(now, readBaseLevel(now));
+  const baseWeight = BASE_WEIGHT();
   const volume = Math.min(
-    VOLUME_CEILING,
-    beatSensitivity() * (BASE_WEIGHT * base + PULSE_WEIGHT * pulse)
+    VOLUME_CEILING(),
+    beatSensitivity() * (baseWeight * base + (1 - baseWeight) * pulse)
   );
   if (!Number.isFinite(volume)) return;
   background?.setLowFreqVolume(volume);
@@ -251,7 +266,7 @@ function subscribeBeats(): void {
   // 无分析图时静默待命（Web 直通路径），建图成功后事件自然到来
   drumDetector.start();
   unsubscribeBeat = drumDetector.onBeat((info) => {
-    pulseTarget = info.isStrong ? PULSE_STRONG : PULSE_NORMAL;
+    pulseTarget = info.isStrong ? PULSE_STRONG() : PULSE_NORMAL();
     pulseHoldUntil = performance.now() + PULSE_HOLD_MS;
   });
 }

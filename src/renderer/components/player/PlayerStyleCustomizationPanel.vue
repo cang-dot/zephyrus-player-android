@@ -524,23 +524,29 @@
           <i :class="showAdvancedParams ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"></i>
         </button>
         <div v-show="showAdvancedParams" class="advanced-params-body">
-          <label v-if="styleKey === 'stage'" class="range-row">
-            <span>Aurora {{ local.auroraSpeed }}</span>
-            <input v-model.number="local.auroraSpeed" type="range" min="0.4" max="2" step="0.1" />
-          </label>
-          <label v-if="styleKey === 'stage'" class="range-row">
-            <span
-              >{{ tr('player.styleCustomization.beatFlash', '鼓点闪白') }}
-              {{ local.beatFlashIntensity }}</span
-            >
-            <input
-              v-model.number="local.beatFlashIntensity"
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-            />
-          </label>
+          <!-- 统一参数系统：schema 驱动渲染（playerStyleParams.ts 声明，resolve 自动钳制） -->
+          <template v-for="group in paramGroups" :key="group.title">
+            <div class="section-label">{{ group.title }}</div>
+            <label v-for="def in group.items" :key="def.key" class="range-row">
+              <span
+                >{{ def.label
+                }}{{ def.type === 'number' ? ` ${local[def.key]}${def.unit ?? ''}` : '' }}</span
+              >
+              <input
+                v-if="def.type === 'number'"
+                v-model.number="local[def.key]"
+                type="range"
+                :min="def.min"
+                :max="def.max"
+                :step="def.step"
+              />
+              <AppColorPicker
+                v-else
+                :model-value="String(local[def.key] ?? def.default)"
+                @update:model-value="local[def.key] = $event"
+              />
+            </label>
+          </template>
           <label v-if="styleKey === 'frenzy'" class="range-row">
             <span
               >{{ tr('player.styleCustomization.giantSize', '巨字字号') }}
@@ -759,6 +765,7 @@ import { useI18n } from 'vue-i18n';
 
 import MorphingFontSelector from '@/components/share/MorphingFontSelector.vue';
 import { resolvePlayerStyleConfig } from '@/config/playerStyleConfig';
+import { type PlayerStyleParamDef, STYLE_PARAM_SCHEMA } from '@/config/playerStyleParams';
 import type {
   MobilePlayerStyleKey,
   PlayerStyleCustomConfig,
@@ -857,9 +864,21 @@ const colorLayers = computed(() => [
 const hasClimaxEffects = computed(() =>
   ['stage', 'frenzy', 'smoke', 'error'].includes(props.styleKey)
 );
-const hasStyleSpecificSettings = computed(() =>
-  ['stage', 'frenzy', 'smoke', 'error'].includes(props.styleKey)
+const hasStyleSpecificSettings = computed(
+  () => (STYLE_PARAM_SCHEMA[props.styleKey]?.length ?? 0) > 0
 );
+
+/** schema 按分组聚合（渲染顺序 = 声明顺序） */
+const paramGroups = computed(() => {
+  const schema = STYLE_PARAM_SCHEMA[props.styleKey] ?? [];
+  const groups: Array<{ title: string; items: PlayerStyleParamDef[] }> = [];
+  for (const def of schema) {
+    const last = groups[groups.length - 1];
+    if (last && last.title === def.group) last.items.push(def);
+    else groups.push({ title: def.group, items: [def] });
+  }
+  return groups;
+});
 const customFontSelected = computed(() =>
   Boolean(local.value.builtinFontId || local.value.customFontData)
 );

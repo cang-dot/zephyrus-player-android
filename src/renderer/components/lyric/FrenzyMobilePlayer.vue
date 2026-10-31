@@ -39,11 +39,11 @@
       >
         <!-- CRT 故障背景层（评论页全屏盖住播放面时暂停） -->
         <glitch-background
-          baseColor="#f5f5f5"
-          accentColor="#d0d0d0"
+          :baseColor="frenzyBgColor"
+          :accentColor="frenzyAccentColor"
           :intensity="glitchIntensity"
           :crtIntensity="crtIntensity"
-          :speed="0.8"
+          :speed="frenzyGlitchSpeed"
           :showScanlines="effects.crt"
           :active="!playerStore.fullCommentsVisible"
         />
@@ -178,8 +178,7 @@
           <div
             class="immersive-header-wrap"
             :class="{
-              'header-hidden':
-                showFullLyrics && immersiveSurfaceMode === 'settings'
+              'header-hidden': showFullLyrics && immersiveSurfaceMode === 'settings'
             }"
             :style="immersiveHeaderDragStyle"
             @pointerdown="immersiveHeaderCollapse.onHeaderPointerDown"
@@ -243,8 +242,8 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import StaggeredClimaxLyrics from '@/components/lyric/StaggeredClimaxLyrics.vue';
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
-import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import ImmersivePlaylistPanel from '@/components/player/ImmersivePlaylistPanel.vue';
+import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import {
@@ -257,6 +256,7 @@ import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
+import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
@@ -361,6 +361,7 @@ const {
   selectedFontFamily,
   customFontActive
 } = usePlayerStyleAppearance('frenzy');
+const { config: styleCustom } = useStyleCustomConfig('frenzy');
 const wordPlayback = useWordTimedPlayback();
 const lyricsUnderlayVisible = computed(() => !showFullLyrics.value || lyricsSwipePreview.value);
 
@@ -379,17 +380,32 @@ onMounted(() => {
 // ==================== 鼓点检测 ====================
 const beatSpike = ref(0);
 let spikeTimer: ReturnType<typeof setTimeout> | null = null;
-const SPIKE_DURATION = 120;
+// ── 统一参数系统（playerStyleParams schema）──
+const frenzyBgColor = computed(() =>
+  typeof styleCustom.value.frenzyBgColor === 'string' ? styleCustom.value.frenzyBgColor : '#f5f5f5'
+);
+const frenzyAccentColor = computed(() =>
+  typeof styleCustom.value.frenzyAccentColor === 'string'
+    ? styleCustom.value.frenzyAccentColor
+    : '#d0d0d0'
+);
+const frenzyGlitchSpeed = computed(() => Number(styleCustom.value.frenzyGlitchSpeed ?? 0.8));
+const frenzyBeatStrong = computed(() => Number(styleCustom.value.frenzyBeatStrong ?? 0.45));
+const frenzyBeatWeak = computed(() => Number(styleCustom.value.frenzyBeatWeak ?? 0.25));
+const frenzyBeatSpikeMs = computed(() => Number(styleCustom.value.frenzyBeatSpikeMs ?? 120));
+const frenzyGlitchBase = computed(() => Number(styleCustom.value.frenzyGlitchBase ?? 0.15));
+const frenzyCrtLevel = computed(() => Number(styleCustom.value.frenzyCrtLevel ?? 0.6));
+
 
 onMounted(() => {
   const unsubscribe = drumDetector.onBeat((info) => {
-    const spikeAmount = info.isStrong ? 0.45 : 0.25;
+    const spikeAmount = info.isStrong ? frenzyBeatStrong.value : frenzyBeatWeak.value;
     beatSpike.value = spikeAmount * (0.6 + info.kickEnergy * 0.4);
 
     if (spikeTimer) clearTimeout(spikeTimer);
     spikeTimer = setTimeout(() => {
       beatSpike.value = 0;
-    }, SPIKE_DURATION);
+    }, frenzyBeatSpikeMs.value);
   });
 
   onUnmounted(() => {
@@ -400,7 +416,7 @@ onMounted(() => {
 
 // ==================== 故障强度 ====================
 const glitchIntensity = computed(() => {
-  const baseIntensity = 0.15;
+  const baseIntensity = frenzyGlitchBase.value;
   const energyBoost = styleEngine.energyLevel * 0.15;
   const climaxBoost = styleEngine.isInClimax ? 0.3 : 0;
   const base = Math.min(1.0, baseIntensity + energyBoost + climaxBoost);
@@ -453,7 +469,7 @@ const crtIntensity = computed(() => {
 watch(
   () => [styleEngine.isInClimax, effects.value.crt, crtAnimationActive.value] as const,
   ([inClimax, enabled]) => {
-    crtTarget = inClimax && enabled ? 0.6 : 0;
+    crtTarget = inClimax && enabled ? frenzyCrtLevel.value : 0;
     if (crtAnimationActive.value) startCrtAnimation();
     else stopCrtAnimation();
   },
@@ -608,7 +624,9 @@ const textColorDark = computed(() => {
       : styleCfg.value.frenzyNormalMainColor;
   }
   if (styleEngine.isInClimax && effects.value.lyricColor) return primaryColor.value;
-  return '#1a1a1a';
+  return typeof styleCustom.value.frenzyGiantColorA === 'string'
+    ? styleCustom.value.frenzyGiantColorA
+    : '#1a1a1a';
 });
 
 const textColorGray = computed(() => {
@@ -618,7 +636,9 @@ const textColorGray = computed(() => {
       : styleCfg.value.frenzyNormalAuxiliaryColor;
   }
   if (styleEngine.isInClimax && effects.value.lyricColor) return averageColor.value;
-  return '#6b6b6b';
+  return typeof styleCustom.value.frenzyGiantColorB === 'string'
+    ? styleCustom.value.frenzyGiantColorB
+    : '#6b6b6b';
 });
 
 /**

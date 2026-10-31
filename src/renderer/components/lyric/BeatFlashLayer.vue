@@ -20,18 +20,41 @@ const isInClimax = computed(() => {
 // 鼓点闪白
 const beatSpike = ref(0);
 let spikeTimer: ReturnType<typeof setTimeout> | null = null;
-const SPIKE_DURATION = 150;
+const SPIKE_DURATION = () => {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('music-full-config') || '{}');
+    return Number(cfg.styleCustomConfig?.stage?.stageFlashSpikeMs) || 150;
+  } catch {
+    return 150;
+  }
+};
+const flashStrong = () => {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('music-full-config') || '{}');
+    return Number(cfg.styleCustomConfig?.stage?.stageFlashStrong) || 0.5;
+  } catch {
+    return 0.5;
+  }
+};
+const flashWeak = () => {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('music-full-config') || '{}');
+    return Number(cfg.styleCustomConfig?.stage?.stageFlashWeak) || 0.35;
+  } catch {
+    return 0.35;
+  }
+};
 let unsubscribeBeat: (() => void) | null = null;
 
 function startBeatListening() {
   if (unsubscribeBeat) return;
   drumDetector.start();
   unsubscribeBeat = drumDetector.onBeat((info: any) => {
-    beatSpike.value = info.isStrong ? 0.5 : 0.35;
+    beatSpike.value = info.isStrong ? flashStrong() : flashWeak();
     if (spikeTimer) clearTimeout(spikeTimer);
     spikeTimer = setTimeout(() => {
       beatSpike.value = 0;
-    }, SPIKE_DURATION);
+    }, SPIKE_DURATION());
   });
 }
 

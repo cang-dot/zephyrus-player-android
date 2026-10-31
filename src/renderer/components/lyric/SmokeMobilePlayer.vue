@@ -10,6 +10,8 @@
           'player-style-custom-background': customBackgroundActive
         }"
         :style="{
+          '--smoke-bg-color': smokeBgColor,
+          '--smoke-lyric-size': `${smokeLyricSize}px`,
           ...styleVars,
           '--smoke-color': smokeColor,
           '--smoke-opacity': smokeOpacity,
@@ -42,6 +44,9 @@
           :chaos="smokeChaos"
           :loudness="smokeLoudness"
           :opacity="smokeOpacity"
+          :flow-speed="smokeFlowSpeed"
+          :flow-amplitude="smokeFlowAmplitude"
+          :drift="smokeDrift"
           :reduced-motion="reducedMotion"
         />
         <div
@@ -150,8 +155,7 @@
           <div
             class="immersive-header-wrap"
             :class="{
-              'header-hidden':
-                showFullLyrics && immersiveSurfaceMode === 'settings'
+              'header-hidden': showFullLyrics && immersiveSurfaceMode === 'settings'
             }"
             :style="immersiveHeaderDragStyle"
             @pointerdown="immersiveHeaderCollapse.onHeaderPointerDown"
@@ -209,8 +213,8 @@ import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue'
 import SmokeBackground from '@/components/lyric/SmokeBackground.vue';
 import StaggeredClimaxLyrics from '@/components/lyric/StaggeredClimaxLyrics.vue';
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
-import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import ImmersivePlaylistPanel from '@/components/player/ImmersivePlaylistPanel.vue';
+import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import {
@@ -223,6 +227,7 @@ import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
+import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
@@ -310,6 +315,7 @@ const {
   selectedFontFamily,
   saturatedThemeColor
 } = usePlayerStyleAppearance('smoke');
+const { config: styleCustom } = useStyleCustomConfig('smoke');
 const wordPlayback = useWordTimedPlayback();
 const lyricsUnderlayVisible = computed(() => !showFullLyrics.value || lyricsSwipePreview.value);
 const showPlayerSettings = computed({
@@ -359,18 +365,32 @@ const showStaggered = computed(
     effects.value.staggered &&
     Boolean(wordPlayback.currentDisplayLine.value?.words?.length)
 );
+// ── 统一参数系统（playerStyleParams schema）──
+const smokeFlowSpeed = computed(() => Number(styleCustom.value.smokeFlowSpeed ?? 1));
+const smokeFlowAmplitude = computed(() => Number(styleCustom.value.smokeFlowAmplitude ?? 0.32));
+const smokeDrift = computed(() => Number(styleCustom.value.smokeDrift ?? 0.12));
+const smokeDensityGain = computed(() => Number(styleCustom.value.smokeDensityGain ?? 0.2));
+const smokeChaosGain = computed(() => Number(styleCustom.value.smokeChaosGain ?? 0.4));
+const smokeLoudnessGain = computed(() => Number(styleCustom.value.smokeLoudnessGain ?? 0.3));
+const smokeLyricSize = computed(() => Number(styleCustom.value.smokeLyricSize ?? 150));
+const smokeBgColor = computed(() =>
+  typeof styleCustom.value.smokeBgColor === 'string' ? styleCustom.value.smokeBgColor : '#111111'
+);
 const smokeDensity = computed(() =>
-  Math.min(1, Number(styleCfg.value.smokeDensity || 1) + styleEngine.energyLevel * 0.2)
+  Math.min(
+    1,
+    Number(styleCfg.value.smokeDensity || 1) + styleEngine.energyLevel * smokeDensityGain.value
+  )
 );
 const smokeChaos = computed(() =>
-  Math.min(1, Number(styleCfg.value.smokeChaos || 1) + styleEngine.beatFlux * 0.4)
+  Math.min(1, Number(styleCfg.value.smokeChaos || 1) + styleEngine.beatFlux * smokeChaosGain.value)
 );
 const smokeLoudness = computed(() =>
   Math.min(
     1,
     Math.max(styleEngine.energyLevel, audioService.getLoudness()) *
       Number(styleCfg.value.smokeLoudnessResponse || 1) +
-      Math.max(styleEngine.kickEnergy, audioService.getBandEnergies().low) * 0.3
+      Math.max(styleEngine.kickEnergy, audioService.getBandEnergies().low) * smokeLoudnessGain.value
   )
 );
 const smokeOpacity = computed(() => Number(styleCfg.value.smokeOpacity || 1));
@@ -418,7 +438,7 @@ function openPlaylist() {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #111;
+  background: var(--smoke-bg-color, #111);
   color: #fff;
 }
 .smoke-vignette {
@@ -454,7 +474,7 @@ function openPlaylist() {
   max-width: none;
 }
 .smoke-lyric-text {
-  font-size: clamp(48px, 12vw, 150px);
+  font-size: clamp(48px, 12vw, var(--smoke-lyric-size, 150px));
   line-height: 0.94;
   transform-origin: center;
   text-wrap: balance;

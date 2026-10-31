@@ -7,10 +7,12 @@
         :class="{
           'player-style-customized': isCustom,
           'player-style-custom-font': customFontActive,
-          'player-style-custom-background': customBackgroundActive
+          'player-style-custom-background': customBackgroundActive,
+          'is-tearing': tearActive
         }"
         :style="{
           ...styleVars,
+          ...tearVars,
           '--accent-color': accentColor,
           '--accent-color-rgb': accentColorRgb,
           '--player-style-resolved-font': stageFontFamily,
@@ -39,6 +41,9 @@
       >
         <!-- 鼓点闪白（高潮时段） -->
         <beat-flash-layer />
+
+        <!-- 高潮横向撕裂：老电视干扰的扫描线与错切 -->
+        <div v-if="tearActive" class="stage-tear-scan" aria-hidden="true" />
 
         <ttml-word-effect-layer
           v-if="lyricsUnderlayVisible && !wordPlayback.interludeState.value.active"
@@ -74,7 +79,12 @@
           :style="lyricsUnderlayStyle"
         >
           <transition name="lyric-change" mode="out-in">
-            <div :key="wordPlayback.displayLineKey.value" class="lyrics-main" :style="lyricStyle">
+            <div
+              :key="wordPlayback.displayLineKey.value"
+              class="lyrics-main"
+              :style="lyricStyle"
+              :data-text="currentLyricText"
+            >
               {{ currentLyricText }}
             </div>
           </transition>
@@ -158,8 +168,7 @@
           <div
             class="immersive-header-wrap"
             :class="{
-              'header-hidden':
-                showFullLyrics && immersiveSurfaceMode === 'settings'
+              'header-hidden': showFullLyrics && immersiveSurfaceMode === 'settings'
             }"
             :style="immersiveHeaderDragStyle"
             @pointerdown="immersiveHeaderCollapse.onHeaderPointerDown"
@@ -226,7 +235,7 @@
  * - 下方翻译（clamp 14-18px, 300 weight）
  * - 音频响应：高潮时文字使用强调色
  */
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import MobileCommentsOverlay from '@/components/comment/MobileCommentsOverlay.vue';
 import BeatFlashLayer from '@/components/lyric/BeatFlashLayer.vue';
@@ -236,8 +245,8 @@ import MobileControlsArea from '@/components/lyric/MobileControlsArea.vue';
 import MobileScrollingLyrics from '@/components/lyric/MobileScrollingLyrics.vue';
 import StaggeredClimaxLyrics from '@/components/lyric/StaggeredClimaxLyrics.vue';
 import TtmlWordEffectLayer from '@/components/lyric/TtmlWordEffectLayer.vue';
-import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import ImmersivePlaylistPanel from '@/components/player/ImmersivePlaylistPanel.vue';
+import MobilePlayerSettings from '@/components/player/MobilePlayerSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
 import { useCommentsPage } from '@/composables/useCommentsPage';
 import {
@@ -250,6 +259,7 @@ import { useLyricSwipeGesture } from '@/composables/useLyricSwipeGesture';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { usePlayerStyleAppearance } from '@/composables/usePlayerStyleAppearance';
 import { usePosterShare } from '@/composables/usePosterShare';
+import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
@@ -274,7 +284,15 @@ const playerStore = usePlayerStore();
 const styleEngine = useStyleEngineStore();
 const { primaryColor, primaryColorRgb } = useCoverColor();
 
+// ── 统一参数系统（playerStyleParams schema）──
+const { config: stageCustom } = useStyleCustomConfig('stage');
+const stageLyricMaxVh = computed(() => Number(stageCustom.value.stageLyricMaxVh ?? 30));
+const stageControlsHideMs = computed(() => Number(stageCustom.value.stageControlsHideMs ?? 3000));
+const stageTearPower = computed(() => Number(stageCustom.value.stageTearPower ?? 1));
+const stageTearRate = computed(() => Number(stageCustom.value.stageTearRate ?? 1));
+
 const { controlsVisible, handleTapToggle, showControls } = useTapToggle({
+  autoHideDelay: stageControlsHideMs.value,
   onDoubleClick: () => {
     openLyricsAnimated();
   }
@@ -354,6 +372,7 @@ const {
   selectedFontFamily,
   customFontActive
 } = usePlayerStyleAppearance('stage');
+
 const wordPlayback = useWordTimedPlayback();
 const lyricsUnderlayVisible = computed(() => !showFullLyrics.value || lyricsSwipePreview.value);
 const lyricDisplayConfig = ref({ showTranslation: true, showRomanization: false });
@@ -379,6 +398,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('music-full-config-updated', loadLyricDisplayConfig);
+  stopTear();
 });
 
 // 播放设置弹窗（使用 store 状态，支持返回手势关闭）
@@ -446,14 +466,93 @@ const lyricColor = computed(() => {
 });
 
 /**
- * 歌词字号：根据能量水平微调
- * 基础 clamp(32px, 5vw, 56px)，高能量时略大
+ * 歌词字号：基础 clamp(32px, 5vw, 56px) × 设置页倍率。
+ * 上限 30vh：倍率拉到最大时单行可以撑满屏幕，但不会高到整屏放不下一行。
  */
+const stageLyricScale = computed(() => {
+  const value = Number(styleCfg.value.stageLyricScale);
+  return Number.isFinite(value) ? Math.min(3.5, Math.max(0.7, value)) : 1;
+});
+
 const lyricStyle = computed(() => ({
   color: lyricColor.value,
-  fontSize: 'clamp(32px, 5vw, 56px)',
+  fontSize: `min(calc(clamp(32px, 5vw, 56px) * ${stageLyricScale.value}), ${stageLyricMaxVh.value}vh)`,
   fontFamily: stageFontFamily.value
 }));
+
+// ==================== 高潮横向撕裂 ====================
+
+/** 两条错切带 + 扫描线，模拟老电视受干扰时的水平撕裂 */
+const tearActive = ref(false);
+const tearVars = ref<Record<string, string>>({});
+let tearHideTimer: ReturnType<typeof setTimeout> | null = null;
+let tearScheduleTimer: ReturnType<typeof setTimeout> | null = null;
+
+const randomBetween = (min: number, max: number) => min + Math.random() * (max - min);
+
+function tearStrength(): number {
+  const mode = styleCfg.value.animationIntensity;
+  if (mode === 'soft') return 0.55;
+  if (mode === 'power') return 1.4;
+  return 1;
+}
+
+function fireTear() {
+  if (!styleCfg.value.stageClimaxTear || !styleEngine.isInClimax) return;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+  const strength = tearStrength() * stageTearPower.value;
+  const heightA = randomBetween(5, 13) * strength;
+  const heightB = randomBetween(3, 9) * strength;
+  const topA = randomBetween(8, 34);
+  const topB = randomBetween(52, 84);
+
+  tearVars.value = {
+    '--tear-a': `inset(${topA}% 0 ${Math.max(0, 100 - topA - heightA)}% 0)`,
+    '--tear-b': `inset(${topB}% 0 ${Math.max(0, 100 - topB - heightB)}% 0)`,
+    '--tear-a-x': `${randomBetween(-12, 12) * strength}px`,
+    '--tear-b-x': `${randomBetween(-24, 24) * strength}px`
+  };
+  tearActive.value = true;
+  if (tearHideTimer) clearTimeout(tearHideTimer);
+  tearHideTimer = setTimeout(
+    () => {
+      tearActive.value = false;
+    },
+    randomBetween(150, 260)
+  );
+}
+
+function scheduleTear() {
+  if (tearScheduleTimer) clearTimeout(tearScheduleTimer);
+  tearScheduleTimer = setTimeout(
+    () => {
+      fireTear();
+      scheduleTear();
+    },
+    randomBetween(1800, 3200) / stageTearRate.value
+  );
+}
+
+function stopTear() {
+  if (tearScheduleTimer) clearTimeout(tearScheduleTimer);
+  if (tearHideTimer) clearTimeout(tearHideTimer);
+  tearScheduleTimer = null;
+  tearHideTimer = null;
+  tearActive.value = false;
+}
+
+watch(
+  () => [styleEngine.isInClimax, styleCfg.value.stageClimaxTear] as const,
+  ([inClimax, enabled]) => {
+    stopTear();
+    if (inClimax && enabled) {
+      fireTear();
+      scheduleTear();
+    }
+  },
+  { immediate: true }
+);
 
 /**
  * 背景：保持深色底，高潮时仅通过文字颜色变化体现
@@ -549,13 +648,76 @@ function openPlaylist() {
 }
 
 .lyrics-main {
+  position: relative;
+  max-width: 100%;
   font-family:
     'Noto Serif SC', 'STSong', 'SimSun', var(--m-font-serif, 'Cormorant Garamond'), serif;
   font-weight: 700;
   line-height: 1.3;
   letter-spacing: -0.01em;
+  text-align: center;
+  overflow-wrap: anywhere;
   transition: color 0.3s var(--m-ease-out, ease);
   will-change: color;
+}
+
+/* 高潮横向撕裂：两条错切带复制歌词文本，模拟信号错位 + RGB 边缘 */
+.is-tearing .lyrics-main::before,
+.is-tearing .lyrics-main::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: inherit;
+  opacity: 0.92;
+  text-shadow:
+    2px 0 rgba(255, 48, 88, 0.5),
+    -2px 0 rgba(0, 255, 206, 0.42);
+  will-change: transform;
+}
+
+.is-tearing .lyrics-main::before {
+  clip-path: var(--tear-a, inset(18% 0 68% 0));
+  transform: translateX(var(--tear-a-x, -10px));
+}
+
+.is-tearing .lyrics-main::after {
+  clip-path: var(--tear-b, inset(62% 0 26% 0));
+  transform: translateX(var(--tear-b-x, 14px));
+}
+
+.stage-tear-scan {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.08) 0 1px,
+      rgba(0, 0, 0, 0.16) 1px 2px,
+      transparent 2px 4px
+    ),
+    linear-gradient(to bottom, transparent 0%, rgba(255, 255, 255, 0.06) 50%, transparent 100%);
+  mix-blend-mode: screen;
+  animation: stage-tear-scan 220ms steps(2) both;
+}
+
+@keyframes stage-tear-scan {
+  0% {
+    opacity: 0.85;
+    transform: translateY(0);
+  }
+
+  55% {
+    opacity: 0.45;
+    transform: translateY(-2px);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(1px);
+  }
 }
 
 .lyrics-translation,

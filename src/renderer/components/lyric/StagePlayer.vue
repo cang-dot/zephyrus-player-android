@@ -127,6 +127,7 @@ import gsap from 'gsap';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import Aurora from '@/components/Aurora.vue';
+import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
 import { drumDetector } from '@/services/drumDetector';
 import { useClimaxStore } from '@/store/modules/climax';
@@ -170,19 +171,10 @@ const stageBeatFlashEnabled = computed(() => {
   return true;
 });
 
-const stageFlashIntensity = computed(() => {
-  try {
-    const saved = localStorage.getItem('music-full-config');
-    if (saved) {
-      const config = JSON.parse(saved);
-      return config.stageFlashIntensity ?? 0.5;
-    }
-  } catch {
-    /* 忽略：该清理/解析失败不影响主流程 */
-  }
-
-  return 0.5;
-});
+// 统一参数系统：暖金强度 / 鼓点闪白（原根级 stageFlashIntensity 旧轨迁移至 styleCustomConfig）
+const { config: stageCustom } = useStyleCustomConfig('stage');
+const goldWarmth = computed(() => Number(stageCustom.value.goldWarmth) || 1);
+const stageFlashIntensity = computed(() => Number(stageCustom.value.stageFlashStrong ?? 0.5));
 
 // 根据强度获取动画集合
 const currentAnimations = computed(() => {
@@ -407,10 +399,15 @@ watch(
       if (isNearGray(r, g, b)) {
         accent = { r, g, b };
       } else {
+        // 暖金强度（统一参数系统）：1 = 原公式；<1 向原色回退；>1 追加亮度增益
+        const w = goldWarmth.value;
+        const gold = { r: r * 1.5 + 30, g: g * 1.3 + 20, b: b * 0.8 + 40 };
+        const t = Math.min(1, w);
+        const gain = w > 1 ? 1 + (w - 1) * 0.2 : 1;
         accent = {
-          r: Math.min(255, Math.round(r * 1.5 + 30)),
-          g: Math.min(255, Math.round(g * 1.3 + 20)),
-          b: Math.min(255, Math.round(b * 0.8 + 40))
+          r: Math.min(255, Math.round((r + (gold.r - r) * t) * gain)),
+          g: Math.min(255, Math.round((g + (gold.g - g) * t) * gain)),
+          b: Math.min(255, Math.round((b + (gold.b - b) * t) * gain))
         };
       }
       accentColor.value = `rgb(${accent.r}, ${accent.g}, ${accent.b})`;
