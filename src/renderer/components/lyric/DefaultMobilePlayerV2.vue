@@ -7,7 +7,7 @@
       class="default-player-v2 player-style-surface"
       :class="{
         landscape: isLandscape,
-        'lyrics-expanded': lyricsExpanded,
+        'lyrics-expanded': rootLyricsExpanded,
         'custom-background': customBackgroundActive,
         'player-transitioning': playerTransitionBusy,
         'controls-docked': controlsDocked,
@@ -627,14 +627,27 @@ function captureMorphRects() {
   };
 }
 
+// closing 起跳即把根布局切回封面页分栏：AMLL 以全屏浮层压扁退场（lyrics-zone
+// .expanded 独立绑定、保持到 commit），封面/信息/控件栏在预览期就以主页形态归位，
+// 不再出现「整屏居中」的杂交中间态。仅提前摘根类，lyricsExpanded 状态与手势协议不动。
+const rootLyricsExpanded = computed(
+  () =>
+    lyricsExpanded.value &&
+    !(lyricsSwipePreview.value && lyricsSwipePhase.value === 'closing')
+);
 watch(
   () => [lyricsSwipePreview.value, lyricsSwipePhase.value] as const,
   ([previewing, phase]) => {
     if (previewing && phase === 'opening') captureMorphRects();
     if (previewing && phase === 'closing') {
-      // 关闭起始直接使用封面页稳定态缓存（stableMorphRectsSources watcher 持续刷新）；
-      // 此刻根节点仍是 lyrics-expanded 单行网格，重测只会得到「固定中央」的错位落点
+      // 起跳即唤起控件栏（主页形态归位的一部分）；autoHide=false 免得慢手势中途被
+      // 3s 定时器熄灭，settle commit 的 showControls() 会重武装定时器。
+      // 关闭起始直接使用封面页稳定态缓存（stableMorphRectsSources watcher 持续刷新），
+      // 此刻根节点正在切分栏，重测只会得到过渡中的错位落点
+      playerTransition.showControls(false);
     }
+    // 回弹（未 commit 回歌词页）：控件栏熄灭，回到歌词页常态
+    if (!previewing && lyricsExpanded.value) playerTransition.hideControls();
     if (!previewing && !lyricsExpanded.value) morphRects.value = null;
   }
 );
