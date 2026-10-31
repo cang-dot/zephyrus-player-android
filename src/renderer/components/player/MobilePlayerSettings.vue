@@ -187,7 +187,7 @@
                       </div>
                     </div>
 
-                    <!-- 滚动歌词字体 -->
+                    <!-- 滚动歌词字体（下拉选择：字体项多，平铺 chips 撑爆卡片） -->
                     <div class="p-3 rounded-2xl bg-white/5 mb-2">
                       <div class="text-sm text-white/80">
                         {{ tr('settings.lyricSettings.scrollFont', '滚动歌词字体') }}
@@ -200,26 +200,13 @@
                           )
                         }}
                       </div>
-                      <div class="lyric-font-options mt-2" role="listbox">
-                        <button
-                          type="button"
-                          class="lyric-font-chip"
-                          :class="{ active: !lyricConfig.scrollFontId }"
-                          @click="lyricConfig.scrollFontId = ''"
-                        >
-                          {{ tr('settings.lyricSettings.scrollFontDefault', '默认') }}
-                        </button>
-                        <button
-                          v-for="font in builtinFontOptions"
-                          :key="font.id"
-                          type="button"
-                          class="lyric-font-chip"
-                          :class="{ active: lyricConfig.scrollFontId === font.id }"
-                          @click="lyricConfig.scrollFontId = font.id"
-                        >
-                          {{ font.name }}
-                        </button>
-                      </div>
+                      <app-select
+                        class="mt-2 block"
+                        :model-value="lyricConfig.scrollFontId ?? ''"
+                        :options="scrollFontSelectOptions"
+                        :title="tr('settings.lyricSettings.scrollFont', '滚动歌词字体')"
+                        @update:model-value="lyricConfig.scrollFontId = String($event)"
+                      />
                     </div>
 
                     <!-- 滚动歌词字重 -->
@@ -1300,6 +1287,7 @@ import SongMetadataEditor from '@/components/common/SongMetadataEditor.vue';
 // 保留 EQControl 会导致 <eq-control> 解析失败
 import EqControl from '@/components/EQControl.vue';
 import PhotosensitivityWarning from '@/components/lyric/PhotosensitivityWarning.vue';
+import AppSelect from '@/components/common/AppSelect.vue';
 import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
 import ListenTogetherSettings from '@/components/settings/ListenTogetherSettings.vue';
 import PosterShareModal from '@/components/share/PosterShareModal.vue';
@@ -1352,6 +1340,7 @@ import type { PosterSubject } from '@/types/share';
 import { BUILTIN_FONTS } from '@/types/share';
 import { getImgUrl, secondToMinute } from '@/utils';
 import { formatAudioSegments } from '@/utils/audioFormat';
+import { showShortcutToast } from '@/utils/shortcutToast';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -2307,9 +2296,11 @@ const lyricConfig = ref<LyricConfig>(loadStoredLyricConfig());
 // 必须保证：a) 写回前合并 localStorage 最新值，防止过时快照覆盖他人写入（如 playerStyle）；
 // b) 监听外部更新实时刷新快照；c) stringify 失败时降级并留日志（曾导致样式切换"没反应"）。
 let suppressConfigSync = false;
+/** 存储写失败只提示一次，避免每次滑杆 tick 弹窗刷屏 */
+let storageWarnShown = false;
 
 function persistLyricConfig(next: LyricConfig) {
-  try {
+  const writeSnapshot = (): boolean => {
     let latest: Record<string, unknown> = {};
     try {
       latest = JSON.parse(localStorage.getItem('music-full-config') || '{}') as Record<
@@ -2327,8 +2318,35 @@ function persistLyricConfig(next: LyricConfig) {
       latest.playerStyle = next.playerStyle;
       localStorage.setItem('music-full-config', JSON.stringify(latest));
     }
-  } catch (storageError) {
-    console.error('[PlayerSettings] localStorage 写入失败:', storageError);
+    // 写后回读校验：iOS WKWebView 曾出现「写入静默未生效→设置回退」，全程无报错。
+    // 校验失败 = 存储层异常（配额/惰性提交），必须可见，否则用户永远以为是自己没保存。
+    try {
+      const readback = localStorage.getItem('music-full-config');
+      if (readback === null || !readback.includes(`"playerStyle":"${next.playerStyle}"`)) {
+        console.error(
+          '[PlayerSettings] 写入回读不一致：写入未生效（疑似存储配额/WebView 惰性提交），体积=',
+          readback?.length ?? 'null'
+        );
+        return false;
+      }
+    } catch (readbackError) {
+      console.error('[PlayerSettings] 回读失败:', readbackError);
+      return false;
+    }
+    return true;
+  };
+
+  const ok = writeSnapshot();
+  if (!ok && !storageWarnShown) {
+    storageWarnShown = true;
+    try {
+      showShortcutToast(tr('settings.storageWriteFailed', '设置保存失败：浏览器存储写入未生效'), '', {
+        position: 'top',
+        showIcon: true
+      });
+    } catch {
+      // toast 通道异常时保持静默（日志已留）
+    }
   }
   suppressConfigSync = true;
   window.dispatchEvent(new CustomEvent('music-full-config-updated'));
@@ -2607,8 +2625,15 @@ function setPageLayout(layout: PlayerPageLayout) {
   lyricConfig.value.playerPageLayout = layout;
 }
 
-// 滚动歌词字体选项（内置字体，含"默认"空选项）
+// 滚动歌词字体选项（内置字体，含"默认"空选项）；AppSelect 用
 const builtinFontOptions = BUILTIN_FONTS.map((font) => ({ id: font.id, name: font.name }));
+const scrollFontSelectOptions = computed(() => [
+  {
+    value: '',
+    label: tr('settings.lyricSettings.scrollFontDefault', '默认')
+  },
+  ...builtinFontOptions.map((font) => ({ value: font.id, label: font.name }))
+]);
 
 function toggleShowTranslation() {
   lyricConfig.value.showTranslation = !lyricConfig.value.showTranslation;
@@ -3104,8 +3129,9 @@ onUnmounted(() => {
   min-height: 0;
   min-width: 0;
   overflow: visible;
-  padding: 0 14px 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  /* 子页化移除折叠 header 后内容直接贴容器顶：顶部内边距由 body 自身承担；
+     header 的 border-top 分隔线一并移除（无 header 可分隔） */
+  padding: 14px 14px 14px;
 }
 
 .control-section-actions {

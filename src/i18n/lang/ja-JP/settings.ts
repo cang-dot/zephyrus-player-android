@@ -1,4 +1,5 @@
 export default {
+  storageWriteFailed: '設定の保存に失敗：ストレージへの書き込みが反映されていません',
   theme: 'テーマ',
   language: '言語',
   regard: 'について',

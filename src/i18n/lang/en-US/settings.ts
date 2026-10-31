@@ -1,4 +1,5 @@
 export default {
+  storageWriteFailed: 'Failed to save settings: browser storage write did not take effect',
   theme: 'Theme',
   language: 'Language',
   regard: 'About',

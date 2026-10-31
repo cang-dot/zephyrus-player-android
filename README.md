@@ -6,7 +6,7 @@
 
 Zephyrus Player 是一款只为 Android 手机设计的音乐播放器：歌曲、歌词和播放器舞台共享同一条时间轴，常用操作围绕单手触控和可中断动画组织。它同时提供**网页版**——电脑浏览器打开即可使用同一套账号与播放能力。
 
-[![版本](https://img.shields.io/badge/version-v1.4.0-b48b52)](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.4.0)
+[![版本](https://img.shields.io/badge/version-v1.4.1-b48b52)](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.4.1)
 [![Android](https://img.shields.io/badge/Android-8.0%2B-3ddc84?logo=android&logoColor=white)](https://developer.android.com/about/versions/oreo)
 [![Web](https://img.shields.io/badge/Web-mucang.xyz%2Fzephyrus%2Fweb-4285f4?logo=googlechrome&logoColor=white)](https://mucang.xyz/zephyrus/web/)
 [![Vue](https://img.shields.io/badge/Vue_3-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
@@ -14,7 +14,7 @@ Zephyrus Player 是一款只为 Android 手机设计的音乐播放器：歌曲�
 
 ## 下载
 
-- [GitHub Release v1.4.0](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.4.0)
+- [GitHub Release v1.4.1](https://github.com/cang-dot/zephyrus-player-android/releases/tag/v1.4.1)
 - [服务器直链](https://mucang.xyz/zephyrus/apks/zephyrus-player-latest.apk)
 - [Android 产品介绍](https://mucang.xyz/zephyrus/)
 - [使用文档](https://mucang.xyz/zephyrus/docs/)
@@ -54,6 +54,8 @@ TTML 可以同时携带主唱、背景、对唱、翻译和罗马音。默认播
 
 当前版本提供默认、舞台、星盘、狂热、烟雾和错误六种样式。样式会独立保存背景、字体、歌词颜色、对齐方式和高潮效果；默认样式也支持大封面、滚动歌词和沉浸式底栏。
 
+播放设置按功能模块组织为子页导航（歌曲 / 控制两大页，控制页下分样式、布局、数据、音频、播放、工具、分享七个模块）；六种样式的可调参数（网格音频驱动、暖金强度、星场密度、流体形态等 60 余项）使用同一套参数规范，直接在样式设置中即时生效。歌词来源支持拖拽排序的请求优先级，也可仅对当前歌曲临时切换来源。
+
 「错误」样式基于 WebGL 流体：纯黑背景上以歌曲主题色高速流动，叠加 CRT 扫描线与老电视颗粒噪点；大字宋体歌词以溶解方式进出并带 RGB 色散，高潮段落触发全屏错误爆发。该样式包含高频闪光，首次启用会提供光敏性癫痫警告。
 
 ### 分享
@@ -79,6 +81,8 @@ TTML 可以同时携带主唱、背景、对唱、翻译和罗马音。默认播
 - 智能过渡支持轻量到智能的连续调节、无缝切歌和可中断的加载反馈。
 - 本地文件播放失败时只提示一次并安全推进队列，不会在同一首歌上重复循环报错。
 - **在线歌曲同样驱动音频响应**：鼓点、能量与 BPM 特征由原生引擎分析提供，本地与在线歌曲一视同仁。该能力依赖 Android 原生音频分析（网页浏览器版在线歌曲为跨域直连、无 Web Audio 图谱，暂不驱动视觉响应；网页版本地文件不受影响）。
+- **划掉后台后接着听**：正在播放的歌曲与进度以秒级粒度落盘，重新打开后恢复为同一首歌的暂停待播状态（开启自动播放时自动续播）。
+- **播放引擎自恢复**：移动端浏览器上视觉引擎异常时自动降级为实色背景并软恢复音频（进度不回跳）；连续异常的设备在下次启动时自动关闭特效，可在设置中重新开启。
 
 ### 来源与账号
 

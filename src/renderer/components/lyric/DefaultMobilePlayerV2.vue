@@ -412,10 +412,6 @@ const ALIGN_INNER: Record<string, string> = {
   end: 'flex-end'
 };
 const ALIGN_TEXT: Record<string, string> = { start: 'left', center: 'center', end: 'right' };
-const artworkZoneStyle = computed(() => ({
-  '--artwork-align-inner': ALIGN_INNER[artworkAlign.value],
-  '--artwork-text-align': ALIGN_TEXT[artworkAlign.value]
-}));
 const artworkFrameStyle = computed(() => {
   // mode-full 画布是非正方形(width 100%/520、height 40dvh、aspect auto),
   // 图片 contain 居中会在浅色背景上露出灰边;锁定正方形让 frame 紧贴封面。
@@ -429,6 +425,18 @@ const artworkFrameStyle = computed(() => {
   const side = `calc(${base} * ${artworkSize.value / 100} * ${coverBasisScale.value})`;
   return { width: side, height: side, aspectRatio: '1' };
 });
+// 横屏「封面对齐」语义：封面恒居中，仅左侧信息区文字对齐封面的左/中/右。
+// --artwork-side 与 artworkFrameStyle 同源，横屏 CSS 用它锁定信息盒宽=封面宽，
+// 让 text-align 严格对齐到封面边缘而非列边缘
+const artworkAlignSide = computed(() => {
+  const base = 'min(38vw, 48dvh, 430px)';
+  return `calc(${base} * ${artworkSize.value / 100} * ${coverBasisScale.value})`;
+});
+const artworkZoneStyle = computed(() => ({
+  '--artwork-align-inner': ALIGN_INNER[artworkAlign.value],
+  '--artwork-text-align': ALIGN_TEXT[artworkAlign.value],
+  '--artwork-side': artworkAlignSide.value
+}));
 
 function rgbToHex(r: number, g: number, b: number) {
   const channel = (v: number) =>
@@ -1212,6 +1220,18 @@ onBeforeUnmount(() => {
   padding-top: 8px;
   padding-left: 24px;
   padding-right: 24px;
+}
+
+/* 横屏「封面对齐」语义：封面恒居中（不随设置整块位移），
+   仅左侧信息区文字对齐封面的左/中/右——信息盒宽=封面宽（--artwork-side 同源），
+   text-align 严格对齐到封面边缘 */
+.landscape .artwork-zone {
+  align-items: center;
+}
+
+.landscape .artwork-info {
+  width: var(--artwork-side, min(38vw, 48dvh, 430px));
+  align-self: center;
 }
 
 /* 横屏 + 关闭歌词区域:折叠双列,封面/信息独占整行并居中(否则仍锁在 42% 左列) */

@@ -1,4 +1,5 @@
 export default {
+  storageWriteFailed: '设置保存失败：浏览器存储写入未生效',
   theme: '主题',
   language: '语言',
   regard: '关于',

@@ -1,4 +1,5 @@
 export default {
+  storageWriteFailed: '設定儲存失敗：瀏覽器儲存寫入未生效',
   theme: '主題',
   language: '語言',
   regard: '關於',

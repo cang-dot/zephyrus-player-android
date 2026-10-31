@@ -1,4 +1,5 @@
 export default {
+  storageWriteFailed: '설정 저장 실패: 스토리지 쓰기가 적용되지 않았습니다',
   theme: '테마',
   language: '언어',
   regard: '정보',
