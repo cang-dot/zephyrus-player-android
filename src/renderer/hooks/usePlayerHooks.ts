@@ -482,21 +482,6 @@ async function loadMatchedNeteaseLyric(song: SongResult): Promise<ILyric | null>
   }
 }
 
-function pickBestFallback(results: PromiseSettledResult<ILyric | null>[]): ILyric | null {
-  const lyrics = results
-    .filter(
-      (result): result is PromiseFulfilledResult<ILyric | null> => result.status === 'fulfilled'
-    )
-    .map((result) => result.value)
-    .filter(isUsableLyric);
-  return (
-    lyrics.find((lyric) => lyric.source === 'community') ||
-    lyrics.find((lyric) => lyric.hasWordByWord) ||
-    lyrics[0] ||
-    null
-  );
-}
-
 /**
  * 加载跨平台歌曲歌词
  *
@@ -614,7 +599,21 @@ export const loadLrc = async (id: string | number): Promise<ILyric> => {
   return loadNeteaseProviderLyric(id);
 };
 
-/** 统一歌词源调度：默认源语义无效后自动尝试独立第三方来源。 */
+/** 各歌词源的 loader 映射（优先级调度用；ttml 走 amllStore 独立链路不在此列） */
+type LyricSourceLoader = (song: SongResult) => Promise<ILyric | null>;
+
+function getLyricSourceLoaders(): Record<string, LyricSourceLoader> {
+  return {
+    netease: (song) =>
+      isCrossPlatformSong(song) ? loadMatchedNeteaseLyric(song) : loadNeteaseProviderLyric(song.id),
+    qq: (song) => (song.platform === 'qq' ? loadCrossPlatformLyric(song) : loadMatchedQqProviderLyric(song)),
+    kugou: (song) => loadKugouProviderLyric(song),
+    community: (song) => loadCommunityProviderLyric(song),
+    lrclib: (song) => fetchLrclibLyric(song)
+  };
+}
+
+/** 统一歌词源调度：优先级列表（lyricSource store）决定主源与兜底顺序；单曲 override 强制单源。 */
 export const loadBestLyric = async (song: SongResult): Promise<ILyric> => {
   if (!song) return emptyLyric();
   if (isUsableLyric(song.lyric)) return song.lyric;
@@ -624,7 +623,7 @@ export const loadBestLyric = async (song: SongResult): Promise<ILyric> => {
     return useLocalMusic().loadLocalLyrics(song);
   }
 
-  // 1) 手动匹配的歌词：用户显式选择，优先级最高
+  // 1) 手动匹配的歌词：用户显式选择，优先级最高（高于任何来源设置）
   const manualLyric = await loadManualLyric(song);
   if (isUsableLyric(manualLyric)) return manualLyric;
 
@@ -634,25 +633,60 @@ export const loadBestLyric = async (song: SongResult): Promise<ILyric> => {
     if (isUsableLyric(subtitleLyric)) return subtitleLyric;
   }
 
-  let primary = emptyLyric();
-  if (isCrossPlatformSong(song)) {
-    primary = await loadCrossPlatformLyric(song);
-  } else {
-    primary = await loadNeteaseProviderLyric(song.id);
+  const { useLyricSourceStore } = await import('@/store/modules/lyricSource');
+  const lyricSourceStore = useLyricSourceStore();
+  const loaders = getLyricSourceLoaders();
+
+  // 0) 单曲临时覆盖：强制单源（失败回退自动链，不静默吞掉用户意图）
+  const override = lyricSourceStore.getSongOverride(song.id);
+  if (override === 'ttml') {
+    // TTML 逐字库走 amllStore 独立链路：这里返回空 LRC，歌词区依赖 TTML 渲染
+    return emptyLyric();
+  }
+  if (override && override !== 'auto' && loaders[override]) {
+    const forced = await loaders[override](song).catch(() => null);
+    if (isUsableLyric(forced)) return forced;
+  }
+
+  // 3) 按优先级调度：主源 = 列表首位非 ttml 源；其余源进兜底池（并发，按优先级偏好挑选）
+  const order = lyricSourceStore.effectiveOrder().filter((key) => key !== 'ttml');
+  const primaryKey = order[0] ?? 'netease';
+
+  let primary: ILyric | null;
+  try {
+    primary = await (loaders[primaryKey] ?? loadNeteaseProviderLyric.bind(null, song.id))(song);
+  } catch {
+    primary = null;
   }
   if (isUsableLyric(primary)) return primary;
 
-  const fallbackTasks: Promise<ILyric | null>[] = [
-    loadCommunityProviderLyric(song),
-    loadKugouProviderLyric(song),
-    fetchLrclibLyric(song)
-  ];
-  if (song.platform !== 'qq') fallbackTasks.push(loadMatchedQqProviderLyric(song));
-  if (song.platform && song.platform !== 'netease')
-    fallbackTasks.push(loadMatchedNeteaseLyric(song));
-  const fallback = pickBestFallback(await Promise.allSettled(fallbackTasks));
+  const fallbackKeys = order.slice(1);
+  const fallbackTasks: Promise<ILyric | null>[] = fallbackKeys
+    .filter((key) => loaders[key])
+    .map((key) => loaders[key](song).catch(() => null));
+  const fallback = pickBestByPriority(await Promise.allSettled(fallbackTasks), fallbackKeys);
   return fallback || emptyLyric();
 };
+
+/** 按 lyricSource 优先级顺序挑选兜底结果（原 community > 逐字 > 首个 偏好保留为同级次序） */
+function pickBestByPriority(
+  results: PromiseSettledResult<ILyric | null>[],
+  keys: string[]
+): ILyric | null {
+  const byKey = new Map<string, ILyric>();
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled' && isUsableLyric(result.value)) {
+      byKey.set(keys[index] ?? `#${index}`, result.value);
+    }
+  });
+  // 优先级顺序逐个取；同级内保留原偏好：community / 逐字
+  for (const key of keys) {
+    const lyric = byKey.get(key);
+    if (lyric) return lyric;
+  }
+  const rest = [...byKey.values()];
+  return rest.find((lyric) => lyric.hasWordByWord) || rest[0] || null;
+}
 
 /**
  * useLyrics hook（兼容旧代码）
