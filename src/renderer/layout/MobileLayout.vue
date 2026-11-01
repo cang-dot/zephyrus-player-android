@@ -958,7 +958,10 @@ watch(
     }
     // 底栏 tab 路由变化（点底栏/返回）：双页弹簧平移到目标页
     const targetIndex = menuStore.menus.findIndex((item: any) => item.path === path);
-    if (targetIndex >= 0 && targetIndex !== pagerIndex.value) {
+    if (
+      targetIndex >= 0 &&
+      (targetIndex !== pagerIndex.value || pageSwipeAnimationFrame || pagerOffset.value !== 0)
+    ) {
       const target = menuStore.menus[targetIndex];
       if (target) mountPagerPage(target.path);
       mountAdjacentPagerPages(targetIndex);
@@ -966,6 +969,7 @@ watch(
       const velocity = lastPageSwipeVelocity;
       lastPageSwipeVelocity = 0;
       animatePageOffset(distance, velocity, () => {
+        if (route.path !== target.path) return;
         pagerIndex.value = targetIndex;
         pagerOffset.value = 0;
         mountAdjacentPagerPages(targetIndex);
@@ -1229,10 +1233,7 @@ onBeforeUnmount(() => {
 // 「上滑打开播放界面」手势只挂在迷你播放条的胶囊本体上
 // （MobilePlayBar 的 .mobile-mini-controls），底栏导航区不再触发。
 
-// ── 底栏辉光跟手横滑选页:按住图标辉光立即扩大,横拖时辉光跟手预览目标项
-//    (不切页),松手提交;普通轻点完全交给 router-link 原生行为。 ──
-const pickPath = ref('');
-// 跟手辉光浮层:按下出现在原项,横拖后放大并 1:1 跟随手指,松手收拢
+// 底栏胶囊横向跟手，松手时确定目标；轻点交给 router-link。
 const navGlow = reactive({
   visible: false,
   enlarged: false,
@@ -1271,9 +1272,8 @@ let navPickStartX = 0;
 let navPickStartY = 0;
 let navDragging = false;
 let navSuppressClick = false;
-let navSuppressResetFrame = 0;
 
-/** 横拖时选「离手指最近的一项」:图标与项之间的间隙不丢预览 */
+/** 松手时选最近的一项，图标之间的空隙也有确定目标。 */
 const navNearestItemPath = (x: number, y: number): string => {
   const items = Array.from(
     document.querySelectorAll<HTMLElement>('.mobile-glow-nav > .glow-nav-item')
@@ -1293,31 +1293,16 @@ const navNearestItemPath = (x: number, y: number): string => {
   return best;
 };
 
-const releaseNavSuppress = () => {
-  if (!navSuppressClick) return;
-  navSuppressClick = false;
-  if (navSuppressResetFrame) {
-    cancelAnimationFrame(navSuppressResetFrame);
-    navSuppressResetFrame = 0;
-  }
-};
-
-const scheduleNavSuppressReset = () => {
-  if (navSuppressResetFrame) cancelAnimationFrame(navSuppressResetFrame);
-  // WebView 可能不派发合成 click:一帧后自动解除抑制,不污染下一次点击
-  navSuppressResetFrame = requestAnimationFrame(() => {
-    navSuppressResetFrame = 0;
-    navSuppressClick = false;
-  });
-};
-
 const onNavPointerDown = (event: PointerEvent) => {
-  if (!event.isPrimary || playerStore.musicFull) return;
+  if (!event.isPrimary || event.button !== 0 || playerStore.musicFull) return;
+  // A new press starts a new click sequence. Keep the previous drag suppressed
+  // until then: touch compatibility clicks can arrive several frames after up.
+  navSuppressClick = false;
   navPickPointerId = event.pointerId;
   navPickStartX = event.clientX;
   navPickStartY = event.clientY;
   navDragging = false;
-  // 轻点不唤出跟手浮层，也不点亮 pickPath：否则静态胶囊会在点击期间被
+  // 轻点不唤出跟手浮层：否则静态胶囊会在点击期间被
   // 隐藏、松手后只能在新位置淡入（瞬移 + 与浮层交叉淡变时露底闪白）。
   // 浮层改为在 onNavPointerMove 判定横向意图后才接管。
 };
@@ -1331,7 +1316,6 @@ const onNavPointerMove = (event: PointerEvent) => {
     if (Math.abs(dy) > Math.abs(dx) * 1.2) {
       // 纵向意图:取消预览即可,导航区没有纵向手势(上滑开播放面只在迷你条上)
       navPickPointerId = null;
-      pickPath.value = '';
       hideNavGlow();
       return;
     }
@@ -1353,7 +1337,7 @@ const onNavPointerMove = (event: PointerEvent) => {
     }
   }
   event.preventDefault();
-  // 辉光放大并横向完全跟手;y 轴锁定在起始项中心线高度;越界停在底栏边缘
+  // 胶囊横向跟手，纵向锁定在起始项中心，越界停在底栏边缘。
   navGlow.enlarged = true;
   navGlow.x = event.clientX - navGlowNavLeft;
   const halfGlow = navGlow.w / 2 + 6;
@@ -1361,7 +1345,6 @@ const onNavPointerMove = (event: PointerEvent) => {
     Math.max(navGlow.x, halfGlow),
     Math.max(halfGlow, navGlowNavWidth - halfGlow)
   );
-  pickPath.value = navNearestItemPath(event.clientX, event.clientY);
 };
 
 const onNavPointerRelease = (event: PointerEvent) => {
@@ -1371,18 +1354,17 @@ const onNavPointerRelease = (event: PointerEvent) => {
   navPickPointerId = null;
   if (navDragging) {
     navDragging = false;
-    const target = pickPath.value;
-    pickPath.value = '';
+    const target = navNearestItemPath(event.clientX, event.clientY);
     navGlow.enlarged = false;
     hideNavGlow();
     if (target && !isActive(target)) {
       prepareMenuTransition(target);
-      router.push(menuTarget(target));
+      void router.push(menuTarget(target)).catch((error: unknown) => {
+        console.warn('[MobileNav] 页面切换失败:', error);
+      });
     }
-    scheduleNavSuppressReset();
   } else {
     // 未进入拖选:收拢辉光,放行 router-link 原生 click
-    pickPath.value = '';
     hideNavGlow();
   }
 };
@@ -1394,16 +1376,14 @@ const onNavPointerCancel = (event: PointerEvent) => {
   if (host.hasPointerCapture(event.pointerId)) host.releasePointerCapture(event.pointerId);
   navPickPointerId = null;
   navDragging = false;
-  pickPath.value = '';
   hideNavGlow();
-  scheduleNavSuppressReset();
 };
 
 const onNavClickCapture = (event: MouseEvent) => {
-  if (!navSuppressClick) return;
+  // Keyboard and assistive activation has no pointer click count.
+  if (!navSuppressClick || event.detail === 0) return;
   event.preventDefault();
   event.stopPropagation();
-  releaseNavSuppress();
 };
 
 // 提供是否有安全区域
