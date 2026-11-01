@@ -1,5 +1,5 @@
 /** Shared dimensions for navigation, its merge transition, and player layout. */
-export const MOBILE_DOCK = { height: 60, itemHeight: 52, compactSize: 48, miniOffset: 64 } as const;
+export const MOBILE_DOCK = { height: 64, itemHeight: 52, compactSize: 48, miniOffset: 68 } as const;
 export const PLAYER_GEOMETRY = {
   defaultControlsHeight: 150,
   controlsHeight: 168,

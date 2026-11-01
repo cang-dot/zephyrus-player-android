@@ -1746,7 +1746,7 @@ onBeforeUnmount(() => {
   width: calc(100vw - var(--mobile-dock-inset) * 2);
   height: 0;
   border: 1px solid transparent;
-  border-radius: 30px;
+  border-radius: calc(var(--mobile-nav-height) / 2);
   background: transparent;
   box-shadow: none;
   isolation: isolate;
@@ -2057,7 +2057,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
      与 dock/迷你栏同一进度真值，杜绝独立过渡与弹簧互拽 */
   height: calc(var(--mobile-nav-item-height) - 4px * var(--dock-mp, 0));
   min-width: calc(var(--mobile-nav-item-height) - 4px * var(--dock-mp, 0));
-  padding: calc(8px - 8px * var(--dock-mp, 0)) calc(12px - 12px * var(--dock-mp, 0));
+  padding: calc(4px - 4px * var(--dock-mp, 0)) calc(12px - 12px * var(--dock-mp, 0));
   border-radius: calc(26px - 2px * var(--dock-mp, 0));
   cursor: pointer;
   text-decoration: none;
@@ -2113,7 +2113,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   transform-style: preserve-3d;
   perspective: 600px;
 }
@@ -2121,6 +2121,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 /* 图标 */
 .glow-item-icon {
   font-size: 28px;
+  line-height: 1;
   color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
   transition:
     color 0.35s $spring-smooth,
@@ -2137,6 +2138,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 /* 文字标签 — 仅选中时弹出；坐在实心胶囊上，用胶囊前景色 */
 .glow-item-label {
   font-size: 10.5px;
+  line-height: 14px;
   font-weight: 500;
   color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
   white-space: nowrap;
