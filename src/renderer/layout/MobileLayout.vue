@@ -2113,7 +2113,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 0;
   transform-style: preserve-3d;
   perspective: 600px;
 }
@@ -2139,6 +2139,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 .glow-item-label {
   font-size: 10.5px;
   line-height: 14px;
+  /* Icon-font glyphs leave space below their visible strokes. */
+  margin-top: -4px;
   font-weight: 500;
   color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
   white-space: nowrap;
