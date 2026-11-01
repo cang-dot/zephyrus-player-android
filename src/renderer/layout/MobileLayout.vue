@@ -11,7 +11,10 @@
       'home-custom-bg': homeCustomBgActive
     }"
     :style="{
-      '--mobile-dock-content-inset': `${mobileDockContentInset}px`
+      '--mobile-dock-content-inset': `${mobileDockContentInset}px`,
+      '--mobile-nav-height': `${MOBILE_DOCK.height}px`,
+      '--mobile-nav-item-height': `${MOBILE_DOCK.itemHeight}px`,
+      '--mobile-mini-offset': `${MOBILE_DOCK.miniOffset}px`
     }"
   >
     <!-- 全局自定义背景墙纸（solid/cover/image）：一切页面内容之下，播放页被盖住 -->
@@ -149,8 +152,6 @@
             @pointercancel="onNavPointerCancel"
             @click.capture="onNavClickCapture"
           >
-            <!-- 滑动指示胶囊:单个元素随选中项平移/变宽，点击切页产生滑动动画 -->
-            <div class="nav-slide-indicator" :style="navIndicatorStyle" />
             <router-link
               v-for="item in menuStore.menus"
               :key="item.path"
@@ -161,8 +162,7 @@
               @contextmenu.prevent
               class="glow-nav-item"
               :class="{
-                active: isActive(item.path),
-                'hover-pick': navGlow.enlarged && pickPath === item.path
+                active: isActive(item.path)
               }"
               @click="prepareMenuTransition(item.path)"
             >
@@ -172,14 +172,19 @@
               </div>
             </router-link>
 
-            <!-- 按住/横拖的跟手辉光:单个浮层,从按住项亮起,拖动后放大并完全跟随手指 -->
-            <div
-              v-if="navGlow.visible"
-              class="nav-glow-float"
-              :class="{ dragging: navGlow.enlarged, closing: navGlow.closing }"
-              :style="navGlowFloatStyle"
-            >
-              <div class="nav-glow-float-inner" :style="{ backgroundColor: activeGlowStyle }" />
+            <!-- One clipped paint layer owns both the capsule and its tinted foreground. -->
+            <div class="nav-highlight" :style="navHighlightStyle" aria-hidden="true" inert>
+              <span
+                v-for="item in menuStore.menus"
+                :key="item.path"
+                class="glow-nav-item"
+                :class="{ active: isActive(item.path) }"
+              >
+                <span class="glow-item-content">
+                  <i class="iconfont glow-item-icon" :class="item.meta.icon" />
+                  <span class="glow-item-label">{{ t(item.meta.title) }}</span>
+                </span>
+              </span>
             </div>
           </div>
         </div>
@@ -247,6 +252,7 @@ import { useHomeBackground } from '@/composables/useHomeBackground';
 import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransition';
 import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
 import { usePlaylistOpenTransition } from '@/composables/usePlaylistOpenTransition';
+import { MOBILE_DOCK } from '@/config/mobileGeometry';
 import homeRouter from '@/router/home';
 import otherRouter from '@/router/other';
 import { installMobileBackBridge, registerMobileBackLayer } from '@/services/mobileBackStack';
@@ -627,8 +633,8 @@ const dockMergedStyle = computed(() => {
   const t = Math.min(1, mp);
   return {
     width: `${fullW + (48 - fullW) * t + stretch}px`,
-    height: `${72 + (48 - 72) * t}px`,
-    borderRadius: `${36 + (24 - 36) * t}px`,
+    height: `${MOBILE_DOCK.height + (MOBILE_DOCK.compactSize - MOBILE_DOCK.height) * t}px`,
+    borderRadius: `${MOBILE_DOCK.height / 2 + (24 - MOBILE_DOCK.height / 2) * t}px`,
     right: `${inset + (fullW - 48) * t - stretch / 2}px`,
     // 几何逐帧直写期间禁用 CSS transition：否则每一步变化都被 420ms 过渡拖慢，
     // 渲染值严重滞后于弹簧（"两个避让逻辑打架"的根因）；mp 归零后自动恢复
@@ -653,7 +659,7 @@ watch(
           0,
           Math.round(bar.getBoundingClientRect().bottom - capsule.getBoundingClientRect().bottom)
         );
-        dock.style.bottom = `calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap) + ${dy}px)`;
+        dock.style.bottom = `calc(var(--mobile-dock-bottom) + ${dy}px)`;
       }
     } else {
       dock.style.bottom = '';
@@ -1230,40 +1236,24 @@ const pickPath = ref('');
 const navGlow = reactive({
   visible: false,
   enlarged: false,
-  closing: false,
   x: 0,
   y: 0,
   w: 64,
   h: 40
 });
-let navGlowHideTimer: ReturnType<typeof setTimeout> | undefined;
 let navGlowNavLeft = 0;
-let navGlowNavTop = 0;
 let navGlowNavWidth = 0;
-
-const navGlowFloatStyle = computed(() => ({
-  width: `${navGlow.w}px`,
-  height: `${navGlow.h}px`,
-  transform: `translate3d(${navGlow.x - navGlow.w / 2}px, ${navGlow.y - navGlow.h / 2}px, 0)`,
-  opacity: navGlow.closing ? '0' : '1'
-}));
 
 function showNavGlowAt(clientX: number, clientY: number, itemEl: HTMLElement | null) {
   const nav = document.querySelector<HTMLElement>('.mobile-glow-nav');
   if (!nav) return;
   const navRect = nav.getBoundingClientRect();
   navGlowNavLeft = navRect.left;
-  navGlowNavTop = navRect.top;
   navGlowNavWidth = navRect.width;
   const rect = itemEl
     ? itemEl.getBoundingClientRect()
     : { left: clientX - 32, top: clientY - 20, width: 64, height: 40 };
-  if (navGlowHideTimer) {
-    clearTimeout(navGlowHideTimer);
-    navGlowHideTimer = undefined;
-  }
   navGlow.visible = true;
-  navGlow.closing = false;
   navGlow.enlarged = false;
   navGlow.w = rect.width;
   navGlow.h = rect.height;
@@ -1272,15 +1262,8 @@ function showNavGlowAt(clientX: number, clientY: number, itemEl: HTMLElement | n
 }
 
 function hideNavGlow() {
-  if (!navGlow.visible) return;
-  navGlow.closing = true;
-  if (navGlowHideTimer) clearTimeout(navGlowHideTimer);
-  navGlowHideTimer = setTimeout(() => {
-    navGlow.visible = false;
-    navGlow.closing = false;
-    navGlow.enlarged = false;
-    navGlowHideTimer = undefined;
-  }, 220);
+  navGlow.visible = false;
+  navGlow.enlarged = false;
 }
 
 let navPickPointerId: number | null = null;
@@ -1290,15 +1273,10 @@ let navDragging = false;
 let navSuppressClick = false;
 let navSuppressResetFrame = 0;
 
-const navItemPathFromPoint = (x: number, y: number): string => {
-  const el = document.elementFromPoint(x, y)?.closest('.glow-nav-item') as HTMLElement | null;
-  return el?.dataset.path || '';
-};
-
 /** 横拖时选「离手指最近的一项」:图标与项之间的间隙不丢预览 */
 const navNearestItemPath = (x: number, y: number): string => {
   const items = Array.from(
-    document.querySelectorAll<HTMLElement>('.mobile-glow-nav .glow-nav-item')
+    document.querySelectorAll<HTMLElement>('.mobile-glow-nav > .glow-nav-item')
   );
   let best = '';
   let bestDist = Infinity;
@@ -1412,10 +1390,13 @@ const onNavPointerRelease = (event: PointerEvent) => {
 const onNavPointerUp = (event: PointerEvent) => onNavPointerRelease(event);
 const onNavPointerCancel = (event: PointerEvent) => {
   if (event.pointerId !== navPickPointerId) return;
+  const host = event.currentTarget as HTMLElement;
+  if (host.hasPointerCapture(event.pointerId)) host.releasePointerCapture(event.pointerId);
   navPickPointerId = null;
   navDragging = false;
   pickPath.value = '';
   hideNavGlow();
+  scheduleNavSuppressReset();
 };
 
 const onNavClickCapture = (event: MouseEvent) => {
@@ -1424,43 +1405,6 @@ const onNavClickCapture = (event: MouseEvent) => {
   event.stopPropagation();
   releaseNavSuppress();
 };
-
-// 轻点切页:辉光从旧项中心滑向新项中心,到位后收拢,与拖选共用同一浮层
-watch(
-  () => route.path,
-  (newPath, oldPath) => {
-    if (playerStore.musicFull || navDragging || !oldPath || newPath === oldPath) return;
-    const nav = document.querySelector<HTMLElement>('.mobile-glow-nav');
-    if (!nav) return;
-    const oldEl = nav.querySelector(`[data-path="${CSS.escape(oldPath)}"]`);
-    const newEl = nav.querySelector(`[data-path="${CSS.escape(newPath)}"]`);
-    if (!oldEl || !newEl) return;
-    const navRect = nav.getBoundingClientRect();
-    const o = oldEl.getBoundingClientRect();
-    const n = newEl.getBoundingClientRect();
-    navGlowNavLeft = navRect.left;
-    navGlowNavTop = navRect.top;
-    if (navGlowHideTimer) {
-      clearTimeout(navGlowHideTimer);
-      navGlowHideTimer = undefined;
-    }
-    navGlow.visible = true;
-    navGlow.closing = false;
-    navGlow.enlarged = false;
-    navGlow.w = o.width;
-    navGlow.h = o.height;
-    navGlow.x = o.left + o.width / 2 - navRect.left;
-    navGlow.y = o.top + o.height / 2 - navRect.top;
-    // 双 rAF:确保起点先渲染一帧,transform 过渡才会从旧位置滑向新位置
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        navGlow.x = n.left + n.width / 2 - navRect.left;
-        navGlow.y = n.top + n.height / 2 - navRect.top;
-        navGlowHideTimer = setTimeout(() => hideNavGlow(), 320);
-      })
-    );
-  }
-);
 
 // 提供是否有安全区域
 provide('hasSafeArea', props.isPhone);
@@ -1482,15 +1426,11 @@ const shouldShowBottomMenu = computed(
 );
 const mobileDockContentInset = computed(() => {
   if (!shouldShowBottomMenu.value) return isPlay.value ? 78 : 16;
-  if (!isPlay.value || miniPlayerIdleCollapsed.value) return 86;
-  return 144;
+  if (!isPlay.value || miniPlayerIdleCollapsed.value) return MOBILE_DOCK.height + 14;
+  return MOBILE_DOCK.miniOffset + 56;
 });
 
 const isActive = (itemPath: string) => route.path === itemPath;
-
-// 底栏选中态：实心偏深胶囊（原为径向辉光渐变）。
-// 具体色值由 CSS 令牌统一管理，见 assets/css/mobile.css 的 --m-nav-indicator-bg。
-const activeGlowStyle = computed(() => 'var(--m-nav-indicator-bg, #3a332e)');
 
 // ── 滑动指示胶囊:单个元素随选中项平移/变宽，点击切页产生滑动动画 ──
 // 几何取自选中项的实时矩形；选中项会随标签弹入而加宽，故测两轮:
@@ -1508,7 +1448,7 @@ const measureNavIndicator = () => {
     navIndicator.ready = false;
     return;
   }
-  const active = nav.querySelector<HTMLElement>('.glow-nav-item.active');
+  const active = nav.querySelector<HTMLElement>(':scope > .glow-nav-item.active');
   if (!active) {
     navIndicator.ready = false;
     return;
@@ -1530,23 +1470,17 @@ const scheduleNavIndicatorMeasure = () => {
   indicatorLateTimer = setTimeout(measureNavIndicator, 900);
 };
 
-const navIndicatorStyle = computed(() => {
-  // 合并进度插值：mp→1 时指示胶囊收进 48 圆（x 归 0、高 60→48、top 4→0）；
-  // 选中阴影由 CSS 在合并态隐藏
+const navHighlightStyle = computed(() => {
   const mp = Math.min(1, dockMergeGesture.mergeProgress.value);
-  const x = navIndicator.x * (1 - mp);
-  const w = navIndicator.w + (48 - navIndicator.w) * mp;
-  const h = 60 - 12 * mp;
+  const dragging = navGlow.enlarged;
+  const x = dragging ? navGlow.x - navGlow.w / 2 : navIndicator.x * (1 - mp);
+  const width = dragging ? navGlow.w : navIndicator.w + (48 - navIndicator.w) * mp;
+  const top = dragging ? navGlow.y - navGlow.h / 2 : 4 * (1 - mp);
+  const height = dragging ? navGlow.h : MOBILE_DOCK.itemHeight + (48 - MOBILE_DOCK.itemHeight) * mp;
   return {
-    top: `${4 - 4 * mp}px`,
-    height: `${h}px`,
-    width: `${w}px`,
-    transform: `translate3d(${x}px, 0, 0)`,
-    // 逐帧插值期间禁用过渡（同 dock：否则每帧都被 0.42s 过渡滞后）；
-    // mp 归零后恢复过渡，展开复位的"滑回"动画依赖它
-    transition: mp > 0.001 ? 'none' : undefined,
-    // 仅在实际横向拖选（浮层跟手）时让位；轻点期间保持在位，才能滑向目标项
-    opacity: navIndicator.ready && !navGlow.enlarged ? '1' : '0'
+    clipPath: `inset(${top}px calc(100% - ${x + width}px) calc(100% - ${top + height}px) ${x}px round 26px)`,
+    transition: dragging || mp > 0.001 ? 'none' : undefined,
+    opacity: (navIndicator.ready || dragging) && mp < 0.99 ? '1' : '0'
   };
 });
 
@@ -1716,7 +1650,8 @@ onBeforeUnmount(() => {
   position: relative;
   background: var(--m-bg, var(--bg-color));
   --mobile-dock-inset: 12px;
-  --mobile-dock-gap: 2px;
+  --mobile-dock-gap: -4px;
+  --mobile-dock-bottom: max(0px, calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap)));
 }
 
 .mobile-layout[data-theme='dark'],
@@ -1804,7 +1739,7 @@ onBeforeUnmount(() => {
 .mobile-bottom-dock {
   position: fixed;
   right: var(--mobile-dock-inset);
-  bottom: calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap));
+  bottom: var(--mobile-dock-bottom);
   left: var(--mobile-dock-inset);
   z-index: 199;
   /* 显式宽度：给合并态收缩提供可插值起点（left/right 拉伸布局的 width 是 auto，无法过渡） */
@@ -1845,7 +1780,7 @@ onBeforeUnmount(() => {
   }
 
   &.visible {
-    height: 72px;
+    height: var(--mobile-nav-height);
     pointer-events: auto;
   }
 
@@ -1896,8 +1831,8 @@ onBeforeUnmount(() => {
   }
 
   &.visible.player-open {
-    height: 72px;
-    border-radius: 36px;
+    height: var(--mobile-nav-height);
+    border-radius: calc(var(--mobile-nav-height) / 2);
   }
 
   &.playlist-open {
@@ -1968,8 +1903,7 @@ onBeforeUnmount(() => {
     top: auto !important;
     right: calc(12px + var(--dock-mp, 0) * 0px);
     bottom: calc(
-      var(--safe-area-inset-bottom, 0px) + 76px - var(--dock-mp, 0) *
-        (76px - var(--mobile-dock-gap))
+      var(--mobile-dock-bottom) + (1 - var(--dock-mp, 0)) * var(--mobile-mini-offset)
     ) !important;
     left: calc(12px + var(--dock-mp, 0) * 60px) !important;
     width: auto !important;
@@ -2040,7 +1974,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 .mobile-glow-nav-wrap {
   position: fixed;
-  bottom: calc(var(--safe-area-inset-bottom, 0px) + var(--mobile-dock-gap));
+  bottom: var(--mobile-dock-bottom);
   left: 50%;
   transform: translateX(-50%);
   z-index: 200;
@@ -2086,7 +2020,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   /* 指示胶囊在合并态隐藏（圆自身即表面）；几何由 navIndicatorStyle 按 mp 插值 */
-  .nav-slide-indicator {
+  .nav-highlight {
     opacity: 0 !important;
   }
 
@@ -2121,8 +2055,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   justify-content: center;
   /* 合并形变由 --dock-mp（dock 逐帧写入）驱动：60→48、内边距归零——
      与 dock/迷你栏同一进度真值，杜绝独立过渡与弹簧互拽 */
-  height: calc(60px - 12px * var(--dock-mp, 0));
-  min-width: calc(60px - 12px * var(--dock-mp, 0));
+  height: calc(var(--mobile-nav-item-height) - 4px * var(--dock-mp, 0));
+  min-width: calc(var(--mobile-nav-item-height) - 4px * var(--dock-mp, 0));
   padding: calc(8px - 8px * var(--dock-mp, 0)) calc(12px - 12px * var(--dock-mp, 0));
   border-radius: calc(26px - 2px * var(--dock-mp, 0));
   cursor: pointer;
@@ -2132,98 +2066,44 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   transition:
     transform 0.3s $spring,
     background-color 0.24s ease;
-
-  &:active {
-    transform: scale(0.94);
-  }
 }
 
 /* 非选中项在合并中收起让位（宽/透明度随 mp 归零；min-width 优先于 max-width，
    必须同时收缩 min-width 才能真正收没） */
 .mobile-bottom-dock .glow-nav-item:not(.active) {
-  min-width: calc((1 - var(--dock-mp, 0)) * 60px);
+  min-width: calc((1 - var(--dock-mp, 0)) * var(--mobile-nav-item-height));
   max-width: calc((1 - var(--dock-mp, 0)) * 200px);
   opacity: calc(1 - var(--dock-mp, 0));
   overflow: hidden;
 }
 
-/* 滑动指示胶囊 — 单个元素随选中项平移/变宽（几何由 JS 测量注入）。
-   取代原先每个 item 内部的径向辉光块；点击切页时产生滑动动画。
-   top 4px = 容器 padding-top，高 40px = 项高。 */
-.nav-slide-indicator {
+/* The duplicate foreground shares layout with the links; clipping changes paint only. */
+.nav-highlight {
   position: absolute;
-  top: 4px;
-  left: 0;
-  z-index: 0;
-  height: 60px;
-  border-radius: 26px;
-  background: var(--m-nav-indicator-bg, #4a4540);
-  transition:
-    transform 0.42s $spring,
-    width 0.42s $spring,
-    opacity 0.24s ease;
-  pointer-events: none;
-  will-change: transform, width;
-}
-
-/* 按住/横拖的跟手辉光浮层:外层 1:1 跟手(拖动时无位移过渡),内层负责放大过渡 */
-.nav-glow-float {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 0;
-  border-radius: 9999px;
-  pointer-events: none;
-  transition:
-    opacity 0.22s ease,
-    transform 0.28s $spring;
-  will-change: transform;
-}
-
-.nav-glow-float.dragging {
-  transition: opacity 0.2s ease;
-}
-
-.nav-glow-float.closing {
-  opacity: 0;
-}
-
-.nav-glow-float-inner {
-  width: 100%;
-  height: 100%;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: inherit;
+  gap: inherit;
+  padding: inherit;
   border-radius: inherit;
-  transform: scale(1);
-  transition: transform 0.26s $spring;
+  background: var(--m-nav-indicator-bg, rgba(128, 128, 128, 0.16));
+  pointer-events: none;
+  transition:
+    clip-path 0.42s $spring-smooth,
+    opacity 0.16s ease;
+  will-change: clip-path;
 }
 
-.nav-glow-float.dragging .nav-glow-float-inner {
-  transform: scale(1.16);
+.nav-highlight .glow-item-icon,
+.nav-highlight .glow-item-label {
+  color: var(--m-nav-indicator-fg, var(--accent-color, #888));
 }
 
-/* 拖动期间:各项(含当前页)回到未选中态,视觉完全由浮动层承载
-   （静态滑动胶囊的显隐由 navIndicatorStyle 的 opacity 控制） */
-
-.mobile-glow-nav.nav-dragging .glow-nav-item.active .glow-item-icon {
-  color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
-  transform: none;
-}
-
-/* 拖动中辉光悬停到的项:布局与选中态一致(label 入流、项加宽),
-   由 item 自带的 padding/min-width 弹簧过渡平滑展开;图标颜色加深 */
-.mobile-glow-nav.nav-dragging .glow-nav-item.hover-pick {
-  background: rgba(128, 128, 128, 0.16);
-}
-
-.mobile-glow-nav.nav-dragging .glow-nav-item.hover-pick .glow-item-icon {
-  color: var(--m-nav-indicator-fg, #fff);
-  transform: scale(1.05);
-}
-
-/* 胶囊上的文字：实心深底，前景固定为纯白 */
-.mobile-glow-nav.nav-dragging .glow-item-label {
-  color: var(--m-nav-indicator-fg, #fff);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+@media (prefers-reduced-motion: reduce) {
+  .nav-highlight {
+    transition: none;
+  }
 }
 
 /* 内容容器 */
@@ -2240,7 +2120,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* 图标 */
 .glow-item-icon {
-  font-size: 24px;
+  font-size: 28px;
   color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
   transition:
     color 0.35s $spring-smooth,
@@ -2250,17 +2130,8 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 /* 选中态：图标弹跳放大 + 胶囊前景色。
    现为实心深色胶囊，必须用 --m-nav-indicator-fg（纯白）；
    沿用强调色会在深底上对比不足。 */
-.glow-nav-item.active .glow-item-icon {
+.dock-merged .glow-nav-item.active .glow-item-icon {
   color: var(--accent-color, #888);
-  transform: scale(1.04);
-}
-
-/* hover 态 */
-@media (hover: hover) {
-  .glow-nav-item:hover:not(.active) .glow-item-icon {
-    color: var(--cover-text-primary, rgba(255, 255, 255, 0.8));
-    transform: scale(1.05);
-  }
 }
 
 /* 文字标签 — 仅选中时弹出；坐在实心胶囊上，用胶囊前景色 */
@@ -2274,7 +2145,7 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   overflow: hidden;
 }
 
-.glow-nav-item.active .glow-item-label {
+.dock-merged .glow-nav-item.active .glow-item-label {
   color: var(--accent-color, #888);
 }
 

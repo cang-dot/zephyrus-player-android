@@ -96,6 +96,7 @@ import { useMobilePlayerTransition } from '@/composables/useMobilePlayerTransiti
 import { useMobileSongActionSurface } from '@/composables/useMobileSongActionSurface';
 import { usePlayerSurfaceFeedback } from '@/composables/usePlayerSurfaceFeedback';
 import { usePosterTransitionOrigin } from '@/composables/usePosterTransitionOrigin';
+import { PLAYER_GEOMETRY } from '@/config/mobileGeometry';
 import { registerMobileBackLayer } from '@/services/mobileBackStack';
 import { usePlayerStore } from '@/store/modules/player';
 import {
@@ -155,6 +156,8 @@ const refreshStyleBackgroundColor = () => {
 };
 onMounted(() => {
   updateSafeBottomInset();
+  window.addEventListener('resize', updateSafeBottomInset);
+  window.addEventListener('orientationchange', updateSafeBottomInset);
   refreshStyleBackgroundColor();
   window.addEventListener('music-full-config-updated', refreshStyleBackgroundColor);
   unregisterSurfaceBackLayer = registerMobileBackLayer({
@@ -165,6 +168,8 @@ onMounted(() => {
   });
 });
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateSafeBottomInset);
+  window.removeEventListener('orientationchange', updateSafeBottomInset);
   unregisterSurfaceBackLayer?.();
   window.removeEventListener('music-full-config-updated', refreshStyleBackgroundColor);
   if (styleColorFrame) cancelAnimationFrame(styleColorFrame);
@@ -289,12 +294,12 @@ const surfaceGeometryStyle = computed<CSSProperties>(() => {
   const sheet = sheetProgress.value;
   const landscape = isLandscape.value;
   const controlHeight = lyricSelection.active.value
-    ? 88
+    ? PLAYER_GEOMETRY.selectionControlsHeight
     : landscape
-      ? 96
+      ? PLAYER_GEOMETRY.landscapeControlsHeight
       : defaultStyleSurface.value
-        ? 150
-        : 168;
+        ? PLAYER_GEOMETRY.defaultControlsHeight
+        : PLAYER_GEOMETRY.controlsHeight;
   const basePanelHeight = landscape
     ? viewportHeight.value - 28
     : Math.min(viewportHeight.value * 0.68, 560);
@@ -311,7 +316,7 @@ const surfaceGeometryStyle = computed<CSSProperties>(() => {
   const width = fullWidth + (panelWidth - fullWidth) * sheet;
   const safeBottom = safeBottomInset.value;
   const finalLeft = landscape && sheet > 0 ? viewportWidth.value - width - safeBottom - 14 : 14;
-  const finalTop = viewportHeight.value - safeBottom - 14 - height;
+  const finalTop = viewportHeight.value - safeBottom - PLAYER_GEOMETRY.bottomGap - height;
   const finalRadius = 26 + sheet * 4;
   return {
     top: `${finalTop}px`,

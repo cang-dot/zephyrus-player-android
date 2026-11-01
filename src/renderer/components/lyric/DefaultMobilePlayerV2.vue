@@ -91,6 +91,7 @@
       <mobile-comments-overlay :gesture="commentsSwipe" :bottom-inset="150" />
 
       <main
+        ref="contentRef"
         class="player-content"
         :class="{
           'no-artwork-zone': !showArtwork && !showTrackInfo,
@@ -98,12 +99,17 @@
         }"
         :style="{
           '--dmv2-row-split': `${(contentRowSplit * 100).toFixed(1)}%`,
-          '--dmv2-title-size': `${titleFontSize}px`
+          '--dmv2-title-size': `${titleFontSize}px`,
+          '--dmv2-artwork-row': `${fittedContent.artworkRow}px`,
+          '--dmv2-content-gap': `${fittedContent.lyricGap}px`,
+          '--dmv2-top-clearance': `${PLAYER_GEOMETRY.topClearance}px`,
+          '--dmv2-landscape-controls-inset': `${PLAYER_GEOMETRY.landscapeControlsHeight + PLAYER_GEOMETRY.bottomGap + PLAYER_GEOMETRY.contentGap}px`
         }"
       >
         <div
           v-if="(!lyricsExpanded || lyricsSwipePreview) && (showArtwork || showTrackInfo)"
           class="artwork-zone"
+          ref="artworkZoneRef"
           :style="[lyricsUnderlayStyle, artworkZoneStyle]"
         >
           <div
@@ -128,7 +134,7 @@
               :style="[artworkTransitionStyle, artworkFrameStyle]"
             />
           </div>
-          <div v-if="showTrackInfo" class="artwork-info">
+          <div v-if="showTrackInfo" ref="infoRef" class="artwork-info">
             <strong class="artwork-info-name"
               ><song-title-text
                 :name="playMusic?.name || 'Zephyrus'"
@@ -239,7 +245,7 @@
         </div>
       </main>
 
-      <div class="shared-controls-spacer" aria-hidden="true"></div>
+      <div class="shared-controls-spacer" :style="controlsSpacerStyle" aria-hidden="true"></div>
     </section>
   </Teleport>
 
@@ -257,7 +263,7 @@
 </template>
 
 <script setup lang="ts">
-import { useWindowSize } from '@vueuse/core';
+import { useElementSize, useWindowSize } from '@vueuse/core';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -289,6 +295,7 @@ import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
+import { fitDefaultPlayer, PLAYER_GEOMETRY } from '@/config/mobileGeometry';
 import { MESH_DEFAULT_MAX_FPS, MESH_DEFAULT_RENDER_SCALE } from '@/config/playerStyleConfig';
 import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
@@ -333,6 +340,12 @@ function handleArtworkClick(event: MouseEvent) {
   coverGesture.consumeSuppressedClick(event);
 }
 const { width, height } = useWindowSize();
+const contentRef = ref<HTMLElement | null>(null);
+const infoRef = ref<HTMLElement | null>(null);
+const artworkZoneRef = ref<HTMLElement | null>(null);
+const contentSize = useElementSize(contentRef);
+const infoSize = useElementSize(infoRef);
+const artworkAreaSize = useElementSize(artworkZoneRef);
 const { styleVars, customBackgroundActive, background, backgroundColor } =
   usePlayerStyleAppearance('default');
 const { config: styleCustom } = useStyleCustomConfig('default');
@@ -414,26 +427,43 @@ const ALIGN_INNER: Record<string, string> = {
   end: 'flex-end'
 };
 const ALIGN_TEXT: Record<string, string> = { start: 'left', center: 'center', end: 'right' };
-const artworkFrameStyle = computed(() => {
-  // mode-full 画布是非正方形(width 100%/520、height 40dvh、aspect auto),
-  // 图片 contain 居中会在浅色背景上露出灰边;锁定正方形让 frame 紧贴封面。
-  // 横屏分栏高度充裕,基准比竖屏更大;
-  // 控件栏可见时竖屏压缩封面(dvh cap 38→30、上限 370→330),为歌词区让位
+const desiredArtworkSide = computed(() => {
   const base = isLandscape.value
-    ? 'min(38vw, 48dvh, 430px)'
+    ? Math.min(width.value * 0.38, height.value * 0.48, 430)
     : controlsShown.value
-      ? 'min(76vw, 30dvh, 330px)'
-      : 'min(76vw, 38dvh, 370px)';
-  const side = `calc(${base} * ${artworkSize.value / 100} * ${coverBasisScale.value})`;
-  return { width: side, height: side, aspectRatio: '1' };
+      ? Math.min(width.value * 0.76, height.value * 0.3, 330)
+      : Math.min(width.value * 0.76, height.value * 0.38, 370);
+  return ((base * artworkSize.value) / 100) * coverBasisScale.value;
+});
+const fittedContent = computed(() =>
+  fitDefaultPlayer({
+    height: contentSize.height.value,
+    width: contentSize.width.value,
+    desiredCover: desiredArtworkSide.value,
+    infoHeight: infoSize.height.value || 56,
+    split: contentRowSplit.value,
+    showArtwork: showArtwork.value,
+    showInfo: showTrackInfo.value,
+    showLyrics: showLyricsZone.value && !config.value.hideLyrics
+  })
+);
+const artworkFrameStyle = computed(() => {
+  const side = isLandscape.value
+    ? Math.max(
+        0,
+        Math.min(
+          desiredArtworkSide.value,
+          artworkAreaSize.width.value,
+          artworkAreaSize.height.value - (showTrackInfo.value ? infoSize.height.value + 12 : 0)
+        )
+      )
+    : fittedContent.value.cover;
+  return { width: `${side}px`, height: `${side}px`, aspectRatio: '1' };
 });
 // 横屏「封面对齐」语义：封面恒居中，仅左侧信息区文字对齐封面的左/中/右。
 // --artwork-side 与 artworkFrameStyle 同源，横屏 CSS 用它锁定信息盒宽=封面宽，
 // 让 text-align 严格对齐到封面边缘而非列边缘
-const artworkAlignSide = computed(() => {
-  const base = 'min(38vw, 48dvh, 430px)';
-  return `calc(${base} * ${artworkSize.value / 100} * ${coverBasisScale.value})`;
-});
+const artworkAlignSide = computed(() => artworkFrameStyle.value.width);
 const artworkZoneStyle = computed(() => ({
   '--artwork-align-inner': ALIGN_INNER[artworkAlign.value],
   '--artwork-text-align': ALIGN_TEXT[artworkAlign.value],
@@ -720,6 +750,13 @@ const controlsShown = computed(
     playerTransition.controlsVisible.value &&
     playerTransition.sheetProgress.value < 0.02
 );
+const controlsSpacerStyle = computed(() => ({
+  height: isLandscape.value
+    ? '0px'
+    : controlsDocked.value
+      ? 'var(--safe-area-inset-bottom, 0px)'
+      : `calc(${PLAYER_GEOMETRY.defaultControlsHeight + PLAYER_GEOMETRY.bottomGap + PLAYER_GEOMETRY.contentGap}px + var(--safe-area-inset-bottom, 0px))`
+}));
 const playerTransitionBusy = computed(
   () =>
     playerTransition.state.value === 'dragging' ||
@@ -993,18 +1030,13 @@ onBeforeUnmount(() => {
 
 .player-content {
   display: grid;
-  grid-template-rows: minmax(168px, var(--dmv2-row-split, 58%)) minmax(
-      100px,
-      calc(100% - var(--dmv2-row-split, 58%))
-    );
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, var(--dmv2-artwork-row, 58%)) minmax(0, 1fr);
+  row-gap: var(--dmv2-content-gap, 12px);
+  padding-top: calc(var(--safe-area-inset-top, 0px) + var(--dmv2-top-clearance, 56px));
   min-height: 0;
   overflow: hidden;
   transition: grid-template-rows 380ms cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-/* 控件栏可见:压缩封面/信息区,把空间让给滚动歌词(避免信息被封面盖住) */
-.controls-visible .player-content {
-  grid-template-rows: minmax(168px, 52%) minmax(100px, 48%);
 }
 
 .artwork-zone {
@@ -1014,29 +1046,26 @@ onBeforeUnmount(() => {
   grid-column: 1;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
+  min-width: 0;
   min-height: 0;
   align-items: var(--artwork-align-inner, center);
   justify-content: center;
   /* 底部留白略大,让封面+文字的视觉重心整体上移 */
-  padding: calc(var(--safe-area-inset-top, 0px) + 10px) 20px max(32px, 5%);
+  padding: 0 20px;
   transition:
     opacity 260ms ease,
     transform 380ms cubic-bezier(0.32, 0.72, 0, 1),
     padding-bottom 350ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* 控件栏可见:区内收紧(与封面挤压、行分配同一 350ms 曲线) */
-.controls-visible .artwork-zone {
-  gap: 14px;
-  padding-bottom: max(20px, 3%);
-}
-
 .artwork-preview-trigger {
+  flex: none;
   min-height: 0;
 }
 
 .artwork-info {
+  flex: none;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1104,6 +1133,7 @@ onBeforeUnmount(() => {
 }
 
 .lyrics-zone {
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   transition:
@@ -1141,12 +1171,15 @@ onBeforeUnmount(() => {
 
 .lyrics-expanded .player-content {
   grid-template-rows: minmax(0, 1fr);
+  padding-top: 0;
+  row-gap: 0;
 }
 
 /* 封面区或歌词区被显示开关关闭后,剩余区域独占整列高度 */
 .player-content.no-artwork-zone,
 .player-content.no-lyrics-zone {
   grid-template-rows: minmax(0, 1fr);
+  row-gap: 0;
 }
 
 .lyrics-expanded .artwork-zone {
@@ -1157,14 +1190,9 @@ onBeforeUnmount(() => {
 
 .shared-controls-spacer {
   /* default 样式底面信息行收成按钮行,占位与 BottomSurface 的 controlHeight(150)一致 */
-  height: calc(150px + var(--safe-area-inset-bottom, 0px));
+  flex-shrink: 0;
   transition: height 350ms cubic-bezier(0.32, 0.72, 0, 1);
   pointer-events: none;
-}
-
-/* 控制条下滑隐藏:底部占位同步塌陷,内容(封面/歌词)整体下滑重新居中 */
-.controls-docked .shared-controls-spacer {
-  height: var(--safe-area-inset-bottom, 0px);
 }
 
 .loading-state {
@@ -1191,11 +1219,11 @@ onBeforeUnmount(() => {
 }
 
 .landscape .lyrics-zone {
-  padding-bottom: calc(96px + var(--safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--dmv2-landscape-controls-inset) + var(--safe-area-inset-bottom, 0px));
 }
 
 .landscape .artwork-zone {
-  padding-bottom: calc(96px + var(--safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--dmv2-landscape-controls-inset) + var(--safe-area-inset-bottom, 0px));
 }
 
 /* 横屏 + 控件隐藏:预留的控制条悬浮空间释放,歌词/封面下移吃满高度 */
@@ -1212,6 +1240,7 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(240px, 42%) minmax(0, 1fr);
   padding: 0 max(18px, var(--safe-area-inset-right, 0px)) 0
     max(18px, var(--safe-area-inset-left, 0px));
+  padding-top: var(--dmv2-top-clearance, 56px);
 }
 
 /* 横屏摄像头在左侧,top inset 恒为 0:此前沿用竖屏的 inset-top 会把
@@ -1241,6 +1270,7 @@ onBeforeUnmount(() => {
 
 .landscape.lyrics-expanded .player-content {
   grid-template-columns: minmax(0, 1fr);
+  padding-top: 0;
 }
 
 @keyframes player-loading-spin {
