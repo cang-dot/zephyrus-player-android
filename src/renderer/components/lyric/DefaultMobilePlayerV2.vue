@@ -103,13 +103,12 @@
           '--dmv2-artwork-row': `${fittedContent.artworkRow}px`,
           '--dmv2-content-gap': `${fittedContent.lyricGap}px`,
           '--dmv2-top-clearance': `${PLAYER_GEOMETRY.topClearance}px`,
-          '--dmv2-landscape-controls-inset': `${PLAYER_GEOMETRY.landscapeControlsHeight + PLAYER_GEOMETRY.bottomGap + PLAYER_GEOMETRY.contentGap}px`
+          '--dmv2-landscape-controls-inset': `${PLAYER_GEOMETRY.landscapeControlsHeight}px`
         }"
       >
         <div
           v-if="(!lyricsExpanded || lyricsSwipePreview) && (showArtwork || showTrackInfo)"
           class="artwork-zone"
-          ref="artworkZoneRef"
           :style="[lyricsUnderlayStyle, artworkZoneStyle]"
         >
           <div
@@ -342,10 +341,8 @@ function handleArtworkClick(event: MouseEvent) {
 const { width, height } = useWindowSize();
 const contentRef = ref<HTMLElement | null>(null);
 const infoRef = ref<HTMLElement | null>(null);
-const artworkZoneRef = ref<HTMLElement | null>(null);
 const contentSize = useElementSize(contentRef);
 const infoSize = useElementSize(infoRef);
-const artworkAreaSize = useElementSize(artworkZoneRef);
 const { styleVars, customBackgroundActive, background, backgroundColor } =
   usePlayerStyleAppearance('default');
 const { config: styleCustom } = useStyleCustomConfig('default');
@@ -448,16 +445,7 @@ const fittedContent = computed(() =>
   })
 );
 const artworkFrameStyle = computed(() => {
-  const side = isLandscape.value
-    ? Math.max(
-        0,
-        Math.min(
-          desiredArtworkSide.value,
-          artworkAreaSize.width.value,
-          artworkAreaSize.height.value - (showTrackInfo.value ? infoSize.height.value + 12 : 0)
-        )
-      )
-    : fittedContent.value.cover;
+  const side = isLandscape.value ? desiredArtworkSide.value : fittedContent.value.cover;
   return { width: `${side}px`, height: `${side}px`, aspectRatio: '1' };
 });
 // 横屏「封面对齐」语义：封面恒居中，仅左侧信息区文字对齐封面的左/中/右。
@@ -1033,7 +1021,6 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, var(--dmv2-artwork-row, 58%)) minmax(0, 1fr);
   row-gap: var(--dmv2-content-gap, 12px);
-  padding-top: calc(var(--safe-area-inset-top, 0px) + var(--dmv2-top-clearance, 56px));
   min-height: 0;
   overflow: hidden;
   transition: grid-template-rows 380ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -1057,6 +1044,11 @@ onBeforeUnmount(() => {
     opacity 260ms ease,
     transform 380ms cubic-bezier(0.32, 0.72, 0, 1),
     padding-bottom 350ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Top clearance and remaining-space allocation belong to the portrait stack. */
+.default-player-v2:not(.landscape) .player-content {
+  padding-top: calc(var(--safe-area-inset-top, 0px) + var(--dmv2-top-clearance, 56px));
 }
 
 .artwork-preview-trigger {
@@ -1169,7 +1161,7 @@ onBeforeUnmount(() => {
   place-items: center;
 }
 
-.lyrics-expanded .player-content {
+.default-player-v2.lyrics-expanded .player-content {
   grid-template-rows: minmax(0, 1fr);
   padding-top: 0;
   row-gap: 0;
@@ -1223,7 +1215,12 @@ onBeforeUnmount(() => {
 }
 
 .landscape .artwork-zone {
+  gap: 20px;
   padding-bottom: calc(var(--dmv2-landscape-controls-inset) + var(--safe-area-inset-bottom, 0px));
+}
+
+.landscape.controls-visible .artwork-zone {
+  gap: 14px;
 }
 
 /* 横屏 + 控件隐藏:预留的控制条悬浮空间释放,歌词/封面下移吃满高度 */
@@ -1240,7 +1237,6 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(240px, 42%) minmax(0, 1fr);
   padding: 0 max(18px, var(--safe-area-inset-right, 0px)) 0
     max(18px, var(--safe-area-inset-left, 0px));
-  padding-top: var(--dmv2-top-clearance, 56px);
 }
 
 /* 横屏摄像头在左侧,top inset 恒为 0:此前沿用竖屏的 inset-top 会把

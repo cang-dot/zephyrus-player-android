@@ -2137,10 +2137,10 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
 /* 文字标签 — 仅选中时弹出；坐在实心胶囊上，用胶囊前景色 */
 .glow-item-label {
-  font-size: 10.5px;
-  line-height: 14px;
+  font-size: 10px;
+  line-height: 12px;
   /* Icon-font glyphs leave space below their visible strokes. */
-  margin-top: -4px;
+  margin-top: -2px;
   font-weight: 500;
   color: var(--cover-text-muted, rgba(255, 255, 255, 0.45));
   white-space: nowrap;
