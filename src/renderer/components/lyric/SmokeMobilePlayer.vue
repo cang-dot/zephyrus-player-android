@@ -89,7 +89,7 @@
               transform: `scaleX(${styleCfg.smokeFontStretch || 1.18})`
             }"
           >
-            {{ currentText }}
+            {{ wordPlayback.hasDisplayLyrics.value ? currentText : $t('player.lrc.noLrc') }}
           </div>
           <div v-if="showTranslation && currentTranslation" class="smoke-translation">
             {{ currentTranslation }}

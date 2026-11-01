@@ -413,6 +413,13 @@ export default {
       '「エラー」スタイルには強い点滅が含まれます。光過敏性発作予防のため、もう一度タップして確認してください'
   },
   lyricSettings: {
+    hideIntroOutroCredits: "冒頭・末尾のクレジットを非表示",
+    creditDescription: "曲の冒頭と末尾のクレジット行を非表示にします。歌詞の原文と共有・書き出しには影響しません。",
+    creditKeywords: "クレジットのキーワード",
+    creditKeywordsHelp: "1行に1語。簡体字・繁体字と英字の大文字・小文字を区別せず、コロン前の項目全体を照合します。正規表現は使えません。空にすると照合しません。",
+    saveCreditKeywords: "キーワードを保存",
+    restoreCreditKeywords: "既定のキーワードに戻す",
+
     title: 'レイアウト設定',
     showCommentSection: 'コメント欄を表示',
     pageLayout: 'ページレイアウト',

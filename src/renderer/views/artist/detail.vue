@@ -159,7 +159,7 @@
                 >
                   {{ t('artist.hotSongs') }}<i class="ri-arrow-right-s-line" />
                 </h2>
-                <div class="ma-hgrid" data-horizontal-scroll>
+                <div class="ma-hgrid" data-horizontal-scroll v-horizontal-wheel>
                   <div
                     v-for="(card, cardIndex) in hotSongCards"
                     :key="`hot-card-${cardIndex}`"
@@ -202,7 +202,7 @@
                 >
                   {{ t('artist.albums') }}<i class="ri-arrow-right-s-line" />
                 </h2>
-                <div class="ma-hgrid" data-horizontal-scroll>
+                <div class="ma-hgrid" data-horizontal-scroll v-horizontal-wheel>
                   <button
                     v-for="album in albums"
                     :key="album.id"
@@ -238,6 +238,7 @@
                   ref="allSongsRailRef"
                   class="ma-hgrid"
                   data-horizontal-scroll
+                  v-horizontal-wheel
                   @scroll="onAllSongsRailScroll"
                 >
                   <div

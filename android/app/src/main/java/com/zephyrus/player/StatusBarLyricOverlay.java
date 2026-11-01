@@ -279,7 +279,7 @@ public final class StatusBarLyricOverlay {
                     if (line == null) continue;
                     String text = line.optString("text", "").trim();
                     double start = line.optDouble("startTime", -1);
-                    if (text.isEmpty() || start < 0) continue;
+                    if (start < 0) continue;
                     double end = line.optDouble("endTime", -1);
                     if (end < start) end = start + 3000;
                     List<TimelineWord> words = new ArrayList<>();
@@ -350,10 +350,13 @@ public final class StatusBarLyricOverlay {
     private void applyTimelinePosition(long positionMs) {
         List<TimelineLine> lines = timeline;
         if (lines.isEmpty()) return;
-        TimelineLine active = lines.get(0);
+        TimelineLine active = null;
         for (TimelineLine line : lines) {
             if (line.startTime <= positionMs) active = line;
             else break;
+        }
+        if (active == null || positionMs >= active.endTime) {
+            active = new TimelineLine("", Collections.emptyList(), positionMs, positionMs + 1);
         }
         List<String> nextWords = new ArrayList<>(active.words.size());
         for (TimelineWord word : active.words) nextWords.add(word.text);

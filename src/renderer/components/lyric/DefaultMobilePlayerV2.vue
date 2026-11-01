@@ -163,7 +163,7 @@
         >
           <template v-if="immersiveSurfaceMode === 'lyrics' || !lyricsExpanded">
             <mobile-scrolling-lyrics
-              v-if="lrcArray.length"
+              v-if="lrcArray.some((line) => line.text.trim())"
               ref="scrollingLyricsRef"
               class="default-scrolling-lyrics"
               :active="true"
@@ -288,12 +288,13 @@ import { usePosterShare } from '@/composables/usePosterShare';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
+import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import { MESH_DEFAULT_MAX_FPS, MESH_DEFAULT_RENDER_SCALE } from '@/config/playerStyleConfig';
-import { artistList, lrcArray, playMusic, textColors } from '@/hooks/MusicHook';
+import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
 import { useOverlayNavigate } from '@/hooks/useOverlayNavigate';
-import { usePlayerStore } from '@/store/modules/player';
 import { useBackgroundHealthStore } from '@/store/modules/backgroundHealth';
+import { usePlayerStore } from '@/store/modules/player';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
 import type { AuroraPosition } from '@/types/playerStyle';
 import { getImgUrl } from '@/utils';
@@ -319,6 +320,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>();
 const { t } = useI18n();
+const lrcArray = useWordTimedPlayback().displayLines;
 const playerStore = usePlayerStore();
 const backgroundHealth = useBackgroundHealthStore();
 const playerTransition = useMobilePlayerTransition();
@@ -643,9 +645,7 @@ function captureMorphRects() {
 // .expanded 独立绑定、保持到 commit），封面/信息/控件栏在预览期就以主页形态归位，
 // 不再出现「整屏居中」的杂交中间态。仅提前摘根类，lyricsExpanded 状态与手势协议不动。
 const rootLyricsExpanded = computed(
-  () =>
-    lyricsExpanded.value &&
-    !(lyricsSwipePreview.value && lyricsSwipePhase.value === 'closing')
+  () => lyricsExpanded.value && !(lyricsSwipePreview.value && lyricsSwipePhase.value === 'closing')
 );
 watch(
   () => [lyricsSwipePreview.value, lyricsSwipePhase.value] as const,

@@ -47,6 +47,7 @@
  */
 import { computed, type CSSProperties, onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import { useStyleContext } from '@/playerStyles/useStyleContext';
 import { drumDetector } from '@/services/drumDetector';
 import { useCommunityDataStore } from '@/store/modules/communityData';
@@ -114,6 +115,7 @@ const styleEngine = useStyleEngineStore();
 const communityData = useCommunityDataStore();
 const playerStore = usePlayerStore();
 const { nowTime } = useStyleContext();
+const playback = useWordTimedPlayback();
 
 const playerRef = ref<HTMLElement | null>(null);
 const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
@@ -182,9 +184,7 @@ const backgroundColor = computed(() => {
 
 // 歌词数据
 const lyrics = computed(() => {
-  const song = playerStore.currentSong;
-  if (!song?.lyric?.lrcArray) return [];
-  return song.lyric.lrcArray;
+  return playback.displayLines.value;
 });
 
 // 当前播放时间

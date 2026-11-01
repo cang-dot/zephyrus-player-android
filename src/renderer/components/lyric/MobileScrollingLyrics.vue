@@ -221,7 +221,7 @@ const allAmllLines = computed<LyricLine[]>(() => {
   return providerLyricsToAmll(playback.displayLines.value);
 });
 const hasSourceLyrics = computed(
-  () => playback.displayLines.value.length > 0 || Boolean(playback.lyric.value?.lines.length)
+  () => allAmllLines.value.some((line) => lyricLineText(line))
 );
 const amllLines = computed(() =>
   deepPlainLines(
@@ -243,13 +243,10 @@ function deepPlainLines(lines: LyricLine[]): LyricLine[] {
     return lines;
   }
 }
-const renderAmllPlayer = computed(() => hasMountedPlayer.value && amllLines.value.length > 0);
+const renderAmllPlayer = computed(() => hasMountedPlayer.value && hasSourceLyrics.value);
 const transitionLyricText = computed(
   () =>
-    playback.currentDisplayLine.value?.text ||
-    playback.displayLines.value[0]?.text ||
-    playback.lyric.value?.lines[0]?.words.map((word) => word.text).join('') ||
-    ''
+    playback.currentDisplayLine.value?.text || ''
 );
 const selectableIndices = computed(() =>
   amllLines.value
@@ -575,7 +572,7 @@ function selectedLyrics(): SelectedLyric[] {
     .map((index) => {
       const line = amllLines.value[index];
       return {
-        index,
+        index: (line as LyricLine & { __zephyrusOriginalIndex?: number }).__zephyrusOriginalIndex ?? index,
         text: lyricLineText(line),
         trText: line.translatedLyric || undefined
       };

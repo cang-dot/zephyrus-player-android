@@ -12,10 +12,10 @@
         <h2>推荐歌手</h2>
         <button type="button" @click="openArtistDirectory">更多</button>
       </div>
-      <div v-if="artistsLoading" class="artist-rail" data-horizontal-scroll>
+      <div v-if="artistsLoading" class="artist-rail" data-horizontal-scroll v-horizontal-wheel>
         <div v-for="i in 4" :key="i" class="artist-card discover-skeleton" />
       </div>
-      <div v-else-if="artists.length" class="artist-rail" data-horizontal-scroll>
+      <div v-else-if="artists.length" class="artist-rail" data-horizontal-scroll v-horizontal-wheel>
         <button
           v-for="artist in artists"
           :key="artist.id"

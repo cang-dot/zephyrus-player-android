@@ -172,7 +172,7 @@ onBeforeUnmount(() => {
 .app-select-overlay {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: 100201;
   background: rgba(0, 0, 0, 0.4);
 }
 
@@ -181,7 +181,7 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 121;
+  z-index: 100202;
   max-width: 560px;
   margin: 0 auto;
   /* Teleport 到 body 后取不到布局变量：78px = 迷你播放栏播放态占位 */

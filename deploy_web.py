@@ -55,7 +55,16 @@ def main():
     print(f"Connecting to {SERVER}:{PORT}...")
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(SERVER, port=PORT, username=USER, password=PASSWORD, timeout=15)
+    # 只走密码认证：默认会扫描 ~/.ssh 的私钥（沙箱/无密钥环境会被拦或误用别的身份）
+    ssh.connect(
+        SERVER,
+        port=PORT,
+        username=USER,
+        password=PASSWORD,
+        timeout=15,
+        look_for_keys=False,
+        allow_agent=False,
+    )
     print("Connected!")
 
     print("Creating remote directory...")

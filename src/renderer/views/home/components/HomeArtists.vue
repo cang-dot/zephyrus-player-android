@@ -15,10 +15,10 @@
       style="margin-left: calc(var(--page-pl) * -1); margin-right: calc(var(--page-pr) * -1)"
     >
       <div
-        ref="scrollContainer"
         class="artists-scroll overflow-x-auto overflow-y-hidden pt-2"
+        data-horizontal-scroll
+        v-horizontal-wheel
         style="padding-left: var(--page-pl); padding-right: var(--page-pr)"
-        @wheel="handleWheel"
       >
         <div class="artists-track flex gap-6 md:gap-8 lg:gap-10">
           <div
@@ -68,7 +68,7 @@ import {
 } from '@/composables/usePlaylistOpenTransition';
 import { ARTIST_COVER_RETURN_KEY, useArtist } from '@/hooks/useArtist';
 import { takeFlightRect } from '@/utils/flightRectMemory';
-import { calculateAnimationDelay, getImgUrl, isMobile } from '@/utils';
+import { calculateAnimationDelay, getImgUrl } from '@/utils';
 
 const props = defineProps<{
   title: string;
@@ -135,8 +135,6 @@ const openArtist = (item: any, event: MouseEvent) => {
     fromKey: `home-artist-${item.id}`
   });
 };
-const scrollContainer = ref<HTMLElement | null>(null);
-
 const fetchArtists = async () => {
   try {
     const { data } = await getHotSinger({ offset: 0, limit: props.limit || 10 });
@@ -147,21 +145,6 @@ const fetchArtists = async () => {
     console.error('Failed to fetch hot artists:', error);
   } finally {
     loading.value = false;
-  }
-};
-
-// Enhanced horizontal scroll with wheel support
-const handleWheel = (e: WheelEvent) => {
-  if (isMobile.value) return;
-  if (!scrollContainer.value) return;
-
-  // Prevent default vertical scroll
-  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-    e.preventDefault();
-    scrollContainer.value.scrollBy({
-      left: e.deltaY,
-      behavior: 'auto'
-    });
   }
 };
 

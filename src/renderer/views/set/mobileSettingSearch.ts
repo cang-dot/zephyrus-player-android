@@ -9,6 +9,8 @@ export interface MobileSettingSearchDefinition {
 }
 
 export const MOBILE_SETTING_SEARCH_DEFINITIONS: readonly MobileSettingSearchDefinition[] = [
+  { tabId: 'lyrics', titleKey: 'settings.lyricSettings.hideIntroOutroCredits', descKey: 'settings.lyricSettings.creditDescription', targetId: 'lyric-credits' },
+  { tabId: 'lyrics', titleKey: 'settings.lyricSettings.creditKeywords', descKey: 'settings.lyricSettings.creditKeywordsHelp', targetId: 'lyric-credits' },
   {
     tabId: 'appearance',
     titleKey: 'settings.basic.themeMode',

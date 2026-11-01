@@ -124,6 +124,7 @@
               </div>
               <div
                 v-for="(item, index) in lrcArray"
+                v-show="item.text.trim()"
                 :id="`music-lrc-text-${index}`"
                 :key="index"
                 class="music-lrc-text"
@@ -152,7 +153,7 @@
               </div>
 
               <!-- 无歌词 -->
-              <div v-if="!lrcArray.length" class="music-lrc-text">
+              <div v-if="!hasLyrics" class="music-lrc-text">
                 <span>{{ t('player.lrc.noLrc') }}</span>
               </div>
             </div>
@@ -180,19 +181,19 @@ import LyricSettings from '@/components/lyric/LyricSettings.vue';
 import PlayerControls from '@/components/lyric/PlayerControls.vue';
 import SimplePlayBar from '@/components/player/SimplePlayBar.vue';
 import { useCoverTransition } from '@/composables/useCoverTransition';
+import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
 import {
   adjustCorrectionTime,
   artistList,
   correctionTime,
-  lrcArray,
-  nowIndex,
   nowTime,
   playMusic,
-  setAudioTime,
   textColors,
   useLyricProgress
 } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
+import { audioService } from '@/services/audioService';
+import { mergeStoredLyricConfig } from '@/services/lyricCreditConfig';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { useTransitionStore } from '@/store/modules/transition';
@@ -201,6 +202,14 @@ import { getImgUrl, isMobile } from '@/utils';
 import { animateGradient, getHoverBackgroundColor, getTextColors } from '@/utils/linearColor';
 
 const { t } = useI18n();
+const playback = useWordTimedPlayback();
+const lrcArray = playback.displayLines;
+const nowIndex = playback.displayIndex;
+const setAudioTime = (index: number) => {
+  audioService.seek(playback.displayTimes.value[index]);
+  audioService.cancelSeekRecovery();
+  audioService.getCurrentSound()?.play();
+};
 const transitionStore = useTransitionStore();
 // 定义 refs
 const lrcSider = ref<any>(null);
@@ -282,7 +291,7 @@ watch(
 watch(
   () => config.value,
   (newConfig) => {
-    localStorage.setItem('music-full-config', JSON.stringify(newConfig));
+    localStorage.setItem('music-full-config', JSON.stringify(mergeStoredLyricConfig(newConfig)));
     if (lyricSettingsRef.value) {
       lyricSettingsRef.value.config = newConfig;
     }
@@ -290,7 +299,7 @@ watch(
   { deep: true }
 );
 
-const hasLyrics = computed(() => lrcArray.value.length > 0);
+const hasLyrics = computed(() => lrcArray.value.some((line) => line.text.trim()));
 const supportAutoScroll = computed(() => {
   if (!hasLyrics.value) return false;
   // 至少存在一条有效的时间戳（>0），才支持自动滚动
@@ -480,7 +489,15 @@ const { getLrcStyle: originalLrcStyle } = useLyricProgress();
 
 const getLrcStyle = (index: number) => {
   const colors = textColors.value || getTextColors();
-  const originalStyle = originalLrcStyle(index);
+  const start = playback.displayTimes.value[index];
+  const end = playback.displayTimes.value[index + 1] ?? start + 1;
+  const progress = Math.max(
+    0,
+    Math.min(100, ((nowTime.value + correctionTime.value - start) / (end - start)) * 100)
+  );
+  const originalStyle = playback.usingTtml.value
+    ? { backgroundImage: `linear-gradient(to right, #ffffff ${progress}%, #ffffff8a ${progress}%)` }
+    : originalLrcStyle(index);
 
   if (index === nowIndex.value) {
     // 当前播放的歌词

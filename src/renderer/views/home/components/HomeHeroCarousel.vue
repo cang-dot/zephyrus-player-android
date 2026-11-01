@@ -48,28 +48,6 @@ const bgPaused = computed(
 // 播放器再开一个预设背景就是 3 个 context 并存。停帧(bgPaused)保不住显存,必须真卸载。
 const isHomeTab = computed(() => (pagerActivePath ? pagerActivePath.value === '/' : true));
 
-/**
- * 鼠标滚轮切卡：竖向滚轮增量转为轨道 smooth 横向滚动，stop 后由 snap 吸附到最近卡
- * （instant 赋值会被 mandatory snap 逐次弹回起点，必须走平滑滚动）。
- * 仅当页面还在顶部时接管——页面滚起来之后滚轮一律放行，保证内容可滚；
- * 轨道已到端点时同样放行。
- */
-function onHeroWheel(event: WheelEvent) {
-  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-  const page = event.currentTarget as HTMLElement | null;
-  const scrollHost = page?.closest('.pager-page') as HTMLElement | null;
-  if (scrollHost && scrollHost.scrollTop > 4) return;
-  const track = page;
-  if (!track) return;
-  const maxScroll = track.scrollWidth - track.clientWidth;
-  if (maxScroll <= 0) return;
-  const atStart = track.scrollLeft <= 0 && event.deltaY < 0;
-  const atEnd = track.scrollLeft >= maxScroll - 1 && event.deltaY > 0;
-  if (atStart || atEnd) return;
-  track.scrollBy({ left: event.deltaY, behavior: 'smooth' });
-  event.preventDefault();
-}
-
 const moltenFailed = ref(false);
 const ditherFailed = ref(false);
 
@@ -221,7 +199,7 @@ onMounted(async () => {
 
 <template>
   <section class="hero-carousel">
-    <div class="hero-track" data-horizontal-scroll @wheel="onHeroWheel">
+    <div class="hero-track" data-horizontal-scroll v-horizontal-wheel="{ pageTopOnly: true }">
       <article class="hero-card roam">
         <molten-metal-background
           v-if="isHomeTab && !moltenFailed"

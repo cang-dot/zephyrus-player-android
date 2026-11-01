@@ -1,6 +1,11 @@
 <template>
   <div>
     <setting-section :title="t('settings.sections.lyrics')">
+      <setting-item item-id="lyric-credits" mode="expandable" default-open
+        :title="t('settings.lyricSettings.hideIntroOutroCredits')"
+        :description="t('settings.lyricSettings.creditDescription')">
+        <lyric-credit-settings />
+      </setting-item>
       <setting-item
         item-id="status-bar-lyrics"
         mode="expandable"
@@ -20,6 +25,7 @@ import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { readStatusBarLyricConfig } from '@/services/androidNative';
+import LyricCreditSettings from '@/components/lyric/LyricCreditSettings.vue';
 
 import StatusBarLyricSettings from '../components/StatusBarLyricSettings.vue';
 import SettingItem from '../SettingItem.vue';

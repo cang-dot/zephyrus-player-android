@@ -9,6 +9,8 @@
     <div
       ref="scrollContainer"
       class="cover-scroll-row overflow-x-auto overflow-y-hidden"
+      data-horizontal-scroll
+      v-horizontal-wheel
       style="padding-left: var(--page-pl, 1rem); padding-right: var(--page-pr, 1rem)"
     >
       <div class="cover-track flex gap-3">

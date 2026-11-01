@@ -824,6 +824,7 @@ const secondaryHostContentStyle = computed(() => {
 const pageTransitionName = computed(() => {
   // 歌单跳转过渡：覆盖层负责视觉衔接，二级页自身不做位移与底色过渡（避免双底色闪烁）
   if (playlistOpen.isActive()) return 'page-none';
+  if (route.path.startsWith('/artist/detail/')) return 'artist-detail';
   return pageTransitionDirection.value
     ? `page-slide-${pageTransitionDirection.value}`
     : 'page-fade';
@@ -2451,6 +2452,27 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   transform: translateY(-10px) scale(1.02);
 }
 
+.artist-detail-enter-active {
+  transition:
+    opacity 0.36s ease-out,
+    transform 0.42s cubic-bezier(0.22, 0.68, 0, 1);
+  z-index: 2;
+}
+
+.artist-detail-leave-active {
+  transition: opacity 0.24s ease-out;
+  z-index: 1;
+}
+
+.artist-detail-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.artist-detail-leave-to {
+  opacity: 0;
+}
+
 /* 底栏页面之间的横向切换：全幅推挤，下一页紧贴本页旁边，方向与手指移动一致。 */
 .page-slide-next-enter-active,
 .page-slide-next-leave-active,
@@ -2553,6 +2575,17 @@ $spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
   .page-slide-prev-enter-active,
   .page-slide-prev-leave-active {
     transition: opacity 0.2s ease;
+    transform: none;
+  }
+
+  .artist-detail-enter-active,
+  .artist-detail-leave-active {
+    transition: opacity 0.2s ease;
+    transform: none;
+  }
+
+  .artist-detail-enter-from,
+  .artist-detail-leave-to {
     transform: none;
   }
 

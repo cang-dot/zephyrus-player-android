@@ -14,7 +14,11 @@
     <!-- Main Content -->
     <div v-else class="space-y-4">
       <!-- Quick Navigation (mobile only) -->
-      <nav class="scrollbar-hide flex gap-1.5 overflow-x-auto pb-0.5 md:hidden">
+      <nav
+        class="scrollbar-hide flex gap-1.5 overflow-x-auto pb-0.5 md:hidden"
+        data-horizontal-scroll
+        v-horizontal-wheel
+      >
         <button
           v-for="(item, index) in quickNavItems"
           :key="item.key"

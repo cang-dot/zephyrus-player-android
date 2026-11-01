@@ -29,6 +29,7 @@ export interface TtmlAuxiliaryText {
 }
 
 export interface TtmlBackgroundLine {
+  creditOriginalIndex?: number;
   text: string;
   begin: number;
   end: number;
@@ -39,6 +40,8 @@ export interface TtmlBackgroundLine {
 }
 
 export interface TtmlLine {
+  creditOriginalIndex?: number;
+  creditHidden?: boolean;
   begin: number;
   end: number;
   text: string;
@@ -439,6 +442,7 @@ export function ttmlToTimedLines(lyric: TtmlLyric): ILyricText[] {
       const words = ttmlWordsToTimedWords(line.words);
 
       return {
+        creditHidden: line.creditHidden,
         text: line.text,
         trText: line.translations[0]?.text || '',
         romaText: line.romanizations[0]?.text || '',

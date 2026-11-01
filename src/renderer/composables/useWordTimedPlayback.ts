@@ -3,12 +3,14 @@ import { computed, ref, watch } from 'vue';
 import { resolveAmllSource } from '@/api/amllLyrics';
 import {
   correctionTime,
-  lrcArray,
+  displayLrcArray as lrcArray,
+  lrcArray as rawLrcArray,
   lrcTimeArray,
   nowIndex,
   nowTime,
   playMusic
 } from '@/hooks/MusicHook';
+import { lyricCreditConfig } from '@/services/lyricCreditConfig';
 import {
   getTtmlBackgroundLines,
   type TtmlBackgroundLine,
@@ -19,6 +21,7 @@ import {
 } from '@/services/ttmlParser';
 import { useAmllStore } from '@/store/modules/amll';
 import type { ILyricText, IWordData, LyricFormat } from '@/types/music';
+import { projectCreditTtml } from '@/utils/lyricCredits';
 import { findStartedTimedLineIndex } from '@/utils/timedLyricProgress';
 import { resolveTtmlInterludeState } from '@/utils/ttmlInterlude';
 
@@ -106,7 +109,7 @@ const activeTtmlSource = ref<string | null>(null);
 
 export function useWordTimedPlayback() {
   const amllStore = useAmllStore();
-  const lyric = computed(() => amllStore.ttmlLyric);
+  const lyric = computed(() => projectCreditTtml(amllStore.ttmlLyric, lyricCreditConfig.value));
   const correctedTime = computed(() => Math.max(0, nowTime.value + correctionTime.value));
   const expectedTtmlSource = computed(() => {
     const song = playMusic.value;
@@ -137,7 +140,7 @@ export function useWordTimedPlayback() {
 
   const providerLine = computed(() => lrcArray.value[nowIndex.value] || null);
   const providerHasWordTiming = computed(() =>
-    lrcArray.value.some((line) => Boolean(line.words?.length))
+    rawLrcArray.value.some((line) => Boolean(line.words?.length))
   );
   const providerMainToken = computed<WordPlaybackToken | null>(() => {
     const line = providerLine.value;
@@ -253,13 +256,20 @@ export function useWordTimedPlayback() {
       ? ttmlDisplayLines.value.map((line) => (line.startTime || 0) / 1000)
       : lrcTimeArray.value
   );
+  const hasDisplayLyrics = computed(() => displayLines.value.some((line) => line.text.trim()));
   const displayIndex = computed(() =>
     usingTtml.value
       ? findStartedTimedLineIndex(displayTimes.value, correctedTime.value)
       : nowIndex.value
   );
   const currentDisplayLine = computed<ILyricText | null>(
-    () => displayLines.value[displayIndex.value] || null
+    () => {
+      const line = displayLines.value[displayIndex.value];
+      if (!line || !line.text.trim()) return null;
+      if (usingTtml.value && correctedTime.value * 1000 >= (line.startTime || 0) + (line.duration || 0)) return null;
+      if (!usingTtml.value && correctedTime.value < (lrcTimeArray.value[displayIndex.value] ?? 0)) return null;
+      return line;
+    }
   );
   const displayLineKey = computed(
     () =>
@@ -267,7 +277,7 @@ export function useWordTimedPlayback() {
   );
 
   const interludeState = computed(() =>
-    usingTtml.value
+    usingTtml.value && hasDisplayLyrics.value
       ? resolveTtmlInterludeState({
           lines: primaryLines.value,
           time: correctedTime.value,
@@ -291,6 +301,7 @@ export function useWordTimedPlayback() {
     auxiliaryLines,
     stableAnimationKey,
     displayLines,
+    hasDisplayLyrics,
     displayTimes,
     displayIndex,
     currentDisplayLine,

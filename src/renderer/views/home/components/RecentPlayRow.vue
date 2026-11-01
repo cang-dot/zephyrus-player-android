@@ -35,7 +35,7 @@ async function play(song: SongResult) {
 <template>
   <section class="recent-row">
     <h2>{{ t('comp.homeHero.recentPlays') }}</h2>
-    <div class="recent-track" data-horizontal-scroll>
+    <div class="recent-track" data-horizontal-scroll v-horizontal-wheel>
       <button
         v-for="song in recentSongs"
         :key="song.id"

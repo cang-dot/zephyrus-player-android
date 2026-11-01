@@ -85,7 +85,7 @@
               :style="lyricStyle"
               :data-text="currentLyricText"
             >
-              {{ currentLyricText }}
+              {{ wordPlayback.hasDisplayLyrics.value ? currentLyricText : $t('player.lrc.noLrc') }}
             </div>
           </transition>
           <transition name="translation-fade">

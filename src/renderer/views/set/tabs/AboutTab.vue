@@ -338,7 +338,7 @@ async function submitFeedbackAction() {
       type: feedbackType.value,
       content: feedbackContent.value.trim(),
       contact: feedbackContact.value.trim() || undefined,
-      appVersion: config.version || '1.2.5',
+      appVersion: config.version || '1.4.1',
       device: navigator.userAgent || 'unknown',
       osVersion: navigator.platform || 'unknown'
     });

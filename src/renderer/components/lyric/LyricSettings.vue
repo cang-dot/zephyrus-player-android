@@ -15,6 +15,7 @@
     >
       <!-- ==================== 主视图：样式选择器 + 内联设置 ==================== -->
       <div class="space-y-2 pt-2">
+        <lyric-credit-settings />
         <div class="style-grid">
           <div
             v-for="style in playerStyles"
@@ -464,9 +465,11 @@ import { useI18n } from 'vue-i18n';
 
 import AppColorPicker from '@/components/common/AppColorPicker.vue';
 import AppSelect from '@/components/common/AppSelect.vue';
+import LyricCreditSettings from '@/components/lyric/LyricCreditSettings.vue';
 import { isFeatureEnabled } from '@/features/store';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { getAllStyles, getStyle } from '@/playerStyles';
+import { mergeStoredLyricConfig } from '@/services/lyricCreditConfig';
 import {
   DEFAULT_LYRIC_CONFIG,
   LyricConfig,
@@ -626,7 +629,7 @@ const clearBackgroundImage = () => {
 watch(
   () => config.value,
   (newConfig) => {
-    localStorage.setItem('music-full-config', JSON.stringify(newConfig));
+    localStorage.setItem('music-full-config', JSON.stringify(mergeStoredLyricConfig(newConfig)));
     updateCSSVariables(newConfig);
     // 通知 MusicFullWrapper 配置已更新
     window.dispatchEvent(new Event('music-full-config-updated'));

@@ -5,14 +5,18 @@ import { computed, type ComputedRef, nextTick, ref, watch } from 'vue';
 import { resolveAmllSource } from '@/api/amllLyrics';
 import useIndexedDB from '@/hooks/IndexDBHook';
 import { type AudioHandle, audioService } from '@/services/audioService';
+import { lyricCreditConfig } from '@/services/lyricCreditConfig';
 import { writePlayerSessionSnapshot } from '@/services/playbackSnapshot';
 import { smartMixService } from '@/services/smartMixService';
+import { ttmlToTimedLines } from '@/services/ttmlParser';
 import type { usePlayerStore } from '@/store';
 import { useAmllStore } from '@/store/modules/amll';
 import { useTransitionStore } from '@/store/modules/transition';
 import type { Artist, ILyricText, SongResult } from '@/types/music';
 import { isElectron } from '@/utils';
 import { getTextColors } from '@/utils/linearColor';
+import { projectCreditLyrics, projectCreditTtml } from '@/utils/lyricCredits';
+import { findStartedTimedLineIndex } from '@/utils/timedLyricProgress';
 import { parseLyrics } from '@/utils/yrcParser';
 
 const windowData = window as any;
@@ -45,6 +49,7 @@ const getPlayerStore = () => {
   return playerStore;
 };
 export const lrcArray = ref<ILyricText[]>([]); // 歌词数组
+export const displayLrcArray = computed(() => projectCreditLyrics(lrcArray.value, lyricCreditConfig.value));
 export const lrcTimeArray = ref<number[]>([]); // 歌词时间数组
 export const nowTime = ref(0); // 当前播放时间
 export const allTime = ref(0); // 总播放时间
@@ -350,7 +355,7 @@ const setupAudioListeners = () => {
             window.api.sendLyric(
               JSON.stringify({
                 type: 'update',
-                nowIndex: nowIndex.value,
+                nowIndex: desktopLyricIndex(),
                 nowTime: nowTime.value,
                 isPlay: getPlayerStore().play
               })
@@ -821,22 +826,23 @@ export const getLyricTextAtTime = (timeSec: number): string | null => {
   // currentSource 与当前歌不匹配（切歌瞬间残留）时回退 LRC
   try {
     const amllStore = useAmllStore();
-    const ttml = amllStore.ttmlLyric;
+    const ttml = projectCreditTtml(amllStore.ttmlLyric, lyricCreditConfig.value);
     const source = playMusic.value ? resolveAmllSource(playMusic.value) : null;
     const expectedSource = source ? `${source.platform}:${source.songId}` : null;
     if (ttml?.lines.length && expectedSource && amllStore.currentSource === expectedSource) {
       const t = timeSec + correctionTime.value;
       for (const line of ttml.lines) {
         if (line.isBackground) continue;
-        if (t >= line.begin && t < line.end && line.text.trim()) return line.text;
+        if (t >= line.begin && t < line.end) return line.text.trim() || null;
       }
+      return null;
     }
   } catch {
     /* pinia 未激活等极端时序：回退 LRC */
   }
   const index = getLrcIndex(timeSec);
   if (index >= 0 && index < lrcArray.value.length) {
-    return lrcArray.value[index].text || null;
+    return displayLrcArray.value[index].text || null;
   }
   return null;
 };
@@ -891,8 +897,8 @@ export const setAudioTime = (index: number) => {
 export const getCurrentLrc = () => {
   const index = getLrcIndex(nowTime.value);
   return {
-    currentLrc: lrcArray.value[index],
-    nextLrc: lrcArray.value[index + 1]
+    currentLrc: displayLrcArray.value[index],
+    nextLrc: displayLrcArray.value[index + 1]
   };
 };
 
@@ -904,13 +910,34 @@ export const getLrcTimeRange = (index: number) => ({
 
 // 监听歌词数组变化，当切换歌曲时重新初始化歌词窗口
 watch(
-  () => lrcArray.value,
-  (newLrcArray) => {
-    if (newLrcArray.length > 0 && isElectron && isLyricWindowOpen.value) {
+  () => displayLrcArray.value,
+  () => {
+    if (isElectron && isLyricWindowOpen.value) {
       sendLyricToWin();
     }
   }
 );
+
+const desktopLyricLines = computed(() => {
+  const provider = displayLrcArray.value;
+  if (!isElectron || !playMusic?.value) return provider;
+  const store = useAmllStore();
+  const source = resolveAmllSource(playMusic.value);
+  if (!source || store.currentSource !== `${source.platform}:${source.songId}`) return provider;
+  const ttml = projectCreditTtml(store.ttmlLyric, lyricCreditConfig.value);
+  if (!ttml) return provider;
+  const lines = ttmlToTimedLines(ttml);
+  // Explicit gap rows keep the native window from extending a TTML line.
+  return lines.flatMap((line, index) => {
+    const end = (line.startTime || 0) + (line.duration || 0);
+    const next = lines[index + 1]?.startTime ?? Infinity;
+    return end < next ? [line, { text: '', trText: '', startTime: end, duration: 0 }] : [line];
+  });
+});
+const desktopLyricTimes = computed(() => desktopLyricLines.value.map((line, index) =>
+  line.startTime != null ? line.startTime / 1000 : lrcTimeArray.value[index] || 0));
+const desktopLyricIndex = () => findStartedTimedLineIndex(desktopLyricTimes.value, nowTime.value + correctionTime.value);
+watch(desktopLyricLines, () => { if (isElectron && isLyricWindowOpen.value) sendLyricToWin(); });
 
 // 发送歌词更新数据
 export const sendLyricToWin = () => {
@@ -925,18 +952,18 @@ export const sendLyricToWin = () => {
 
   try {
     // 记录歌词发送状态
-    if (lrcArray.value && lrcArray.value.length > 0) {
-      const nowIndex = getLrcIndex(nowTime.value);
+    if (desktopLyricLines.value.some((line) => line.text.trim())) {
+      const nowIndex = desktopLyricIndex();
       // 构建完整的歌词更新数据
       const updateData = {
         type: 'full',
         nowIndex,
         nowTime: nowTime.value,
-        startCurrentTime: lrcTimeArray.value[nowIndex] || 0,
-        nextTime: lrcTimeArray.value[nowIndex + 1] || 0,
+        startCurrentTime: desktopLyricTimes.value[nowIndex] || 0,
+        nextTime: desktopLyricTimes.value[nowIndex + 1] || 0,
         isPlay: getPlayerStore().play,
-        lrcArray: lrcArray.value,
-        lrcTimeArray: lrcTimeArray.value,
+        lrcArray: desktopLyricLines.value,
+        lrcTimeArray: desktopLyricTimes.value,
         allTime: allTime.value,
         playMusic: playMusic.value
       };
@@ -981,7 +1008,7 @@ const startLyricSync = () => {
       try {
         const updateData = {
           type: 'update',
-          nowIndex: getLrcIndex(nowTime.value),
+          nowIndex: desktopLyricIndex(),
           nowTime: nowTime.value,
           isPlay: getPlayerStore().play
         };

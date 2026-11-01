@@ -249,7 +249,8 @@ import { usePosterShare } from '@/composables/usePosterShare';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
 import { useSwipeClose } from '@/composables/useSwipeClose';
 import { useTapToggle } from '@/composables/useTapToggle';
-import { artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
+import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
+import { artistList, nowTime, playMusic } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { usePlayerStore } from '@/store/modules/player';
 import { useStyleEngineStore } from '@/store/modules/styleEngine';
@@ -267,6 +268,9 @@ const emit = defineEmits<{
 }>();
 
 const playerStore = usePlayerStore();
+const playback = useWordTimedPlayback();
+const lrcArray = playback.displayLines;
+const nowIndex = playback.displayIndex;
 const styleEngine = useStyleEngineStore();
 const { primaryColor, primaryColorRgb } = useCoverColor();
 const { showPosterModal, selectedLyrics, posterSubject, handleGeneratePoster } = usePosterShare();
@@ -474,19 +478,14 @@ const blockLineCount = computed(() => {
  */
 // 分块输入:过滤空行(间奏占位)与制作名单行(作词/作曲/演职员表),
 // 这些行不属于演唱内容,不应出现在歌词块里
-const CREDITS_LINE_RE =
-  /^\s*(作词|作曲|编曲|混音|母带|出品|版权|录音|人声|和声|吉他|贝斯|笛子|古筝|键盘|鼓|制作人|监制|配器|策划|文案|主唱|合成器|录音棚)\s*[:：]/;
-const CREDITS_ANYWHERE_RE =
-  /(作词|作曲|编曲|混音|母带|出品|版权|录音棚|监制|配器|策划|文案|MIDI工程|混音\/母带)/;
 // 间奏/尾奏占位行('.' '♪' '——' 等):无演唱内容,还会以超长 duration 吞掉间奏判定
 const PLACEHOLDER_LINE_RE = /^[.。·•*※♪♫~\-—_\s]+$/;
 const chartRows = computed(() => {
   const rows: Array<{ idx: number; text: string }> = [];
   lrcArray.value.forEach((line, idx) => {
     const text = (line?.text || '').trim();
-    if (!text || PLACEHOLDER_LINE_RE.test(text) || CREDITS_LINE_RE.test(text)) return;
+    if (!text || PLACEHOLDER_LINE_RE.test(text)) return;
     // 名单行也会写在句中(录音棚/监制：宽音studio、混音/母带/MIDI工程：李豪)
-    if (CREDITS_ANYWHERE_RE.test(text) && text.length < 30) return;
     rows.push({ idx, text });
   });
   return rows;
@@ -584,6 +583,7 @@ const lyricBreaks = computed(() => {
 });
 // 间奏/尾奏判定:当前时间已越过最近一句的结束(容差 1.2s)且下一句尚远(≥0.5s)
 const inInterlude = computed(() => {
+  if (!playback.currentDisplayLine.value) return true;
   const rows = chartRows.value;
   if (!rows.length) return false;
   // nowIndex 对应的最近有效行

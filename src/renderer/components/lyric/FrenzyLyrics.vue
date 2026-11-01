@@ -54,8 +54,8 @@ import {
 
 interface LyricLine {
   text: string;
-  startTime: number;
-  duration: number;
+  startTime?: number;
+  duration?: number;
 }
 
 interface Props {
@@ -143,8 +143,9 @@ const detectionResult = computed<EmotionalDetectionResult>(() => {
   if (serverKeywords.length > 0 && currentLineIndex.value >= 0) {
     // 计算当前行的字符偏移量（wordIndex 是全局索引）
     let offset = 0;
+    const sourceLyrics = playerStore.currentSong?.lyric?.lrcArray || props.lyrics;
     for (let i = 0; i < currentLineIndex.value; i++) {
-      offset += (props.lyrics[i]?.text || '').length;
+      offset += (sourceLyrics[i]?.text || '').length;
     }
 
     // 将全局 wordIndex 转换为局部索引
@@ -190,15 +191,14 @@ watch(
   () => props.lyrics,
   (newLyrics) => {
     if (newLyrics && newLyrics.length > 0) {
-      analyzeLyricsForHighFreqWords(newLyrics);
+      analyzeLyricsForHighFreqWords(playerStore.currentSong?.lyric?.lrcArray || newLyrics);
     }
   },
   { immediate: true }
 );
 
 // 监听歌词行变化
-watch(currentLineIndex, async (newIndex, oldIndex) => {
-  if (newIndex === oldIndex) return;
+watch([currentLineIndex, () => props.lyrics], async ([newIndex]) => {
   if (newIndex < 0) {
     currentLyric.value = null;
     currentIndex.value = -1;

@@ -88,7 +88,7 @@
               fontFamily: frenzyFontFamily
             }"
           >
-            {{ isCustom && styleCfg.forceNoWrap ? currentLyricText : lyricPart1 }}
+            {{ !wordPlayback.hasDisplayLyrics.value ? $t('player.lrc.noLrc') : isCustom && styleCfg.forceNoWrap ? currentLyricText : lyricPart1 }}
           </div>
           <div
             v-if="!(isCustom && styleCfg.forceNoWrap)"

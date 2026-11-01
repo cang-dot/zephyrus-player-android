@@ -80,7 +80,7 @@ async function playSong(song: SongResult) {
   <section class="recommend-section">
     <h2>{{ t('comp.homeV2.recommendTitle') }}</h2>
 
-    <div v-if="cards.length" class="recommend-track" data-horizontal-scroll>
+    <div v-if="cards.length" class="recommend-track" data-horizontal-scroll v-horizontal-wheel>
       <div v-for="(card, cardIndex) in cards" :key="cardIndex" class="recommend-card">
         <button
           v-for="entry in card"

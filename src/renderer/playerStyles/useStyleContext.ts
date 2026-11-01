@@ -1,5 +1,6 @@
 import type { KeywordWord } from '@/api/keywords';
-import { lrcArray, nowIndex, nowTime } from '@/hooks/MusicHook';
+import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
+import { nowTime } from '@/hooks/MusicHook';
 import { useCoverColor } from '@/hooks/useCoverColor';
 import { useClimaxStore } from '@/store/modules/climax';
 import { usePlayerStore } from '@/store/modules/player';
@@ -20,6 +21,9 @@ function readConfig(): Record<string, any> {
 }
 
 export function useStyleContext() {
+  const playback = useWordTimedPlayback();
+  const lrcArray = playback.displayLines;
+  const nowIndex = playback.displayIndex;
   const styleEngine = useStyleEngineStore();
   const playerStore = usePlayerStore();
   const climaxStore = useClimaxStore();
@@ -29,11 +33,7 @@ export function useStyleContext() {
 
   /** 获取当前行歌词文本 */
   function getCurrentLyric(): string {
-    const idx = nowIndex.value;
-    if (idx >= 0 && idx < lrcArray.value.length) {
-      return lrcArray.value[idx].text || '';
-    }
-    return '';
+    return playback.currentDisplayLine.value?.text || '';
   }
 
   /** 获取完整歌词列表（带时间轴） */

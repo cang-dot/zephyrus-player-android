@@ -7,7 +7,7 @@
 import { watch } from 'vue';
 
 import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
-import { allTime, artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
+import { allTime, artistList, displayLrcArray as lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import {
@@ -415,8 +415,8 @@ export function refreshStatusBarLyric(applyConfig = true) {
     if (!enabled || !permitted) return;
 
     const song = playMusic?.value;
-    const line = wordTimedPlayback?.currentDisplayLine.value || lrcArray.value[nowIndex.value];
-    const text = line?.text?.trim() || song?.name?.trim() || '';
+    const line = wordTimedPlayback ? wordTimedPlayback.currentDisplayLine.value : lrcArray.value[nowIndex.value];
+    const text = line?.text?.trim() || '';
     const accentColor = song?.primaryColor || '#ffffff';
     if (window.AndroidNative!.updateStatusBarLyricState) {
       const words = (line?.words || []).filter((word) => word.text);
@@ -475,7 +475,7 @@ function pushStatusBarLyricTimeline() {
         .filter((word) => word.text)
         .map((word) => ({ text: word.text, startTime: word.startTime, duration: word.duration }))
     }))
-    .filter((line) => line.text && line.startTime >= 0);
+    .filter((line) => line.startTime >= 0);
   try {
     window.AndroidNative!.setStatusBarLyricTimeline(JSON.stringify({ lines }));
   } catch (e) {

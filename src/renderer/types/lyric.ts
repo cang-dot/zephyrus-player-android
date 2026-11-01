@@ -1,3 +1,5 @@
+import { DEFAULT_LYRIC_CREDIT_KEYWORDS } from '@/utils/lyricCredits';
+
 import type { MobilePlayerStyleKey, PlayerStyleCustomConfig } from './playerStyle';
 
 export type LyricAlignment = 'left' | 'center' | 'right';
@@ -171,6 +173,8 @@ export function normalizeStatusBarLyricConfig(
 }
 
 export interface LyricConfig {
+  hideIntroOutroCredits: boolean;
+  lyricCreditKeywords: string[];
   hideCover: boolean;
   centerLyrics: boolean;
   lyricAlignment: LyricAlignment;
@@ -245,6 +249,8 @@ export interface LyricConfig {
 }
 
 export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
+  hideIntroOutroCredits: false,
+  lyricCreditKeywords: [...DEFAULT_LYRIC_CREDIT_KEYWORDS],
   hideCover: false,
   centerLyrics: false,
   lyricAlignment: 'left',

@@ -157,7 +157,7 @@
                   }"
                   :style="{ color: mainLyricColor, fontFamily: errorFontFamily }"
                 >
-                  {{ decoratedText(currentLyricText) }}
+                  {{ wordPlayback.hasDisplayLyrics.value ? decoratedText(currentLyricText) : $t('player.lrc.noLrc') }}
                 </div>
               </div>
             </div>

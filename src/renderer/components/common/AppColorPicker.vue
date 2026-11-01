@@ -73,14 +73,20 @@
 </template>
 
 <script lang="ts" setup>
-import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 
 import { registerMobileBackLayer } from '@/services/mobileBackStack';
+import { hexToHsl, hslToHex, normalizeHex } from '@/utils/colorPickerMath';
 
 /**
  * 自写取色器：替代原生 input[type=color]（安卓 WebView 弹系统取色对话框）。
  * 弹层内提供预设色板 + HSL 滑杆 + HEX 输入；「确定」提交，「取消」还原。
  * 颜色以 #rrggbb 小写透传，与原生 color input 的取值口径一致。
+ *
+ * 关键约束（此前三处会导致「一点开颜色就变」）：
+ * 1. HSL 保存浮点，不做整数取整——取整后再转回 hex 会漂移 1-3/通道；
+ * 2. 由 hex 反填滑杆时用 syncing 闸门，避免滑杆 watcher 把近似值回写；
+ * 3. 打开弹层不 emit，取消时还原打开瞬间的快照（而非可能已被改动的 props）。
  */
 defineOptions({ name: 'AppColorPicker' });
 
@@ -93,71 +99,34 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [value: string]; change: [value: string] }>();
 
 const PRESET_COLORS = [
-  '#ffffff', '#c9c2b7', '#9a9590', '#55524e', '#1c1b1a', '#000000',
-  '#ea402f', '#fb7299', '#e86aa6', '#f5a623', '#f8d477', '#7ba05b',
-  '#4caf7d', '#37a0a8', '#5a8dd6', '#7c5cff', '#a05ccc', '#8e6e5a'
+  '#ffffff',
+  '#c9c2b7',
+  '#9a9590',
+  '#55524e',
+  '#1c1b1a',
+  '#000000',
+  '#ea402f',
+  '#fb7299',
+  '#e86aa6',
+  '#f5a623',
+  '#f8d477',
+  '#7ba05b',
+  '#4caf7d',
+  '#37a0a8',
+  '#5a8dd6',
+  '#7c5cff',
+  '#a05ccc',
+  '#8e6e5a'
 ];
 
 const open = ref(false);
 const draft = ref(props.modelValue || '#888888');
 const hexInput = ref(props.modelValue || '#888888');
 const hsl = reactive({ h: 0, s: 0, l: 50 });
+let openedValue = props.modelValue || '#888888';
 let backDisposer: (() => void) | null = null;
-
-// ---------- hex <-> hsl ----------
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function hexToRgb(hex: string): [number, number, number] | null {
-  const normalized = hex.trim().replace(/^#/, '');
-  const full =
-    normalized.length === 3
-      ? normalized
-          .split('')
-          .map((c) => c + c)
-          .join('')
-      : normalized;
-  if (!/^[0-9a-fA-F]{6}$/.test(full)) return null;
-  return [
-    parseInt(full.slice(0, 2), 16),
-    parseInt(full.slice(2, 4), 16),
-    parseInt(full.slice(4, 6), 16)
-  ];
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  const to = (v: number) => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0');
-  return `#${to(r)}${to(g)}${to(b)}`;
-}
-
-function hslToHex(h: number, s: number, l: number): string {
-  const sat = s / 100;
-  const lig = l / 100;
-  const k = (n: number) => (n + h / 30) % 12;
-  const a = sat * Math.min(lig, 1 - lig);
-  const f = (n: number) => lig - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  return rgbToHex(f(0) * 255, f(8) * 255, f(4) * 255);
-}
-
-function hexToHsl(hex: string): { h: number; s: number; l: number } {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return { h: 0, s: 0, l: 50 };
-  const [r255, g255, b255] = rgb.map((v) => v / 255);
-  const max = Math.max(r255, g255, b255);
-  const min = Math.min(r255, g255, b255);
-  const l = (max + min) / 2;
-  let h = 0;
-  let s = 0;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    if (max === r255) h = ((g255 - b255) / d + (g255 < b255 ? 6 : 0)) * 60;
-    else if (max === g255) h = ((b255 - r255) / d + 2) * 60;
-    else h = ((r255 - g255) / d + 4) * 60;
-  }
-  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
-}
+/** 由 hex 反填滑杆期间为 true，阻断滑杆 watcher 的近似回写 */
+let syncing = false;
 
 // ---------- 同步 ----------
 watch(
@@ -169,56 +138,81 @@ watch(
   }
 );
 
-// 弹层内 draft 变化（滑杆）→ 同步 hex 输入
+/** 由 hex 反填滑杆：同步期间禁用回写，等一帧后恢复 */
+function syncHslFromHex(hex: string) {
+  const next = hexToHsl(hex);
+  syncing = true;
+  hsl.h = next.h;
+  hsl.s = next.s;
+  hsl.l = next.l;
+  void nextTick(() => {
+    syncing = false;
+  });
+}
+
+function emitColor(value: string) {
+  emit('update:modelValue', value);
+  emit('change', value);
+}
+
+// 滑杆变化 → 生成 hex（仅用户操作触发）
 watch(
   () => hsl,
   () => {
-    if (!open.value) return;
-    draft.value = hslToHex(hsl.h, hsl.s, hsl.l);
-    hexInput.value = draft.value;
+    if (syncing || !open.value) return;
+    const next = hslToHex(hsl.h, hsl.s, hsl.l);
+    if (next === draft.value) return;
+    draft.value = next;
+    hexInput.value = next;
     // 与原生 input 的实时行为一致：调色过程持续上抛
-    emit('update:modelValue', draft.value);
-    emit('change', draft.value);
+    emitColor(next);
   },
   { deep: true }
 );
 
 const applyColor = (color: string) => {
-  draft.value = color;
-  hexInput.value = color;
-  Object.assign(hsl, hexToHsl(color));
-  emit('update:modelValue', draft.value);
-  emit('change', draft.value);
+  const normalized = normalizeHex(color);
+  if (!normalized) return;
+  draft.value = normalized;
+  hexInput.value = normalized;
+  syncHslFromHex(normalized);
+  emitColor(normalized);
 };
 
 const applyHexInput = () => {
-  const rgb = hexToRgb(hexInput.value);
-  if (!rgb) {
+  const normalized = normalizeHex(hexInput.value);
+  if (!normalized) {
     hexInput.value = draft.value;
     return;
   }
-  applyColor(rgbToHex(rgb[0], rgb[1], rgb[2]));
+  applyColor(normalized);
 };
 
 const confirm = () => {
-  applyHexInput();
-  emit('update:modelValue', draft.value);
-  emit('change', draft.value);
-  closeSheet();
+  const normalized = normalizeHex(hexInput.value);
+  if (normalized) {
+    draft.value = normalized;
+    emitColor(normalized);
+  } else {
+    emitColor(draft.value);
+  }
+  open.value = false;
 };
 
 const openSheet = () => {
   if (props.disabled) return;
-  draft.value = props.modelValue || '#888888';
-  hexInput.value = draft.value;
-  Object.assign(hsl, hexToHsl(draft.value));
+  openedValue = props.modelValue || '#888888';
+  draft.value = openedValue;
+  hexInput.value = openedValue;
+  syncHslFromHex(openedValue);
   open.value = true;
 };
 
 const closeSheet = () => {
-  // 取消：还原为打开前取值
-  emit('update:modelValue', props.modelValue || '#888888');
-  emit('change', props.modelValue || '#888888');
+  // 取消：还原为打开瞬间的取值（打开后未提交的实时改动一并撤销）
+  emitColor(openedValue);
+  draft.value = openedValue;
+  hexInput.value = openedValue;
   open.value = false;
 };
 
@@ -281,7 +275,7 @@ onBeforeUnmount(() => {
 .acp-overlay {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: 100201;
   background: rgba(0, 0, 0, 0.4);
 }
 
@@ -290,7 +284,7 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 121;
+  z-index: 100202;
   max-width: 560px;
   margin: 0 auto;
   /* Teleport 到 body 后取不到布局变量：78px = 迷你播放栏播放态占位 */

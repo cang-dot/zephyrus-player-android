@@ -28,6 +28,8 @@ export interface IWordData {
 }
 
 export interface ILyricText {
+  /** Display-only placeholder; source lyrics never contain this flag. */
+  creditHidden?: boolean;
   text: string;
   trText: string;
   romaText?: string;

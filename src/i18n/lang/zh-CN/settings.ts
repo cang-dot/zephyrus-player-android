@@ -406,6 +406,13 @@ export default {
     errorConfirmHint: '「错误」样式包含强烈闪烁效果，为防光敏不适请再次点击确认'
   },
   lyricSettings: {
+    hideIntroOutroCredits: "隐藏首尾报幕",
+    creditDescription: "隐藏歌曲开头和结尾的署名行，不影响歌词原文和分享导出。",
+    creditKeywords: "报幕关键词",
+    creditKeywordsHelp: "每行一个关键词。简繁和英文大小写等价；匹配冒号前的完整字段，不支持正则。清空后不再过滤。",
+    saveCreditKeywords: "保存关键词",
+    restoreCreditKeywords: "恢复默认关键词",
+
     title: '布局设置',
     showCommentSection: '显示评论区',
     pageLayout: '页面布局',

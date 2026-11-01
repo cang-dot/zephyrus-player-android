@@ -264,6 +264,7 @@
               >
                 <div class="control-section-reveal expanded">
                   <div id="control-section-lyrics" class="control-section-body">
+                    <lyric-credit-settings class="mb-2" />
                     <!-- 显示翻译 -->
                     <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 mb-2">
                       <div>
@@ -470,6 +471,8 @@
                     <div
                       ref="lyricSourceRailRef"
                       class="lyric-source-rail"
+                      data-horizontal-scroll
+                      v-horizontal-wheel
                       @pointermove="onSourceRailPointerMove"
                       @pointerup="endSourceDrag"
                       @pointercancel="endSourceDrag"
@@ -1286,6 +1289,7 @@ import SongMetadataEditor from '@/components/common/SongMetadataEditor.vue';
 // 绑定名用 EqControl：Vue 的 kebab-case 解析为 camelize+capitalize，
 // 保留 EQControl 会导致 <eq-control> 解析失败
 import EqControl from '@/components/EQControl.vue';
+import LyricCreditSettings from '@/components/lyric/LyricCreditSettings.vue';
 import PhotosensitivityWarning from '@/components/lyric/PhotosensitivityWarning.vue';
 import AppSelect from '@/components/common/AppSelect.vue';
 import PlayerStyleCustomizationPanel from '@/components/player/PlayerStyleCustomizationPanel.vue';
@@ -2300,6 +2304,7 @@ let suppressConfigSync = false;
 let storageWarnShown = false;
 
 function persistLyricConfig(next: LyricConfig) {
+  if (suppressConfigSync) return;
   const writeSnapshot = (): boolean => {
     let latest: Record<string, unknown> = {};
     try {

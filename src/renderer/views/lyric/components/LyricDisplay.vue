@@ -3,7 +3,7 @@
     <!-- 滚动模式 -->
     <div v-if="displayMode === 'scroll'" class="lyric-scroll">
       <div class="lyric-wrapper" :style="wrapperStyle">
-        <template v-if="lrcArray && lrcArray.length > 0">
+        <template v-if="lrcArray && lrcArray.some((line) => line.text.trim())">
           <div
             v-for="(line, index) in lrcArray"
             :key="index"

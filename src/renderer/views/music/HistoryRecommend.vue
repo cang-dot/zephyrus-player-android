@@ -50,7 +50,12 @@
     </div>
 
     <!-- 鏃ユ湡閫夋嫨鏍囩 -->
-    <div v-if="availableDates.length > 0" class="date-tabs-wrapper" data-horizontal-scroll>
+    <div
+      v-if="availableDates.length > 0"
+      class="date-tabs-wrapper"
+      data-horizontal-scroll
+      v-horizontal-wheel
+    >
       <segment-slider
         :model-value="selectedDate"
         :tabs="displayedDates.map((d) => ({ key: d, label: formatDate(d) }))"

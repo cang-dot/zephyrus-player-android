@@ -128,7 +128,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import Aurora from '@/components/Aurora.vue';
 import { useStyleCustomConfig } from '@/composables/useStyleCustomConfig';
-import { artistList, lrcArray, nowIndex, nowTime, playMusic } from '@/hooks/MusicHook';
+import { useWordTimedPlayback } from '@/composables/useWordTimedPlayback';
+import { artistList, nowTime, playMusic } from '@/hooks/MusicHook';
 import { drumDetector } from '@/services/drumDetector';
 import { useClimaxStore } from '@/store/modules/climax';
 import { usePlayerStore } from '@/store/modules/player';
@@ -206,6 +207,9 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue']);
 
 const playerStore = usePlayerStore();
+const playback = useWordTimedPlayback();
+const lrcArray = playback.displayLines;
+const nowIndex = playback.displayIndex;
 
 // ==================== 响应式状态 ====================
 
@@ -214,7 +218,9 @@ const isVisible = computed({
   set: (value) => emit('update:modelValue', value)
 });
 
-const currentLine = computed<ILyricText | undefined>(() => lrcArray.value[nowIndex.value]);
+const currentLine = computed<ILyricText | undefined>(
+  () => playback.currentDisplayLine.value || undefined
+);
 
 // 背景词：查找当前歌词的下一行 isBG 为 true 的歌词
 const backgroundLine = computed(() => {
@@ -529,8 +535,11 @@ watch(
 watch(
   () => currentLine.value,
   (line) => {
-    if (!line) return;
-    if (displayText.value !== line.text && displayText.value.length === 0) {
+    if (!line) {
+      displayText.value = '';
+      return;
+    }
+    if (displayText.value !== line.text) {
       displayText.value = line.text;
       lastProcessedIndex = nowIndex.value;
     }

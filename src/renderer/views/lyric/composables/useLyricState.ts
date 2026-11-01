@@ -10,6 +10,7 @@ const TIME_OFFSET = 400;
 
 export interface LyricLine {
   text: string;
+  creditHidden?: boolean;
   trText: string;
   words?: Array<{ text: string; startTime: number; duration: number; space?: boolean }>;
   hasWordByWord?: boolean;
@@ -86,6 +87,7 @@ export function useLyricState(lyricSetting: Ref<LyricSettings>) {
   const currentGroupLines = computed(() => {
     const idx = currentIndex.value;
     const arr = staticData.value.lrcArray;
+    if (arr[idx]?.creditHidden) return [{ ...arr[idx], index: idx }];
     return [
       arr[idx] ? { ...arr[idx], index: idx } : null,
       arr[idx + 1] ? { ...arr[idx + 1], index: idx + 1 } : null

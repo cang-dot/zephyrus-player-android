@@ -22,6 +22,8 @@
         <!-- Category Tabs -->
         <div
           class="bg-gray-100 dark:bg-neutral-800 p-1 rounded-full inline-flex h-9 items-center overflow-x-auto no-scrollbar max-w-full"
+          data-horizontal-scroll
+          v-horizontal-wheel
         >
           <div
             v-for="tab in ['songs', 'playlists', 'albums', 'podcasts']"

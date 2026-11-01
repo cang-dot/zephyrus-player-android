@@ -412,6 +412,13 @@ export default {
       '"오류" 스타일은 강한 깜빡임을 포함합니다. 광과민성 예방을 위해 다시 탭해 확인해 주세요'
   },
   lyricSettings: {
+    hideIntroOutroCredits: "처음과 끝의 크레딧 숨기기",
+    creditDescription: "곡 처음과 끝의 크레딧 행을 숨깁니다. 가사 원문과 공유 내보내기에는 영향을 주지 않습니다.",
+    creditKeywords: "크레딧 키워드",
+    creditKeywordsHelp: "한 줄에 하나씩 입력하세요. 중국어 간체·번체와 영문 대소문자는 구분하지 않습니다. 콜론 앞 필드 전체를 비교하며 정규식은 지원하지 않습니다. 목록을 비우면 필터링하지 않습니다.",
+    saveCreditKeywords: "키워드 저장",
+    restoreCreditKeywords: "기본 키워드 복원",
+
     title: '레이아웃 설정',
     showCommentSection: '댓글 표시',
     pageLayout: '페이지 레이아웃',

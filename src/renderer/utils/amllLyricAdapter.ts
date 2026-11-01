@@ -5,7 +5,7 @@ import type { ILyricText, IWordData } from '@/types/music';
 
 const MIN_LINE_DURATION = 1000;
 
-export type IndexedAmllLyricLine = LyricLine & { __zephyrusSourceIndex: number };
+export type IndexedAmllLyricLine = LyricLine & { __zephyrusSourceIndex: number; __zephyrusOriginalIndex?: number };
 
 export const MOBILE_AMLL_OPTIMIZE_OPTIONS = Object.freeze({
   normalizeSpaces: false,
@@ -59,10 +59,11 @@ export function providerLyricsToAmll(lines: readonly ILyricText[]): LyricLine[] 
         startTime,
         endTime,
         isBG: Boolean(line.isBG),
-        isDuet: false
-      } satisfies LyricLine;
+        isDuet: false,
+        __zephyrusOriginalIndex: index
+      } satisfies LyricLine & { __zephyrusOriginalIndex: number };
     })
-    .filter((line) => line.words.some((word) => word.word.trim()))
+    .filter((line, index) => lines[index].creditHidden || line.words.some((word) => word.word.trim()))
     .map((line, index) => ({ ...line, __zephyrusSourceIndex: index }));
 }
 
@@ -91,6 +92,7 @@ function ttmlLineToAmll(
   const endTime = ensureEnd(startTime, finiteMs(line.end * 1000, startTime + MIN_LINE_DURATION));
   return {
     __zephyrusSourceIndex: options.sourceIndex,
+    __zephyrusOriginalIndex: line.creditOriginalIndex ?? options.sourceIndex,
     words: ttmlWords(line.words, line.text, startTime, endTime),
     translatedLyric: line.translations[0]?.text || '',
     romanLyric: line.romanizations[0]?.text || '',

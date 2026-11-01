@@ -402,6 +402,13 @@ export default {
     errorConfirmHint: '「錯誤」樣式包含強烈閃爍效果，為防光敏不適請再次點擊確認'
   },
   lyricSettings: {
+    hideIntroOutroCredits: "隱藏首尾報幕",
+    creditDescription: "隱藏歌曲開頭和結尾的署名行，不影響歌詞原文和分享匯出。",
+    creditKeywords: "報幕關鍵詞",
+    creditKeywordsHelp: "每行一個關鍵詞。簡繁和英文大小寫等價；比對冒號前的完整欄位，不支援正規表示式。清空後不再過濾。",
+    saveCreditKeywords: "儲存關鍵詞",
+    restoreCreditKeywords: "恢復預設關鍵詞",
+
     title: '佈局設定',
     showCommentSection: '顯示評論區',
     pageLayout: '頁面佈局',

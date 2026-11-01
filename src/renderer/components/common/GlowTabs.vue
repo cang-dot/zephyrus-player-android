@@ -3,6 +3,8 @@
   <div
     v-if="!isMobile"
     class="glow-tabs"
+    v-horizontal-wheel
+    :data-horizontal-scroll="scrollable ? '' : undefined"
     :class="{
       'glow-tabs--full': fullWidth,
       'glow-tabs--scroll': scrollable

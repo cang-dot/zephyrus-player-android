@@ -413,6 +413,13 @@ export default {
       'The "Error" style contains intense flashing. Tap again to confirm (photosensitivity)'
   },
   lyricSettings: {
+    hideIntroOutroCredits: "Hide intro/outro credits",
+    creditDescription: "Hide credit lines at the start and end. Original lyrics and shared exports stay intact.",
+    creditKeywords: "Credit keywords",
+    creditKeywordsHelp: "One keyword per line. Simplified/traditional Chinese and letter case are equivalent. Matches the complete field before a colon. No regular expressions. An empty list disables matching.",
+    saveCreditKeywords: "Save keywords",
+    restoreCreditKeywords: "Restore default keywords",
+
     title: 'Layout',
     showCommentSection: 'Show comment section',
     pageLayout: 'Page layout',
