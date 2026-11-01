@@ -2259,10 +2259,11 @@ input:focus-visible {
   font-size: 20px;
 }
 
-/* 专辑单行横滑：与热门歌曲卡同宽的大卡 */
+/* 随轨道宽度显示双列，宽屏下限制封面尺寸。 */
 .ma-album-card {
-  flex: 0 0 calc(50vw - 21px);
+  flex: 0 0 clamp(148px, calc(50% - 6px), 220px);
   min-width: 148px;
+  scroll-snap-align: start;
 }
 
 .ma-spin {
